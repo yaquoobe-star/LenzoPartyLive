@@ -1,0 +1,306 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered Linzo Party Live user profile stored in Firestore",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Unique Firebase Authentication UID",
+          "maxLength": 128
+        },
+        "fullName": {
+          "type": "string",
+          "description": "User's full display name",
+          "minLength": 2,
+          "maxLength": 60
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address",
+          "format": "email",
+          "maxLength": 120
+        },
+        "profileImage": {
+          "type": "string",
+          "description": "URL or avatar path for user profile picture",
+          "maxLength": 1000
+        },
+        "coverImage": {
+          "type": "string",
+          "description": "URL for user cover banner picture",
+          "maxLength": 1000
+        },
+        "bio": {
+          "type": "string",
+          "description": "User profile biography",
+          "maxLength": 300
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Authentication method used (google or password)",
+          "enum": ["google", "password"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp or server timestamp string when user account was created"
+        },
+        "lastLogin": {
+          "type": "string",
+          "description": "ISO timestamp or server timestamp string of last login"
+        },
+        "isOnline": {
+          "type": "boolean",
+          "description": "Whether the user is currently online"
+        },
+        "followersCount": {
+          "type": "number",
+          "description": "Total followers count"
+        },
+        "followingCount": {
+          "type": "number",
+          "description": "Total following count"
+        },
+        "level": {
+          "type": "number",
+          "description": "User's gamified streaming level"
+        },
+        "coins": {
+          "type": "number",
+          "description": "Total coins in user balance"
+        },
+        "diamonds": {
+          "type": "number",
+          "description": "Total diamonds earned from gifts"
+        },
+        "vipLevel": {
+          "type": "number",
+          "description": "VIP tier level (1 to 5)"
+        },
+        "accountStatus": {
+          "type": "string",
+          "description": "Status of the user account",
+          "enum": ["active", "suspended", "pending"]
+        }
+      },
+      "required": ["uid", "fullName", "email", "authProvider", "accountStatus"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "User video post in the video feed",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of post creator",
+          "maxLength": 128
+        },
+        "videoUrl": {
+          "type": "string",
+          "description": "Cloud Storage or CDN URL of the video",
+          "maxLength": 1500
+        },
+        "thumbnailUrl": {
+          "type": "string",
+          "description": "Cloud Storage URL of the video thumbnail",
+          "maxLength": 1500
+        },
+        "description": {
+          "type": "string",
+          "description": "Caption or text description of the post",
+          "maxLength": 500
+        },
+        "musicTitle": {
+          "type": "string",
+          "description": "Audio track or music name used in the video",
+          "maxLength": 150
+        },
+        "likesCount": {
+          "type": "number",
+          "description": "Total likes count"
+        },
+        "commentsCount": {
+          "type": "number",
+          "description": "Total comments count"
+        },
+        "sharesCount": {
+          "type": "number",
+          "description": "Total shares count"
+        },
+        "isPrivate": {
+          "type": "boolean",
+          "description": "Whether the video is private to creator"
+        }
+      },
+      "required": ["userId", "videoUrl"]
+    },
+    "PartyRoom": {
+      "title": "PartyRoom",
+      "description": "Active audio party room session",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Room title",
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "description": "Room category (Music, Gaming, Chill, etc.)",
+          "maxLength": 50
+        },
+        "maxSeats": {
+          "type": "number",
+          "description": "Total stage seats capacity (8, 12, or 16)"
+        },
+        "isLocked": {
+          "type": "boolean",
+          "description": "Whether seats are locked"
+        },
+        "allowJoin": {
+          "type": "boolean",
+          "description": "Whether listeners can request stage seats"
+        },
+        "announcement": {
+          "type": "string",
+          "description": "Room announcement message",
+          "maxLength": 500
+        }
+      },
+      "required": ["title", "category", "maxSeats"]
+    },
+    "LiveStream": {
+      "title": "LiveStream",
+      "description": "Solo real-time live broadcasting stream",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Live stream title",
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "description": "Stream category",
+          "maxLength": 50
+        },
+        "viewersCount": {
+          "type": "number",
+          "description": "Live audience count"
+        },
+        "likesCount": {
+          "type": "number",
+          "description": "Total hearts received"
+        }
+      },
+      "required": ["title", "category"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Wallet coin recharge or gift transaction",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID of the user who performed transaction",
+          "maxLength": 128
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of transaction",
+          "enum": ["recharge", "gift_sent", "gift_received", "reward"]
+        },
+        "amount": {
+          "type": "number",
+          "description": "Real currency amount or coin value"
+        },
+        "coinsChange": {
+          "type": "number",
+          "description": "Coins added (+) or deducted (-)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Transaction description",
+          "maxLength": 200
+        }
+      },
+      "required": ["userId", "type", "coinsChange"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app push or event notification",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Notification headline",
+          "maxLength": 100
+        },
+        "message": {
+          "type": "string",
+          "description": "Notification body message",
+          "maxLength": 300
+        },
+        "type": {
+          "type": "string",
+          "description": "Notification category",
+          "enum": ["system", "like", "follow", "gift"]
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether notification has been opened"
+        }
+      },
+      "required": ["title", "message", "type"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Direct message in a 1-on-1 chat",
+      "type": "object",
+      "properties": {
+        "senderId": {
+          "type": "string",
+          "description": "UID of sender",
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "description": "Message text content",
+          "maxLength": 1000
+        }
+      },
+      "required": ["senderId", "text"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Stores user profiles keyed by their Firebase Auth UID"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "User uploaded videos and posts"
+    },
+    "/party_rooms/{roomId}": {
+      "schema": "PartyRoom",
+      "description": "Active audio party rooms"
+    },
+    "/live_streams/{streamId}": {
+      "schema": "LiveStream",
+      "description": "Active live video streams"
+    },
+    "/users/{uid}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User coin transactions and purchase history"
+    },
+    "/users/{uid}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Direct chat conversation messages"
+    }
+  }
+}

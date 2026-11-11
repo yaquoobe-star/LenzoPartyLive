@@ -1,0 +1,6 @@
+{
+  "name": "Lonzo Party Live",
+  "description": "Lonzo Party Live — Chat, Live, Party, Connect. Premium live streaming, audio party rooms, PK battles, virtual gifts, and creator communities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,191 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ========================================================
+    // GLOBAL SECURITY PRIMITIVES
+    // ========================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ========================================================
+    // 1. USERS COLLECTION (/users/{uid})
+    // ========================================================
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'email', 'authProvider', 'accountStatus'])
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 60
+        && data.email is string && data.email.size() <= 120
+        && data.authProvider in ['google', 'password']
+        && data.accountStatus in ['active', 'suspended', 'pending']
+        && (!('profileImage' in data) || (data.profileImage is string && data.profileImage.size() <= 1000))
+        && (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1000))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 300))
+        && (!('followersCount' in data) || data.followersCount is number)
+        && (!('followingCount' in data) || data.followingCount is number)
+        && (!('level' in data) || data.level is number)
+        && (!('coins' in data) || data.coins is number)
+        && (!('diamonds' in data) || data.diamonds is number)
+        && (!('vipLevel' in data) || data.vipLevel is number)
+        && (!('isOnline' in data) || data.isOnline is bool);
+    }
+
+    match /users/{uid} {
+      // Authenticated users can view user profiles (live hosts, room members)
+      allow get: if isSignedIn() && isValidId(uid);
+      
+      // Prevent query scraping; list query must be scoped to the authenticated user
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+
+      // Only the authenticated user can create their own profile document
+      allow create: if isOwner(uid)
+                    && isValidId(uid)
+                    && incoming().uid == request.auth.uid
+                    && isValidUser(incoming());
+
+      // Only the user themselves can update their profile; immutable uid enforced
+      allow update: if isOwner(uid)
+                    && isValidId(uid)
+                    && incoming().uid == existing().uid
+                    && isValidUser(incoming());
+
+      allow delete: if false;
+
+      // User Transactions subcollection
+      match /transactions/{transactionId} {
+        allow get: if isOwner(uid) && isValidId(transactionId);
+        allow list: if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && isValidId(transactionId)
+                      && incoming().userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // User Notifications subcollection
+      match /notifications/{notificationId} {
+        allow get: if isOwner(uid) && isValidId(notificationId);
+        allow list: if isOwner(uid);
+        allow create: if isSignedIn()
+                      && isValidId(notificationId);
+        allow update: if isOwner(uid)
+                      && isValidId(notificationId)
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+        allow delete: if isOwner(uid) && isValidId(notificationId);
+      }
+    }
+
+    // ========================================================
+    // 2. POSTS / VIDEOS COLLECTION (/posts/{postId})
+    // ========================================================
+    function isValidPost(data) {
+      return data.keys().hasAll(['userId', 'videoUrl'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.videoUrl is string && data.videoUrl.size() <= 1500
+        && (!('description' in data) || (data.description is string && data.description.size() <= 500))
+        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1500))
+        && (!('musicTitle' in data) || (data.musicTitle is string && data.musicTitle.size() <= 150))
+        && (!('likesCount' in data) || data.likesCount is number)
+        && (!('commentsCount' in data) || data.commentsCount is number)
+        && (!('sharesCount' in data) || data.sharesCount is number)
+        && (!('isPrivate' in data) || data.isPrivate is bool);
+    }
+
+    match /posts/{postId} {
+      allow get: if isSignedIn() && isValidId(postId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(postId)
+                    && incoming().userId == request.auth.uid
+                    && isValidPost(incoming());
+      allow update: if isSignedIn()
+                    && isValidId(postId)
+                    && isValidPost(incoming())
+                    && (
+                      // Author can edit post details
+                      (existing().userId == request.auth.uid && incoming().userId == existing().userId)
+                      ||
+                      // Any viewer can like or share (increments counters)
+                      incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'sharesCount', 'commentsCount'])
+                    );
+      allow delete: if isSignedIn() && isValidId(postId) && existing().userId == request.auth.uid;
+    }
+
+    // ========================================================
+    // 3. PARTY ROOMS COLLECTION (/party_rooms/{roomId})
+    // ========================================================
+    match /party_rooms/{roomId} {
+      allow get: if isSignedIn() && isValidId(roomId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(roomId)
+                    && incoming().host.id == request.auth.uid;
+      allow update: if isSignedIn()
+                    && isValidId(roomId)
+                    && (
+                      // Host can update all room settings
+                      existing().host.id == request.auth.uid
+                      ||
+                      // Participants can join/leave seats
+                      incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount'])
+                    );
+      allow delete: if isSignedIn() && isValidId(roomId) && existing().host.id == request.auth.uid;
+    }
+
+    // ========================================================
+    // 4. LIVE STREAMS COLLECTION (/live_streams/{streamId})
+    // ========================================================
+    match /live_streams/{streamId} {
+      allow get: if isSignedIn() && isValidId(streamId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(streamId)
+                    && incoming().host.id == request.auth.uid;
+      allow update: if isSignedIn()
+                    && isValidId(streamId)
+                    && (
+                      // Host can update stream status
+                      existing().host.id == request.auth.uid
+                      ||
+                      // Viewers can update viewer counts & likes
+                      incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'likesCount'])
+                    );
+      allow delete: if isSignedIn() && isValidId(streamId) && existing().host.id == request.auth.uid;
+    }
+
+    // ========================================================
+    // 5. CHAT MESSAGES (/chats/{chatId}/messages/{messageId})
+    // ========================================================
+    match /chats/{chatId}/messages/{messageId} {
+      allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
+      allow list: if isSignedIn() && isValidId(chatId);
+      allow create: if isSignedIn()
+                    && isValidId(chatId)
+                    && isValidId(messageId)
+                    && incoming().senderId == request.auth.uid
+                    && incoming().text is string && incoming().text.size() <= 1000;
+      allow update, delete: if false;
+    }
+  }
+}
