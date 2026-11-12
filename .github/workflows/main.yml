@@ -41,7 +41,31 @@ jobs:
         run: npm run build
 
       - name: Sync Capacitor Android assets & plugins
-        run: npx cap sync android
+        run: |
+          # 1. Ensure capacitor config file exists
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            echo "Configuring capacitor.config.json..."
+            cat << 'EOF' > capacitor.config.json
+{
+  "appId": "com.linzo.partylive",
+  "appName": "Linzo Party Live",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}
+EOF
+          fi
+
+          # 2. If android platform is not present, add it automatically
+          if [ ! -d "android" ]; then
+            echo "Android directory not found. Adding android platform..."
+            ./node_modules/.bin/cap add android
+          fi
+
+          # 3. Synchronize assets and plugins into android
+          ./node_modules/.bin/cap sync android
 
       - name: Prepare Keystore for Release Signing
         run: |
@@ -62,17 +86,17 @@ jobs:
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew :app:assembleRelease --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       - name: Build Google Play Release AAB (Android App Bundle)
         run: |
           cd android
-          ./gradlew :app:bundleRelease --stacktrace
+          ./gradlew :app:bundleRelease --no-daemon --stacktrace
 
       - name: Verify Generated Android Artifacts
         run: |
@@ -80,29 +104,29 @@ jobs:
           mkdir -p build-artifacts
           
           # 1. Copy Debug APK
-          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
-            cp android/app/build/outputs/apk/debug/app-debug.apk build-artifacts/LinzoPartyLive-debug.apk
-            echo "✓ Found and copied Debug APK"
+          DEBUG_APK=$(find android/app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+            cp "$DEBUG_APK" build-artifacts/LinzoPartyLive-debug.apk
+            echo "✓ Found and copied Debug APK: $DEBUG_APK"
           else
             echo "::error::Debug APK was not generated!"
             exit 1
           fi
 
-          # 2. Copy Release APK
-          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk build-artifacts/LinzoPartyLive-release.apk
-            echo "✓ Found and copied Signed Release APK"
-          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk build-artifacts/LinzoPartyLive-release-unsigned.apk
-            echo "✓ Found and copied Unsigned Release APK"
+          # 2. Copy Release APK (signed or unsigned)
+          RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+            cp "$RELEASE_APK" build-artifacts/LinzoPartyLive-release.apk
+            echo "✓ Found and copied Release APK: $RELEASE_APK"
           else
             echo "::warning::Release APK not found in expected folder"
           fi
 
           # 3. Copy Release AAB (Bundle)
-          if [ -f "android/app/build/outputs/bundle/release/app-release.aab" ]; then
-            cp android/app/build/outputs/bundle/release/app-release.aab build-artifacts/LinzoPartyLive-release.aab
-            echo "✓ Found and copied Release App Bundle (AAB)"
+          RELEASE_AAB=$(find android/app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -n 1)
+          if [ -n "$RELEASE_AAB" ] && [ -f "$RELEASE_AAB" ]; then
+            cp "$RELEASE_AAB" build-artifacts/LinzoPartyLive-release.aab
+            echo "✓ Found and copied Release App Bundle (AAB): $RELEASE_AAB"
           else
             echo "::error::Release AAB was not generated!"
             exit 1
