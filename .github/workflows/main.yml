@@ -42,30 +42,8 @@ jobs:
 
       - name: Sync Capacitor Android assets & plugins
         run: |
-          # 1. Ensure capacitor config file exists
-          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
-            echo "Configuring capacitor.config.json..."
-            cat << 'EOF' > capacitor.config.json
-{
-  "appId": "com.linzo.partylive",
-  "appName": "Linzo Party Live",
-  "webDir": "dist",
-  "server": {
-    "androidScheme": "https",
-    "cleartext": true
-  }
-}
-EOF
-          fi
-
-          # 2. If android platform is not present, add it automatically
-          if [ ! -d "android" ]; then
-            echo "Android directory not found. Adding android platform..."
-            ./node_modules/.bin/cap add android
-          fi
-
-          # 3. Synchronize assets and plugins into android
-          ./node_modules/.bin/cap sync android
+          npx cap add android || true
+          npx cap sync android
 
       - name: Prepare Keystore for Release Signing
         run: |
