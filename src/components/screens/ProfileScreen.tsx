@@ -25,8 +25,11 @@ import {
   UserPlus,
   ArrowLeft,
   MessageCircle,
-  Gift
+  Gift,
+  History,
+  TrendingUp
 } from 'lucide-react';
+
 import { UserProfile, ScreenType, VideoItem } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
@@ -44,6 +47,7 @@ interface ProfileScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onOpenWallet: () => void;
   onOpenVIP: () => void;
+  onOpenLevelVIP?: () => void;
   userVideos?: VideoItem[];
   onSelectVideo?: (video: VideoItem) => void;
   onOpenUploadVideo?: () => void;
@@ -63,6 +67,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigate,
   onOpenWallet,
   onOpenVIP,
+  onOpenLevelVIP,
   userVideos = [],
   onSelectVideo,
   onOpenUploadVideo,
@@ -454,96 +459,100 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             - Bio description
             - Action Buttons (Edit Profile, Share, or Follow/Message/Gift)
            ======================================================== */}
-        <div className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-[#1c0e33] via-[#160C25] to-[#12091f] border border-white/10 shadow-xl overflow-hidden flex flex-col items-center text-center">
+        <div className="relative p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-[#1c0e33] via-[#160C25] to-[#12091f] border border-white/10 shadow-xl overflow-hidden flex flex-col">
           
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-l from-[#F328D5]/15 via-[#8B20FF]/10 to-transparent rounded-full blur-3xl pointer-events-none" />
 
-          {/* User Profile Picture (DP) */}
-          <div className="relative mb-3">
-            <AvatarWithFrame
-              src={activeUser.avatar}
-              name={activeUser.name}
-              level={activeUser.level}
-              vipLevel={activeUser.vipLevel}
-              isVIP={activeUser.isVIP}
-              size="xl"
-              showFrame={true}
-              showVipBadge={false}
-              onClick={() => {
-                if (isOwner) setIsEditModalOpen(true);
-              }}
-            />
-            {isOwner && (
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="absolute -bottom-1 -right-1 bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] text-white p-1.5 rounded-full shadow-lg ring-2 ring-[#090611] hover:scale-110 active:scale-95 transition-transform"
-                title="Edit Photo"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Display Name with Verified Checkmark */}
-          <div className="flex items-center justify-center gap-1.5 mb-0.5 flex-wrap">
-            <h2 className="text-xl sm:text-2xl font-black text-white font-display tracking-tight">
-              {activeUser.name}
-            </h2>
-            <div className="w-4 h-4 rounded-full bg-[#06B6D4] text-white flex items-center justify-center text-[10px] font-black shrink-0" title="Verified Creator">
-              ✓
-            </div>
-          </div>
-
-          {/* Unique Username (@username) and User ID */}
-          <div className="flex items-center justify-center gap-2 mb-2 flex-wrap text-xs">
-            <span className="text-[#FA26A0] font-mono font-bold">
-              {activeUser.username || `@${activeUser.displayId}`}
-            </span>
-            <span className="text-white/30">•</span>
-            <button
-              onClick={handleCopyId}
-              className="flex items-center gap-1 text-[#B9AECF] hover:text-white transition-colors font-mono"
-              title="Copy User ID"
-            >
-              <span>ID: {activeUser.displayId}</span>
-              {copiedId ? (
-                <Check className="w-3 h-3 text-emerald-400" />
-              ) : (
-                <Copy className="w-3 h-3" />
+          {/* User Identity Section: Left DP + Right Info & Prominent Level/VIP */}
+          <div className="flex items-center gap-4 sm:gap-6 mb-4">
+            {/* LEFT SIDE: Circular DP with equipped VIP frame and small edit button */}
+            <div className="relative shrink-0">
+              <AvatarWithFrame
+                src={activeUser.avatar}
+                name={activeUser.name}
+                level={activeUser.level}
+                vipLevel={activeUser.equippedVipFrame || activeUser.vipLevel}
+                isVIP={activeUser.isVIP || !!activeUser.equippedVipFrame}
+                size="xl"
+                showFrame={true}
+                showVipBadge={false}
+                onClick={() => {
+                  if (isOwner) setIsEditModalOpen(true);
+                }}
+              />
+              {isOwner && (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="absolute -bottom-1 -right-1 bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] text-white p-1.5 rounded-full shadow-lg ring-2 ring-[#090611] hover:scale-110 active:scale-95 transition-transform"
+                  title="Edit Photo"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
               )}
-            </button>
-          </div>
-
-          {/* Level and VIP Badges Alongside Profile Information */}
-          <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
-            {/* Level Badge */}
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-black shadow-md">
-              <Crown className="w-3.5 h-3.5 fill-current" />
-              <span>Level {activeUser.level}</span>
             </div>
 
-            {/* VIP Status Badge */}
-            {activeUser.isVIP ? (
-              <button
-                onClick={onOpenVIP}
-                className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-xs font-black shadow-md shadow-pink-900/30 hover:opacity-95"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>VIP {activeUser.vipLevel || 5}</span>
-              </button>
-            ) : (
-              <button
-                onClick={onOpenVIP}
-                className="flex items-center gap-1 px-3 py-1 rounded-full bg-white/10 hover:bg-white/15 text-white/80 text-xs font-bold"
-              >
-                <span>Get VIP</span>
-              </button>
-            )}
+            {/* RIGHT SIDE: Username, Verified, User ID, Large & Prominent Level Badge, VIP Tier */}
+            <div className="flex-1 min-w-0 flex flex-col items-start text-left">
+              {/* Display Name with Verified Checkmark */}
+              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-black text-white font-display tracking-tight truncate">
+                  {activeUser.name}
+                </h2>
+                <div className="w-4 h-4 rounded-full bg-[#06B6D4] text-white flex items-center justify-center text-[10px] font-black shrink-0" title="Verified Creator">
+                  ✓
+                </div>
+              </div>
+
+              {/* Unique Username (@username) and User ID */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap text-xs">
+                <span className="text-[#FA26A0] font-mono font-bold">
+                  {activeUser.username || `@${activeUser.displayId}`}
+                </span>
+                <span className="text-white/30">•</span>
+                <button
+                  onClick={handleCopyId}
+                  className="flex items-center gap-1 text-[#B9AECF] hover:text-white transition-colors font-mono"
+                  title="Copy User ID"
+                >
+                  <span>ID: {activeUser.displayId}</span>
+                  {copiedId ? (
+                    <Check className="w-3 h-3 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                </button>
+              </div>
+
+              {/* Large & Prominent Level Badge and VIP Tier (Clickable to open LEVEL & VIP) */}
+              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                <button
+                  onClick={onOpenLevelVIP || onOpenVIP}
+                  className="transition-transform hover:scale-105 active:scale-95 text-left"
+                  title="Open LEVEL & VIP details"
+                >
+                  <LevelBadge level={activeUser.level} size="lg" showTierName={true} />
+                </button>
+
+                {/* VIP Tier Badge */}
+                <button
+                  onClick={onOpenLevelVIP || onOpenVIP}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black shadow-md transition-transform hover:scale-105 active:scale-95 ${
+                    activeUser.isVIP || activeUser.equippedVipFrame
+                      ? 'bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-pink-900/30'
+                      : 'bg-white/10 hover:bg-white/15 text-white/80'
+                  }`}
+                  title="Open VIP Frames"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#FFC84A]" />
+                  <span>VIP {activeUser.equippedVipFrame || activeUser.vipLevel || 1}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Bio Description */}
-          <p className="text-xs text-white/85 max-w-sm leading-relaxed mb-4 font-normal">
-            {activeUser.bio || 'Living life on Lonzo Party Live! Singing, vibing & connecting.'}
+          <p className="text-xs text-white/85 leading-relaxed mb-4 text-left font-normal border-t border-white/5 pt-3 w-full">
+            {activeUser.bio || 'Living life on Lenzo Party Live! Singing, vibing & connecting.'}
           </p>
 
           {/* ========================================================
@@ -656,34 +665,101 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
 
         {/* ========================================================
-            4. COIN BALANCE CARD (Owner Only)
+            4. WALLET & EARNINGS CARD (Owner Only)
+            Replaces "Available Coin Balance" with "WALLET"
+            Displays:
+            - Available Wallet Coins
+            - Total Earnings
+            - Estimated PKR Value
+            - Recharge button
+            - Wallet history shortcut
            ======================================================== */}
         {isOwner && (
           <div
             onClick={onOpenWallet}
-            className="p-4 rounded-2xl bg-gradient-to-br from-[#1d1033] to-[#24133f] border border-[#FFC84A]/30 hover:border-[#FFC84A]/60 shadow-lg cursor-pointer transition-all group"
+            className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1d0e34] via-[#241240] to-[#160a28] border border-[#FFC84A]/30 hover:border-[#FFC84A]/60 shadow-xl cursor-pointer transition-all group relative overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-[#B9AECF] flex items-center gap-1.5">
-                <Coins className="w-4 h-4 text-[#FFC84A]" />
-                <span>Available Coin Balance</span>
-              </span>
-              <div className="flex items-center gap-1 text-[11px] text-[#FFC84A] font-bold group-hover:underline">
-                <span>Recharge</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-bl from-amber-500/10 via-[#F328D5]/10 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+            {/* Top Row: Title WALLET, History Shortcut & Recharge Button */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 text-black flex items-center justify-center font-black shadow-md">
+                  <Wallet className="w-4 h-4 text-black" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                    WALLET
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                      2 TABS
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Wallet history shortcut */}
+                <span className="text-[11px] text-[#B9AECF] group-hover:text-white flex items-center gap-1 transition-colors">
+                  <History className="w-3.5 h-3.5 text-[#FFC84A]" />
+                  <span>History</span>
+                </span>
+
+                {/* Recharge Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenWallet();
+                  }}
+                  className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:opacity-95 text-black font-black text-xs shadow active:scale-95 transition-all flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Recharge</span>
+                </button>
               </div>
             </div>
 
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-[#FFC84A] font-mono tracking-tight">
-                🪙 {currentUser.coins.toLocaleString()}
+            {/* Balances Grid: Available Wallet Coins & Total Earnings */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#120822]/90 border border-white/5">
+              {/* 1. Available Wallet Coins */}
+              <div className="flex flex-col">
+                <span className="text-[10px] text-[#A59AB8] font-bold uppercase tracking-wide flex items-center gap-1">
+                  <span>🪙</span> Wallet Coins
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-[#FFC84A] font-mono tracking-tight mt-0.5">
+                  {currentUser.coins.toLocaleString()}
+                </span>
+                <span className="text-[10px] font-semibold text-[#FFC84A]/70">Purchased (Non-withdrawable)</span>
+              </div>
+
+              {/* 2. Total Earnings */}
+              <div className="flex flex-col border-l border-white/10 pl-3">
+                <span className="text-[10px] text-[#A59AB8] font-bold uppercase tracking-wide flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3 text-[#F328D5]" /> Total Earnings
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-[#ff8cf4] font-mono tracking-tight mt-0.5">
+                  {(currentUser.diamonds || 4500).toLocaleString()}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-400">Net Gifts (Cash Withdrawable)</span>
+              </div>
+            </div>
+
+            {/* Bottom Row: Estimated PKR Value & Quick Dashboard link */}
+            <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-white/5">
+              <span className="text-[#A59AB8] text-[11px] flex items-center gap-1">
+                <span>Estimated Value:</span>
+                <span className="font-bold text-emerald-400 font-mono">
+                  {COIN_CONFIG.formatPkrEquivalent(currentUser.coins + (currentUser.diamonds || 4500))}
+                </span>
               </span>
-              <span className="text-xs font-semibold text-emerald-400 font-mono">
-                {COIN_CONFIG.formatPkrEquivalent(currentUser.coins)}
-              </span>
+
+              <div className="text-[11px] text-[#FFC84A] font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform">
+                <span>Open Dashboard</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </div>
             </div>
           </div>
         )}
+
 
         {/* ========================================================
             5. LEVEL PROGRESS BAR

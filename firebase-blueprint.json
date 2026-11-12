@@ -271,12 +271,82 @@
         }
       },
       "required": ["senderId", "text"]
+    },
+    "UserWallet": {
+      "title": "UserWallet",
+      "description": "User purchased coins wallet balance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "walletPurchasedCoins": { "type": "number" },
+        "totalCoinsPurchased": { "type": "number" },
+        "totalCoinsSpent": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "walletPurchasedCoins"]
+    },
+    "UserEarnings": {
+      "title": "UserEarnings",
+      "description": "User net earnings from received virtual gifts",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "availableEarningsCoins": { "type": "number" },
+        "pendingWithdrawalCoins": { "type": "number" },
+        "totalWithdrawnCoins": { "type": "number" },
+        "grossGiftCoinsReceived": { "type": "number" },
+        "totalCommissionDeducted": { "type": "number" },
+        "totalConvertedToWallet": { "type": "number" },
+        "totalGiftsCount": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "availableEarningsCoins"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "Payout request submitted by a creator",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 60 },
+        "coinsRequested": { "type": "number" },
+        "exchangeRatePkr": { "type": "number" },
+        "grossAmountPkr": { "type": "number" },
+        "feeAmountPkr": { "type": "number" },
+        "finalPayablePkr": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["bank_transfer", "jazzcash", "easypaisa", "cash_pickup"] },
+        "status": { "type": "string", "enum": ["pending", "under_review", "approved", "processing", "paid", "rejected", "cancelled"] },
+        "requestedAt": { "type": "string" }
+      },
+      "required": ["userId", "coinsRequested", "paymentMethod", "status"]
+    },
+    "UserLevelProgression": {
+      "title": "UserLevelProgression",
+      "description": "50-Level and 8-tier VIP progression state based on qualifying coins spent on gifting",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "currentLevel": { "type": "number", "minimum": 1, "maximum": 50 },
+        "currentTier": { "type": "string", "enum": ["Bronze", "Silver", "Gold", "Platinum", "Diamond"] },
+        "totalQualifyingCoinsSpent": { "type": "number" },
+        "coinsInCurrentLevel": { "type": "number" },
+        "coinsNeededForNextLevel": { "type": "number" },
+        "remainingCoinsNeeded": { "type": "number" },
+        "percentage": { "type": "number" },
+        "unlockedVipFrames": { "type": "array", "items": { "type": "number" } },
+        "equippedVipFrame": { "type": "number" }
+      },
+      "required": ["userId", "currentLevel", "currentTier", "totalQualifyingCoinsSpent"]
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": "User",
       "description": "Stores user profiles keyed by their Firebase Auth UID"
+    },
+    "/user_levels/{uid}": {
+      "schema": "UserLevelProgression",
+      "description": "Stores 50-Level and 8-tier VIP progression documents"
     },
     "/posts/{postId}": {
       "schema": "Post",
@@ -290,13 +360,25 @@
       "schema": "LiveStream",
       "description": "Active live video streams"
     },
-    "/users/{uid}/transactions/{transactionId}": {
-      "schema": "Transaction",
-      "description": "User coin transactions and purchase history"
+    "/wallets/{uid}": {
+      "schema": "UserWallet",
+      "description": "User purchased coins wallet balance"
     },
-    "/users/{uid}/notifications/{notificationId}": {
-      "schema": "Notification",
-      "description": "User notifications"
+    "/earnings/{uid}": {
+      "schema": "UserEarnings",
+      "description": "User net earnings from received virtual gifts"
+    },
+    "/wallet_transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Wallet coins transaction history"
+    },
+    "/earnings_transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Earnings and payout transaction history"
+    },
+    "/withdrawal_requests/{reqId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Creator withdrawal and payout requests"
     },
     "/chats/{chatId}/messages/{messageId}": {
       "schema": "ChatMessage",
@@ -304,3 +386,4 @@
     }
   }
 }
+

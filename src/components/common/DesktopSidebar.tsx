@@ -1,6 +1,7 @@
 import React from 'react';
 import { 
   Home, 
+  ShoppingBag,
   Sparkles, 
   Video, 
   Radio, 
@@ -49,13 +50,15 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   unreadMessagesCount = 99,
 }) => {
   const mainNavItems = [
+    { id: 'store' as ScreenType, label: 'Store', icon: ShoppingBag, badge: 'HOT' },
     { id: 'home' as ScreenType, label: 'Home Feed', icon: Home },
     { id: 'party' as ScreenType, label: 'Rooms & Voice Party', icon: Video },
     { id: 'rankings' as ScreenType, label: 'Rankings & Stars', icon: Trophy },
-    { id: 'messages' as ScreenType, label: 'Messages', icon: MessageCircle, badge: unreadMessagesCount > 0 ? '99+' : undefined },
+    { id: 'messages' as ScreenType, label: 'Chat & Messages', icon: MessageCircle, badge: unreadMessagesCount > 0 ? `${unreadMessagesCount}` : undefined },
     { id: 'profile' as ScreenType, label: 'Me / Profile', icon: User },
     { id: 'settings' as ScreenType, label: 'Settings', icon: Settings },
   ];
+
 
   return (
     <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 h-screen sticky top-0 bg-[#0c0717] border-r border-white/[0.08] p-5 justify-between overflow-y-auto no-scrollbar z-30">

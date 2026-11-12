@@ -21,6 +21,29 @@ server.on('error', (err) => {
 
 app.use(express.json());
 
+// CORS Middleware supporting custom domain https://lenzoparty.com, local dev, and cloud run
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://lenzoparty.com',
+    'https://www.lenzoparty.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.run.app'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // In-Memory PK Match State (Authoritative Server Store)
 interface PKParticipant {
   user: any;

@@ -34,6 +34,7 @@ import {
   createFirestoreLiveStream,
   createFirestorePartyRoom
 } from './services/firestoreService';
+import { processGiftTransaction } from './services/walletService';
 
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
@@ -55,6 +56,7 @@ import { CreateLiveScreen } from './components/screens/CreateLiveScreen';
 import { CreateRoomScreen } from './components/screens/CreateRoomScreen';
 import { RankingsScreen } from './components/screens/RankingsScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
+import { StoreScreen } from './components/screens/StoreScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { VideoFeedScreen } from './components/screens/VideoFeedScreen';
@@ -70,6 +72,9 @@ import { PKIncomingChallengeModal } from './components/screens/PKIncomingChallen
 import { PKWinnerAnnouncementModal } from './components/screens/PKWinnerAnnouncementModal';
 import { WalletModal } from './components/screens/WalletModal';
 import { VIPModal } from './components/screens/VIPModal';
+import { LevelAndVIPModal } from './components/screens/LevelAndVIPModal';
+import { LevelUpCelebrationModal } from './components/screens/LevelUpCelebrationModal';
+import { addQualifyingGiftingCoins, equipVipFrame } from './services/levelAndVipService';
 import { SearchModal } from './components/screens/SearchModal';
 import { NotificationsModal } from './components/screens/NotificationsModal';
 
@@ -104,6 +109,12 @@ export default function App() {
   const [isPKModalOpen, setIsPKModalOpen] = useState(false);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isVIPOpen, setIsVIPOpen] = useState(false);
+  const [isLevelVIPOpen, setIsLevelVIPOpen] = useState(false);
+  const [levelUpData, setLevelUpData] = useState<{
+    oldLevel: number;
+    newLevel: number;
+    coinsSpent: number;
+  } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
@@ -477,9 +488,10 @@ export default function App() {
   };
 
   // Handler: Send Gift
-  const handleSendGift = (gift: GiftItem, quantity: number, recipient: UserProfile) => {
+  const handleSendGift = async (gift: GiftItem, quantity: number, recipient: UserProfile) => {
     const cost = gift.coins * quantity;
     if (currentUser.coins >= cost) {
+      // Optimistic update for sender
       setCurrentUser((prev) => {
         const next = {
           ...prev,
@@ -488,6 +500,49 @@ export default function App() {
         saveStoredUserProfile(next);
         return next;
       });
+
+      // Atomic backend execution: Deducts wallet coins from sender, takes commission %, credits recipient earnings
+      try {
+        const result = await processGiftTransaction(currentUser, recipient, gift, quantity);
+        if (result.success && recipient.id === currentUser.id) {
+          // If sending to self in demo/test mode, update diamonds earnings immediately
+          setCurrentUser((prev) => {
+            const next = {
+              ...prev,
+              diamonds: (prev.diamonds || 0) + result.netEarnings,
+            };
+            saveStoredUserProfile(next);
+            return next;
+          });
+        }
+      } catch (e) {
+        console.warn('Gift transaction backend error:', e);
+      }
+
+      // Qualifying coins gifting progression update for LEVEL & VIP system
+      try {
+        const levelRes = await addQualifyingGiftingCoins(currentUser.id, cost);
+        if (levelRes.levelUpEvent) {
+          const event = levelRes.levelUpEvent;
+          setLevelUpData({
+            oldLevel: event.oldLevel,
+            newLevel: event.newLevel,
+            coinsSpent: cost,
+          });
+          setCurrentUser((prev) => {
+            const next = {
+              ...prev,
+              level: event.newLevel,
+              vipLevel: event.unlockedVipFrame?.tier || prev.vipLevel,
+              equippedVipFrame: event.unlockedVipFrame?.tier || prev.equippedVipFrame,
+            };
+            saveStoredUserProfile(next);
+            return next;
+          });
+        }
+      } catch (levelErr) {
+        console.warn('Level progression update error:', levelErr);
+      }
 
       // If in active PK Battle, broadcast authoritative score update to match
       if (activePKSession) {
@@ -532,6 +587,7 @@ export default function App() {
       }, 4000);
     }
   };
+
 
   // Handler: Recharge Coins
   const handleRechargeSuccess = (addedCoins: number) => {
@@ -833,7 +889,23 @@ export default function App() {
             />
           )}
 
-          {currentScreen === 'messages' && (
+          {currentScreen === 'store' && (
+            <StoreScreen
+              currentUser={currentUser}
+              onNavigate={(s) => setCurrentScreen(s)}
+              onOpenWallet={() => setIsWalletOpen(true)}
+              onOpenVIP={() => setIsVIPOpen(true)}
+              onUpdateUserBalance={(newCoins, newDiamonds) => {
+                setCurrentUser((prev) => ({
+                  ...prev,
+                  coins: newCoins,
+                  diamonds: newDiamonds,
+                }));
+              }}
+            />
+          )}
+
+          {(currentScreen === 'messages' || currentScreen === 'chat' || currentScreen === 'inbox') && (
             <MessagesScreen
               currentUser={currentUser}
               conversations={conversations}
@@ -906,7 +978,8 @@ export default function App() {
                 setCurrentScreen(s);
               }}
               onOpenWallet={() => setIsWalletOpen(true)}
-              onOpenVIP={() => setIsVIPOpen(true)}
+              onOpenVIP={() => setIsLevelVIPOpen(true)}
+              onOpenLevelVIP={() => setIsLevelVIPOpen(true)}
               userVideos={videos.filter(v => v.creator.id === (navigatingProfileUser?.id || currentUser.id) || v.creator.name === (navigatingProfileUser?.name || currentUser.name))}
               onSelectVideo={(v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
@@ -918,11 +991,13 @@ export default function App() {
             <SettingsScreen
               onNavigate={(s) => setCurrentScreen(s)}
               onLogout={handleLogout}
+              onOpenWallet={() => setIsWalletOpen(true)}
             />
           )}
+
         </main>
 
-        {/* Mobile Fixed Bottom Navigation Bar (Plus button opens Video Upload exclusively) */}
+        {/* Mobile Fixed Bottom Navigation Bar (7 Buttons: Store, Home, Rooms, +, Videos, Chat, Profile) */}
         <BottomNav
           currentScreen={currentScreen}
           onNavigate={(screen) => {
@@ -932,7 +1007,8 @@ export default function App() {
             setCurrentScreen(screen);
           }}
           onOpenCreate={handleOpenPlusUpload}
-          unreadMessagesCount={99}
+          unreadMessagesCount={3}
+          storeNotificationCount={1}
         />
       </div>
 
@@ -991,7 +1067,45 @@ export default function App() {
         onRechargeSuccess={handleRechargeSuccess}
       />
 
-      {/* 5. VIP Membership Privileges Modal */}
+      {/* 5. LEVEL & VIP Progression & Frames Modal */}
+      <LevelAndVIPModal
+        isOpen={isLevelVIPOpen}
+        onClose={() => setIsLevelVIPOpen(false)}
+        currentUser={currentUser}
+        onUpdateUser={(updated) => {
+          setCurrentUser(prev => {
+            const next = { ...prev, ...updated };
+            saveStoredUserProfile(next);
+            return next;
+          });
+        }}
+      />
+
+      {/* 5b. Level Up Milestone Celebration Modal */}
+      <LevelUpCelebrationModal
+        isOpen={!!levelUpData}
+        onClose={() => setLevelUpData(null)}
+        oldLevel={levelUpData?.oldLevel || 1}
+        newLevel={levelUpData?.newLevel || 2}
+        coinsSpent={levelUpData?.coinsSpent || 0}
+        userAvatar={currentUser.avatar}
+        userName={currentUser.name}
+        onEquipVipFrame={async (tier) => {
+          await equipVipFrame(currentUser.id, tier);
+          setCurrentUser(prev => {
+            const next = {
+              ...prev,
+              equippedVipFrame: tier,
+              vipLevel: tier,
+              isVIP: true,
+            };
+            saveStoredUserProfile(next);
+            return next;
+          });
+        }}
+      />
+
+      {/* VIP Membership Privileges Modal */}
       <VIPModal
         isOpen={isVIPOpen}
         onClose={() => setIsVIPOpen(false)}

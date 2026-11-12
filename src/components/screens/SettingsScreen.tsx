@@ -11,19 +11,23 @@ import {
   Trash2, 
   LogOut, 
   ChevronRight, 
-  Check 
+  Check,
+  Wallet
 } from 'lucide-react';
 import { ScreenType } from '../../types';
 
 interface SettingsScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onLogout: () => void;
+  onOpenWallet?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onNavigate,
   onLogout,
+  onOpenWallet,
 }) => {
+
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [cacheSize, setCacheSize] = useState('12.5MB');
@@ -96,13 +100,38 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <h2 className="text-xl font-extrabold text-white font-display">Settings</h2>
         </div>
 
-        {/* Settings Items Rows matching reference image */}
+        {/* Settings Items Rows */}
         <div className="space-y-2 pt-2">
+          {/* Wallet & Earnings Dashboard */}
+          {onOpenWallet && (
+            <div
+              onClick={onOpenWallet}
+              className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#F328D5]/15 to-[#8B20FF]/15 hover:opacity-95 border border-amber-400/40 transition-all cursor-pointer group shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-black flex items-center justify-center font-black shadow-sm">
+                  <Wallet className="w-4 h-4 text-black" />
+                </div>
+                <div>
+                  <span className="text-sm font-black text-white flex items-center gap-1.5">
+                    WALLET & EARNINGS
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+                      PKR CASHOUT
+                    </span>
+                  </span>
+                  <span className="text-[10px] text-[#B9AECF] block">Recharge coins, convert earnings, and request bank payouts</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" />
+            </div>
+          )}
+
           {/* Account Security */}
           <div
             onClick={() => showToast('Two-factor authentication and mobile binding verified.')}
             className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group"
           >
+
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-[#8B20FF]" />
               <span className="text-sm font-semibold text-white">Account Security</span>

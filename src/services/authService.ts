@@ -1,5 +1,7 @@
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -143,32 +145,74 @@ export async function syncUserInFirestore(
 }
 
 /**
- * REAL Google Sign-In via Firebase
+ * Check if the user is returning from a Google redirect authentication flow
  */
-export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile: UserProfile }> {
+export async function checkRedirectAuthResult(): Promise<UserProfile | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      console.log('[Google Auth] Successfully received redirect authentication for UID:', result.user.uid);
+      const firestoreData = await syncUserInFirestore(result.user, 'google', {
+        fullName: result.user.displayName || undefined,
+        profileImage: result.user.photoURL || undefined,
+      });
+      return mapFirestoreUserToProfile(firestoreData, result.user);
+    }
+  } catch (err: any) {
+    console.error('[Google Redirect Result Error]:', err);
+    if (err.code === 'auth/unauthorized-domain') {
+      console.error(
+        `[Firebase Auth] Domain unauthorized: "${window.location.hostname}" must be added to Authorized domains in Firebase Console (project confident-drake-3bcxw).`
+      );
+    }
+  }
+  return null;
+}
+
+/**
+ * REAL Google Sign-In via Firebase (supports popup and seamless mobile redirect)
+ */
+export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile: UserProfile } | null> {
   try {
     // Ensure local persistence for Google login
     await setPersistence(auth, browserLocalPersistence);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
+    // On mobile devices or browsers that strictly restrict popups, attempt popup first, fallback to redirect
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
 
-    const firestoreData = await syncUserInFirestore(user, 'google', {
-      fullName: user.displayName || undefined,
-      profileImage: user.photoURL || undefined,
-    });
+      const firestoreData = await syncUserInFirestore(user, 'google', {
+        fullName: user.displayName || undefined,
+        profileImage: user.photoURL || undefined,
+      });
 
-    const profile = mapFirestoreUserToProfile(firestoreData, user);
-    return { user, profile };
+      const profile = mapFirestoreUserToProfile(firestoreData, user);
+      return { user, profile };
+    } catch (popupError: any) {
+      // If popup was blocked by browser (especially on mobile), automatically initiate redirect
+      if (
+        popupError.code === 'auth/popup-blocked' ||
+        popupError.code === 'auth/cancelled-popup-request' ||
+        popupError.code === 'auth/internal-error'
+      ) {
+        console.warn('[Google Auth] Popup restricted, falling back to full-page redirect flow...');
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
+      throw popupError;
+    }
   } catch (error: any) {
     console.error('[Google Auth Error]:', error);
-    // User cancelled popup or closed it
     if (error.code === 'auth/popup-closed-by-user') {
       throw new Error('Google Sign-In was cancelled.');
-    } else if (error.code === 'auth/popup-blocked') {
-      throw new Error('Sign-In popup was blocked by your browser. Please allow popups.');
+    } else if (error.code === 'auth/unauthorized-domain') {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com';
+      throw new Error(
+        `Domain unauthorized (${currentHost}). Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+      );
     } else if (error.code === 'auth/network-request-failed') {
       throw new Error('Network error. Please check your internet connection.');
     }

@@ -3,30 +3,32 @@ export type ScreenType =
   | 'login'           // 02 Login Screen
   | 'signup'          // 03 Sign Up Screen
   | 'home'            // 04 Home Screen
-  | 'live_active'     // 05 Live Screen
-  | 'host_profile'    // 06 Live Host Profile
-  | 'party_8'         // 07 Party Room (8 Seats)
-  | 'party_16'        // 08 Party Room (16 Seats)
+  | 'store'           // 05 Store Screen (NEW)
+  | 'live_active'     // 06 Live Screen
+  | 'host_profile'    // 07 Live Host Profile
+  | 'party_8'         // 08 Party Room (8 Seats)
+  | 'party_16'        // 09 Party Room (16 Seats)
   | 'audio_room'      // Party Room alias
-  | 'rooms'           // 09 Rooms Discovery
+  | 'rooms'           // 10 Rooms Discovery
   | 'party'           // Rooms Discovery alias
-  | 'create_room'     // 10 Create Room
-  | 'room_settings'   // 11 Room Settings
-  | 'profile'         // 12 User Profile
-  | 'edit_profile'    // 13 Edit Profile
-  | 'match_request'   // 14 Match Request
-  | 'battle'          // 15 Battle Screen
-  | 'inbox'           // 16 Inbox
-  | 'messages'        // Inbox alias
-  | 'notifications'   // 17 Notifications
-  | 'wallet'          // 18 Wallet
-  | 'gift_collection' // 19 Gift Collection
-  | 'rankings'        // 20 Ranking
-  | 'live_rooms'      // 21 Live Rooms
-  | 'my_rooms'        // 22 My Rooms
-  | 'settings'        // 23 Settings
-  | 'help_support'    // 24 Help and Support
-  | 'about'           // 25 About App
+  | 'create_room'     // 11 Create Room
+  | 'room_settings'   // 12 Room Settings
+  | 'profile'         // 13 User Profile
+  | 'edit_profile'    // 14 Edit Profile
+  | 'match_request'   // 15 Match Request
+  | 'battle'          // 16 Battle Screen
+  | 'inbox'           // 17 Inbox
+  | 'messages'        // Inbox alias (NEW WhatsApp-style Chat)
+  | 'chat'            // Chat alias
+  | 'notifications'   // 18 Notifications
+  | 'wallet'          // 19 Wallet
+  | 'gift_collection' // 20 Gift Collection
+  | 'rankings'        // 21 Ranking
+  | 'live_rooms'      // 22 Live Rooms
+  | 'my_rooms'        // 23 My Rooms
+  | 'settings'        // 24 Settings
+  | 'help_support'    // 25 Help and Support
+  | 'about'           // 26 About App
   | 'create_live'
   | 'auth'
   | 'search'
@@ -63,6 +65,7 @@ export interface UserProfile {
   country?: string;
   birthday?: string;
   isFollowing?: boolean;
+  equippedVipFrame?: number;
 }
 
 
@@ -129,6 +132,20 @@ export interface GiftItem {
   animationType: 'pop' | 'glow' | 'float' | 'blast';
 }
 
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+}
+
+export interface MessageReplyPreview {
+  id: string;
+  senderName: string;
+  text: string;
+  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share';
+}
+
+
 export interface ChatMessage {
   id: string;
   senderId: string;
@@ -139,7 +156,30 @@ export interface ChatMessage {
   isPinned?: boolean;
   text: string;
   timestamp: string;
+  createdAtMillis?: number;
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
+  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share';
+  mediaUrl?: string;
+  mediaName?: string;
+  mediaSize?: string;
+  voiceDuration?: number; // in seconds
+  voiceWaveform?: number[];
+  replyTo?: MessageReplyPreview;
+  reactions?: MessageReaction[];
+  mentions?: string[];
+  isEdited?: boolean;
+  isStarred?: boolean;
+  isForwarded?: boolean;
+  deletedForEveryone?: boolean;
+  deletedForUsers?: string[];
   isSystem?: boolean;
+  roomInvite?: {
+    roomId: string;
+    title: string;
+    category: string;
+    hostName: string;
+    hostAvatar: string;
+  };
   gift?: {
     name: string;
     icon: string;
@@ -147,13 +187,63 @@ export interface ChatMessage {
   };
 }
 
+export interface ChatGroup {
+  id: string;
+  name: string;
+  avatar: string;
+  description: string;
+  creatorId: string;
+  adminIds: string[];
+  moderatorIds: string[];
+  memberIds: string[];
+  membersCount: number;
+  privacy: 'public' | 'private';
+  onlyAdminsCanMessage: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unreadCount?: number;
+}
+
 export interface Conversation {
   id: string;
+  type?: 'direct' | 'group';
   user: UserProfile;
+  group?: ChatGroup;
   lastMessage: string;
+  lastMessageType?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite';
+  lastMessageStatus?: 'sending' | 'sent' | 'delivered' | 'read';
+  lastMessageSenderId?: string;
   timestamp: string;
   unreadCount: number;
   isOnline: boolean;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  isMuted?: boolean;
+  isRequest?: boolean; // Message request from non-friend
+  isBlocked?: boolean;
+}
+
+export interface StoreProduct {
+  id: string;
+  name: string;
+  category: 'coins' | 'vip' | 'entrance' | 'gifts' | 'frames' | 'gear';
+  price: number;
+  currency: 'coins' | 'diamonds' | 'usd';
+  priceDisplay: string;
+  image: string;
+  badge?: string;
+  rarity?: 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
+  description: string;
+  benefits: string[];
+  isPopular?: boolean;
+  previewEffect?: string;
+}
+
+export interface CartItem {
+  product: StoreProduct;
+  quantity: number;
 }
 
 export interface RankingEntry {
@@ -195,5 +285,7 @@ export interface NotificationItem {
 
 export * from './pk';
 export * from './videoAndRoom';
+export * from './wallet';
+export * from './levelAndVip';
 
 

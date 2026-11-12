@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Eye, 
@@ -21,6 +21,7 @@ import {
 import { LonzoLogo } from '../common/LonzoLogo';
 import { 
   signInWithGoogle, 
+  checkRedirectAuthResult,
   registerWithEmail, 
   loginWithEmail, 
   resetPassword, 
@@ -79,12 +80,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setSubScreen(screen);
   };
 
+  // Check for Google redirect result on component mount (for mobile/custom domain redirect flows)
+  useEffect(() => {
+    let active = true;
+    checkRedirectAuthResult().then((profile) => {
+      if (active && profile) {
+        setSuccessMessage(`Welcome to Linzo Party Live, ${profile.name}! ✨`);
+        setTimeout(() => {
+          onSuccess(profile);
+        }, 500);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [onSuccess]);
+
   // 1. REAL GOOGLE AUTHENTICATION FLOW
   const handleGoogleAuth = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
     try {
-      const { profile } = await signInWithGoogle();
+      const authResult = await signInWithGoogle();
+      if (!authResult) {
+        // Full page redirect was initiated (e.g., popup blocked or mobile browser)
+        return;
+      }
+      const { profile } = authResult;
       setSuccessMessage(`Welcome to Linzo Party Live, ${profile.name}! ✨`);
       setTimeout(() => {
         onSuccess(profile);

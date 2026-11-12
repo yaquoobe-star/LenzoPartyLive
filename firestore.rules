@@ -175,17 +175,126 @@ service cloud.firestore {
     }
 
     // ========================================================
-    // 5. CHAT MESSAGES (/chats/{chatId}/messages/{messageId})
+    // 5. CHATS & CONVERSATIONS (/chats/{chatId})
     // ========================================================
-    match /chats/{chatId}/messages/{messageId} {
-      allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
-      allow list: if isSignedIn() && isValidId(chatId);
-      allow create: if isSignedIn()
-                    && isValidId(chatId)
-                    && isValidId(messageId)
-                    && incoming().senderId == request.auth.uid
-                    && incoming().text is string && incoming().text.size() <= 1000;
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && isValidId(chatId);
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(chatId);
+      allow delete: if isSignedIn() && isValidId(chatId);
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
+        allow list: if isSignedIn() && isValidId(chatId);
+        allow create: if isSignedIn()
+                      && isValidId(chatId)
+                      && isValidId(messageId)
+                      && incoming().senderId == request.auth.uid;
+        allow update: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
+        allow delete: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
+      }
+    }
+
+    // ========================================================
+    // 6. GROUPS COLLECTION (/groups/{groupId})
+    // ========================================================
+    match /groups/{groupId} {
+      allow get: if isSignedIn() && isValidId(groupId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(groupId) && incoming().creatorId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(groupId);
+      allow delete: if isSignedIn() && isValidId(groupId) && existing().creatorId == request.auth.uid;
+    }
+
+    // ========================================================
+    // 7. WALLETS COLLECTION (/wallets/{uid})
+    // ========================================================
+    match /wallets/{uid} {
+      allow get: if isSignedIn() && isValidId(uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update: if isSignedIn() && isValidId(uid);
+      allow delete: if false;
+    }
+
+    // ========================================================
+    // 8. EARNINGS COLLECTION (/earnings/{uid})
+    // ========================================================
+    match /earnings/{uid} {
+      allow get: if isSignedIn() && isValidId(uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update: if isSignedIn() && isValidId(uid);
+      allow delete: if false;
+    }
+
+    // ========================================================
+    // 9. FINANCIAL TRANSACTIONS COLLECTIONS
+    // ========================================================
+    match /wallet_transactions/{txId} {
+      allow get: if isSignedIn() && isValidId(txId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(txId);
       allow update, delete: if false;
+    }
+
+    match /earnings_transactions/{txId} {
+      allow get: if isSignedIn() && isValidId(txId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(txId);
+      allow update, delete: if false;
+    }
+
+    match /commission_transactions/{txId} {
+      allow read, write: if isSignedIn() && isValidId(txId);
+    }
+
+    // ========================================================
+    // 10. WITHDRAWAL REQUESTS (/withdrawal_requests/{reqId})
+    // ========================================================
+    match /withdrawal_requests/{reqId} {
+      allow get: if isSignedIn() && isValidId(reqId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reqId);
+      allow update: if isSignedIn() && isValidId(reqId);
+      allow delete: if false;
+    }
+
+    // ========================================================
+    // 11. WALLET SETTINGS & RECHARGE PACKAGES
+    // ========================================================
+    match /wallet_settings/{settingId} {
+      allow get, list: if isSignedIn() && isValidId(settingId);
+      allow create, update: if isSignedIn() && isValidId(settingId);
+      allow delete: if false;
+    }
+
+    match /coin_packages/{pkgId} {
+      allow get, list: if isSignedIn() && isValidId(pkgId);
+      allow create, update: if isSignedIn() && isValidId(pkgId);
+      allow delete: if false;
+    }
+
+    // ========================================================
+    // 12. LEVEL & VIP PROGRESSION SYSTEM
+    // ========================================================
+    match /user_levels/{uid} {
+      allow get: if isSignedIn() && isValidId(uid);
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(uid);
+      allow delete: if false;
+    }
+
+    match /level_configurations/{docId} {
+      allow get, list: if isSignedIn() && isValidId(docId);
+      allow create, update: if isSignedIn() && isValidId(docId);
+      allow delete: if false;
+    }
+
+    match /vip_frames/{docId} {
+      allow get, list: if isSignedIn() && isValidId(docId);
+      allow create, update: if isSignedIn() && isValidId(docId);
+      allow delete: if false;
     }
   }
 }
+
+
