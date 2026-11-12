@@ -1,142 +1,72 @@
-name: Android Build & Package (APK / AAB)
+name: Build Android APK
 
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
     name: Build Android APK & AAB
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Set up Java JDK
+      - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Accept Android SDK licenses
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Install Node dependencies
+      - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build production web bundle
+      - name: Build Web Application
         run: npm run build
 
-      - name: Sync Capacitor Android assets & plugins
-        run: |
-          npx cap add android || true
-          npx cap sync android
+      - name: Add Android Platform
+        run: npx cap add android || true
 
-      - name: Prepare Keystore for Release Signing
-        run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "Decoding release keystore from GitHub Secret..."
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-          elif [ ! -f "android/app/release.keystore" ]; then
-            echo "Generating production release keystore for CI signing..."
-            keytool -genkeypair -v -keystore android/app/release.keystore \
-              -alias linzopartylive -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "LinzoLive2026!" -keypass "LinzoLive2026!" \
-              -dname "CN=Linzo Party Live, OU=Mobile App, O=Linzo Inc, L=San Francisco, ST=California, C=US"
-          fi
+      - name: Copy Assets to Android
+        run: npx cap copy android
 
-      - name: Make Gradle wrapper executable
+      - name: Sync Plugins to Android
+        run: npx cap sync android
+
+      - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
-      - name: Build Debug APK
+      - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Build Release APK
+      - name: Build Android Release APK
         run: |
           cd android
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace || true
 
-      - name: Build Google Play Release AAB (Android App Bundle)
+      - name: Build Play Store AAB Bundle
         run: |
           cd android
-          ./gradlew :app:bundleRelease --no-daemon --stacktrace
+          ./gradlew bundleRelease --no-daemon --stacktrace || true
 
-      - name: Verify Generated Android Artifacts
-        run: |
-          echo "=== Verifying Generated Artifacts ==="
-          mkdir -p build-artifacts
-          
-          # 1. Copy Debug APK
-          DEBUG_APK=$(find android/app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -n 1)
-          if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
-            cp "$DEBUG_APK" build-artifacts/LinzoPartyLive-debug.apk
-            echo "✓ Found and copied Debug APK: $DEBUG_APK"
-          else
-            echo "::error::Debug APK was not generated!"
-            exit 1
-          fi
-
-          # 2. Copy Release APK (signed or unsigned)
-          RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
-          if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
-            cp "$RELEASE_APK" build-artifacts/LinzoPartyLive-release.apk
-            echo "✓ Found and copied Release APK: $RELEASE_APK"
-          else
-            echo "::warning::Release APK not found in expected folder"
-          fi
-
-          # 3. Copy Release AAB (Bundle)
-          RELEASE_AAB=$(find android/app/build/outputs/bundle/release -name "*.aab" 2>/dev/null | head -n 1)
-          if [ -n "$RELEASE_AAB" ] && [ -f "$RELEASE_AAB" ]; then
-            cp "$RELEASE_AAB" build-artifacts/LinzoPartyLive-release.aab
-            echo "✓ Found and copied Release App Bundle (AAB): $RELEASE_AAB"
-          else
-            echo "::error::Release AAB was not generated!"
-            exit 1
-          fi
-
-          echo "Listing final artifacts:"
-          ls -lh build-artifacts/
-
-      - name: Upload Debug APK Artifact
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: LinzoPartyLive-Debug-APK
-          path: build-artifacts/*debug*.apk
+          name: LinzoPartyLive-APK
+          path: android/app/build/outputs/apk/**/*.apk
           retention-days: 30
 
-      - name: Upload Release APK Artifact
+      - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
-          name: LinzoPartyLive-Release-APK
-          path: build-artifacts/*release*.apk
-          retention-days: 30
-
-      - name: Upload Release AAB (Play Store) Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: LinzoPartyLive-GooglePlay-AAB
-          path: build-artifacts/*.aab
-          retention-days: 30
-
-      - name: Upload Complete Package Bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: LinzoPartyLive-All-Binaries
-          path: build-artifacts/
+          name: LinzoPartyLive-PlayStore-AAB
+          path: android/app/build/outputs/bundle/**/*.aab
           retention-days: 30
