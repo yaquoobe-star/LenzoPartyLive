@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Production Android APK & AAB
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build Android APK & AAB
+    name: Build & Verify Signed Production Release
     runs-on: ubuntu-latest
     env:
       GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
@@ -40,9 +40,29 @@ jobs:
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER=$(ls -1 "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager "$SDK_ROOT"/tools/bin/sdkmanager 2>/dev/null | head -n 1 || true)
           fi
-          echo "Using sdkmanager: $SDKMANAGER"
           yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36" "platforms;android-35" "build-tools;36.0.0" "build-tools;35.0.0" "platform-tools"
+
+      - name: Decode & Validate Release Keystore from Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::One or more required GitHub signing secrets (KEYSTORE_BASE64, KEY_ALIAS, KEYSTORE_PASSWORD, KEY_PASSWORD) are missing."
+            exit 1
+          fi
+          KEYSTORE_FILE="${{ runner.temp }}/linzo-release.keystore"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_FILE"
+          if [ ! -s "$KEYSTORE_FILE" ]; then
+            echo "::error::Decoded keystore file is empty."
+            exit 1
+          fi
+          keytool -list -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_FILE" >> $GITHUB_ENV
+          echo "Release keystore decoded and alias verified."
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
@@ -59,46 +79,101 @@ jobs:
 
       - name: Configure Android SDK & Gradle for CI
         run: |
-          rm -f android/local.properties
+          rm -f android/local.properties android/app/release.keystore
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           sed -i 's/compileSdkVersion = 35/compileSdkVersion = 36/g' android/variables.gradle || true
           sed -i 's/targetSdkVersion = 35/targetSdkVersion = 36/g' android/variables.gradle || true
           chmod +x android/gradlew
 
-      - name: Build Android Debug APK
+      - name: Build Signed Production APK & AAB
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
-          ./gradlew :app:assembleDebug -x lint -x test --no-daemon --stacktrace
+          ./gradlew :app:clean :app:assembleRelease :app:bundleRelease -x lint -x test --no-daemon --stacktrace
 
-      - name: Build Android Release APK
+      - name: Stage Production Binaries
         run: |
-          cd android
-          ./gradlew :app:assembleRelease -x lint -x test --no-daemon --stacktrace
+          mkdir -p dist-android
+          cp android/app/build/outputs/apk/release/app-release.apk dist-android/app-release.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab dist-android/app-release.aab
+          ls -lh dist-android/app-release.apk dist-android/app-release.aab
 
-      - name: Build Play Store AAB Bundle
+      - name: Verify APK & AAB Signatures, Metadata, and Certificate Match
         run: |
-          cd android
-          ./gradlew :app:bundleRelease -x lint -x test --no-daemon --stacktrace
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
 
-      - name: Verify Generated Android Artifacts
-        run: |
-          echo "=== Generated APKs ==="
-          find android/app/build/outputs/apk -type f -name "*.apk" -ls
-          echo "=== Generated Bundles ==="
-          find android/app/build/outputs/bundle -type f -name "*.aab" -ls
+          echo "=== 1. Verify APK Signature (apksigner) ==="
+          "$APKSIGNER" verify --verbose --print-certs dist-android/app-release.apk > apk_verify.txt
+          cat apk_verify.txt
 
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+          if grep -qi "CN=Android Debug" apk_verify.txt; then
+            echo "::error::APK is signed with a debug certificate! Production release aborted."
+            exit 1
+          fi
+
+          APK_SHA256=$(grep -i "Signer #1 certificate SHA-256 digest:" apk_verify.txt | awk '{print tolower($NF)}' | head -n 1)
+          if [ -z "$APK_SHA256" ]; then
+            echo "::error::Failed to extract APK SHA-256 signing certificate digest."
+            exit 1
+          fi
+          echo "APK Signer SHA-256: $APK_SHA256"
+
+          echo "=== 2. Check APK Package ID & Version ==="
+          "$AAPT2" dump badging dist-android/app-release.apk > apk_badging.txt
+          grep -E "^package:|^sdkVersion:|^targetSdkVersion:" apk_badging.txt
+
+          echo "=== 3. Verify AAB Signature (jarsigner) ==="
+          jarsigner -verify -verbose -certs dist-android/app-release.aab > aab_verify.txt
+          tail -n 15 aab_verify.txt
+
+          keytool -printcert -jarfile dist-android/app-release.aab > aab_cert.txt
+          AAB_SHA256=$(grep -m 1 "SHA256:" aab_cert.txt | sed 's/.*SHA256://g' | tr -d '[:space:]:' | tr '[:upper:]' '[:lower:]')
+          if [ -z "$AAB_SHA256" ]; then
+            echo "::error::Failed to extract AAB SHA-256 signing certificate digest."
+            exit 1
+          fi
+          echo "AAB Signer SHA-256: $AAB_SHA256"
+
+          if [ "$APK_SHA256" != "$AAB_SHA256" ]; then
+            echo "::error::Certificate mismatch between app-release.apk ($APK_SHA256) and app-release.aab ($AAB_SHA256)!"
+            exit 1
+          fi
+          echo "Confirmed: app-release.apk and app-release.aab share the exact same release certificate."
+
+          echo "=== 4. Validate AAB via bundletool ==="
+          curl -sSL -o "${{ runner.temp }}/bundletool.jar" "https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar"
+          java -jar "${{ runner.temp }}/bundletool.jar" validate --bundle=dist-android/app-release.aab
+          java -jar "${{ runner.temp }}/bundletool.jar" dump manifest --bundle=dist-android/app-release.aab > aab_manifest.txt
+          grep -E "package=|versionCode=|versionName=" aab_manifest.txt
+
+      - name: Clean Up Temporary Keystore
         if: always()
+        run: |
+          rm -f "${{ runner.temp }}/linzo-release.keystore" "${{ runner.temp }}/bundletool.jar" apk_verify.txt apk_badging.txt aab_verify.txt aab_cert.txt aab_manifest.txt
+
+      - name: Upload Signed Production APK
+        uses: actions/upload-artifact@v4
         with:
-          name: LinzoPartyLive-APK
-          path: android/app/build/outputs/apk/**/*.apk
+          name: app-release.apk
+          path: dist-android/app-release.apk
           retention-days: 30
 
-      - name: Upload Play Store AAB
+      - name: Upload Signed Production AAB
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: LinzoPartyLive-PlayStore-AAB
-          path: android/app/build/outputs/bundle/**/*.aab
+          name: app-release.aab
+          path: dist-android/app-release.aab
+          retention-days: 30
+
+      - name: Upload Combined Production Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinzoPartyLive-Production-Release
+          path: |
+            dist-android/app-release.apk
+            dist-android/app-release.aab
           retention-days: 30
