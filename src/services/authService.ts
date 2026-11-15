@@ -28,7 +28,11 @@ export interface FirestoreUserData {
   uid: string;
   fullName: string;
   email: string;
+  username?: string;
+  displayId?: string;
   profileImage?: string;
+  coverImage?: string;
+  bio?: string;
   authProvider: 'google' | 'password';
   createdAt: string;
   lastLogin: string;
@@ -36,6 +40,14 @@ export interface FirestoreUserData {
   followersCount: number;
   followingCount: number;
   level: number;
+  coins?: number;
+  diamonds?: number;
+  vipLevel?: number;
+  isVIP?: boolean;
+  equippedVipFrame?: number;
+  gender?: 'female' | 'male' | 'other' | 'unspecified';
+  country?: string;
+  birthday?: string;
   accountStatus: 'active' | 'suspended' | 'pending';
 }
 
@@ -54,32 +66,35 @@ export function mapFirestoreUserToProfile(
   data: FirestoreUserData,
   fallbackUser?: FirebaseUser | null
 ): UserProfile {
-  const displayId = data.uid.substring(0, 6).toUpperCase();
+  const displayId = data.displayId || data.uid.substring(0, 6).toUpperCase();
   const rawEmailName = data.email ? data.email.split('@')[0] : 'user';
-  const username = `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()}`;
+  const username = data.username || `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()}`;
+  const vipTier = data.equippedVipFrame ?? data.vipLevel ?? 0;
 
   return {
     id: data.uid,
     displayId: displayId,
-    name: data.fullName || fallbackUser?.displayName || 'Linzo Star',
+    name: data.fullName || fallbackUser?.displayName || 'Lenzo Star',
     username: username,
     avatar: data.profileImage || fallbackUser?.photoURL || DEFAULT_AVATARS[0],
-    coverImage: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&auto=format&fit=crop&q=80',
-    bio: '🎵 Living in the moment on Linzo Party Live! ✨ Drop gifts & let vibes flow! 💖',
+    coverImage: data.coverImage || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&auto=format&fit=crop&q=80',
+    bio: data.bio || '🎵 Living in the moment on Lenzo Party Live! ✨ Drop gifts & let vibes flow! 💖',
     level: data.level || 1,
     currentExp: 150,
     nextLevelExp: 500,
-    vipLevel: 1,
-    isVIP: false,
+    vipLevel: vipTier || 1,
+    isVIP: data.isVIP ?? vipTier > 0,
+    equippedVipFrame: data.equippedVipFrame,
     fansCount: (data.followersCount || 0).toLocaleString(),
     followersCount: data.followersCount || 0,
     followingCount: data.followingCount || 0,
     likesCount: '1.2K',
     totalLikes: 1200,
-    coins: 5000,
-    diamonds: 200,
-    gender: 'unspecified',
-    country: 'Global',
+    coins: typeof data.coins === 'number' ? data.coins : 5000,
+    diamonds: typeof data.diamonds === 'number' ? data.diamonds : 200,
+    gender: data.gender || 'unspecified',
+    country: data.country || 'Global',
+    birthday: data.birthday || '',
     isFollowing: false,
   };
 }
@@ -122,7 +137,7 @@ export async function syncUserInFirestore(
       // New user: create comprehensive Firestore record
       const newUserData: FirestoreUserData = {
         uid: user.uid,
-        fullName: extra?.fullName || user.displayName || 'Linzo User',
+        fullName: extra?.fullName || user.displayName || 'Lenzo User',
         email: user.email || '',
         profileImage: extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)],
         authProvider: authProvider,
@@ -132,6 +147,9 @@ export async function syncUserInFirestore(
         followersCount: 0,
         followingCount: 0,
         level: 1,
+        coins: 5000,
+        diamonds: 0,
+        vipLevel: 1,
         accountStatus: 'active',
       };
 

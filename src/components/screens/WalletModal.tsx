@@ -144,6 +144,10 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     setTimeout(() => setErrorMessage(null), 4000);
   };
 
+  const isAdminUser =
+    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
+    auth.currentUser?.emailVerified === true;
+
   // Subscriptions to Real-Time Firestore Services
   useEffect(() => {
     if (!isOpen) return;
@@ -161,7 +165,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     const unsubEarnings = subscribeUserEarnings(currentUser.id, (e) => setEarningsData(e));
     const unsubWalletTx = subscribeTransactions(currentUser.id, 'wallet', (txs) => setWalletTransactions(txs));
     const unsubEarningsTx = subscribeTransactions(currentUser.id, 'earnings', (txs) => setEarningsTransactions(txs));
-    const unsubAllReqs = subscribeAllWithdrawalRequests((reqs) => setAdminRequests(reqs));
+    const unsubAllReqs = isAdminUser
+      ? subscribeAllWithdrawalRequests((reqs) => setAdminRequests(reqs))
+      : () => {};
 
     return () => {
       unsubSettings();
@@ -172,7 +178,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       unsubEarningsTx();
       unsubAllReqs();
     };
-  }, [isOpen, currentUser.id]);
+  }, [isOpen, currentUser.id, isAdminUser]);
 
   if (!isOpen) return null;
 
@@ -341,15 +347,17 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Admin Controls Trigger */}
-            <button
-              onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
-              className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[#FFC84A] text-xs font-bold flex items-center gap-1.5 transition-colors"
-              title="Admin Financial Controls & Withdrawal Approvals"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Admin Panel</span>
-            </button>
+            {/* Admin Controls Trigger (Verified Admin Only) */}
+            {isAdminUser && (
+              <button
+                onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+                className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[#FFC84A] text-xs font-bold flex items-center gap-1.5 transition-colors"
+                title="Admin Financial Controls & Withdrawal Approvals"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Admin Panel</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}
@@ -977,7 +985,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         {/* ========================================================== */}
         {/* DRAWER: ADMIN FINANCIAL CONTROLS & WITHDRAWAL REVIEW       */}
         {/* ========================================================== */}
-        {isAdminPanelOpen && (
+        {isAdminUser && isAdminPanelOpen && (
           <div className="absolute inset-0 z-40 bg-[#120822]/98 backdrop-blur-xl p-4 sm:p-5 flex flex-col overflow-y-auto no-scrollbar animate-in slide-in-from-right">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">

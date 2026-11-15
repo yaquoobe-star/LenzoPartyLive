@@ -57,11 +57,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep Link Filter for Linzo Live Rooms & Profiles -->
+            <!-- Deep Link Filter for Lenzo Party Live Website, Rooms & Profiles -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="lenzoparty.com" />
+                <data android:scheme="https" android:host="www.lenzoparty.com" />
                 <data android:scheme="https" android:host="linzoparty.live" />
             </intent-filter>
 

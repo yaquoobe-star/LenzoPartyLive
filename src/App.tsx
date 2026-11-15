@@ -23,9 +23,14 @@ import { getInitialUserProfile, saveStoredUserProfile } from './utils/storage';
 import { pkService } from './utils/pkService';
 import { profileService } from './utils/profileService';
 import { auth, db } from './firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { logoutUser, fetchCurrentFirestoreProfile } from './services/authService';
+import {
+  logoutUser,
+  fetchCurrentFirestoreProfile,
+  mapFirestoreUserToProfile,
+  FirestoreUserData,
+} from './services/authService';
 import { androidBridge } from './utils/androidBridge';
 import { 
   subscribeFirestoreLiveStreams, 
@@ -34,7 +39,11 @@ import {
   createFirestoreLiveStream,
   createFirestorePartyRoom
 } from './services/firestoreService';
-import { processGiftTransaction } from './services/walletService';
+import {
+  processGiftTransaction,
+  subscribeUserWallet,
+  subscribeUserEarnings,
+} from './services/walletService';
 
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
@@ -74,7 +83,11 @@ import { WalletModal } from './components/screens/WalletModal';
 import { VIPModal } from './components/screens/VIPModal';
 import { LevelAndVIPModal } from './components/screens/LevelAndVIPModal';
 import { LevelUpCelebrationModal } from './components/screens/LevelUpCelebrationModal';
-import { addQualifyingGiftingCoins, equipVipFrame } from './services/levelAndVipService';
+import {
+  addQualifyingGiftingCoins,
+  equipVipFrame,
+  subscribeUserLevelProgression,
+} from './services/levelAndVipService';
 import { SearchModal } from './components/screens/SearchModal';
 import { NotificationsModal } from './components/screens/NotificationsModal';
 
@@ -135,14 +148,14 @@ export default function App() {
     quantity: number;
   } | null>(null);
 
-  // Deep-linking URL parameter listener for profile links (/u/:username or ?u= or ?user=)
+  // Deep-linking URL parameter & Android App Link listener (/u/:username, ?u=, ?user=)
   useEffect(() => {
-    try {
-      const search = window.location.search;
-      if (search) {
-        const urlParams = new URLSearchParams(search);
-        const usernameParam = urlParams.get('u');
-        const userParam = urlParams.get('user');
+    const handleDeepLinkUrl = (rawUrl: string) => {
+      try {
+        const parsed = new URL(rawUrl, 'https://lenzoparty.com');
+        const pathMatch = parsed.pathname.match(/^\/u\/([^/?#]+)/i);
+        const usernameParam = parsed.searchParams.get('u') || (pathMatch ? decodeURIComponent(pathMatch[1]) : null);
+        const userParam = parsed.searchParams.get('user');
 
         if (usernameParam || userParam) {
           const cleanUsername = usernameParam ? `@${usernameParam.replace(/^@/, '')}`.toLowerCase() : null;
@@ -155,7 +168,7 @@ export default function App() {
           if (found) {
             setNavigatingProfileUser(found);
             setCurrentScreen('profile');
-          } else if (usernameParam || userParam) {
+          } else {
             profileService.getUserProfile(userParam || usernameParam!).then((p) => {
               if (p) {
                 setNavigatingProfileUser(p);
@@ -164,10 +177,17 @@ export default function App() {
             });
           }
         }
+      } catch (e) {
+        console.warn('Deep link error:', e);
       }
-    } catch (e) {
-      console.warn('Deep link error:', e);
+    };
+
+    if (typeof window !== 'undefined' && (window.location.search || window.location.pathname.startsWith('/u/'))) {
+      handleDeepLinkUrl(window.location.href);
     }
+
+    const unregisterUrl = androidBridge.registerUrlOpenHandler(handleDeepLinkUrl);
+    return () => unregisterUrl();
   }, []);
 
   // Real-time PK Event Subscriptions & Sync
@@ -286,8 +306,11 @@ export default function App() {
 
     const unregisterBack = androidBridge.registerBackHandler(() => {
       // 1. Close open sheets & modals first
+      if (levelUpData) { setLevelUpData(null); return true; }
+      if (pkWinnerSession) { setPkWinnerSession(null); return true; }
       if (isGiftShopOpen) { setIsGiftShopOpen(false); return true; }
       if (isWalletOpen) { setIsWalletOpen(false); return true; }
+      if (isLevelVIPOpen) { setIsLevelVIPOpen(false); return true; }
       if (isVIPOpen) { setIsVIPOpen(false); return true; }
       if (isSearchOpen) { setIsSearchOpen(false); return true; }
       if (isNotificationsOpen) { setIsNotificationsOpen(false); return true; }
@@ -312,7 +335,21 @@ export default function App() {
       }
 
       // 3. Navigate back to Home from child screens
-      if (['profile', 'settings', 'upload_video', 'create_live', 'create_room', 'rankings', 'messages', 'videos', 'rooms'].includes(currentScreen)) {
+      if ([
+        'profile',
+        'settings',
+        'upload_video',
+        'create_live',
+        'create_room',
+        'rankings',
+        'messages',
+        'chat',
+        'inbox',
+        'videos',
+        'rooms',
+        'party',
+        'store',
+      ].includes(currentScreen)) {
         setCurrentScreen('home');
         return true;
       }
@@ -322,9 +359,9 @@ export default function App() {
 
     return () => unregisterBack();
   }, [
-    isGiftShopOpen, isWalletOpen, isVIPOpen, isSearchOpen, isNotificationsOpen,
-    isPKModalOpen, isPKInviteModalOpen, isMicSelectionOpen, isVideoSourceModalOpen,
-    isCameraRecorderOpen, viewingProfileUser, activeChatUser, currentScreen
+    levelUpData, pkWinnerSession, isGiftShopOpen, isWalletOpen, isLevelVIPOpen, isVIPOpen,
+    isSearchOpen, isNotificationsOpen, isPKModalOpen, isPKInviteModalOpen, isMicSelectionOpen,
+    isVideoSourceModalOpen, isCameraRecorderOpen, viewingProfileUser, activeChatUser, currentScreen
   ]);
 
   // Firebase Persistent Authentication Session Listener & Subscriptions
@@ -349,10 +386,62 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Real-time Cloud Firestore Subscriptions for Live Streams, Rooms & Videos
+  // Real-time Cloud Firestore Subscriptions for User Profile, Wallet, Earnings, Level, Live Streams, Rooms & Videos
   // Attached only when user is authenticated (conforming to Firebase security guidelines)
   useEffect(() => {
     if (!authenticatedUid) return;
+
+    const unsubUserDoc = onSnapshot(
+      doc(db, 'users', authenticatedUid),
+      (snap) => {
+        if (snap.exists()) {
+          const mapped = mapFirestoreUserToProfile(snap.data() as FirestoreUserData, auth.currentUser);
+          setCurrentUser((prev) => {
+            const merged = {
+              ...prev,
+              ...mapped,
+            };
+            saveStoredUserProfile(merged);
+            return merged;
+          });
+        }
+      },
+      (err) => {
+        console.warn('[Firestore] User profile listener notice:', err);
+      }
+    );
+
+    const unsubWallet = subscribeUserWallet(authenticatedUid, (wallet) => {
+      setCurrentUser((prev) => {
+        if (prev.coins === wallet.walletPurchasedCoins) return prev;
+        const next = { ...prev, coins: wallet.walletPurchasedCoins };
+        saveStoredUserProfile(next);
+        return next;
+      });
+    });
+
+    const unsubEarnings = subscribeUserEarnings(authenticatedUid, (earnings) => {
+      setCurrentUser((prev) => {
+        if (prev.diamonds === earnings.availableEarningsCoins) return prev;
+        const next = { ...prev, diamonds: earnings.availableEarningsCoins };
+        saveStoredUserProfile(next);
+        return next;
+      });
+    });
+
+    const unsubLevels = subscribeUserLevelProgression(authenticatedUid, 0, (prog) => {
+      setCurrentUser((prev) => {
+        const next = {
+          ...prev,
+          level: prog.currentLevel,
+          vipLevel: prog.equippedVipFrame || prev.vipLevel,
+          equippedVipFrame: prog.equippedVipFrame,
+          isVIP: prog.equippedVipFrame > 0,
+        };
+        saveStoredUserProfile(next);
+        return next;
+      });
+    });
 
     const unsubStreams = subscribeFirestoreLiveStreams((remoteStreams) => {
       if (remoteStreams.length > 0) {
@@ -373,6 +462,10 @@ export default function App() {
     });
 
     return () => {
+      unsubUserDoc();
+      unsubWallet();
+      unsubEarnings();
+      unsubLevels();
       unsubStreams();
       unsubRooms();
       unsubVideos();
@@ -475,7 +568,9 @@ export default function App() {
         const userRef = doc(db, 'users', auth.currentUser.uid);
         await updateDoc(userRef, {
           fullName: updated.name,
+          username: updated.username || '',
           profileImage: updated.avatar,
+          coverImage: updated.coverImage || '',
           bio: updated.bio || '',
           gender: updated.gender || 'unspecified',
           country: updated.country || 'Global',
@@ -616,12 +711,31 @@ export default function App() {
 
 
   // Handler: Toggle Follow User
-  const handleToggleFollow = (userId: string) => {
-    setLiveStreams((prev) =>
-      prev.map((s) => (s.host.id === userId ? { ...s, host: { ...s.host, isFollowing: !s.host.isFollowing } } : s))
-    );
-    if (viewingProfileUser && viewingProfileUser.id === userId) {
-      setViewingProfileUser((prev) => (prev ? { ...prev, isFollowing: !prev.isFollowing } : null));
+  const handleToggleFollow = async (userId: string) => {
+    try {
+      const result = await profileService.toggleFollow(userId, currentUser.id);
+      setLiveStreams((prev) =>
+        prev.map((s) => (s.host.id === userId ? { ...s, host: { ...s.host, isFollowing: result.isFollowing } } : s))
+      );
+      if (viewingProfileUser && viewingProfileUser.id === userId) {
+        setViewingProfileUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                isFollowing: result.isFollowing,
+                followersCount: result.targetFollowersCount,
+                fansCount: result.targetFollowersCount.toLocaleString(),
+              }
+            : null
+        );
+      }
+      setCurrentUser((prev) => {
+        const next = { ...prev, followingCount: result.myFollowingCount };
+        saveStoredUserProfile(next);
+        return next;
+      });
+    } catch (err) {
+      console.warn('Toggle follow notice:', err);
     }
   };
 
@@ -632,7 +746,8 @@ export default function App() {
     setCurrentScreen('messages');
   };
 
-  // Top hosts derived from users
+  // Derived unread count and top hosts
+  const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
   const topHostsList = Object.values(MOCK_USERS);
 
   // Full Screen Overlays (Splash & Auth)
@@ -829,7 +944,7 @@ export default function App() {
         onOpenPKModal={handleOpenPKFromNav}
         onOpenVIP={() => setIsVIPOpen(true)}
         onLogout={handleLogout}
-        unreadMessagesCount={99}
+        unreadMessagesCount={unreadMessagesCount}
       />
 
       {/* Main Responsive Application Area */}
@@ -1007,7 +1122,7 @@ export default function App() {
             setCurrentScreen(screen);
           }}
           onOpenCreate={handleOpenPlusUpload}
-          unreadMessagesCount={3}
+          unreadMessagesCount={unreadMessagesCount}
           storeNotificationCount={1}
         />
       </div>

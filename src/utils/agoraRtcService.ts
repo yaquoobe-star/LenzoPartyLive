@@ -10,6 +10,7 @@ import AgoraRTC, {
   ConnectionState,
 } from 'agora-rtc-sdk-ng';
 import { UserProfile } from '../types';
+import { apiUrl } from './apiConfig';
 
 export interface AgoraConnectionStatus {
   state: ConnectionState;
@@ -110,8 +111,8 @@ class AgoraRtcService {
    */
   async getAgoraConfig(): Promise<{ configured: boolean; appId: string }> {
     try {
-      const res = await fetch('/api/agora/config');
-      if (res.ok) {
+      const res = await fetch(apiUrl('/api/agora/config'));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         return await res.json();
       }
     } catch (e) {
@@ -129,7 +130,7 @@ class AgoraRtcService {
     role: 'broadcaster' | 'audience'
   ): Promise<{ token: string | null; appId: string; configured: boolean; error?: string }> {
     try {
-      const res = await fetch('/api/agora/token', {
+      const res = await fetch(apiUrl('/api/agora/token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,6 +139,10 @@ class AgoraRtcService {
           role,
         }),
       });
+
+      if (!res.headers.get('content-type')?.includes('application/json')) {
+        return { token: null, appId: '', configured: false, error: 'Agora token API endpoint unavailable' };
+      }
 
       const data = await res.json();
       return data;

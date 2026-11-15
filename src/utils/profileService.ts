@@ -1,6 +1,7 @@
 import { UserProfile, VideoItem } from '../types';
 import { CURRENT_USER, MOCK_USERS } from '../data/mockData';
 import { INITIAL_VIDEOS } from '../data/videoData';
+import { apiUrl } from './apiConfig';
 
 const LOCAL_STORAGE_PROFILE_KEY = 'lonzo_party_user_profile_v2';
 const LOCAL_STORAGE_FOLLOWING_KEY = 'lonzo_party_following_v1';
@@ -133,8 +134,8 @@ class ProfileService {
    */
   async getUserProfile(userId: string): Promise<UserProfile> {
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.user) {
           return data.user;
@@ -183,8 +184,8 @@ class ProfileService {
     }
 
     try {
-      const res = await fetch(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return data;
       }
@@ -209,12 +210,12 @@ class ProfileService {
   async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
     // 1. Send to backend if available
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.user) {
           localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(data.user));
@@ -243,8 +244,8 @@ class ProfileService {
    */
   async getFollowers(userId: string): Promise<FollowListMember[]> {
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/followers`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}/followers`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.followers) return data.followers;
       }
@@ -313,8 +314,8 @@ class ProfileService {
    */
   async getFollowing(userId: string): Promise<FollowListMember[]> {
     try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}/following`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}/following`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.following) return data.following;
       }
@@ -360,13 +361,13 @@ class ProfileService {
       const isCurrentlyFollowing = followingSet.has(targetUserId);
       const action = isCurrentlyFollowing ? 'unfollow' : 'follow';
 
-      const res = await fetch(`/api/users/${encodeURIComponent(targetUserId)}/${action}`, {
+      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(targetUserId)}/${action}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ followerId: currentUserId }),
       });
 
-      if (res.ok) {
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (isCurrentlyFollowing) {
           followingSet.delete(targetUserId);
@@ -552,8 +553,13 @@ class ProfileService {
    */
   generateShareUrl(user: UserProfile): string {
     const cleanUsername = (user.username || `@user_${user.displayId}`).replace(/^@/, '');
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://lonzoparty.app';
-    return `${origin}/u/${encodeURIComponent(cleanUsername)}`;
+    const origin =
+      typeof window !== 'undefined' &&
+      window.location.origin &&
+      !window.location.origin.includes('localhost')
+        ? window.location.origin
+        : 'https://lenzoparty.com';
+    return `${origin}/?u=${encodeURIComponent(cleanUsername)}`;
   }
 }
 

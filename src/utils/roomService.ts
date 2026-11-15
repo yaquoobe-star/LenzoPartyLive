@@ -1,10 +1,11 @@
 import { RoomSeatRequest, UserProfile } from '../types';
+import { apiUrl } from './apiConfig';
 
 class RoomService {
   public async fetchRoomSeats(roomId: string): Promise<{ seats: (UserProfile | null)[]; pendingRequests: RoomSeatRequest[] }> {
     try {
-      const res = await fetch(`/api/rooms/${roomId}/seats`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/rooms/${roomId}/seats`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         return await res.json();
       }
     } catch (e) {
@@ -14,7 +15,7 @@ class RoomService {
   }
 
   public async requestSeat(roomId: string, user: UserProfile, requestedSeatIndex: number, roomHostId: string): Promise<RoomSeatRequest> {
-    const res = await fetch(`/api/rooms/${roomId}/request_seat`, {
+    const res = await fetch(apiUrl(`/api/rooms/${roomId}/request_seat`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user, requestedSeatIndex, roomHostId })
@@ -28,7 +29,7 @@ class RoomService {
   }
 
   public async cancelSeatRequest(roomId: string, userId: string): Promise<void> {
-    await fetch(`/api/rooms/${roomId}/cancel_seat_request`, {
+    await fetch(apiUrl(`/api/rooms/${roomId}/cancel_seat_request`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId })
@@ -42,7 +43,7 @@ class RoomService {
     approve: boolean,
     targetSeatIndex?: number
   ): Promise<{ success: boolean; seats?: (UserProfile | null)[] }> {
-    const res = await fetch(`/api/rooms/${roomId}/respond_seat_request`, {
+    const res = await fetch(apiUrl(`/api/rooms/${roomId}/respond_seat_request`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hostId, applicantId, approve, targetSeatIndex })
@@ -55,7 +56,7 @@ class RoomService {
   }
 
   public async removeSeat(roomId: string, hostId: string, seatIndex: number): Promise<void> {
-    const res = await fetch(`/api/rooms/${roomId}/remove_seat`, {
+    const res = await fetch(apiUrl(`/api/rooms/${roomId}/remove_seat`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hostId, seatIndex })

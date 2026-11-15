@@ -7,6 +7,7 @@ import {
   PKGiftEvent, 
   PKLikeEvent 
 } from '../types';
+import { apiUrl, getWsUrl } from './apiConfig';
 
 type PKEventCallback = (event: string, payload: any) => void;
 
@@ -15,8 +16,10 @@ class PKService {
   private currentUserId: string | null = null;
   private currentMatchId: string | null = null;
   private listeners: Set<PKEventCallback> = new Set();
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isConnecting: boolean = false;
+  private reconnectAttempts: number = 0;
+  private readonly maxReconnectAttempts: number = 5;
 
   constructor() {
     this.initWebSocket();
@@ -63,14 +66,13 @@ class PKService {
     this.isConnecting = true;
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws/pk`;
+      const wsUrl = getWsUrl('/ws/pk');
 
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onopen = () => {
         this.isConnecting = false;
+        this.reconnectAttempts = 0;
         if (this.currentUserId) {
           this.socket?.send(JSON.stringify({ type: 'auth', userId: this.currentUserId }));
         }
@@ -106,19 +108,21 @@ class PKService {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
+    if (this.reconnectTimer || this.reconnectAttempts >= this.maxReconnectAttempts) return;
+    const delayMs = Math.min(60000, 3000 * Math.pow(2, this.reconnectAttempts));
+    this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.initWebSocket();
-    }, 3000);
+    }, delayMs);
   }
 
   // --- REST API Calls with graceful fallbacks ---
 
   public async fetchEligibleHosts(): Promise<any[]> {
     try {
-      const res = await fetch('/api/pk/hosts');
-      if (res.ok) {
+      const res = await fetch(apiUrl('/api/pk/hosts'));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return data.hosts || [];
       }
@@ -184,7 +188,7 @@ class PKService {
     note?: string, 
     autoAccept: boolean = false
   ): Promise<{ invitation: PKMatchInvitation; session?: PKMatchSession }> {
-    const res = await fetch('/api/pk/invite', {
+    const res = await fetch(apiUrl('/api/pk/invite'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fromHost, toHost, note, autoAccept })
@@ -200,7 +204,7 @@ class PKService {
   }
 
   public async respondPKInvite(inviteId: string, accept: boolean, responderId: string): Promise<{ success: boolean; session?: PKMatchSession }> {
-    const res = await fetch('/api/pk/respond', {
+    const res = await fetch(apiUrl('/api/pk/respond'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteId, accept, responderId })
@@ -215,7 +219,7 @@ class PKService {
   }
 
   public async cancelPKInvite(inviteId: string, hostId: string): Promise<boolean> {
-    const res = await fetch('/api/pk/cancel_invite', {
+    const res = await fetch(apiUrl('/api/pk/cancel_invite'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteId, hostId })
@@ -224,7 +228,7 @@ class PKService {
   }
 
   public async fetchMatchSession(matchId: string): Promise<{ session: PKMatchSession; serverTime: number }> {
-    const res = await fetch(`/api/pk/session/${matchId}`);
+    const res = await fetch(apiUrl(`/api/pk/session/${matchId}`));
     if (!res.ok) {
       throw new Error('Session not found');
     }
@@ -239,7 +243,7 @@ class PKService {
     quantity: number = 1
   ): Promise<{ success: boolean; host1Score: number; host2Score: number; giftEvent: PKGiftEvent }> {
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const res = await fetch('/api/pk/gift', {
+    const res = await fetch(apiUrl('/api/pk/gift'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -268,7 +272,7 @@ class PKService {
     y?: number
   ): Promise<void> {
     try {
-      await fetch('/api/pk/like', {
+      await fetch(apiUrl('/api/pk/like'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, recipientId, count, x, y })
@@ -279,7 +283,7 @@ class PKService {
   }
 
   public async forfeitMatch(matchId: string, hostId: string, reason?: string): Promise<void> {
-    await fetch('/api/pk/forfeit', {
+    await fetch(apiUrl('/api/pk/forfeit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ matchId, hostId, reason })
@@ -288,8 +292,8 @@ class PKService {
 
   public async fetchMatchHistory(userId: string): Promise<PKMatchHistoryItem[]> {
     try {
-      const res = await fetch(`/api/pk/history/${userId}`);
-      if (res.ok) {
+      const res = await fetch(apiUrl(`/api/pk/history/${userId}`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.history && data.history.length > 0) {
           // Sync to localStorage

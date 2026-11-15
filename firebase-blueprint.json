@@ -337,9 +337,74 @@
         "equippedVipFrame": { "type": "number" }
       },
       "required": ["userId", "currentLevel", "currentTier", "totalQualifyingCoinsSpent"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator identity document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["admin", "super_admin"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ChatGroup": {
+      "title": "ChatGroup",
+      "description": "Community group conversation metadata",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "creatorId": { "type": "string", "maxLength": 128 },
+        "privacy": { "type": "string", "enum": ["public", "private"] }
+      },
+      "required": ["name", "creatorId"]
+    },
+    "WalletSettings": {
+      "title": "WalletSettings",
+      "description": "Global platform commission, exchange rate, and withdrawal limit configuration",
+      "type": "object",
+      "properties": {
+        "commissionRatePercent": { "type": "number" },
+        "exchangeRatePkrPerCoin": { "type": "number" },
+        "minWithdrawalCoins": { "type": "number" },
+        "maxWithdrawalCoins": { "type": "number" },
+        "withdrawalFeePercent": { "type": "number" }
+      },
+      "required": ["commissionRatePercent", "exchangeRatePkrPerCoin", "minWithdrawalCoins", "maxWithdrawalCoins"]
+    },
+    "CoinPackage": {
+      "title": "CoinPackage",
+      "description": "Coin recharge package catalog entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "coins": { "type": "number" },
+        "bonusCoins": { "type": "number" },
+        "pricePkr": { "type": "number" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["id", "coins", "pricePkr", "enabled"]
+    },
+    "CommissionTransaction": {
+      "title": "CommissionTransaction",
+      "description": "Platform commission audit record created on gift transfers",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string", "maxLength": 128 },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "grossCost": { "type": "number" },
+        "commissionCoins": { "type": "number" },
+        "netEarningsCoins": { "type": "number" }
+      },
+      "required": ["senderId", "recipientId", "grossCost", "commissionCoins"]
     }
   },
   "firestore": {
+    "/admins/{uid}": {
+      "schema": "AdminUser",
+      "description": "Stores verified platform administrators keyed by Firebase Auth UID"
+    },
     "/users/{uid}": {
       "schema": "User",
       "description": "Stores user profiles keyed by their Firebase Auth UID"
@@ -347,6 +412,14 @@
     "/user_levels/{uid}": {
       "schema": "UserLevelProgression",
       "description": "Stores 50-Level and 8-tier VIP progression documents"
+    },
+    "/level_configurations/{docId}": {
+      "schema": "UserLevelProgression",
+      "description": "Stores admin level milestone configuration"
+    },
+    "/vip_frames/{docId}": {
+      "schema": "UserLevelProgression",
+      "description": "Stores admin VIP frame definitions"
     },
     "/posts/{postId}": {
       "schema": "Post",
@@ -376,9 +449,25 @@
       "schema": "Transaction",
       "description": "Earnings and payout transaction history"
     },
+    "/commission_transactions/{txId}": {
+      "schema": "CommissionTransaction",
+      "description": "Platform commission audit log for virtual gifts"
+    },
     "/withdrawal_requests/{reqId}": {
       "schema": "WithdrawalRequest",
       "description": "Creator withdrawal and payout requests"
+    },
+    "/wallet_settings/{settingId}": {
+      "schema": "WalletSettings",
+      "description": "Global wallet commission, PKR conversion rate, and withdrawal limit configuration"
+    },
+    "/coin_packages/{pkgId}": {
+      "schema": "CoinPackage",
+      "description": "Recharge coin package catalog"
+    },
+    "/groups/{groupId}": {
+      "schema": "ChatGroup",
+      "description": "Community chat groups"
     },
     "/chats/{chatId}/messages/{messageId}": {
       "schema": "ChatMessage",

@@ -8,15 +8,24 @@ export interface AndroidBackActionHandler {
   (): boolean; // Return true if handled, false to delegate
 }
 
+export interface AndroidUrlOpenHandler {
+  (url: string): void;
+}
+
 class AndroidBridgeService {
   private backHandlers: AndroidBackActionHandler[] = [];
+  private urlOpenHandlers: AndroidUrlOpenHandler[] = [];
   private isNativeAndroid: boolean = false;
+  private isInitialized: boolean = false;
 
   constructor() {
     this.isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   }
 
   public initAndroidIntegration(onExitApp?: () => void) {
+    if (this.isInitialized) return;
+    this.isInitialized = true;
+
     if (!this.isNativeAndroid) {
       console.log('[Android Bridge] Running in Web Preview environment. Android hooks simulated.');
       return;
@@ -60,7 +69,23 @@ class AndroidBridgeService {
       console.warn('[Android Bridge] Back button registration notice:', e);
     }
 
-    // 4. Keyboard Show/Hide listeners for smooth viewport resizing
+    // 4. Deep Link / App Link URL Listener (https://lenzoparty.com/...)
+    try {
+      CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+        if (!url) return;
+        this.urlOpenHandlers.forEach((cb) => {
+          try {
+            cb(url);
+          } catch (err) {
+            console.warn('[Android Bridge] Deep link handler notice:', err);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('[Android Bridge] Deep link registration notice:', e);
+    }
+
+    // 5. Keyboard Show/Hide listeners for smooth viewport resizing
     try {
       Keyboard.addListener('keyboardWillShow', (info) => {
         document.body.classList.add('keyboard-open');
@@ -84,6 +109,16 @@ class AndroidBridgeService {
     this.backHandlers.push(handler);
     return () => {
       this.backHandlers = this.backHandlers.filter((h) => h !== handler);
+    };
+  }
+
+  /**
+   * Register a handler for incoming Android App Links / Deep Links.
+   */
+  public registerUrlOpenHandler(handler: AndroidUrlOpenHandler): () => void {
+    this.urlOpenHandlers.push(handler);
+    return () => {
+      this.urlOpenHandlers = this.urlOpenHandlers.filter((h) => h !== handler);
     };
   }
 

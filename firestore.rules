@@ -18,6 +18,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'yaquoobe@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -31,6 +38,15 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 0. ADMINS COLLECTION (/admins/{uid})
+    // ========================================================
+    match /admins/{uid} {
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ========================================================
     // 1. USERS COLLECTION (/users/{uid})
     // ========================================================
     function isValidUser(data) {
@@ -40,59 +56,84 @@ service cloud.firestore {
         && data.email is string && data.email.size() <= 120
         && data.authProvider in ['google', 'password']
         && data.accountStatus in ['active', 'suspended', 'pending']
-        && (!('profileImage' in data) || (data.profileImage is string && data.profileImage.size() <= 1000))
-        && (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1000))
+        && (!('username' in data) || (data.username is string && data.username.size() <= 40))
+        && (!('displayId' in data) || (data.displayId is string && data.displayId.size() <= 32))
+        && (!('profileImage' in data) || (data.profileImage is string && data.profileImage.size() <= 1500))
+        && (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1500))
         && (!('bio' in data) || (data.bio is string && data.bio.size() <= 300))
-        && (!('followersCount' in data) || data.followersCount is number)
-        && (!('followingCount' in data) || data.followingCount is number)
-        && (!('level' in data) || data.level is number)
-        && (!('coins' in data) || data.coins is number)
-        && (!('diamonds' in data) || data.diamonds is number)
-        && (!('vipLevel' in data) || data.vipLevel is number)
+        && (!('gender' in data) || (data.gender is string && data.gender.size() <= 24))
+        && (!('country' in data) || (data.country is string && data.country.size() <= 64))
+        && (!('birthday' in data) || (data.birthday is string && data.birthday.size() <= 32))
+        && (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0))
+        && (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0))
+        && (!('level' in data) || (data.level is number && data.level >= 1 && data.level <= 50))
+        && (!('coins' in data) || (data.coins is number && data.coins >= 0))
+        && (!('diamonds' in data) || (data.diamonds is number && data.diamonds >= 0))
+        && (!('vipLevel' in data) || (data.vipLevel is number && data.vipLevel >= 0 && data.vipLevel <= 10))
+        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 10))
+        && (!('isVIP' in data) || data.isVIP is bool)
         && (!('isOnline' in data) || data.isOnline is bool);
     }
 
     match /users/{uid} {
-      // Authenticated users can view user profiles (live hosts, room members)
+      // Authenticated users can view creator profiles; list restricted to owner or admin
       allow get: if isSignedIn() && isValidId(uid);
-      
-      // Prevent query scraping; list query must be scoped to the authenticated user
-      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
 
       // Only the authenticated user can create their own profile document
       allow create: if isOwner(uid)
                     && isValidId(uid)
                     && incoming().uid == request.auth.uid
+                    && incoming().accountStatus == 'active'
                     && isValidUser(incoming());
 
-      // Only the user themselves can update their profile; immutable uid enforced
-      allow update: if isOwner(uid)
-                    && isValidId(uid)
-                    && incoming().uid == existing().uid
-                    && isValidUser(incoming());
+      // Action-partitioned updates:
+      // 1) Owner updating their own profile with immutable core identity fields
+      // 2) Authenticated gifter crediting recipient's diamonds balance upward only
+      // 3) Admin override
+      allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
+                      isAdmin()
+                      || (
+                        isOwner(uid)
+                        && incoming().uid == existing().uid
+                        && incoming().email == existing().email
+                        && incoming().authProvider == existing().authProvider
+                        && incoming().accountStatus == existing().accountStatus
+                      )
+                      || (
+                        incoming().diff(existing()).affectedKeys().hasOnly(['diamonds'])
+                        && incoming().diamonds is number
+                        && (!('diamonds' in existing()) || incoming().diamonds >= existing().diamonds)
+                      )
+                    );
 
       allow delete: if false;
 
       // User Transactions subcollection
       match /transactions/{transactionId} {
-        allow get: if isOwner(uid) && isValidId(transactionId);
-        allow list: if isOwner(uid);
-        allow create: if isOwner(uid)
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(transactionId);
+        allow list: if isOwner(uid) || isAdmin();
+        allow create: if (isOwner(uid) || isAdmin())
                       && isValidId(transactionId)
-                      && incoming().userId == request.auth.uid;
+                      && incoming().userId == uid;
         allow update, delete: if false;
       }
 
       // User Notifications subcollection
       match /notifications/{notificationId} {
-        allow get: if isOwner(uid) && isValidId(notificationId);
-        allow list: if isOwner(uid);
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(notificationId);
+        allow list: if isOwner(uid) || isAdmin();
         allow create: if isSignedIn()
-                      && isValidId(notificationId);
-        allow update: if isOwner(uid)
                       && isValidId(notificationId)
-                      && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
-        allow delete: if isOwner(uid) && isValidId(notificationId);
+                      && incoming().title is string && incoming().title.size() <= 120
+                      && incoming().message is string && incoming().message.size() <= 400
+                      && incoming().type in ['system', 'like', 'follow', 'gift']
+                      && incoming().isRead == false;
+        allow update: if (isOwner(uid) || isAdmin())
+                      && isValidId(notificationId)
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+                      && incoming().isRead is bool;
+        allow delete: if (isOwner(uid) || isAdmin()) && isValidId(notificationId);
       }
     }
 
@@ -106,9 +147,9 @@ service cloud.firestore {
         && (!('description' in data) || (data.description is string && data.description.size() <= 500))
         && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 1500))
         && (!('musicTitle' in data) || (data.musicTitle is string && data.musicTitle.size() <= 150))
-        && (!('likesCount' in data) || data.likesCount is number)
-        && (!('commentsCount' in data) || data.commentsCount is number)
-        && (!('sharesCount' in data) || data.sharesCount is number)
+        && (!('likesCount' in data) || (data.likesCount is number && data.likesCount >= 0))
+        && (!('commentsCount' in data) || (data.commentsCount is number && data.commentsCount >= 0))
+        && (!('sharesCount' in data) || (data.sharesCount is number && data.sharesCount >= 0))
         && (!('isPrivate' in data) || data.isPrivate is bool);
     }
 
@@ -123,13 +164,11 @@ service cloud.firestore {
                     && isValidId(postId)
                     && isValidPost(incoming())
                     && (
-                      // Author can edit post details
-                      (existing().userId == request.auth.uid && incoming().userId == existing().userId)
-                      ||
-                      // Any viewer can like or share (increments counters)
-                      incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'sharesCount', 'commentsCount'])
+                      isAdmin()
+                      || (existing().userId == request.auth.uid && incoming().userId == existing().userId)
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'sharesCount', 'commentsCount'])
                     );
-      allow delete: if isSignedIn() && isValidId(postId) && existing().userId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(postId) && (existing().userId == request.auth.uid || isAdmin());
     }
 
     // ========================================================
@@ -144,13 +183,11 @@ service cloud.firestore {
       allow update: if isSignedIn()
                     && isValidId(roomId)
                     && (
-                      // Host can update all room settings
-                      existing().host.id == request.auth.uid
-                      ||
-                      // Participants can join/leave seats
-                      incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount'])
+                      isAdmin()
+                      || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount'])
                     );
-      allow delete: if isSignedIn() && isValidId(roomId) && existing().host.id == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
     }
 
     // ========================================================
@@ -165,13 +202,11 @@ service cloud.firestore {
       allow update: if isSignedIn()
                     && isValidId(streamId)
                     && (
-                      // Host can update stream status
-                      existing().host.id == request.auth.uid
-                      ||
-                      // Viewers can update viewer counts & likes
-                      incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'likesCount'])
+                      isAdmin()
+                      || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount'])
                     );
-      allow delete: if isSignedIn() && isValidId(streamId) && existing().host.id == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(streamId) && (existing().host.id == request.auth.uid || isAdmin());
     }
 
     // ========================================================
@@ -180,8 +215,9 @@ service cloud.firestore {
     match /chats/{chatId} {
       allow get: if isSignedIn() && isValidId(chatId);
       allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && isValidId(chatId);
-      allow delete: if isSignedIn() && isValidId(chatId);
+      allow create: if isSignedIn() && isValidId(chatId);
+      allow update: if isSignedIn() && isValidId(chatId);
+      allow delete: if isAdmin() && isValidId(chatId);
 
       match /messages/{messageId} {
         allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
@@ -189,9 +225,17 @@ service cloud.firestore {
         allow create: if isSignedIn()
                       && isValidId(chatId)
                       && isValidId(messageId)
-                      && incoming().senderId == request.auth.uid;
-        allow update: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
-        allow delete: if isSignedIn() && isValidId(chatId) && isValidId(messageId);
+                      && incoming().senderId == request.auth.uid
+                      && (!('text' in incoming()) || (incoming().text is string && incoming().text.size() <= 2000));
+        allow update: if isSignedIn()
+                      && isValidId(chatId)
+                      && isValidId(messageId)
+                      && (
+                        isAdmin()
+                        || existing().senderId == request.auth.uid
+                        || incoming().diff(existing()).affectedKeys().hasOnly(['reactions', 'isPinned', 'isStarred', 'deletedForUsers', 'status'])
+                      );
+        allow delete: if isSignedIn() && isValidId(chatId) && isValidId(messageId) && (existing().senderId == request.auth.uid || isAdmin());
       }
     }
 
@@ -201,100 +245,215 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow get: if isSignedIn() && isValidId(groupId);
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(groupId) && incoming().creatorId == request.auth.uid;
-      allow update: if isSignedIn() && isValidId(groupId);
-      allow delete: if isSignedIn() && isValidId(groupId) && existing().creatorId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && isValidId(groupId)
+                    && incoming().creatorId == request.auth.uid
+                    && incoming().name is string && incoming().name.size() <= 100;
+      allow update: if isSignedIn()
+                    && isValidId(groupId)
+                    && (
+                      isAdmin()
+                      || existing().creatorId == request.auth.uid
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['memberIds', 'membersCount', 'lastMessage', 'lastMessageTime', 'updatedAt'])
+                    );
+      allow delete: if isSignedIn() && isValidId(groupId) && (existing().creatorId == request.auth.uid || isAdmin());
     }
 
     // ========================================================
-    // 7. WALLETS COLLECTION (/wallets/{uid})
+    // 7. WALLETS COLLECTION (/wallets/{uid}) — OWNER & ADMIN ONLY
     // ========================================================
+    function isValidWallet(data) {
+      return data.keys().hasAll(['userId', 'walletPurchasedCoins'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.walletPurchasedCoins is number && data.walletPurchasedCoins >= 0
+        && (!('totalCoinsPurchased' in data) || (data.totalCoinsPurchased is number && data.totalCoinsPurchased >= 0))
+        && (!('totalCoinsSpent' in data) || (data.totalCoinsSpent is number && data.totalCoinsSpent >= 0));
+    }
+
     match /wallets/{uid} {
-      allow get: if isSignedIn() && isValidId(uid);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create, update: if isSignedIn() && isValidId(uid);
+      allow get: if (isOwner(uid) || isAdmin()) && isValidId(uid);
+      allow list: if (isOwner(uid) || isAdmin());
+      allow create: if isValidId(uid)
+                    && isValidWallet(incoming())
+                    && (isAdmin() || (isOwner(uid) && incoming().userId == request.auth.uid));
+      allow update: if isValidId(uid)
+                    && isValidWallet(incoming())
+                    && (
+                      isAdmin()
+                      || (isOwner(uid) && incoming().userId == existing().userId)
+                    );
       allow delete: if false;
     }
 
     // ========================================================
     // 8. EARNINGS COLLECTION (/earnings/{uid})
     // ========================================================
+    function isValidEarnings(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && (!('availableEarningsCoins' in data) || (data.availableEarningsCoins is number && data.availableEarningsCoins >= 0))
+        && (!('pendingWithdrawalCoins' in data) || (data.pendingWithdrawalCoins is number && data.pendingWithdrawalCoins >= 0))
+        && (!('totalWithdrawnCoins' in data) || (data.totalWithdrawnCoins is number && data.totalWithdrawnCoins >= 0))
+        && (!('grossGiftCoinsReceived' in data) || (data.grossGiftCoinsReceived is number && data.grossGiftCoinsReceived >= 0))
+        && (!('totalCommissionDeducted' in data) || (data.totalCommissionDeducted is number && data.totalCommissionDeducted >= 0))
+        && (!('totalConvertedToWallet' in data) || (data.totalConvertedToWallet is number && data.totalConvertedToWallet >= 0))
+        && (!('totalGiftsCount' in data) || (data.totalGiftsCount is number && data.totalGiftsCount >= 0));
+    }
+
     match /earnings/{uid} {
+      // Signed-in get allowed for atomic gift credit runTransaction; list restricted to owner/admin
       allow get: if isSignedIn() && isValidId(uid);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create, update: if isSignedIn() && isValidId(uid);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() && isValidId(uid) && isValidEarnings(incoming()) && (
+                      isAdmin()
+                      || (isOwner(uid) && incoming().userId == request.auth.uid)
+                      || (
+                        // Initial earnings record created when another user sends the first gift
+                        incoming().userId == uid
+                        && (!('pendingWithdrawalCoins' in incoming()) || incoming().pendingWithdrawalCoins == 0)
+                        && (!('totalWithdrawnCoins' in incoming()) || incoming().totalWithdrawnCoins == 0)
+                        && (!('totalConvertedToWallet' in incoming()) || incoming().totalConvertedToWallet == 0)
+                      )
+                    );
+
+      allow update: if isSignedIn() && isValidId(uid) && isValidEarnings(incoming()) && (
+                      isAdmin()
+                      || (
+                        // Owner converting earnings to wallet or reserving pending withdrawal coins
+                        isOwner(uid)
+                        && incoming().userId == existing().userId
+                        && (!('totalWithdrawnCoins' in existing()) || incoming().totalWithdrawnCoins == existing().totalWithdrawnCoins)
+                        && incoming().availableEarningsCoins <= existing().availableEarningsCoins
+                      )
+                      || (
+                        // Gifter crediting recipient upward only; cannot touch pending/withdrawn/converted totals
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'userId',
+                          'availableEarningsCoins',
+                          'grossGiftCoinsReceived',
+                          'totalCommissionDeducted',
+                          'totalGiftsCount',
+                          'updatedAt'
+                        ])
+                        && incoming().availableEarningsCoins >= existing().availableEarningsCoins
+                      )
+                    );
+
       allow delete: if false;
     }
 
     // ========================================================
-    // 9. FINANCIAL TRANSACTIONS COLLECTIONS
+    // 9. FINANCIAL TRANSACTIONS COLLECTIONS (IMMUTABLE AUDIT LOGS)
     // ========================================================
     match /wallet_transactions/{txId} {
-      allow get: if isSignedIn() && isValidId(txId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidId(txId);
+      allow get: if isSignedIn() && isValidId(txId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(txId)
+                    && (incoming().userId == request.auth.uid || isAdmin())
+                    && incoming().amount is number;
       allow update, delete: if false;
     }
 
     match /earnings_transactions/{txId} {
-      allow get: if isSignedIn() && isValidId(txId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidId(txId);
+      allow get: if isSignedIn() && isValidId(txId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(txId)
+                    && incoming().amount is number
+                    && (
+                      incoming().userId == request.auth.uid
+                      || isAdmin()
+                      || (incoming().category == 'gift_received' && incoming().metadata.senderId == request.auth.uid)
+                    );
       allow update, delete: if false;
     }
 
     match /commission_transactions/{txId} {
-      allow read, write: if isSignedIn() && isValidId(txId);
+      allow get: if isSignedIn() && isValidId(txId) && (resource.data.senderId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.senderId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(txId)
+                    && (incoming().senderId == request.auth.uid || isAdmin())
+                    && incoming().grossCost is number && incoming().grossCost > 0
+                    && incoming().commissionCoins is number && incoming().commissionCoins >= 0;
+      allow update, delete: if false;
     }
 
     // ========================================================
-    // 10. WITHDRAWAL REQUESTS (/withdrawal_requests/{reqId})
+    // 10. WITHDRAWAL REQUESTS (/withdrawal_requests/{reqId}) — STRICT PII + ADMIN APPROVAL
     // ========================================================
+    function isValidWithdrawalRequest(data) {
+      return data.keys().hasAll(['userId', 'coinsRequested', 'paymentMethod', 'status'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.coinsRequested is number && data.coinsRequested > 0
+        && data.paymentMethod in ['bank_transfer', 'jazzcash', 'easypaisa', 'cash_pickup']
+        && data.status in ['pending', 'under_review', 'approved', 'processing', 'paid', 'rejected', 'cancelled'];
+    }
+
     match /withdrawal_requests/{reqId} {
-      allow get: if isSignedIn() && isValidId(reqId);
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(reqId);
-      allow update: if isSignedIn() && isValidId(reqId);
+      allow get: if isSignedIn() && isValidId(reqId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(reqId)
+                    && incoming().userId == request.auth.uid
+                    && incoming().status == 'pending'
+                    && isValidWithdrawalRequest(incoming());
+      allow update: if isSignedIn()
+                    && isValidId(reqId)
+                    && isValidWithdrawalRequest(incoming())
+                    && isAdmin();
       allow delete: if false;
     }
 
     // ========================================================
-    // 11. WALLET SETTINGS & RECHARGE PACKAGES
+    // 11. WALLET SETTINGS & RECHARGE PACKAGES — ADMIN WRITE ONLY
     // ========================================================
     match /wallet_settings/{settingId} {
-      allow get, list: if isSignedIn() && isValidId(settingId);
-      allow create, update: if isSignedIn() && isValidId(settingId);
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(settingId);
       allow delete: if false;
     }
 
     match /coin_packages/{pkgId} {
-      allow get, list: if isSignedIn() && isValidId(pkgId);
-      allow create, update: if isSignedIn() && isValidId(pkgId);
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(pkgId);
       allow delete: if false;
     }
 
     // ========================================================
     // 12. LEVEL & VIP PROGRESSION SYSTEM
     // ========================================================
+    function isValidUserLevel(data) {
+      return data.keys().hasAll(['userId', 'currentLevel', 'totalQualifyingCoinsSpent'])
+        && data.userId is string && data.userId.size() <= 128
+        && data.currentLevel is number && data.currentLevel >= 1 && data.currentLevel <= 50
+        && data.totalQualifyingCoinsSpent is number && data.totalQualifyingCoinsSpent >= 0
+        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 10));
+    }
+
     match /user_levels/{uid} {
       allow get: if isSignedIn() && isValidId(uid);
-      allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && isValidId(uid);
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(uid)
+                    && isValidUserLevel(incoming())
+                    && (isAdmin() || (isOwner(uid) && incoming().userId == request.auth.uid));
+      allow update: if isValidId(uid)
+                    && isValidUserLevel(incoming())
+                    && (isAdmin() || (isOwner(uid) && incoming().userId == existing().userId));
       allow delete: if false;
     }
 
     match /level_configurations/{docId} {
-      allow get, list: if isSignedIn() && isValidId(docId);
-      allow create, update: if isSignedIn() && isValidId(docId);
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(docId);
       allow delete: if false;
     }
 
     match /vip_frames/{docId} {
-      allow get, list: if isSignedIn() && isValidId(docId);
-      allow create, update: if isSignedIn() && isValidId(docId);
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(docId);
       allow delete: if false;
     }
   }
 }
-
-

@@ -134,6 +134,13 @@ export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
   },
 ];
 
+function isVerifiedAdminSession(): boolean {
+  return (
+    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
+    auth.currentUser?.emailVerified === true
+  );
+}
+
 /**
  * 1. SETTINGS & CONFIGURATION SERVICE
  */
@@ -145,10 +152,11 @@ export function subscribeWalletSettings(onUpdate: (settings: WalletSettings) => 
       if (snap.exists()) {
         onUpdate({ ...DEFAULT_WALLET_SETTINGS, ...snap.data() } as WalletSettings);
       } else {
-        // Seed default settings into Firestore
-        setDoc(docRef, DEFAULT_WALLET_SETTINGS, { merge: true }).catch((err) =>
-          console.warn('Failed to auto-seed wallet settings:', err)
-        );
+        if (isVerifiedAdminSession()) {
+          setDoc(docRef, DEFAULT_WALLET_SETTINGS, { merge: true }).catch((err) =>
+            console.warn('Failed to auto-seed wallet settings:', err)
+          );
+        }
         onUpdate(DEFAULT_WALLET_SETTINGS);
       }
     },
@@ -181,10 +189,11 @@ export function subscribeCoinPackages(onUpdate: (packages: WalletRechargePackage
         pkgs.sort((a, b) => a.coins - b.coins);
         onUpdate(pkgs);
       } else {
-        // Seed initial packages
-        DEFAULT_COIN_PACKAGES.forEach((pkg) => {
-          setDoc(doc(db, 'coin_packages', pkg.id), pkg, { merge: true }).catch(console.warn);
-        });
+        if (isVerifiedAdminSession()) {
+          DEFAULT_COIN_PACKAGES.forEach((pkg) => {
+            setDoc(doc(db, 'coin_packages', pkg.id), pkg, { merge: true }).catch(console.warn);
+          });
+        }
         onUpdate(DEFAULT_COIN_PACKAGES);
       }
     },
