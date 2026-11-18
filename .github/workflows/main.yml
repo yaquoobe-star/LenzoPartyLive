@@ -22,7 +22,7 @@ jobs:
 
       - name: Setup Java JDK
         id: setup-java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -78,6 +78,8 @@ jobs:
           npx cap sync android
 
       - name: Configure Android SDK & Gradle for CI
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           rm -rf android/.gradle android/app/build
           rm -f android/local.properties android/app/release.keystore
@@ -85,8 +87,58 @@ jobs:
           sed -i 's/compileSdkVersion = 35/compileSdkVersion = 36/g' android/variables.gradle || true
           sed -i 's/targetSdkVersion = 35/targetSdkVersion = 36/g' android/variables.gradle || true
           if [ ! -f android/app/google-services.json ]; then
-            echo "::error::android/app/google-services.json is missing! Commit and push android/app/google-services.json to enable Firebase and Google Sign-In."
-            exit 1
+            if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+              echo "Restored android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
+            elif [ -f firebase-applet-config.json ] && [ -f capacitor.config.json ]; then
+              node -e '
+                const fs = require("fs");
+                const fb = JSON.parse(fs.readFileSync("firebase-applet-config.json", "utf8"));
+                const cap = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
+                const androidAppId = (fb.appId || "").includes(":web:")
+                  ? fb.appId.replace(":web:", ":android:")
+                  : (fb.appId || `1:${fb.messagingSenderId}:android:0832836cf24ff0781df43f`);
+                const googleServices = {
+                  project_info: {
+                    project_number: String(fb.messagingSenderId || ""),
+                    project_id: fb.projectId,
+                    storage_bucket: fb.storageBucket
+                  },
+                  client: [
+                    {
+                      client_info: {
+                        mobilesdk_app_id: androidAppId,
+                        android_client_info: {
+                          package_name: cap.appId || "com.lenzoparty.app"
+                        }
+                      },
+                      oauth_client: fb.oAuthClientId ? [
+                        {
+                          client_id: fb.oAuthClientId,
+                          client_type: 3
+                        }
+                      ] : [],
+                      api_key: fb.apiKey ? [
+                        {
+                          current_key: fb.apiKey
+                        }
+                      ] : [],
+                      services: {
+                        appinvite_service: {
+                          other_platform_oauth_client: []
+                        }
+                      }
+                    }
+                  ],
+                  configuration_version: "1"
+                };
+                fs.writeFileSync("android/app/google-services.json", JSON.stringify(googleServices, null, 2) + "\n");
+                console.log("Generated android/app/google-services.json from firebase-applet-config.json for " + googleServices.client[0].client_info.android_client_info.package_name);
+              '
+            else
+              echo "::error::android/app/google-services.json and firebase-applet-config.json are missing!"
+              exit 1
+            fi
           fi
           chmod +x android/gradlew
 
