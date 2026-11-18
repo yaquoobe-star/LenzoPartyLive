@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package com.lenzoparty.app;
 
 import static org.junit.Assert.*;
 

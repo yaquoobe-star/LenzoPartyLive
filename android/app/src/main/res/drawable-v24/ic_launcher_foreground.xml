@@ -1,5 +1,4 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
@@ -7,36 +6,12 @@
     <group android:translateX="4" android:translateY="7">
         <!-- Royal Gold Crown -->
         <path
-            android:pathData="M26,30 L32,12 L43,24 L50,8 L57,24 L68,12 L74,30 C74,30 65,33 50,33 C35,33 26,30 26,30 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="26"
-                    android:startY="8"
-                    android:endX="74"
-                    android:endY="33"
-                    android:type="linear">
-                    <item android:color="#FFF176" android:offset="0.0" />
-                    <item android:color="#FFC84A" android:offset="0.5" />
-                    <item android:color="#D97706" android:offset="1.0" />
-                </gradient>
-            </aapt:attr>
-        </path>
-        <!-- Royal Purple to Neon Pink Play Button Body -->
+            android:fillColor="#FFC84A"
+            android:pathData="M26,30 L32,12 L43,24 L50,8 L57,24 L68,12 L74,30 C74,30 65,33 50,33 C35,33 26,30 26,30 Z" />
+        <!-- Royal Purple Play Button Body -->
         <path
-            android:pathData="M32,27 C24,27 19,33 22,41 L45,76 C49,82 57,83 62,79 L80,65 C87,60 88,51 82,45 L43,29 C39,27 35,27 32,27 Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="22"
-                    android:startY="27"
-                    android:endX="84"
-                    android:endY="82"
-                    android:type="linear">
-                    <item android:color="#8B20FF" android:offset="0.0" />
-                    <item android:color="#C415F5" android:offset="0.5" />
-                    <item android:color="#F328D5" android:offset="1.0" />
-                </gradient>
-            </aapt:attr>
-        </path>
+            android:fillColor="#B61DF8"
+            android:pathData="M32,27 C24,27 19,33 22,41 L45,76 C49,82 57,83 62,79 L80,65 C87,60 88,51 82,45 L43,29 C39,27 35,27 32,27 Z" />
         <!-- Crisp White Play Triangle -->
         <path
             android:fillColor="#FFFFFF"

@@ -79,10 +79,15 @@ jobs:
 
       - name: Configure Android SDK & Gradle for CI
         run: |
+          rm -rf android/.gradle android/app/build
           rm -f android/local.properties android/app/release.keystore
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           sed -i 's/compileSdkVersion = 35/compileSdkVersion = 36/g' android/variables.gradle || true
           sed -i 's/targetSdkVersion = 35/targetSdkVersion = 36/g' android/variables.gradle || true
+          if [ ! -f android/app/google-services.json ]; then
+            echo "::error::android/app/google-services.json is missing! Commit and push android/app/google-services.json to enable Firebase and Google Sign-In."
+            exit 1
+          fi
           chmod +x android/gradlew
 
       - name: Build Signed Production APK & AAB
@@ -92,7 +97,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
-          ./gradlew :app:clean :app:assembleRelease :app:bundleRelease -x lint -x test --no-daemon --stacktrace
+          ./gradlew :app:clean :app:assembleRelease :app:bundleRelease -x lint -x test --no-daemon --stacktrace --console=plain
 
       - name: Stage Production Binaries
         run: |
