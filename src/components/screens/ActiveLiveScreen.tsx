@@ -128,7 +128,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
   // Chat & Messaging Controls
   const [pinnedMessage, setPinnedMessage] = useState<string | null>(
-    '👑 Host Announcement: Welcome to Lonzo Party Live! Send gifts & double tap to support! 💕'
+    '👑 Host Announcement: Welcome to Lenzo Party Live! Send gifts & double tap to support! 💕'
   );
   const [messages, setMessages] = useState<ChatMessage[]>([
     {

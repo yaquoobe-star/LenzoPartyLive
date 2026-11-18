@@ -39,7 +39,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
     initialVideoUrl || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80'
   );
   const [caption, setCaption] = useState('');
-  const [hashtags, setHashtags] = useState<string[]>(['#party', '#viral', '#lonzo']);
+  const [hashtags, setHashtags] = useState<string[]>(['#party', '#viral', '#lenzo']);
   const [newTagInput, setNewTagInput] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
   const [isUploading, setIsUploading] = useState(false);
@@ -331,7 +331,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
             {isUploading && (
               <div className="space-y-1.5 animate-fade-in">
                 <div className="flex items-center justify-between text-xs text-[#FA26A0] font-bold">
-                  <span>Uploading video to Lonzo Party Live...</span>
+                  <span>Uploading video to Lenzo Party Live...</span>
                   <span className="font-mono">{uploadProgress}%</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">

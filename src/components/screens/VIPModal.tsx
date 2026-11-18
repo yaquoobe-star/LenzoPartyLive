@@ -130,7 +130,7 @@ export const VIPModal: React.FC<VIPModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white font-display">VIP Membership Privileges</h3>
-              <p className="text-[11px] text-[#B9AECF]">Elevate your status across Lonzo Party Live</p>
+              <p className="text-[11px] text-[#B9AECF]">Elevate your status across Lenzo Party Live</p>
             </div>
           </div>
 

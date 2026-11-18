@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Smartphone, Mail, Lock, CheckCircle2, Shield } from 'lucide-react';
-import { LonzoLogo } from '../common/LonzoLogo';
+import { LenzoLogo } from '../common/LenzoLogo';
 
 interface LoginScreenProps {
   onSuccess: () => void;
@@ -85,7 +85,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <main className="relative z-10 w-full max-w-sm flex flex-col items-center text-center my-auto py-4">
         {/* Logo and Crown */}
         <div className="mb-4">
-          <LonzoLogo size="xl" showTagline={false} />
+          <LenzoLogo size="xl" showTagline={false} />
         </div>
 
         <h1 className="text-2xl font-black text-white font-display tracking-tight mb-1">

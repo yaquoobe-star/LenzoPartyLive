@@ -72,15 +72,14 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
       <div className="max-w-md md:max-w-3xl mx-auto px-4 pt-2 space-y-4">
         
         {/* ========================================================
-            1. HEADER (Lonzo Party Live + Search + Notifications)
-            Matching Screenshot 1 top-left
+            1. HEADER (Lenzo Party Live + Search + Notifications)
            ======================================================== */}
         <header className="flex items-center justify-between pt-1">
-          {/* Logo: Lonzo (white) + Party Live (pink #FA26A0) */}
+          {/* Logo: Lenzo (white) + Party Live (neon pink #F328D5 to gold #FFC84A) */}
           <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => onNavigate('home')}>
             <h1 className="text-xl font-black tracking-tight font-display">
-              <span className="text-white">Lonzo </span>
-              <span className="text-[#FA26A0]">Party Live</span>
+              <span className="text-white">Lenzo </span>
+              <span className="bg-gradient-to-r from-[#F328D5] to-[#FFC84A] bg-clip-text text-transparent">Party Live</span>
             </h1>
           </div>
 

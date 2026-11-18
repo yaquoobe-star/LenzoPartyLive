@@ -577,7 +577,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               <span className="text-[10px] text-rose-400 mt-1 block">{usernameErrorText}</span>
             ) : (
               <span className="text-[10px] text-[#B9AECF] mt-1 block">
-                Unique handle used for profile links (e.g. lonzoparty.app/u/username).
+                Unique handle used for profile links (e.g. lenzoparty.com/u/username).
               </span>
             )}
           </div>

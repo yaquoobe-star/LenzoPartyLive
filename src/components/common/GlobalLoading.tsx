@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
-import { LonzoLogo } from './LonzoLogo';
+import { LenzoLogo } from './LenzoLogo';
 
 // 1. Startup / Fullscreen Branded Loading Screen (Matches Reference Image #7)
 export const BrandLoadingScreen: React.FC<{
@@ -56,7 +56,7 @@ export const BrandLoadingScreen: React.FC<{
 
       {/* Center Brand Identity with Crowned Play Icon matching screen #7 */}
       <div className="flex flex-col items-center z-10 my-auto text-center space-y-4">
-        <LonzoLogo size="xl" showTagline={true} />
+        <LenzoLogo size="xl" showTagline={true} />
         
         {/* Animated Circular Spinner matching screen #7 */}
         <div className="pt-4 flex flex-col items-center">

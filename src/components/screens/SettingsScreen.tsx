@@ -220,14 +220,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
           </div>
 
-          {/* About Linzo Party Live */}
+          {/* About Lenzo Party Live */}
           <div
-            onClick={() => showToast('Linzo Party Live v1.0.0 (Android Production Build com.linzo.partylive)')}
+            onClick={() => showToast('Lenzo Party Live v1.0.0 (Android Production Build com.lenzoparty.app)')}
             className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-3">
               <Info className="w-5 h-5 text-[#06B6D4]" />
-              <span className="text-sm font-semibold text-white">About Linzo Party Live</span>
+              <span className="text-sm font-semibold text-white">About Lenzo Party Live</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-[#B9AECF]">v1.0.0 (Android)</span>
@@ -263,7 +263,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           <button
             onClick={async () => {
-              const confirmed = window.confirm('Are you sure you want to delete your Linzo Party Live account? This action is permanent and cannot be undone.');
+              const confirmed = window.confirm('Are you sure you want to delete your Lenzo Party Live account? This action is permanent and cannot be undone.');
               if (confirmed) {
                 try {
                   const { auth } = await import('../../firebase');

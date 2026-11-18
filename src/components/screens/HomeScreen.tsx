@@ -34,7 +34,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     <div className="w-full pb-20 sm:pb-12 animate-fade-in">
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 pt-3 space-y-6">
         
-        {/* Category Feed Tabs matching Lonzo Party Live brand */}
+        {/* Category Feed Tabs matching Lenzo Party Live brand */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {[
             { id: 'foryou', label: 'For You', action: () => setActiveTab('foryou') },

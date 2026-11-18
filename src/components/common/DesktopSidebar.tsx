@@ -16,7 +16,7 @@ import {
   Crown,
   LogOut
 } from 'lucide-react';
-import { LonzoLogo } from './LonzoLogo';
+import { LenzoLogo } from './LenzoLogo';
 import { ScreenType, UserProfile } from '../../types';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { LevelBadge } from './LevelBadge';
@@ -68,7 +68,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           onClick={() => onNavigate('home')} 
           className="cursor-pointer pt-1"
         >
-          <LonzoLogo size="sm" horizontal showTagline={true} />
+          <LenzoLogo size="sm" horizontal showTagline={true} />
         </div>
 
         {/* User Mini Profile Card */}

@@ -1,5 +1,5 @@
 /**
- * Lonzo Party Live - Real Device Camera & Microphone Media Helper
+ * Lenzo Party Live - Real Device Camera & Microphone Media Helper
  * Handles camera rotation (front selfie vs back/rear environment camera),
  * device enumeration, fallback strategies, and real-time audio volume analysis.
  */

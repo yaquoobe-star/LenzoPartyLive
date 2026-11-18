@@ -37,7 +37,7 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
   if (!isOpen) return null;
 
   const shareUrl = profileService.generateShareUrl(user);
-  const shareText = `Check out ${user.name} (${user.username || `@${user.displayId}`}) on Lonzo Party Live! 🎵✨`;
+  const shareText = `Check out ${user.name} (${user.username || `@${user.displayId}`}) on Lenzo Party Live! 🎵✨`;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -58,7 +58,7 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${user.name} on Lonzo Party Live`,
+          title: `${user.name} on Lenzo Party Live`,
           text: shareText,
           url: shareUrl,
         });
@@ -94,7 +94,7 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
         url = `sms:?body=${encodedText}%20${encodedUrl}`;
         break;
       case 'email':
-        url = `mailto:?subject=${encodeURIComponent(`${user.name} on Lonzo Party Live`)}&body=${encodedText}%0A%0A${encodedUrl}`;
+        url = `mailto:?subject=${encodeURIComponent(`${user.name} on Lenzo Party Live`)}&body=${encodedText}%0A%0A${encodedUrl}`;
         break;
     }
 
@@ -161,7 +161,7 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
               <span className="text-xs text-[#06B6D4]">✓</span>
             </h4>
             <p className="text-xs text-[#FA26A0] font-mono truncate">{user.username || `@${user.displayId}`}</p>
-            <p className="text-[10px] text-[#B9AECF] truncate mt-0.5">{user.bio || 'Lonzo Party Live Creator'}</p>
+            <p className="text-[10px] text-[#B9AECF] truncate mt-0.5">{user.bio || 'Lenzo Party Live Creator'}</p>
           </div>
         </div>
 

@@ -966,7 +966,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   {activeTab === 'saved' && 'No saved videos yet'}
                 </h4>
                 <p className="text-xs text-[#B9AECF] mt-0.5 max-w-xs">
-                  {activeTab === 'videos' && 'Share your music, party moments, and daily life on Lonzo Party!'}
+                  {activeTab === 'videos' && 'Share your music, party moments, and daily life on Lenzo Party Live!'}
                   {activeTab === 'private' && 'Videos you upload with private visibility will appear here.'}
                   {activeTab === 'liked' && 'Videos you double-tap or like on the feed will be saved here.'}
                   {activeTab === 'saved' && 'Bookmark interesting videos to watch them later.'}

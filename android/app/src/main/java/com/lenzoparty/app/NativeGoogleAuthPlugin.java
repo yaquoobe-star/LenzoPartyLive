@@ -1,4 +1,4 @@
-package com.linzo.partylive;
+package com.lenzoparty.app;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -80,7 +80,7 @@ public class NativeGoogleAuthPlugin extends Plugin {
             if (code == 12501) {
                 call.reject("CANCELLED: Google Sign-In was cancelled by user.");
             } else if (code == 10) {
-                call.reject("DEVELOPER_ERROR (status code: 10): Verify SHA-1 fingerprint & package name com.linzo.partylive in Firebase Console.");
+                call.reject("DEVELOPER_ERROR (status code: 10): Verify SHA-1 fingerprint & package name com.lenzoparty.app in Firebase Console.");
             } else {
                 call.reject("Google Sign-In failed with status code: " + code + " (" + e.getMessage() + ")");
             }

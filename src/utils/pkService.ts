@@ -291,7 +291,7 @@ class PKService {
         const data = await res.json();
         if (data.history && data.history.length > 0) {
           // Sync to localStorage
-          localStorage.setItem(`lonzo_pk_history_${userId}`, JSON.stringify(data.history));
+          localStorage.setItem(`lenzo_pk_history_${userId}`, JSON.stringify(data.history));
           return data.history;
         }
       }
@@ -300,7 +300,7 @@ class PKService {
     }
 
     // LocalStorage fallback
-    const local = localStorage.getItem(`lonzo_pk_history_${userId}`);
+    const local = localStorage.getItem(`lenzo_pk_history_${userId}`);
     if (local) {
       try {
         return JSON.parse(local);
@@ -313,7 +313,7 @@ class PKService {
   }
 
   public saveMatchHistoryLocally(userId: string, item: PKMatchHistoryItem) {
-    const key = `lonzo_pk_history_${userId}`;
+    const key = `lenzo_pk_history_${userId}`;
     const local = localStorage.getItem(key);
     let list: PKMatchHistoryItem[] = [];
     if (local) {

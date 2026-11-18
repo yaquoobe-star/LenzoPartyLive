@@ -88,7 +88,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       type: idx === 1 ? 'group' : 'direct',
       group: idx === 1 ? {
         id: 'grp_music_vip',
-        name: 'Linzo VIP Club 🎵',
+        name: 'Lenzo VIP Club 🎵',
         avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80',
         description: 'Official VIP music creators & room hosts discussion',
         creatorId: 'u2',

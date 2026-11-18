@@ -290,7 +290,7 @@ export const CameraRecorderModal: React.FC<CameraRecorderModalProps> = ({
               </div>
               <h3 className="text-lg font-black text-white mb-2">Camera Access</h3>
               <p className="text-xs text-[#9E97AA] max-w-xs mb-6 leading-relaxed">
-                {permissionError || 'Please allow camera and microphone access to record new videos directly inside Lonzo Party Live.'}
+                {permissionError || 'Please allow camera and microphone access to record new videos directly inside Lenzo Party Live.'}
               </p>
               
               <div className="flex flex-col gap-3 w-full max-w-xs">

@@ -288,7 +288,7 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
         }
         if (rawMsg.includes('DEVELOPER_ERROR') || rawMsg.includes('status code: 10') || rawMsg.includes('code=10')) {
           throw new Error(
-            'Android Google OAuth SHA-1 mismatch (code 10). Add SHA-1 "FD:CB:00:31:00:EB:BE:8E:C9:D6:89:35:50:58:14:48:BB:03:98:59" to Firebase Console -> Project Settings -> Android App (com.linzo.partylive), then download updated google-services.json.'
+            'Android Google OAuth SHA-1 mismatch (code 10). Add SHA-1 "FD:CB:00:31:00:EB:BE:8E:C9:D6:89:35:50:58:14:48:BB:03:98:59" to Firebase Console -> Project Settings -> Android App (com.lenzoparty.app), then download updated google-services.json.'
           );
         }
         throw nativeErr;

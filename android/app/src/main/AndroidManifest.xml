@@ -64,7 +64,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="lenzoparty.com" />
                 <data android:scheme="https" android:host="www.lenzoparty.com" />
-                <data android:scheme="https" android:host="linzoparty.live" />
             </intent-filter>
 
         </activity>

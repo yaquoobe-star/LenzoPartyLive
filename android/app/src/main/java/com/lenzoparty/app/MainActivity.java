@@ -1,4 +1,4 @@
-package com.linzo.partylive;
+package com.lenzoparty.app;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;

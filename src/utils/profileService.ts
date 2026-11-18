@@ -6,11 +6,11 @@ import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { FirestoreUserData, mapFirestoreUserToProfile } from '../services/authService';
 
-const LOCAL_STORAGE_PROFILE_KEY = 'lonzo_party_user_profile_v2';
-const LOCAL_STORAGE_FOLLOWING_KEY = 'lonzo_party_following_v1';
-const LOCAL_STORAGE_LIKED_VIDEOS_KEY = 'lonzo_party_liked_videos_v1';
-const LOCAL_STORAGE_SAVED_VIDEOS_KEY = 'lonzo_party_saved_videos_v1';
-const LOCAL_STORAGE_CUSTOM_VIDEOS_KEY = 'lonzo_party_custom_videos_v1';
+const LOCAL_STORAGE_PROFILE_KEY = 'lenzo_party_user_profile_v2';
+const LOCAL_STORAGE_FOLLOWING_KEY = 'lenzo_party_following_v1';
+const LOCAL_STORAGE_LIKED_VIDEOS_KEY = 'lenzo_party_liked_videos_v1';
+const LOCAL_STORAGE_SAVED_VIDEOS_KEY = 'lenzo_party_saved_videos_v1';
+const LOCAL_STORAGE_CUSTOM_VIDEOS_KEY = 'lenzo_party_custom_videos_v1';
 
 export interface FollowListMember {
   id: string;
@@ -322,7 +322,7 @@ class ProfileService {
         name: 'Queen Star 👑',
         username: '@queenstar',
         avatar: MOCK_USERS.queen_girl.avatar,
-        bio: 'Top gifter on Lonzo Party Live! 💖',
+        bio: 'Top gifter on Lenzo Party Live! 💖',
         level: 65,
         isVIP: true,
         isFollowing: followingSet.has('user_queen_girl'),

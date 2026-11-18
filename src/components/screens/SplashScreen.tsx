@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LonzoLogo } from '../common/LonzoLogo';
+import { LenzoLogo } from '../common/LenzoLogo';
 import { auth } from '../../firebase';
 
 interface SplashScreenProps {
@@ -8,7 +8,7 @@ interface SplashScreenProps {
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const [progress, setProgress] = useState(15);
-  const [statusText, setStatusText] = useState('Connecting to Linzo Live...');
+  const [statusText, setStatusText] = useState('Connecting to Lenzo Party Live...');
 
   useEffect(() => {
     // Dynamic status text
@@ -81,7 +81,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
       {/* Center Brand Identity with Crowned Play Icon */}
       <div className="flex flex-col items-center z-10 animate-fade-in my-auto text-center space-y-5">
-        <LonzoLogo size="xl" showTagline={true} />
+        <LenzoLogo size="xl" showTagline={true} />
 
         {/* Circular spinning ring */}
         <div className="pt-2 flex flex-col items-center">

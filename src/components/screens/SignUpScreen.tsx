@@ -81,7 +81,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
           Create Account
         </h1>
         <p className="text-xs text-[#B9AECF] text-center mb-5">
-          Join Lonzo Party Live
+          Join Lenzo Party Live
         </p>
 
         {error && (

@@ -1,5 +1,5 @@
 {
-	"appId": "com.linzo.partylive",
+	"appId": "com.lenzoparty.app",
 	"appName": "Lenzo Party Live",
 	"webDir": "dist",
 	"bundledWebRuntime": false,
@@ -25,14 +25,14 @@
 		"SplashScreen": {
 			"launchShowDuration": 2500,
 			"launchAutoHide": true,
-			"backgroundColor": "#060212",
+			"backgroundColor": "#090611",
 			"androidSplashResourceName": "splash",
 			"androidScaleType": "CENTER_CROP",
 			"showSpinner": false
 		},
 		"StatusBar": {
 			"style": "DARK",
-			"backgroundColor": "#060212"
+			"backgroundColor": "#090611"
 		},
 		"Keyboard": {
 			"resize": "body",

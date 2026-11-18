@@ -1,5 +1,5 @@
 /**
- * Lonzo Party Live - Coin System & Reference Pricing Configuration
+ * Lenzo Party Live - Coin System & Reference Pricing Configuration
  * Proposed reference pricing: 1 coin ≈ PKR 2
  */
 
@@ -8,7 +8,7 @@ export const COIN_CONFIG = {
   COIN_TO_PKR_RATE: 2.0,
   
   // Coin currency symbol and display name
-  CURRENCY_NAME: 'Lonzo Coins',
+  CURRENCY_NAME: 'Lenzo Coins',
   COIN_ICON: '🪙',
 
   // Conversion helper

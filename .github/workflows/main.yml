@@ -54,7 +54,7 @@ jobs:
             echo "::error::One or more required GitHub signing secrets (KEYSTORE_BASE64, KEY_ALIAS, KEYSTORE_PASSWORD, KEY_PASSWORD) are missing."
             exit 1
           fi
-          KEYSTORE_FILE="${{ runner.temp }}/linzo-release.keystore"
+          KEYSTORE_FILE="${{ runner.temp }}/lenzo-release.keystore"
           printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_FILE"
           if [ ! -s "$KEYSTORE_FILE" ]; then
             echo "::error::Decoded keystore file is empty."
@@ -161,7 +161,7 @@ jobs:
       - name: Clean Up Temporary Keystore
         if: always()
         run: |
-          rm -f "${{ runner.temp }}/linzo-release.keystore" "${{ runner.temp }}/bundletool.jar" apk_verify.txt apk_badging.txt aab_verify.txt aab_cert.txt aab_manifest.txt
+          rm -f "${{ runner.temp }}/lenzo-release.keystore" "${{ runner.temp }}/bundletool.jar" apk_verify.txt apk_badging.txt aab_verify.txt aab_cert.txt aab_manifest.txt
 
       - name: Upload Signed Production APK
         uses: actions/upload-artifact@v4
@@ -180,7 +180,7 @@ jobs:
       - name: Upload Combined Production Package
         uses: actions/upload-artifact@v4
         with:
-          name: LinzoPartyLive-Production-Release
+          name: LenzoPartyLive-Production-Release
           path: |
             dist-android/app-release.apk
             dist-android/app-release.aab

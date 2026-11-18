@@ -2,8 +2,8 @@ import { UserProfile, Transaction } from '../types';
 import { CURRENT_USER } from '../data/mockData';
 import { getExpNeededForLevel } from './levelSystem';
 
-const STORAGE_KEY_USER = 'lonzo_party_user_profile_v2';
-const STORAGE_KEY_TRANSACTIONS = 'lonzo_party_transactions_v2';
+const STORAGE_KEY_USER = 'lenzo_party_user_profile_v2';
+const STORAGE_KEY_TRANSACTIONS = 'lenzo_party_transactions_v2';
 
 export function getInitialUserProfile(): UserProfile {
   if (typeof window === 'undefined') {

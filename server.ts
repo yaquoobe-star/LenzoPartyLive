@@ -35,8 +35,6 @@ app.use((req, res, next) => {
     'https://lenzoparty.com',
     'https://www.lenzoparty.com',
     'https://api.lenzoparty.com',
-    'https://linzoparty.live',
-    'https://www.linzoparty.live',
     'https://localhost',
     'http://localhost',
     'capacitor://localhost',
@@ -1185,7 +1183,7 @@ function initServerUsers() {
     username: '@queensara',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-    bio: '✨ Official Lonzo Host & Singer | VIP Creator 👑 Catch my party rooms every night at 9 PM!',
+    bio: '✨ Official Lenzo Host & Singer | VIP Creator 👑 Catch my party rooms every night at 9 PM!',
     level: 42,
     vipLevel: 5,
     isVIP: true,
@@ -1335,7 +1333,7 @@ app.get('/api/users/:id/followers', (req: Request, res: Response) => {
       name: 'Queen Star 👑',
       username: '@queenstar',
       avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
-      bio: 'Top gifter on Lonzo Party Live! 💖',
+      bio: 'Top gifter on Lenzo Party Live! 💖',
       level: 65,
       isVIP: true,
       isFollowing: myFollowingSet.has('user_queen_girl'),
@@ -1561,7 +1559,7 @@ async function startServer() {
   }
 
   server.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Lonzo Party Live Server running on port ${PORT}`);
+    console.log(`Lenzo Party Live Server running on port ${PORT}`);
   });
 }
 

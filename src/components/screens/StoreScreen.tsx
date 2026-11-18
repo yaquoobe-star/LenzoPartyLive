@@ -100,7 +100,7 @@ export const STORE_PRODUCTS: StoreProduct[] = [
     image: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&auto=format&fit=crop&q=80',
     badge: 'MAX PRIVILEGE',
     rarity: 'mythic',
-    description: 'The pinnacle status in Linzo Live. Full room immunity, stealth mode, and personalized concierge.',
+    description: 'The pinnacle status in Lenzo Party Live. Full room immunity, stealth mode, and personalized concierge.',
     benefits: ['Exclusive animated Emperor Crown', 'Stealth entrance toggle', 'Send unlimited room announcements', '60 Days validity'],
   },
 
@@ -340,7 +340,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
             <div>
               <h1 className="text-lg md:text-xl font-black bg-gradient-to-r from-white via-purple-200 to-[#F328D5] bg-clip-text text-transparent flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-[#F328D5]" />
-                Linzo Store
+                Lenzo Store
               </h1>
               <p className="text-[11px] text-[#A59AB8]">Exclusive Entrance Effects, VIP Passes & Virtual Rewards</p>
             </div>
@@ -416,7 +416,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
               Dominant Room Entrances & VIP Privileges
             </h2>
             <p className="text-xs md:text-sm text-[#c0b4d6] mt-2 leading-relaxed">
-              Equip legendary 3D animations, custom sound effects, and full screen banners that announce your presence everywhere in Linzo Live.
+              Equip legendary 3D animations, custom sound effects, and full screen banners that announce your presence everywhere in Lenzo Party Live.
             </p>
             <div className="flex items-center gap-3 mt-4">
               <button 

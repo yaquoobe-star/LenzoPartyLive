@@ -5,8 +5,6 @@ const DEFAULT_BACKEND_API_ORIGIN = 'https://api.lenzoparty.com';
 const FRONTEND_PRODUCTION_HOSTS = new Set([
   'lenzoparty.com',
   'www.lenzoparty.com',
-  'linzoparty.live',
-  'www.linzoparty.live',
 ]);
 
 /**

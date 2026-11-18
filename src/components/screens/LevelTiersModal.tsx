@@ -61,7 +61,7 @@ export const LevelTiersModal: React.FC<LevelTiersModalProps> = ({
       name: 'Emperor Supreme',
       levelSample: 100,
       gradient: 'from-[#F328D5] via-[#8B20FF] to-[#FFC84A]',
-      description: 'The pinnacle of Lonzo Party Live prestige (Max Level 100). Imperial dragon entrance and global join announcements.',
+      description: 'The pinnacle of Lenzo Party Live prestige (Max Level 100). Imperial dragon entrance and global join announcements.',
       perks: ['Imperial Dragon Entrance Animation', 'Custom 3D Profile Hologram Border', 'Global Banner Broadcast on Stream Join', 'Top Seat Override in Audio Rooms'],
     },
   ];

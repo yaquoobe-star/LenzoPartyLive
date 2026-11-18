@@ -124,7 +124,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
 
           <p className="text-xs text-white/80 line-clamp-2 max-w-xs mb-4">
-            {user.bio || 'Living life on Lonzo Party Live! Connect with me on streams.'}
+            {user.bio || 'Living life on Lenzo Party Live! Connect with me on streams.'}
           </p>
 
           {/* Followers / Following Stats */}

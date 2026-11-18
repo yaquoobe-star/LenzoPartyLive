@@ -1,4 +1,4 @@
-# Production ProGuard / R8 Rules for Linzo Party Live
+# Production ProGuard / R8 Rules for Lenzo Party Live
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
 -keepattributes JavascriptInterface
@@ -23,4 +23,5 @@
 -keep public class androidx.core.content.FileProvider { *; }
 
 # Preserve custom Android Activity & App components
--keep public class com.linzo.partylive.MainActivity { *; }
+-keep public class com.lenzoparty.app.MainActivity { *; }
+-keep public class com.lenzoparty.app.NativeGoogleAuthPlugin { *; }

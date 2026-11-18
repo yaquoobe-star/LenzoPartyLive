@@ -18,7 +18,7 @@ import {
   Flame,
   Users
 } from 'lucide-react';
-import { LonzoLogo } from '../common/LonzoLogo';
+import { LenzoLogo } from '../common/LenzoLogo';
 import { 
   signInWithGoogle, 
   checkRedirectAuthOutcome,
@@ -90,7 +90,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     checkRedirectAuthOutcome().then((outcome) => {
       if (!active) return;
       if (outcome.profile) {
-        setSuccessMessage(`Welcome to Linzo Party Live, ${outcome.profile.name}! ✨`);
+        setSuccessMessage(`Welcome to Lenzo Party Live, ${outcome.profile.name}! ✨`);
         setTimeout(() => {
           onSuccess(outcome.profile!);
         }, 500);
@@ -118,7 +118,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         return;
       }
       const { profile } = authResult;
-      setSuccessMessage(`Welcome to Linzo Party Live, ${profile.name}! ✨`);
+      setSuccessMessage(`Welcome to Lenzo Party Live, ${profile.name}! ✨`);
       setTimeout(() => {
         onSuccess(profile);
       }, 500);
@@ -381,7 +381,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <div className="flex flex-col items-center text-center animate-fade-in">
             {/* Crowned Logo */}
             <div className="mb-5 scale-105">
-              <LonzoLogo size="lg" showTagline={true} />
+              <LenzoLogo size="lg" showTagline={true} />
             </div>
 
             <h1 className="text-2xl font-black text-white font-display tracking-tight mb-2">
@@ -494,7 +494,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </div>
 
             <p className="text-xs text-[#B9AECF] text-center mb-5">
-              Enter your details to create your Linzo Party Live profile
+              Enter your details to create your Lenzo Party Live profile
             </p>
 
             {/* Optional Avatar Picker */}
@@ -928,7 +928,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 }}
                 className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2"
               >
-                <span>Continue to Linzo Party Live</span>
+                <span>Continue to Lenzo Party Live</span>
               </button>
 
               {/* Resend Verification */}
@@ -977,11 +977,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="overflow-y-auto space-y-3 text-xs text-[#B9AECF] pr-1 leading-relaxed">
               <p className="font-bold text-white">1. Acceptance of Terms</p>
               <p>
-                By creating an account, browsing live streams, joining audio party rooms, or engaging in PK battles on Linzo Party Live, you agree to abide by these Terms of Service.
+                By creating an account, browsing live streams, joining audio party rooms, or engaging in PK battles on Lenzo Party Live, you agree to abide by these Terms of Service.
               </p>
               <p className="font-bold text-white">2. Community Standards & Live Streaming</p>
               <p>
-                Linzo Party Live strictly prohibits harassment, hate speech, inappropriate or explicit content, and copyrighted broadcasts. Broadcasters must respect fellow community members.
+                Lenzo Party Live strictly prohibits harassment, hate speech, inappropriate or explicit content, and copyrighted broadcasts. Broadcasters must respect fellow community members.
               </p>
               <p className="font-bold text-white">3. Virtual Gifts and Coins</p>
               <p>
@@ -989,7 +989,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </p>
               <p className="font-bold text-white">4. Account Security</p>
               <p>
-                You are responsible for safeguarding your login credentials. Linzo Party Live uses secure Firebase Authentication to protect user accounts.
+                You are responsible for safeguarding your login credentials. Lenzo Party Live uses secure Firebase Authentication to protect user accounts.
               </p>
             </div>
 
