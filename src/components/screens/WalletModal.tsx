@@ -82,21 +82,21 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   
   const [walletData, setWalletData] = useState<UserWalletData>({
     userId: currentUser.id,
-    walletPurchasedCoins: currentUser.coins || 10000,
-    totalCoinsPurchased: currentUser.coins || 10000,
+    walletPurchasedCoins: currentUser.coins || 0,
+    totalCoinsPurchased: currentUser.coins || 0,
     totalCoinsSpent: 0,
     updatedAt: new Date().toISOString(),
   });
 
   const [earningsData, setEarningsData] = useState<UserEarningsData>({
     userId: currentUser.id,
-    availableEarningsCoins: currentUser.diamonds || 4500,
+    availableEarningsCoins: currentUser.diamonds || 0,
     pendingWithdrawalCoins: 0,
     totalWithdrawnCoins: 0,
-    grossGiftCoinsReceived: 5625,
-    totalCommissionDeducted: 1125,
+    grossGiftCoinsReceived: 0,
+    totalCommissionDeducted: 0,
     totalConvertedToWallet: 0,
-    totalGiftsCount: 6,
+    totalGiftsCount: 0,
     updatedAt: new Date().toISOString(),
   });
 

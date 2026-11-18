@@ -42,18 +42,18 @@ export async function fetchFirestoreVideos(): Promise<VideoItem[]> {
         id: d.id,
         creator: data.creator || data.user || {
           id: data.userId || 'unknown',
-          name: 'Lenzo Creator',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+          name: 'Creator',
+          avatar: '',
           level: 1,
-          fansCount: '1K',
-          followingCount: 10,
-          likesCount: '10K',
+          fansCount: '0',
+          followingCount: 0,
+          likesCount: '0',
           coins: 0,
           diamonds: 0,
-          vipLevel: 1,
+          vipLevel: 0,
           isVIP: false,
           bio: '',
-          displayId: '1001',
+          displayId: '',
         },
         videoUrl: data.videoUrl,
         thumbnailUrl: data.thumbnailUrl || data.videoUrl,
@@ -88,18 +88,18 @@ export function subscribeFirestoreVideos(onUpdate: (videos: VideoItem[]) => void
           id: d.id,
           creator: data.creator || data.user || {
             id: data.userId || 'unknown',
-            name: 'Lenzo Creator',
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+            name: 'Creator',
+            avatar: '',
             level: 1,
-            fansCount: '1K',
-            followingCount: 10,
-            likesCount: '10K',
+            fansCount: '0',
+            followingCount: 0,
+            likesCount: '0',
             coins: 0,
             diamonds: 0,
-            vipLevel: 1,
+            vipLevel: 0,
             isVIP: false,
             bio: '',
-            displayId: '1001',
+            displayId: '',
           },
           videoUrl: data.videoUrl,
           thumbnailUrl: data.thumbnailUrl || data.videoUrl,
@@ -209,9 +209,17 @@ export function subscribeFirestorePartyRooms(onUpdate: (rooms: PartyRoom[]) => v
   );
 }
 
-export async function createFirestorePartyRoom(room: Omit<PartyRoom, 'id'>): Promise<string> {
+export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom, 'id'>): Promise<string> {
   const collPath = 'party_rooms';
   try {
+    const explicitId = 'id' in room && room.id ? room.id : '';
+    if (explicitId) {
+      await setDoc(doc(db, collPath, explicitId), {
+        ...room,
+        createdAt: serverTimestamp(),
+      });
+      return explicitId;
+    }
     const docRef = await addDoc(collection(db, collPath), {
       ...room,
       createdAt: serverTimestamp(),
@@ -229,6 +237,15 @@ export async function updateFirestorePartyRoom(roomId: string, updates: Partial<
     await updateDoc(docRef, updates);
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, `party_rooms/${roomId}`);
+  }
+}
+
+export async function deleteFirestorePartyRoom(roomId: string): Promise<void> {
+  const docRef = doc(db, 'party_rooms', roomId);
+  try {
+    await deleteDoc(docRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `party_rooms/${roomId}`);
   }
 }
 
@@ -268,9 +285,17 @@ export function subscribeFirestoreLiveStreams(onUpdate: (streams: LiveStream[]) 
   );
 }
 
-export async function createFirestoreLiveStream(stream: Omit<LiveStream, 'id'>): Promise<string> {
+export async function createFirestoreLiveStream(stream: LiveStream | Omit<LiveStream, 'id'>): Promise<string> {
   const collPath = 'live_streams';
   try {
+    const explicitId = 'id' in stream && stream.id ? stream.id : '';
+    if (explicitId) {
+      await setDoc(doc(db, collPath, explicitId), {
+        ...stream,
+        createdAt: serverTimestamp(),
+      });
+      return explicitId;
+    }
     const docRef = await addDoc(collection(db, collPath), {
       ...stream,
       createdAt: serverTimestamp(),
@@ -282,12 +307,44 @@ export async function createFirestoreLiveStream(stream: Omit<LiveStream, 'id'>):
   }
 }
 
+export async function updateFirestoreLiveStream(streamId: string, updates: Partial<LiveStream>): Promise<void> {
+  const docRef = doc(db, 'live_streams', streamId);
+  try {
+    await updateDoc(docRef, updates);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `live_streams/${streamId}`);
+  }
+}
+
 export async function endFirestoreLiveStream(streamId: string): Promise<void> {
   const docRef = doc(db, 'live_streams', streamId);
   try {
     await deleteDoc(docRef);
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, `live_streams/${streamId}`);
+  }
+}
+
+export async function syncFirestoreFollow(
+  followerId: string,
+  followingId: string,
+  follow: boolean
+): Promise<void> {
+  if (!auth.currentUser || !followerId || !followingId || followerId === followingId) return;
+  const followId = `${followerId}_${followingId}`;
+  const ref = doc(db, 'follows', followId);
+  try {
+    if (follow) {
+      await setDoc(ref, {
+        followerId,
+        followingId,
+        createdAt: new Date().toISOString(),
+      });
+    } else {
+      await deleteDoc(ref);
+    }
+  } catch (err) {
+    handleFirestoreError(err, follow ? OperationType.CREATE : OperationType.DELETE, `follows/${followId}`);
   }
 }
 
@@ -621,12 +678,7 @@ export async function purchaseStoreItem(
       
       return { success: true, newBalance: newDiamonds };
     } else {
-      // Direct cash bundle gives coins/VIP
-      const currentCoins = userData.coins || 0;
-      const coinsToAdd = item.id.includes('bundle') ? 50000 * quantity : 10000;
-      const newCoins = currentCoins + coinsToAdd;
-      await updateDoc(userRef, { coins: newCoins });
-      return { success: true, newBalance: newCoins };
+      return { success: false, newBalance: userData.coins || 0, error: 'Use Wallet Recharge packages to add coins.' };
     }
   } catch (err: any) {
     return { success: false, newBalance: 0, error: err?.message || 'Transaction failed' };

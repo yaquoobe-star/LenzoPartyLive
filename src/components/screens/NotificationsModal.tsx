@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { 
-  X, 
-  Bell, 
-  CheckCheck, 
-  Gift, 
-  UserPlus, 
-  Radio, 
-  Sparkles, 
-  MessageCircle 
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Bell,
+  CheckCheck,
+  Gift,
+  UserPlus,
+  Radio,
 } from 'lucide-react';
 import { NotificationItem } from '../../types';
-import { MOCK_NOTIFICATIONS } from '../../data/mockData';
+import { auth, db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { subscribeUserNotifications } from '../../services/firestoreService';
 
 interface NotificationsModalProps {
   isOpen: boolean;
@@ -24,7 +24,21 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   onMarkAllRead,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'followers' | 'messages' | 'gifts' | 'rooms' | 'system'>('all');
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      setNotifications([]);
+      return;
+    }
+
+    const unsubscribe = subscribeUserNotifications(uid, (items) => {
+      setNotifications(items);
+    });
+    return () => unsubscribe();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -40,14 +54,29 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
     (n) => activeTab === 'all' || n.type === activeTab
   );
 
-  const handleMarkItemRead = (id: string) => {
+  const handleMarkItemRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      try {
+        await updateDoc(doc(db, `users/${uid}/notifications`, id), { isRead: true });
+      } catch {
+        // non-blocking
+      }
+    }
   };
 
-  const handleMarkAll = () => {
+  const handleMarkAll = async () => {
+    const unread = notifications.filter((n) => !n.isRead);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      for (const n of unread) {
+        updateDoc(doc(db, `users/${uid}/notifications`, n.id), { isRead: true }).catch(() => {});
+      }
+    }
     onMarkAllRead();
   };
 
@@ -66,11 +95,10 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
-      <div 
+      <div
         className="w-full max-w-md bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Bar */}
         <div className="p-4 border-b border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-[#F328D5]" />
@@ -78,13 +106,15 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleMarkAll}
-              className="text-[11px] text-[#B9AECF] hover:text-white flex items-center gap-1 font-semibold transition-colors"
-            >
-              <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark all read</span>
-            </button>
+            {notifications.length > 0 && (
+              <button
+                onClick={handleMarkAll}
+                className="text-[11px] text-[#B9AECF] hover:text-white flex items-center gap-1 font-semibold transition-colors"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Mark all read</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-[#211333] hover:bg-[#2e1a47] flex items-center justify-center text-white transition-colors"
@@ -94,7 +124,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           </div>
         </div>
 
-        {/* Category Tabs */}
         <div className="flex items-center gap-2 p-3 border-b border-white/[0.06] overflow-x-auto no-scrollbar">
           {categories.map((c) => (
             <button
@@ -111,7 +140,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           ))}
         </div>
 
-        {/* Notifications List */}
         <div className="p-4 overflow-y-auto no-scrollbar flex-1 space-y-2.5">
           {filteredNotifs.map((n) => (
             <div
@@ -142,8 +170,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           ))}
 
           {filteredNotifs.length === 0 && (
-            <div className="py-12 text-center text-xs text-[#B9AECF]">
-              No notifications in this category.
+            <div className="py-12 text-center flex flex-col items-center gap-2 text-xs text-[#B9AECF]">
+              <Bell className="w-8 h-8 text-[#B9AECF]/30" />
+              <span>No notifications yet.</span>
             </div>
           )}
         </div>

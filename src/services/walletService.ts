@@ -235,8 +235,8 @@ export function subscribeUserWallet(
       } else {
         const initial: UserWalletData = {
           userId,
-          walletPurchasedCoins: 10000, // Initial welcome balance
-          totalCoinsPurchased: 10000,
+          walletPurchasedCoins: 0,
+          totalCoinsPurchased: 0,
           totalCoinsSpent: 0,
           updatedAt: new Date().toISOString(),
         };
@@ -277,13 +277,13 @@ export function subscribeUserEarnings(
       } else {
         const initial: UserEarningsData = {
           userId,
-          availableEarningsCoins: 4500, // Initial sample earnings
+          availableEarningsCoins: 0,
           pendingWithdrawalCoins: 0,
           totalWithdrawnCoins: 0,
-          grossGiftCoinsReceived: 5625,
-          totalCommissionDeducted: 1125,
+          grossGiftCoinsReceived: 0,
+          totalCommissionDeducted: 0,
           totalConvertedToWallet: 0,
-          totalGiftsCount: 6,
+          totalGiftsCount: 0,
           updatedAt: new Date().toISOString(),
         };
         setDoc(docRef, { ...initial, updatedAt: serverTimestamp() }, { merge: true }).catch(console.warn);

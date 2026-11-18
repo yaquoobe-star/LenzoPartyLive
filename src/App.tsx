@@ -8,16 +8,13 @@ import {
   Conversation,
   PlatformViewMode,
   PKMatchSession,
-  PKMatchInvitation 
+  PKMatchInvitation,
+  VideoItem,
+  BroadcasterRankingEntry
 } from './types';
 import { 
   CURRENT_USER, 
-  MOCK_USERS, 
-  MOCK_LIVE_STREAMS, 
-  MOCK_PARTY_ROOMS, 
-  MOCK_GIFTS, 
-  MOCK_CONVERSATIONS, 
-  MOCK_STAR_RANKINGS 
+  MOCK_GIFTS 
 } from './data/mockData';
 import { getInitialUserProfile, saveStoredUserProfile } from './utils/storage';
 import { pkService } from './utils/pkService';
@@ -37,8 +34,12 @@ import {
   subscribeFirestorePartyRooms, 
   subscribeFirestoreVideos,
   createFirestoreLiveStream,
-  createFirestorePartyRoom
+  createFirestorePartyRoom,
+  endFirestoreLiveStream,
+  deleteFirestorePartyRoom,
+  syncFirestoreFollow
 } from './services/firestoreService';
+import { liveAndRoomService } from './services/liveAndRoomService';
 import {
   processGiftTransaction,
   subscribeUserWallet,
@@ -48,7 +49,6 @@ import {
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
 import { DesktopSidebar } from './components/common/DesktopSidebar';
-import { CreateActionSheet } from './components/common/CreateActionSheet';
 import { UserProfileModal } from './components/common/UserProfileModal';
 import { MicSelectionModal } from './components/common/MicSelectionModal';
 import { VideoUploadSourceModal } from './components/common/VideoUploadSourceModal';
@@ -70,8 +70,6 @@ import { ProfileScreen } from './components/screens/ProfileScreen';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { VideoFeedScreen } from './components/screens/VideoFeedScreen';
 import { UploadVideoScreen } from './components/screens/UploadVideoScreen';
-import { INITIAL_VIDEOS } from './data/videoData';
-import { VideoItem } from './types';
 
 // Modals
 import { GiftShopModal } from './components/screens/GiftShopModal';
@@ -96,13 +94,14 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('splash');
   const [viewMode, setViewMode] = useState<PlatformViewMode>('responsive');
 
-  // Application Data States (persisted via localStorage)
+  // Application Data States (live backend + Cloud Firestore)
   const [currentUser, setCurrentUser] = useState<UserProfile>(getInitialUserProfile);
-  const [liveStreams, setLiveStreams] = useState<LiveStream[]>(MOCK_LIVE_STREAMS);
-  const [partyRooms, setPartyRooms] = useState<PartyRoom[]>(MOCK_PARTY_ROOMS);
-  const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
+  const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+  const [partyRooms, setPartyRooms] = useState<PartyRoom[]>([]);
+  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [topBroadcasters, setTopBroadcasters] = useState<BroadcasterRankingEntry[]>([]);
 
-  const [conversations, setConversations] = useState<Conversation[]>(MOCK_CONVERSATIONS);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [gifts] = useState<GiftItem[]>(MOCK_GIFTS);
 
   // Active Broadcast State
@@ -159,14 +158,12 @@ export default function App() {
 
         if (usernameParam || userParam) {
           const cleanUsername = usernameParam ? `@${usernameParam.replace(/^@/, '')}`.toLowerCase() : null;
-          const found = Object.values(MOCK_USERS).find(
-            (u) =>
-              (cleanUsername && u.username?.toLowerCase() === cleanUsername) ||
-              (userParam && (u.id === userParam || u.displayId === userParam))
-          );
+          const isSelf =
+            (cleanUsername && currentUser.username?.toLowerCase() === cleanUsername) ||
+            (userParam && (currentUser.id === userParam || currentUser.displayId === userParam));
 
-          if (found) {
-            setNavigatingProfileUser(found);
+          if (isSelf) {
+            setNavigatingProfileUser(null);
             setCurrentScreen('profile');
           } else {
             profileService.getUserProfile(userParam || usernameParam!).then((p) => {
@@ -371,20 +368,122 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setAuthenticatedUid(firebaseUser ? firebaseUser.uid : null);
       if (firebaseUser) {
+        liveAndRoomService.setCurrentUser(firebaseUser.uid);
         setCurrentScreen((prev) => (prev === 'auth' ? 'home' : prev));
         try {
           const profile = await fetchCurrentFirestoreProfile(firebaseUser.uid);
           if (profile) {
             setCurrentUser(profile);
             saveStoredUserProfile(profile);
+            liveAndRoomService.syncUser(profile);
           }
         } catch (e) {
           console.warn('[Firebase Auth] Profile sync notice:', e);
         }
+      } else {
+        liveAndRoomService.setCurrentUser(null);
       }
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Real-Time Backend Discovery & WebSocket Broadcast Sync
+  useEffect(() => {
+    let active = true;
+    const loadRealtimeBackendState = async () => {
+      const [streams, rooms, rankings] = await Promise.all([
+        liveAndRoomService.fetchActiveStreams(),
+        liveAndRoomService.fetchActiveRooms(),
+        liveAndRoomService.fetchTopBroadcasters(),
+      ]);
+      if (!active) return;
+      if (streams.length > 0) {
+        setLiveStreams((prev) => {
+          const mergedMap = new Map<string, LiveStream>();
+          prev.forEach((s) => mergedMap.set(s.id, s));
+          streams.forEach((s) => mergedMap.set(s.id, s));
+          return Array.from(mergedMap.values());
+        });
+      }
+      if (rooms.length > 0) {
+        setPartyRooms((prev) => {
+          const mergedMap = new Map<string, PartyRoom>();
+          prev.forEach((r) => mergedMap.set(r.id, r));
+          rooms.forEach((r) => mergedMap.set(r.id, r));
+          return Array.from(mergedMap.values());
+        });
+      }
+      setTopBroadcasters(rankings.broadcasters);
+    };
+
+    loadRealtimeBackendState();
+
+    const unsubRealtime = liveAndRoomService.addEventListener((event, payload) => {
+      if (event === 'live:ended' && payload?.streamId) {
+        setLiveStreams((prev) => prev.filter((s) => s.id !== payload.streamId));
+        setActiveLiveStream((prev) => {
+          if (prev && prev.id === payload.streamId) {
+            setActivePKSession(null);
+            setCurrentScreen('home');
+            return null;
+          }
+          return prev;
+        });
+        liveAndRoomService.fetchTopBroadcasters().then((res) => {
+          if (active) setTopBroadcasters(res.broadcasters);
+        });
+      } else if (event === 'live:viewer_count_updated' && payload?.streamId) {
+        setLiveStreams((prev) =>
+          prev.map((s) =>
+            s.id === payload.streamId
+              ? {
+                  ...s,
+                  numericViewers: payload.numericViewers ?? s.numericViewers,
+                  viewerCount: payload.viewerCount ?? String(payload.numericViewers ?? s.numericViewers),
+                }
+              : s
+          )
+        );
+      } else if (event === 'live:like' && payload?.streamId) {
+        setLiveStreams((prev) =>
+          prev.map((s) =>
+            s.id === payload.streamId && typeof payload.likesCount === 'number'
+              ? { ...s, likesCount: payload.likesCount }
+              : s
+          )
+        );
+      } else if (event === 'room:closed' && payload?.roomId) {
+        setPartyRooms((prev) => prev.filter((r) => r.id !== payload.roomId));
+        setActiveAudioRoom((prev) => {
+          if (prev && prev.id === payload.roomId) {
+            setCurrentScreen('rooms');
+            return null;
+          }
+          return prev;
+        });
+      } else if (event === 'room:updated' && payload?.room) {
+        const updatedRoom = payload.room as PartyRoom;
+        setPartyRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
+        setActiveAudioRoom((prev) => (prev && prev.id === updatedRoom.id ? updatedRoom : prev));
+      } else if (event === 'room:seat_muted' && payload?.roomId && Array.isArray(payload.mutedSeatIndices)) {
+        setPartyRooms((prev) =>
+          prev.map((r) =>
+            r.id === payload.roomId ? { ...r, mutedSeatIndices: payload.mutedSeatIndices } : r
+          )
+        );
+        setActiveAudioRoom((prev) =>
+          prev && prev.id === payload.roomId
+            ? { ...prev, mutedSeatIndices: payload.mutedSeatIndices }
+            : prev
+        );
+      }
+    });
+
+    return () => {
+      active = false;
+      unsubRealtime();
+    };
   }, []);
 
   // Real-time Cloud Firestore Subscriptions for User Profile, Wallet, Earnings, Level, Live Streams, Rooms & Videos
@@ -445,21 +544,15 @@ export default function App() {
     });
 
     const unsubStreams = subscribeFirestoreLiveStreams((remoteStreams) => {
-      if (remoteStreams.length > 0) {
-        setLiveStreams(remoteStreams);
-      }
+      setLiveStreams(remoteStreams);
     });
 
     const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
-      if (remoteRooms.length > 0) {
-        setPartyRooms(remoteRooms);
-      }
+      setPartyRooms(remoteRooms);
     });
 
     const unsubVideos = subscribeFirestoreVideos((remoteVideos) => {
-      if (remoteVideos.length > 0) {
-        setVideos(remoteVideos);
-      }
+      setVideos(remoteVideos);
     });
 
     return () => {
@@ -486,6 +579,8 @@ export default function App() {
   const handleAuthSuccess = (profile: UserProfile) => {
     setCurrentUser(profile);
     saveStoredUserProfile(profile);
+    liveAndRoomService.setCurrentUser(profile.id);
+    liveAndRoomService.syncUser(profile);
     setCurrentScreen('home');
   };
 
@@ -497,9 +592,10 @@ export default function App() {
       console.warn('Logout notice:', e);
     }
     setAuthenticatedUid(null);
+    liveAndRoomService.setCurrentUser(null);
     setCurrentUser(CURRENT_USER);
     try {
-      localStorage.removeItem('lenzo_party_user_profile_v2');
+      localStorage.removeItem('lenzo_party_user_profile_v3');
     } catch (_) {}
     setCurrentScreen('auth');
     setActiveLiveStream(null);
@@ -518,11 +614,19 @@ export default function App() {
     setCurrentScreen('audio_room');
   };
 
-  // Handler: Start Newly Created Live (Sync with Firestore)
+  // Handler: Start Newly Created Live (Sync with Backend + Firestore)
   const handleStartLive = async (newStream: LiveStream) => {
-    setLiveStreams([newStream, ...liveStreams]);
+    setLiveStreams((prev) => [newStream, ...prev.filter((s) => s.id !== newStream.id)]);
     setActiveLiveStream(newStream);
     setCurrentScreen('live_active');
+
+    liveAndRoomService
+      .startLiveStream(newStream)
+      .then(() => liveAndRoomService.fetchTopBroadcasters())
+      .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
+      .catch((err) => {
+        console.warn('[Backend] Live stream start notice:', err);
+      });
 
     try {
       await createFirestoreLiveStream(newStream);
@@ -531,11 +635,30 @@ export default function App() {
     }
   };
 
-  // Handler: Create Newly Created Audio Room (Sync with Firestore)
+  // Handler: End Live Stream permanently (removes from feed, Firestore, refreshes rankings)
+  const handleEndLive = async (streamId: string) => {
+    setLiveStreams((prev) => prev.filter((s) => s.id !== streamId));
+    setActiveLiveStream(null);
+    setActivePKSession(null);
+    setCurrentScreen('home');
+    endFirestoreLiveStream(streamId).catch((err) => {
+      console.warn('[Firestore] Live stream delete notice:', err);
+    });
+    liveAndRoomService
+      .fetchTopBroadcasters()
+      .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
+      .catch(() => {});
+  };
+
+  // Handler: Create Newly Created Audio Room (Sync with Backend + Firestore)
   const handleCreateRoom = async (newRoom: PartyRoom) => {
-    setPartyRooms([newRoom, ...partyRooms]);
+    setPartyRooms((prev) => [newRoom, ...prev.filter((r) => r.id !== newRoom.id)]);
     setActiveAudioRoom(newRoom);
     setCurrentScreen('audio_room');
+
+    liveAndRoomService.createPartyRoom(newRoom).catch((err) => {
+      console.warn('[Backend] Party room creation notice:', err);
+    });
 
     try {
       await createFirestorePartyRoom(newRoom);
@@ -645,6 +768,19 @@ export default function App() {
         console.warn('Level progression update error:', levelErr);
       }
 
+      // Record real-time gift event in live broadcast or party room (updates broadcaster ranking score)
+      if (currentScreen === 'live_active' && activeLiveStream) {
+        liveAndRoomService
+          .recordLiveGift(activeLiveStream.id, currentUser, recipient, gift, quantity)
+          .then(() => liveAndRoomService.fetchTopBroadcasters())
+          .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
+          .catch(() => {});
+      } else if (currentScreen === 'audio_room' && activeAudioRoom) {
+        liveAndRoomService
+          .recordRoomGift(activeAudioRoom.id, currentUser, recipient, gift, quantity)
+          .catch(() => {});
+      }
+
       // If in active PK Battle, broadcast authoritative score update to match
       if (activePKSession) {
         pkService.sendPKGift(
@@ -720,8 +856,12 @@ export default function App() {
   const handleToggleFollow = async (userId: string) => {
     try {
       const result = await profileService.toggleFollow(userId, currentUser.id);
+      syncFirestoreFollow(currentUser.id, userId, result.isFollowing).catch(() => {});
       setLiveStreams((prev) =>
         prev.map((s) => (s.host.id === userId ? { ...s, host: { ...s.host, isFollowing: result.isFollowing } } : s))
+      );
+      setActiveLiveStream((prev) =>
+        prev && prev.host.id === userId ? { ...prev, host: { ...prev.host, isFollowing: result.isFollowing } } : prev
       );
       if (viewingProfileUser && viewingProfileUser.id === userId) {
         setViewingProfileUser((prev) =>
@@ -754,7 +894,7 @@ export default function App() {
 
   // Derived unread count and top hosts
   const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const topHostsList = Object.values(MOCK_USERS);
+  const topHostsList = topBroadcasters.map((b) => b.user);
 
   // Full Screen Overlays (Splash & Auth)
   if (currentScreen === 'splash') {
@@ -782,6 +922,8 @@ export default function App() {
             setActivePKSession(null);
             setCurrentScreen('home');
           }}
+          onEndLive={handleEndLive}
+          onToggleFollow={handleToggleFollow}
           onOpenGiftShop={(recipient) => {
             setGiftRecipient(recipient);
             setIsGiftShopOpen(true);
@@ -877,15 +1019,19 @@ export default function App() {
             setPartyRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
           }}
           onCloseRoom={(roomId) => {
-            // Intentional permanent close by Room Owner: removes room from directory
+            // Intentional permanent close by Room Owner: removes room from directory & Firestore
             setPartyRooms((prev) => prev.filter((r) => r.id !== roomId));
             setActiveAudioRoom(null);
             setCurrentScreen('rooms');
+            deleteFirestorePartyRoom(roomId).catch((err) => {
+              console.warn('[Firestore] Party room delete notice:', err);
+            });
           }}
           onOpenGiftShop={(recipient) => {
             setGiftRecipient(recipient);
             setIsGiftShopOpen(true);
           }}
+          onOpenWallet={() => setIsWalletOpen(true)}
           onSelectUser={(u) => setViewingProfileUser(u)}
           onOpenPK={handleOpenPKFromNav}
           activeGiftCelebration={activeGiftCelebration}
@@ -962,6 +1108,7 @@ export default function App() {
               liveStreams={liveStreams}
               partyRooms={partyRooms}
               topHosts={topHostsList}
+              topBroadcasters={topBroadcasters}
               onSelectLive={handleSelectLive}
               onSelectRoom={handleSelectRoom}
               onSelectUser={(u) => setViewingProfileUser(u)}
@@ -972,6 +1119,7 @@ export default function App() {
                 setIsGiftShopOpen(true);
               }}
               onOpenMicMenu={handleOpenMicMenu}
+              onToggleFollow={handleToggleFollow}
             />
           )}
 
@@ -983,6 +1131,8 @@ export default function App() {
               onOpenCreateRoom={() => setCurrentScreen('create_room')}
               onOpenSearch={() => setIsSearchOpen(true)}
               onOpenMicMenu={handleOpenMicMenu}
+              onOpenNotifications={() => setIsNotificationsOpen(true)}
+              unreadNotificationsCount={0}
             />
           )}
 
@@ -1079,6 +1229,7 @@ export default function App() {
             <ProfileScreen
               currentUser={currentUser}
               viewingUser={navigatingProfileUser}
+              conversations={conversations}
               onBack={() => {
                 setNavigatingProfileUser(null);
                 setCurrentScreen('home');
@@ -1118,7 +1269,7 @@ export default function App() {
 
         </main>
 
-        {/* Mobile Fixed Bottom Navigation Bar (7 Buttons: Store, Home, Rooms, +, Videos, Chat, Profile) */}
+        {/* Mobile Fixed Bottom Navigation Bar (7 Buttons: Home, Rooms, Store, +, Videos, Chat, Profile) */}
         <BottomNav
           currentScreen={currentScreen}
           onNavigate={(screen) => {
@@ -1129,7 +1280,7 @@ export default function App() {
           }}
           onOpenCreate={handleOpenPlusUpload}
           unreadMessagesCount={unreadMessagesCount}
-          storeNotificationCount={1}
+          storeNotificationCount={0}
         />
       </div>
 

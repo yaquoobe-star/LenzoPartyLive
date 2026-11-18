@@ -2,18 +2,17 @@ import { UserProfile, Transaction } from '../types';
 import { CURRENT_USER } from '../data/mockData';
 import { getExpNeededForLevel } from './levelSystem';
 
-const STORAGE_KEY_USER = 'lenzo_party_user_profile_v2';
-const STORAGE_KEY_TRANSACTIONS = 'lenzo_party_transactions_v2';
+const STORAGE_KEY_USER = 'lenzo_party_user_profile_v3';
+const STORAGE_KEY_TRANSACTIONS = 'lenzo_party_transactions_v3';
 
 export function getInitialUserProfile(): UserProfile {
   if (typeof window === 'undefined') {
     return {
       ...CURRENT_USER,
-      username: '@queensara',
-      currentExp: 8450,
-      nextLevelExp: getExpNeededForLevel(42),
-      totalGiftsReceived: 482,
-      totalGiftsValue: 96400,
+      currentExp: 0,
+      nextLevelExp: getExpNeededForLevel(1),
+      totalGiftsReceived: 0,
+      totalGiftsValue: 0,
     };
   }
 
@@ -21,16 +20,16 @@ export function getInitialUserProfile(): UserProfile {
     const raw = localStorage.getItem(STORAGE_KEY_USER);
     if (raw) {
       const parsed = JSON.parse(raw) as UserProfile;
-      // Ensure required new fields exist even if legacy storage format
-      return {
-        ...CURRENT_USER,
-        ...parsed,
-        username: parsed.username || '@queensara',
-        currentExp: typeof parsed.currentExp === 'number' ? parsed.currentExp : 8450,
-        nextLevelExp: typeof parsed.nextLevelExp === 'number' ? parsed.nextLevelExp : getExpNeededForLevel(parsed.level || 42),
-        totalGiftsReceived: typeof parsed.totalGiftsReceived === 'number' ? parsed.totalGiftsReceived : 482,
-        totalGiftsValue: typeof parsed.totalGiftsValue === 'number' ? parsed.totalGiftsValue : 96400,
-      };
+      if (parsed && parsed.id && parsed.id !== 'user_current_01' && parsed.username !== '@queensara') {
+        return {
+          ...CURRENT_USER,
+          ...parsed,
+          currentExp: typeof parsed.currentExp === 'number' ? parsed.currentExp : 0,
+          nextLevelExp: typeof parsed.nextLevelExp === 'number' ? parsed.nextLevelExp : getExpNeededForLevel(parsed.level || 1),
+          totalGiftsReceived: typeof parsed.totalGiftsReceived === 'number' ? parsed.totalGiftsReceived : 0,
+          totalGiftsValue: typeof parsed.totalGiftsValue === 'number' ? parsed.totalGiftsValue : 0,
+        };
+      }
     }
   } catch (err) {
     console.warn('Failed to read from localStorage:', err);
@@ -38,11 +37,10 @@ export function getInitialUserProfile(): UserProfile {
 
   return {
     ...CURRENT_USER,
-    username: '@queensara',
-    currentExp: 8450,
-    nextLevelExp: getExpNeededForLevel(42),
-    totalGiftsReceived: 482,
-    totalGiftsValue: 96400,
+    currentExp: 0,
+    nextLevelExp: getExpNeededForLevel(1),
+    totalGiftsReceived: 0,
+    totalGiftsValue: 0,
   };
 }
 

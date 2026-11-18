@@ -124,62 +124,13 @@ class PKService {
       const res = await apiFetch('/api/pk/hosts');
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        return data.hosts || [];
+        return Array.isArray(data.hosts) ? data.hosts : [];
       }
     } catch (err) {
-      console.warn('Fallback to local eligible hosts:', err);
+      console.warn('Eligible PK hosts unavailable:', err);
     }
 
-    return [
-      {
-        id: 'user_kingraja',
-        displayId: '77218390',
-        name: 'KingRaja 👑',
-        username: '@kingraja',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-        level: 68,
-        viewerCount: '12.5K',
-        isLive: true,
-        category: 'PK Champion',
-        streamTitle: '🔥 Unbeatable PK Streak! Challenge me now!'
-      },
-      {
-        id: 'user_angel',
-        displayId: '88392104',
-        name: 'Angel Girl 💕',
-        username: '@angelgirl',
-        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-        level: 56,
-        viewerCount: '8.7K',
-        isLive: true,
-        category: 'Music Live',
-        streamTitle: 'Singing & acoustic guitar vibes 🎶'
-      },
-      {
-        id: 'user_sweetie',
-        displayId: '55490218',
-        name: 'Sweetie 🌸',
-        username: '@sweetie',
-        avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
-        level: 38,
-        viewerCount: '5.2K',
-        isLive: true,
-        category: 'Chat',
-        streamTitle: 'Late night chill & party stories 🌙'
-      },
-      {
-        id: 'user_riya',
-        displayId: '33109284',
-        name: 'Riya Khan 💕',
-        username: '@riyakhan',
-        avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&auto=format&fit=crop&q=80',
-        level: 45,
-        viewerCount: '7.9K',
-        isLive: true,
-        category: 'Dance',
-        streamTitle: 'Dance Battle Ready! Let the rhythm win!'
-      }
-    ];
+    return [];
   }
 
   public async sendPKInvite(

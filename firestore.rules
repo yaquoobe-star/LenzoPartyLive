@@ -185,9 +185,55 @@ service cloud.firestore {
                     && (
                       isAdmin()
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
-                      || incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount'])
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount'])
                     );
       allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(messageId);
+        allow list: if isSignedIn() && isValidId(roomId);
+        allow create: if isSignedIn()
+                      && isValidId(roomId)
+                      && isValidId(messageId)
+                      && exists(/databases/$(database)/documents/party_rooms/$(roomId))
+                      && incoming().userId == request.auth.uid
+                      && incoming().text is string
+                      && incoming().text.size() > 0
+                      && incoming().text.size() <= 500;
+        allow update: if false;
+        allow delete: if isSignedIn()
+                      && isValidId(roomId)
+                      && isValidId(messageId)
+                      && (
+                        existing().userId == request.auth.uid
+                        || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
+                        || isAdmin()
+                      );
+      }
+
+      match /participants/{participantId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(participantId);
+        allow list: if isSignedIn() && isValidId(roomId);
+        allow create, update: if isSignedIn()
+                              && isValidId(roomId)
+                              && isValidId(participantId)
+                              && exists(/databases/$(database)/documents/party_rooms/$(roomId))
+                              && (
+                                participantId == request.auth.uid
+                                || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
+                                || isAdmin()
+                              )
+                              && incoming().userId is string
+                              && incoming().userId.size() <= 128;
+        allow delete: if isSignedIn()
+                      && isValidId(roomId)
+                      && isValidId(participantId)
+                      && (
+                        participantId == request.auth.uid
+                        || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
+                        || isAdmin()
+                      );
+      }
     }
 
     // ========================================================
@@ -204,9 +250,55 @@ service cloud.firestore {
                     && (
                       isAdmin()
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
-                      || incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount'])
+                      || incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount'])
                     );
       allow delete: if isSignedIn() && isValidId(streamId) && (existing().host.id == request.auth.uid || isAdmin());
+
+      match /comments/{commentId} {
+        allow get: if isSignedIn() && isValidId(streamId) && isValidId(commentId);
+        allow list: if isSignedIn() && isValidId(streamId);
+        allow create: if isSignedIn()
+                      && isValidId(streamId)
+                      && isValidId(commentId)
+                      && exists(/databases/$(database)/documents/live_streams/$(streamId))
+                      && incoming().userId == request.auth.uid
+                      && incoming().text is string
+                      && incoming().text.size() > 0
+                      && incoming().text.size() <= 500;
+        allow update: if false;
+        allow delete: if isSignedIn()
+                      && isValidId(streamId)
+                      && isValidId(commentId)
+                      && (
+                        existing().userId == request.auth.uid
+                        || get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id == request.auth.uid
+                        || isAdmin()
+                      );
+      }
+
+      match /viewers/{viewerId} {
+        allow get: if isSignedIn() && isValidId(streamId) && isValidId(viewerId);
+        allow list: if isSignedIn() && isValidId(streamId);
+        allow create, update: if isSignedIn()
+                              && isValidId(streamId)
+                              && isValidId(viewerId)
+                              && exists(/databases/$(database)/documents/live_streams/$(streamId))
+                              && (
+                                viewerId == request.auth.uid
+                                || get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id == request.auth.uid
+                                || isAdmin()
+                              )
+                              && incoming().userId is string
+                              && incoming().userId.size() <= 128;
+        allow delete: if isSignedIn()
+                      && isValidId(streamId)
+                      && isValidId(viewerId)
+                      && (
+                        viewerId == request.auth.uid
+                        || get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id == request.auth.uid
+                        || isAdmin()
+                      );
+      }
     }
 
     // ========================================================
@@ -453,6 +545,39 @@ service cloud.firestore {
     match /vip_frames/{docId} {
       allow get, list: if isSignedIn();
       allow create, update: if isAdmin() && isValidId(docId);
+      allow delete: if false;
+    }
+
+    // ========================================================
+    // 13. FOLLOWS GRAPH (/follows/{followId})
+    // ========================================================
+    match /follows/{followId} {
+      allow get: if isSignedIn() && isValidId(followId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn()
+                    && isValidId(followId)
+                    && incoming().followerId == request.auth.uid
+                    && incoming().followingId is string
+                    && incoming().followingId.size() > 0
+                    && incoming().followingId.size() <= 128
+                    && incoming().followingId != request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn()
+                    && isValidId(followId)
+                    && (existing().followerId == request.auth.uid || isAdmin());
+    }
+
+    // ========================================================
+    // 14. BROADCASTER RANKING CONFIG (/ranking_configs/{configId})
+    // ========================================================
+    match /ranking_configs/{configId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin()
+                            && isValidId(configId)
+                            && incoming().viewerWeight is number
+                            && incoming().giftWeight is number
+                            && incoming().engagementWeight is number
+                            && incoming().durationWeight is number;
       allow delete: if false;
     }
   }

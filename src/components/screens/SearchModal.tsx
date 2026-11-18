@@ -35,21 +35,28 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [filterType, setFilterType] = useState<'All' | 'Hosts' | 'Rooms' | 'Live'>('All');
-  const [recentSearches, setRecentSearches] = useState(['Angel Girl', 'Music Party', 'PK Battle', 'Gaming']);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('lenzo_recent_searches_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   if (!isOpen) return null;
 
   const normalizedQuery = query.toLowerCase().trim();
 
-  const matchedHosts = users.filter((u) => 
-    !normalizedQuery || u.name.toLowerCase().includes(normalizedQuery) || u.displayId.includes(normalizedQuery)
+  const matchedHosts = users.filter((u) =>
+    !normalizedQuery || u.name.toLowerCase().includes(normalizedQuery) || (u.displayId || '').includes(normalizedQuery)
   );
 
-  const matchedRooms = partyRooms.filter((r) => 
+  const matchedRooms = partyRooms.filter((r) =>
     !normalizedQuery || r.title.toLowerCase().includes(normalizedQuery) || r.category.toLowerCase().includes(normalizedQuery)
   );
 
-  const matchedLive = liveStreams.filter((l) => 
+  const matchedLive = liveStreams.filter((l) =>
     !normalizedQuery || l.title.toLowerCase().includes(normalizedQuery) || l.host.name.toLowerCase().includes(normalizedQuery)
   );
 
@@ -57,8 +64,27 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                      (matchedRooms.length > 0 && ['All', 'Rooms'].includes(filterType)) ||
                      (matchedLive.length > 0 && ['All', 'Live'].includes(filterType));
 
+  const recordSearch = (term: string) => {
+    const clean = term.trim();
+    if (!clean) return;
+    setRecentSearches((prev) => {
+      const updated = [clean, ...prev.filter((t) => t !== clean)].slice(0, 8);
+      try {
+        localStorage.setItem('lenzo_recent_searches_v1', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
   const handleClearHistory = () => {
     setRecentSearches([]);
+    try {
+      localStorage.removeItem('lenzo_recent_searches_v1');
+    } catch {
+      // ignore
+    }
   };
 
   const handleSelectRecent = (term: string) => {
@@ -290,7 +316,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   <Search className="w-10 h-10 text-[#B9AECF]/40 mb-2" />
                   <h4 className="text-sm font-bold text-white mb-1">No results for "{query}"</h4>
                   <p className="text-xs text-[#B9AECF]">
-                    Try searching for Angel Girl, Music Party, Gaming, or KingRaja
+                    Try another room title, host name, user ID, or category.
                   </p>
                 </div>
               )}

@@ -43,7 +43,7 @@ export interface UserProfile {
   id: string;
   displayId: string;
   name: string;
-  username?: string; // e.g. @queensara
+  username?: string; // e.g. @username
   avatar: string;
   coverImage?: string;
   bio: string;
@@ -82,7 +82,12 @@ export interface LiveStream {
   tags: string[];
   guests: UserProfile[];
   likesCount: number;
+  commentsCount?: number;
   streamUrl?: string;
+  startTime?: number;
+  announcement?: string;
+  allowGuests?: boolean;
+  isPrivate?: boolean;
 }
 
 export interface PartyRoom {
@@ -99,12 +104,52 @@ export interface PartyRoom {
   roomType: 'public' | 'private' | 'secret';
   announcement?: string;
   seats: (UserProfile | null)[];
+  mutedSeatIndices?: number[];
   displayId?: string;
   password?: string;
   isLocked?: boolean;
   allowJoin?: boolean;
   seatRequests?: SeatRequest[];
   isOwnerPresent?: boolean;
+  startTime?: number;
+  likesCount?: number;
+}
+
+export interface LiveViewerInfo {
+  userId: string;
+  name: string;
+  username?: string;
+  avatar: string;
+  level: number;
+  vipLevel: number;
+  isVIP: boolean;
+  joinedAt: number;
+  lastSeen: number;
+  isHost?: boolean;
+}
+
+export interface RankingConfig {
+  giftValueWeight: number;
+  uniqueViewerWeight: number;
+  engagementWeight: number;
+  activeLiveBoost: number;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export interface BroadcasterRankingEntry {
+  rank: number;
+  user: UserProfile;
+  score: number;
+  formattedScore: string;
+  liveStreamId?: string;
+  isCurrentlyLive: boolean;
+  breakdown: {
+    giftsCoinValue: number;
+    uniqueViewers: number;
+    totalLikes: number;
+    totalComments: number;
+  };
 }
 
 export interface SeatRequest {

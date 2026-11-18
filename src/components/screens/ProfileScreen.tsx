@@ -30,7 +30,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-import { UserProfile, ScreenType, VideoItem } from '../../types';
+import { UserProfile, ScreenType, VideoItem, Conversation } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
 import { COIN_CONFIG } from '../../utils/coinConfig';
@@ -43,6 +43,7 @@ import { profileService } from '../../utils/profileService';
 interface ProfileScreenProps {
   currentUser: UserProfile;
   viewingUser?: UserProfile | null;
+  conversations?: Conversation[];
   onUpdateProfile: (updated: UserProfile) => void;
   onNavigate: (screen: ScreenType) => void;
   onOpenWallet: () => void;
@@ -63,6 +64,7 @@ export type VideoTabType = 'videos' | 'private' | 'liked' | 'saved';
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   currentUser,
   viewingUser,
+  conversations = [],
   onUpdateProfile,
   onNavigate,
   onOpenWallet,
@@ -104,12 +106,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Social Stats
   const [isFollowingTarget, setIsFollowingTarget] = useState<boolean>(activeUser.isFollowing || false);
   const [followersCount, setFollowersCount] = useState<number>(() => {
-    if (activeUser.followersCount) return activeUser.followersCount;
-    return parseInt(activeUser.fansCount?.replace(/[^0-9]/g, '') || '12400', 10) || 12420;
+    if (typeof activeUser.followersCount === 'number') return activeUser.followersCount;
+    return parseInt(activeUser.fansCount?.replace(/[^0-9]/g, '') || '0', 10) || 0;
   });
-  const [followingCount, setFollowingCount] = useState<number>(activeUser.followingCount || 142);
+  const [followingCount, setFollowingCount] = useState<number>(activeUser.followingCount || 0);
   const [totalLikesCount, setTotalLikesCount] = useState<number>(() => {
-    return profileService.calculateTotalLikes(activeUser.id) || 52700;
+    return profileService.calculateTotalLikes(activeUser.id) || activeUser.totalLikes || 0;
   });
 
   const [copiedId, setCopiedId] = useState(false);
@@ -258,6 +260,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           onClose={() => setIsShareModalOpen(false)}
           user={activeUser}
           currentUser={currentUser}
+          conversations={conversations}
           onSendInApp={(target, msg) => {
             if (onSendMessage) onSendMessage(target);
           }}
@@ -737,7 +740,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <TrendingUp className="w-3 h-3 text-[#F328D5]" /> Total Earnings
                 </span>
                 <span className="text-xl sm:text-2xl font-black text-[#ff8cf4] font-mono tracking-tight mt-0.5">
-                  {(currentUser.diamonds || 4500).toLocaleString()}
+                  {(currentUser.diamonds || 0).toLocaleString()}
                 </span>
                 <span className="text-[10px] font-semibold text-emerald-400">Net Gifts (Cash Withdrawable)</span>
               </div>
@@ -748,7 +751,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <span className="text-[#A59AB8] text-[11px] flex items-center gap-1">
                 <span>Estimated Value:</span>
                 <span className="font-bold text-emerald-400 font-mono">
-                  {COIN_CONFIG.formatPkrEquivalent(currentUser.coins + (currentUser.diamonds || 4500))}
+                  {COIN_CONFIG.formatPkrEquivalent(currentUser.coins + (currentUser.diamonds || 0))}
                 </span>
               </span>
 
@@ -937,7 +940,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <div className="relative z-10 flex items-center justify-between text-[10px] text-white font-mono font-bold">
                     <span className="flex items-center gap-1 drop-shadow">
                       <Play className="w-2.5 h-2.5 fill-white" />
-                      <span>{video.viewsCount || Math.max(120, video.likesCount * 3)}</span>
+                      <span>{video.viewsCount || 0}</span>
                     </span>
 
                     <span className="flex items-center gap-0.5 text-pink-400 drop-shadow">

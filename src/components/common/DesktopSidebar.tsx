@@ -47,12 +47,13 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   onOpenPKModal,
   onOpenVIP,
   onLogout,
-  unreadMessagesCount = 99,
+  unreadMessagesCount = 0,
 }) => {
   const mainNavItems = [
-    { id: 'store' as ScreenType, label: 'Store', icon: ShoppingBag, badge: 'HOT' },
-    { id: 'home' as ScreenType, label: 'Home Feed', icon: Home },
-    { id: 'party' as ScreenType, label: 'Rooms & Voice Party', icon: Video },
+    { id: 'home' as ScreenType, label: 'Home', icon: Home },
+    { id: 'rooms' as ScreenType, label: 'Rooms & Voice Party', icon: Video },
+    { id: 'store' as ScreenType, label: 'Store', icon: ShoppingBag },
+    { id: 'videos' as ScreenType, label: 'Videos', icon: Sparkles },
     { id: 'rankings' as ScreenType, label: 'Rankings & Stars', icon: Trophy },
     { id: 'messages' as ScreenType, label: 'Chat & Messages', icon: MessageCircle, badge: unreadMessagesCount > 0 ? `${unreadMessagesCount}` : undefined },
     { id: 'profile' as ScreenType, label: 'Me / Profile', icon: User },
@@ -95,7 +96,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                 <LevelBadge level={currentUser.level} size="xs" />
               </div>
               <div className="flex items-center gap-2 mt-0.5 text-xs text-[#B9AECF]">
-                <span className="font-mono">{currentUser.username || '@queensara'}</span>
+                <span className="font-mono">{currentUser.username || (currentUser.displayId ? `ID: ${currentUser.displayId}` : 'Not signed in')}</span>
               </div>
             </div>
           </div>

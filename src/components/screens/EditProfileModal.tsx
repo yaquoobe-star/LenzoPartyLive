@@ -69,14 +69,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 }) => {
   // Form State
   const [displayName, setDisplayName] = useState(currentUser.name || '');
-  const [username, setUsername] = useState(currentUser.username || '@queensara');
+  const [username, setUsername] = useState(currentUser.username || '');
   const [bio, setBio] = useState(currentUser.bio || '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatar || '');
   const [gender, setGender] = useState<'female' | 'male' | 'other' | 'unspecified'>(
-    currentUser.gender || 'female'
+    currentUser.gender || 'unspecified'
   );
-  const [country, setCountry] = useState(currentUser.country || 'Pakistan');
-  const [birthday, setBirthday] = useState(currentUser.birthday || '2001-08-14');
+  const [country, setCountry] = useState(currentUser.country || '');
+  const [birthday, setBirthday] = useState(currentUser.birthday || '');
 
   // Username validation state
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
@@ -100,12 +100,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setDisplayName(currentUser.name || '');
-      setUsername(currentUser.username || '@queensara');
+      setUsername(currentUser.username || '');
       setBio(currentUser.bio || '');
       setAvatarUrl(currentUser.avatar || '');
-      setGender(currentUser.gender || 'female');
-      setCountry(currentUser.country || 'Pakistan');
-      setBirthday(currentUser.birthday || '2001-08-14');
+      setGender(currentUser.gender || 'unspecified');
+      setCountry(currentUser.country || '');
+      setBirthday(currentUser.birthday || '');
       setUsernameStatus('idle');
       setErrorMessage(null);
       setSuccessMessage(null);

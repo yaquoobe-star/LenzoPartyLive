@@ -12,13 +12,13 @@ import {
 import { UserProfile, Conversation } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
 import { profileService } from '../../utils/profileService';
-import { MOCK_CONVERSATIONS } from '../../data/mockData';
 
 interface ShareProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
   currentUser: UserProfile;
+  conversations?: Conversation[];
   onSendInApp?: (targetUser: UserProfile, message: string) => void;
 }
 
@@ -27,6 +27,7 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
   onClose,
   user,
   currentUser,
+  conversations = [],
   onSendInApp,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -99,7 +100,13 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
     }
 
     if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       showToast(`Opening ${platform.toUpperCase()}...`);
     }
   };
@@ -235,33 +242,39 @@ export const ShareProfileModal: React.FC<ShareProfileModalProps> = ({
               Send in Chat (In-App)
             </span>
             <div className="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar pr-1">
-              {MOCK_CONVERSATIONS.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => handleShareInApp(conv)}
-                  className="flex items-center justify-between p-2 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer border border-white/5 transition-colors group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={conv.user.avatar}
-                      alt={conv.user.name}
-                      className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-white/15"
-                    />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold text-white truncate">{conv.user.name}</span>
-                      <span className="text-[10px] text-[#B9AECF] truncate">{conv.user.username || `@${conv.user.displayId}`}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="px-2.5 py-1 rounded-full bg-[#FA26A0]/20 group-hover:bg-[#FA26A0] text-[#FA26A0] group-hover:text-white text-[10px] font-bold flex items-center gap-1 transition-all"
+              {conversations.length === 0 ? (
+                <p className="text-[11px] text-[#B9AECF]/70 text-center py-4">
+                  No recent conversations to share to yet.
+                </p>
+              ) : (
+                conversations.map((conv) => (
+                  <div
+                    key={conv.id}
+                    onClick={() => handleShareInApp(conv)}
+                    className="flex items-center justify-between p-2 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer border border-white/5 transition-colors group"
                   >
-                    <Send className="w-3 h-3" />
-                    <span>Send</span>
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={conv.user.avatar}
+                        alt={conv.user.name}
+                        className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-white/15"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold text-white truncate">{conv.user.name}</span>
+                        <span className="text-[10px] text-[#B9AECF] truncate">{conv.user.username || `@${conv.user.displayId}`}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 rounded-full bg-[#FA26A0]/20 group-hover:bg-[#FA26A0] text-[#FA26A0] group-hover:text-white text-[10px] font-bold flex items-center gap-1 transition-all"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Send</span>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

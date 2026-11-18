@@ -398,6 +398,89 @@
         "netEarningsCoins": { "type": "number" }
       },
       "required": ["senderId", "recipientId", "grossCost", "commissionCoins"]
+    },
+    "LiveComment": {
+      "title": "LiveComment",
+      "description": "Real-time live stream comment message",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "senderAvatar": { "type": "string", "maxLength": 1000 },
+        "text": { "type": "string", "maxLength": 500 },
+        "level": { "type": "number" },
+        "type": { "type": "string", "enum": ["chat", "gift", "system"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "text"]
+    },
+    "LiveViewer": {
+      "title": "LiveViewer",
+      "description": "Active viewer inside a live stream session",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "username": { "type": "string", "maxLength": 60 },
+        "avatar": { "type": "string", "maxLength": 1000 },
+        "level": { "type": "number" },
+        "joinedAt": { "type": "string" },
+        "lastHeartbeatAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Real-time party room chat message",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "text": { "type": "string", "maxLength": 500 },
+        "type": { "type": "string", "enum": ["chat", "gift", "system"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "text"]
+    },
+    "RoomParticipant": {
+      "title": "RoomParticipant",
+      "description": "Active participant in an audio party room",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "avatar": { "type": "string", "maxLength": 1000 },
+        "level": { "type": "number" },
+        "seatIndex": { "type": "number" },
+        "isMuted": { "type": "boolean" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "FollowRelation": {
+      "title": "FollowRelation",
+      "description": "User follower-following edge document",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string", "maxLength": 128 },
+        "followingId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["followerId", "followingId"]
+    },
+    "RankingConfig": {
+      "title": "RankingConfig",
+      "description": "Configurable weights for the TOP 1 & TOP 2 broadcaster ranking engine",
+      "type": "object",
+      "properties": {
+        "viewerWeight": { "type": "number" },
+        "giftWeight": { "type": "number" },
+        "engagementWeight": { "type": "number" },
+        "durationWeight": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 120 }
+      },
+      "required": ["viewerWeight", "giftWeight", "engagementWeight", "durationWeight"]
     }
   },
   "firestore": {
@@ -429,9 +512,33 @@
       "schema": "PartyRoom",
       "description": "Active audio party rooms"
     },
+    "/party_rooms/{roomId}/messages/{messageId}": {
+      "schema": "RoomMessage",
+      "description": "Real-time party room chat messages"
+    },
+    "/party_rooms/{roomId}/participants/{participantId}": {
+      "schema": "RoomParticipant",
+      "description": "Active listeners and seated speakers inside a party room"
+    },
     "/live_streams/{streamId}": {
       "schema": "LiveStream",
       "description": "Active live video streams"
+    },
+    "/live_streams/{streamId}/comments/{commentId}": {
+      "schema": "LiveComment",
+      "description": "Real-time comments inside a live stream"
+    },
+    "/live_streams/{streamId}/viewers/{viewerId}": {
+      "schema": "LiveViewer",
+      "description": "Active live stream viewers"
+    },
+    "/follows/{followId}": {
+      "schema": "FollowRelation",
+      "description": "Follower-following relationships"
+    },
+    "/ranking_configs/{configId}": {
+      "schema": "RankingConfig",
+      "description": "Admin-configurable broadcaster ranking weights"
     },
     "/wallets/{uid}": {
       "schema": "UserWallet",

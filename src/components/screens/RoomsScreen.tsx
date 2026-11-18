@@ -21,6 +21,8 @@ interface RoomsScreenProps {
   onOpenCreateRoom: () => void;
   onOpenSearch: () => void;
   onOpenMicMenu?: () => void;
+  onOpenNotifications?: () => void;
+  unreadNotificationsCount?: number;
 }
 
 export const RoomsScreen: React.FC<RoomsScreenProps> = ({
@@ -30,6 +32,8 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
   onOpenCreateRoom,
   onOpenSearch,
   onOpenMicMenu,
+  onOpenNotifications,
+  unreadNotificationsCount = 0,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('Trending');
   const [seatFilter, setSeatFilter] = useState<'all' | '8' | '16'>('all');
@@ -60,9 +64,9 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
 
     // Category filter
     if (activeCategory === 'Trending') return true;
-    if (activeCategory === 'Popular') return room.numericParticipants >= 8 || room.participantCount.includes('K') || room.maxSeats === 16;
-    if (activeCategory === 'New') return room.id.includes('chill') || room.id.includes('urdu') || room.id.includes('music_vibes');
-    if (activeCategory === 'Friends') return room.title.toLowerCase().includes('friend') || room.category === 'Friendship' || room.host.isFollowing;
+    if (activeCategory === 'Popular') return room.numericParticipants >= 8 || room.maxSeats === 16;
+    if (activeCategory === 'New') return (room.startTime || 0) > Date.now() - 86400000 || room.numericParticipants < room.maxSeats;
+    if (activeCategory === 'Friends') return room.category === 'Friendship' || Boolean(room.host.isFollowing);
     
     return true;
   });
@@ -103,14 +107,16 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigate('messages')}
+              onClick={() => (onOpenNotifications ? onOpenNotifications() : onNavigate('notifications'))}
               className="relative w-9 h-9 rounded-full bg-[#160E24] hover:bg-[#201433] border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FA26A0] text-white text-[9px] font-bold flex items-center justify-center shadow">
-                1
-              </span>
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#FA26A0] text-white text-[9px] font-bold flex items-center justify-center shadow">
+                  {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -304,12 +310,18 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                 {/* Left Side: Circular Host Avatar */}
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
-                    <img
-                      src={room.host.avatar || room.coverImage}
-                      alt={room.host.name}
-                      referrerPolicy="no-referrer"
-                      className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0]/50 group-hover:ring-[#FA26A0] transition-all"
-                    />
+                    {room.host.avatar || room.coverImage ? (
+                      <img
+                        src={room.host.avatar || room.coverImage}
+                        alt={room.host.name}
+                        referrerPolicy="no-referrer"
+                        className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0]/50 group-hover:ring-[#FA26A0] transition-all"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-[#24133D] ring-2 ring-[#FA26A0]/50 flex items-center justify-center text-sm font-black text-white">
+                        {(room.host.name || 'R').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     {/* Tiny music icon badge */}
                     <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FA26A0] text-white flex items-center justify-center text-[9px] shadow">
                       🎙️

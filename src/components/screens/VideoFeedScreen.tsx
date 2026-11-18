@@ -62,11 +62,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   
   // Comment drawer state
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; user: string; avatar: string; text: string; time: string; likes: number }>>([
-    { id: 'c1', user: 'Ali123', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', text: 'So beautiful! ❤️', time: '1h ago', likes: 24 },
-    { id: 'c2', user: 'Mahi786', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', text: 'Lovely vibes 💖✨', time: '34m ago', likes: 12 },
-    { id: 'c3', user: 'KingStar', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', text: 'Nice! 👍 Queen of party live', time: '12m ago', likes: 8 }
-  ]);
+  const [comments, setComments] = useState<Array<{ id: string; user: string; avatar: string; text: string; time: string; likes: number }>>([]);
   const [commentInput, setCommentInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -86,7 +82,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
   // Continuous automatic video progression and auto-advance
   useEffect(() => {
-    if (!isPlaying || isEndOfFeed) return;
+    if (!currentVideo || !isPlaying || isEndOfFeed) return;
 
     setPlaybackProgress(0);
     const progressInterval = setInterval(() => {
@@ -237,6 +233,28 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       setActiveVideoIndex(activeVideoIndex - 1);
     }
   };
+
+  // Empty State when no videos exist yet
+  if (!currentVideo) {
+    return (
+      <div className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[#160C25] border border-white/10 flex items-center justify-center mb-4">
+          <Play className="w-7 h-7 text-[#F328D5]" />
+        </div>
+        <h2 className="text-lg font-extrabold text-white font-display">No Videos Yet</h2>
+        <p className="text-xs text-[#B9AECF] mt-1 max-w-xs">
+          Videos uploaded by creators will appear here in real time.
+        </p>
+        <button
+          onClick={onUploadClick}
+          className="mt-5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg active:scale-95 transition-transform flex items-center gap-1.5"
+        >
+          <Plus className="w-4 h-4" />
+          Upload Video
+        </button>
+      </div>
+    );
+  }
 
   // If at the end of the feed, render the Video Ended Screen matching reference image #8
   if (isEndOfFeed) {

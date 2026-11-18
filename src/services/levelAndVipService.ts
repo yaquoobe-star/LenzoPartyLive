@@ -20,7 +20,7 @@ import {
  */
 export function subscribeUserLevelProgression(
   userId: string,
-  initialCoinsSpent: number = 2000000, // Level 42 baseline for QueenSara
+  initialCoinsSpent: number = 0,
   onUpdate: (progression: UserLevelProgression) => void
 ) {
   const docRef = doc(db, 'user_levels', userId);
@@ -31,11 +31,11 @@ export function subscribeUserLevelProgression(
       if (snap.exists()) {
         const data = snap.data();
         const totalCoins = data.totalQualifyingCoinsSpent ?? initialCoinsSpent;
-        const equippedFrame = data.equippedVipFrame ?? 7; // Default VIP 7 for QueenSara
+        const equippedFrame = data.equippedVipFrame ?? 0;
         const prog = calculateLevelProgression(totalCoins, userId, equippedFrame);
         onUpdate(prog);
       } else {
-        const initialProg = calculateLevelProgression(initialCoinsSpent, userId, 7);
+        const initialProg = calculateLevelProgression(initialCoinsSpent, userId, 0);
         setDoc(docRef, {
           userId,
           currentLevel: initialProg.currentLevel,
@@ -50,7 +50,7 @@ export function subscribeUserLevelProgression(
     },
     (err) => {
       console.warn('Level progression listener notice:', err);
-      onUpdate(calculateLevelProgression(initialCoinsSpent, userId, 7));
+      onUpdate(calculateLevelProgression(initialCoinsSpent, userId, 0));
     }
   );
 }
@@ -72,8 +72,8 @@ export async function addQualifyingGiftingCoins(
   try {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(docRef);
-      const currentCoins = snap.exists() ? (snap.data().totalQualifyingCoinsSpent || 0) : 2000000;
-      const equippedFrame = snap.exists() ? (snap.data().equippedVipFrame || 7) : 7;
+      const currentCoins = snap.exists() ? (snap.data().totalQualifyingCoinsSpent || 0) : 0;
+      const equippedFrame = snap.exists() ? (snap.data().equippedVipFrame || 0) : 0;
 
       const oldProg = calculateLevelProgression(currentCoins, userId, equippedFrame);
       const newTotalCoins = currentCoins + coinsSpent;

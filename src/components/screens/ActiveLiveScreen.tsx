@@ -30,7 +30,8 @@ import {
   Eye,
   ShieldAlert,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { 
   LiveStream, 
@@ -38,8 +39,7 @@ import {
   UserProfile, 
   GiftItem, 
   PKMatchSession, 
-  PKGiftEvent, 
-  PKLikeEvent 
+  LiveViewerInfo
 } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
@@ -51,11 +51,15 @@ import {
   AudioAnalyserController 
 } from '../../utils/mediaDeviceHelper';
 import { agoraRtcService } from '../../utils/agoraRtcService';
+import { liveAndRoomService } from '../../services/liveAndRoomService';
+import { getUserLevelProgress } from '../../utils/levelSystem';
 
 interface ActiveLiveScreenProps {
   stream: LiveStream;
   currentUser: UserProfile;
   onClose: () => void;
+  onEndLive?: (streamId: string) => void;
+  onToggleFollow?: (userId: string) => void;
   onOpenGiftShop: (recipient: UserProfile) => void;
   onOpenPK: () => void;
   onSelectUser: (user: UserProfile) => void;
@@ -102,6 +106,8 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   stream,
   currentUser,
   onClose,
+  onEndLive,
+  onToggleFollow,
   onOpenGiftShop,
   onOpenPK,
   onSelectUser,
@@ -124,39 +130,21 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const [showEndLiveConfirm, setShowEndLiveConfirm] = useState<boolean>(false);
   const [hasWebcamStream, setHasWebcamStream] = useState<boolean>(false);
   const [isFlippingCamera, setIsFlippingCamera] = useState<boolean>(false);
-  const [streamSeconds, setStreamSeconds] = useState<number>(342); // live timer
-
-  // Chat & Messaging Controls
-  const [pinnedMessage, setPinnedMessage] = useState<string | null>(
-    '👑 Host Announcement: Welcome to Lenzo Party Live! Send gifts & double tap to support! 💕'
+  const [streamSeconds, setStreamSeconds] = useState<number>(() =>
+    stream.startTime ? Math.max(0, Math.floor((Date.now() - stream.startTime) / 1000)) : 0
   );
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'm1',
-      senderId: stream.host.id,
-      senderName: stream.host.name,
-      senderAvatar: stream.host.avatar,
-      isHost: true,
-      text: 'Hey everyone! Welcome to my live party! Drop a like ❤️',
-      timestamp: '2m ago'
-    },
-    {
-      id: 'm2',
-      senderId: 'user_lovely_star',
-      senderName: 'Lovely Star 💕',
-      senderAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
-      text: 'So beautiful!! 😍',
-      timestamp: '1m ago'
-    },
-    {
-      id: 'm3',
-      senderId: 'user_rohan',
-      senderName: 'Rohan Kumar',
-      senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      text: 'You are amazing host! ❤️',
-      timestamp: 'Just now'
-    }
-  ]);
+
+  // Chat, Entry Notification & Viewer Info States (Zero Mock Data)
+  const [pinnedMessage, setPinnedMessage] = useState<string | null>(stream.announcement || null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [liveViewerCount, setLiveViewerCount] = useState<number>(stream.numericViewers ?? 0);
+  const [entryNotice, setEntryNotice] = useState<{ id: string; name: string } | null>(null);
+  const [showViewersModal, setShowViewersModal] = useState<boolean>(false);
+  const [viewersList, setViewersList] = useState<LiveViewerInfo[]>([]);
+  const [viewersTotalCount, setViewersTotalCount] = useState<number>(0);
+  const [viewersPage, setViewersPage] = useState<number>(1);
+  const [viewersHasMore, setViewersHasMore] = useState<boolean>(false);
+  const [viewersLoading, setViewersLoading] = useState<boolean>(false);
 
   const [inputMessage, setInputMessage] = useState('');
   const [burstHearts, setBurstHearts] = useState<BurstHeart[]>([]);
@@ -165,7 +153,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
   const [isFollowing, setIsFollowing] = useState(stream.host.isFollowing || false);
-  const [streamLikes, setStreamLikes] = useState<number>(stream.likesCount || 156420);
+  const [streamLikes, setStreamLikes] = useState<number>(stream.likesCount || 0);
+
+  const hostLevelProgress = getUserLevelProgress(stream.host);
 
   // Authoritative server timer synchronization for PK
   const [secondsRemaining, setSecondsRemaining] = useState<number>(300);
@@ -198,6 +188,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const lastTapRef = useRef<{ time: number; x: number; y: number; side: string }>({ time: 0, x: 0, y: 0, side: '' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const entryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenEntriesRef = useRef<Map<string, number>>(new Map());
+
   // Live broadcast duration timer
   useEffect(() => {
     const timer = setInterval(() => {
@@ -205,6 +198,118 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Load paginated viewers for (i) modal
+  const loadLiveViewers = async (page = 1, append = false) => {
+    setViewersLoading(true);
+    try {
+      const res = await liveAndRoomService.fetchLiveViewers(stream.id, page, 20);
+      setViewersList((prev) => (append ? [...prev, ...res.viewers] : res.viewers));
+      setViewersTotalCount(res.totalCount);
+      setViewersHasMore(res.hasMore);
+      setViewersPage(page);
+    } finally {
+      setViewersLoading(false);
+    }
+  };
+
+  // Real-time stream join, 15s heartbeat, WebSocket comments/likes/entry banners & exit cleanup
+  useEffect(() => {
+    let active = true;
+    liveAndRoomService.setCurrentUser(currentUser.id);
+    liveAndRoomService.subscribeLive(stream.id, currentUser.id);
+
+    liveAndRoomService
+      .joinLiveStream(stream.id, currentUser)
+      .then((res) => {
+        if (!active) return;
+        if (res.stream) {
+          setLiveViewerCount(res.stream.numericViewers ?? 0);
+          if (typeof res.stream.likesCount === 'number') {
+            setStreamLikes(res.stream.likesCount);
+          }
+        }
+        if (Array.isArray(res.comments)) {
+          setMessages(res.comments);
+        }
+      })
+      .catch((err) => {
+        console.warn('[ActiveLive] Join notice:', err?.message || err);
+      });
+
+    const heartbeat = setInterval(() => {
+      liveAndRoomService.sendLiveHeartbeat(stream.id, currentUser.id);
+    }, 15000);
+
+    const unsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
+      if (!active || payload?.streamId !== stream.id) return;
+
+      if (event === 'live:viewer_joined') {
+        if (typeof payload.numericViewers === 'number') {
+          setLiveViewerCount(payload.numericViewers);
+        }
+        const joinedViewer = payload.viewer;
+        if (joinedViewer && joinedViewer.userId !== currentUser.id) {
+          const now = Date.now();
+          const lastShown = seenEntriesRef.current.get(joinedViewer.userId) || 0;
+          if (now - lastShown > 15000) {
+            seenEntriesRef.current.set(joinedViewer.userId, now);
+            setEntryNotice({
+              id: `${joinedViewer.userId}_${now}`,
+              name: joinedViewer.name || 'Viewer',
+            });
+            if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
+            entryTimerRef.current = setTimeout(() => setEntryNotice(null), 3500);
+          }
+        }
+      } else if (event === 'live:viewer_left' || event === 'live:viewer_count_updated') {
+        if (typeof payload.numericViewers === 'number') {
+          setLiveViewerCount(payload.numericViewers);
+        }
+      } else if (event === 'live:comment' && payload.message) {
+        const incoming: ChatMessage = payload.message;
+        setMessages((prev) =>
+          prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]
+        );
+      } else if (event === 'live:like' && typeof payload.likesCount === 'number') {
+        setStreamLikes(payload.likesCount);
+      } else if (event === 'live:gift') {
+        if (payload.message) {
+          const giftMsg: ChatMessage = payload.message;
+          setMessages((prev) =>
+            prev.some((m) => m.id === giftMsg.id) ? prev : [...prev, giftMsg]
+          );
+        }
+      } else if (event === 'live:ended') {
+        if (!isActualHost) {
+          showToast('Live broadcast has ended');
+          if (audioAnalyserControllerRef.current) {
+            audioAnalyserControllerRef.current.cleanup();
+            audioAnalyserControllerRef.current = null;
+          }
+          if (mediaStreamRef.current) {
+            stopMediaStream(mediaStreamRef.current);
+            mediaStreamRef.current = null;
+          }
+          agoraRtcService.leaveChannel().catch(() => {});
+          setTimeout(() => {
+            if (active) onClose();
+          }, 1500);
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+      clearInterval(heartbeat);
+      if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
+      unsubscribeWs();
+      liveAndRoomService.unsubscribeLive();
+      if (!isActualHost) {
+        liveAndRoomService.leaveLiveStream(stream.id, currentUser.id);
+      }
+    };
+  }, [stream.id, currentUser.id, isActualHost]);
 
   // Web Camera & Realtime Microphone Initialization & Lifecycle
   const startCamera = async (front = isFrontCamera) => {
@@ -588,6 +693,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
       triggerHeartAnimation(xPercent, yPercent, side);
       setStreamLikes((prev) => prev + 1);
+      liveAndRoomService.sendLiveHeart(stream.id, currentUser.id, 1).then((nextTotal) => {
+        if (nextTotal > 0) setStreamLikes(nextTotal);
+      });
 
       if (activePKSession) {
         const targetHostId = side === 'left' ? activePKSession.host1.user.id : activePKSession.host2.user.id;
@@ -598,32 +706,28 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
   };
 
-  // Send Message (Supports Host Badge & Pinned Comments)
-  const handleSendMessage = (e?: React.FormEvent, customText?: string) => {
+  // Send Message (Real-time backend comment sync + 429 rate-limit handling)
+  const handleSendMessage = async (e?: React.FormEvent, customText?: string) => {
     if (e) e.preventDefault();
     const textToSend = (customText || inputMessage).trim();
     if (!textToSend) return;
 
-    const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      senderId: currentUser.id,
-      senderName: isHostMode ? `${currentUser.name}` : currentUser.name,
-      senderAvatar: currentUser.avatar,
-      senderVip: currentUser.vipLevel,
-      isHost: isHostMode,
-      text: textToSend,
-      timestamp: 'Just now',
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
     setInputMessage('');
     setShowEmojiPicker(false);
+
+    try {
+      const saved = await liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend);
+      setMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev : [...prev, saved]));
+    } catch (err: any) {
+      showToast(err?.message || 'Could not send message');
+      setInputMessage(textToSend);
+    }
   };
 
   // Host Pins a Message
   const handlePinMessage = (text: string) => {
     setPinnedMessage(text);
-    showToast('📌 Pinned to live chat!');
+    showToast('Pinned to live chat');
   };
 
   const handleSendEmoji = (emoji: string) => {
@@ -706,7 +810,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </div>
               <div>
                 <span className="text-[10px] text-[#B9AECF]">Viewers</span>
-                <p className="text-xs font-bold text-[#06B6D4] font-mono">{stream.viewerCount || '1.2K'}</p>
+                <p className="text-xs font-bold text-[#06B6D4] font-mono">{liveViewerCount.toLocaleString()}</p>
               </div>
               <div>
                 <span className="text-[10px] text-[#B9AECF]">Likes</span>
@@ -722,15 +826,126 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 Continue Live
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   setShowEndLiveConfirm(false);
-                  agoraRtcService.leaveChannel().catch(() => {});
+                  if (audioAnalyserControllerRef.current) {
+                    audioAnalyserControllerRef.current.cleanup();
+                    audioAnalyserControllerRef.current = null;
+                  }
+                  if (mediaStreamRef.current) {
+                    stopMediaStream(mediaStreamRef.current);
+                    mediaStreamRef.current = null;
+                  }
+                  await agoraRtcService.leaveChannel().catch(() => {});
+                  await liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {});
+                  onEndLive?.(stream.id);
                   onClose();
                 }}
                 className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all"
               >
                 End Stream
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paginated Live Viewer Info Modal */}
+      {showViewersModal && (
+        <div
+          onClick={() => setShowViewersModal(false)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4 animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#160C25] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <div>
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-cyan-400" />
+                  <span>Live Viewers ({viewersTotalCount.toLocaleString()})</span>
+                </h3>
+                <p className="text-[10px] text-[#B9AECF]">Real-time connected audience & host</p>
+              </div>
+              <button
+                onClick={() => setShowViewersModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 py-1">
+              {viewersLoading && viewersList.length === 0 ? (
+                <div className="py-10 text-center text-xs text-[#B9AECF]">Loading live viewers...</div>
+              ) : viewersList.length === 0 ? (
+                <div className="py-10 text-center text-xs text-[#B9AECF]">No active viewers right now.</div>
+              ) : (
+                viewersList.map((viewer) => (
+                  <div
+                    key={viewer.userId}
+                    onClick={() => {
+                      setShowViewersModal(false);
+                      onSelectUser({
+                        id: viewer.userId,
+                        displayId: viewer.userId.slice(-6).toUpperCase(),
+                        name: viewer.name,
+                        username: viewer.username || `@${viewer.name.toLowerCase().replace(/\s+/g, '')}`,
+                        avatar: viewer.avatar,
+                        bio: '',
+                        level: viewer.level || 1,
+                        vipLevel: viewer.vipLevel || 0,
+                        isVIP: Boolean(viewer.isVIP),
+                        fansCount: '0',
+                        followingCount: 0,
+                        likesCount: '0',
+                        coins: 0,
+                        diamonds: 0,
+                      });
+                    }}
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-[#201136] border border-white/5 hover:border-[#F328D5]/40 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {viewer.avatar ? (
+                        <img
+                          src={viewer.avatar}
+                          alt={viewer.name}
+                          className="w-9 h-9 rounded-full object-cover ring-1 ring-white/20 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-[#8B20FF] text-white text-xs font-black flex items-center justify-center shrink-0">
+                          {(viewer.name || 'V').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate">{viewer.name}</span>
+                          {viewer.isHost && (
+                            <span className="px-1.5 py-0.2 rounded bg-[#FFC84A] text-black text-[9px] font-black">
+                              HOST
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-[#B9AECF] truncate block">
+                          {viewer.username || `@${viewer.userId.slice(0, 8)}`}
+                        </span>
+                      </div>
+                    </div>
+                    <LevelBadge level={viewer.level || 1} size="sm" />
+                  </div>
+                ))
+              )}
+
+              {viewersHasMore && (
+                <button
+                  onClick={() => loadLiveViewers(viewersPage + 1, true)}
+                  disabled={viewersLoading}
+                  className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white"
+                >
+                  {viewersLoading ? 'Loading...' : 'Load More Viewers'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -813,18 +1028,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 )}
               </div>
 
-              {/* Host 1 Top 3 MVP Gifters */}
-              <div className="flex items-center gap-1 mt-1.5">
-                {[
-                  { r: '🥇', a: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80' },
-                  { r: '🥈', a: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop&q=80' },
-                  { r: '🥉', a: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=80&auto=format&fit=crop&q=80' }
-                ].map((mvp, i) => (
-                  <div key={i} className="relative w-5 h-5 rounded-full ring-1 ring-[#00F2FE]/50 overflow-hidden">
-                    <img src={mvp.a} alt="MVP" className="w-full h-full object-cover" />
-                    <span className="absolute -bottom-1 -right-0.5 text-[7px]">{mvp.r}</span>
-                  </div>
-                ))}
+              {/* Team Cyan Badge */}
+              <div className="mt-1">
+                <span className="px-2 py-0.5 rounded-full bg-[#00F2FE]/15 border border-[#00F2FE]/40 text-[#00F2FE] text-[9px] font-bold">
+                  Team Blue
+                </span>
               </div>
             </div>
 
@@ -928,18 +1136,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 )}
               </div>
 
-              {/* Host 2 Top 3 MVP Gifters */}
-              <div className="flex items-center gap-1 mt-1.5">
-                {[
-                  { r: '🥇', a: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=80&auto=format&fit=crop&q=80' },
-                  { r: '🥈', a: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=80&auto=format&fit=crop&q=80' },
-                  { r: '🥉', a: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&auto=format&fit=crop&q=80' }
-                ].map((mvp, i) => (
-                  <div key={i} className="relative w-5 h-5 rounded-full ring-1 ring-[#FE2C55]/50 overflow-hidden">
-                    <img src={mvp.a} alt="MVP" className="w-full h-full object-cover" />
-                    <span className="absolute -bottom-1 -right-0.5 text-[7px]">{mvp.r}</span>
-                  </div>
-                ))}
+              {/* Team Red Badge */}
+              <div className="mt-1">
+                <span className="px-2 py-0.5 rounded-full bg-[#FE2C55]/15 border border-[#FE2C55]/40 text-[#FE2C55] text-[9px] font-bold">
+                  Team Red
+                </span>
               </div>
             </div>
 
@@ -1391,7 +1592,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </span>
               <span className="text-[10px] text-[#FFC84A] font-bold leading-tight flex items-center gap-0.5">
                 <span>🔥</span>
-                <span>{stream.host.fansCount || '123.4K'}</span>
+                <span>{stream.host.fansCount || '0'}</span>
               </span>
             </div>
 
@@ -1399,8 +1600,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsFollowing(!isFollowing);
-                  showToast(!isFollowing ? `Followed ${stream.host.name}!` : `Unfollowed`);
+                  const nextFollow = !isFollowing;
+                  setIsFollowing(nextFollow);
+                  onToggleFollow?.(stream.host.id);
+                  showToast(nextFollow ? `Followed ${stream.host.name}` : `Unfollowed ${stream.host.name}`);
                 }}
                 className={`ml-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
                   isFollowing
@@ -1421,7 +1624,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 onClick={() => {
                   const nextMode = !isHostMode;
                   setIsHostMode(nextMode);
-                  showToast(nextMode ? '👑 Switched to Host Control Mode' : '👁️ Switched to Viewer Mode');
+                  showToast(nextMode ? 'Switched to Host Control Mode' : 'Switched to Viewer Mode');
                 }}
                 className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all active:scale-95 shadow ${
                   isHostMode 
@@ -1435,10 +1638,21 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </button>
             )}
 
-            {/* Viewer Count Pill */}
-            <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow">
-              <span>👁️</span>
-              <span className="font-mono">{stream.viewerCount || '1.2K'}</span>
+            {/* Viewer Count Pill + (i) Info Modal Trigger */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow">
+              <Eye className="w-3.5 h-3.5 text-cyan-300" />
+              <span className="font-mono">{liveViewerCount.toLocaleString()}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowViewersModal(true);
+                  loadLiveViewers(1, false);
+                }}
+                className="w-5 h-5 rounded-full bg-white/15 hover:bg-[#F328D5] flex items-center justify-center text-white transition-colors"
+                title="View Live Audience List"
+              >
+                <Info className="w-3 h-3" />
+              </button>
             </div>
 
             {/* Audio Mute toggle */}
@@ -1497,22 +1711,22 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           <div className="flex items-center gap-1.5">
             <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow">
               <span className="px-1.5 py-0.2 rounded-md bg-[#FFC84A] text-[#090611] text-[10px] font-black">
-                Lv.{stream.host.level || 42}
+                Lv.{hostLevelProgress.currentLevel}
               </span>
               <div className="w-16 sm:w-24 h-2 rounded-full bg-white/20 overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] rounded-full shadow-[0_0_8px_#FFC84A]"
-                  style={{ width: '68%' }}
+                  style={{ width: `${hostLevelProgress.progressPercent}%` }}
                 />
               </div>
               <span className="text-[10px] font-mono font-bold text-white/90">
-                68%
+                {hostLevelProgress.progressPercent}%
               </span>
             </div>
 
-            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30 animate-pulse">
-              <span>🔥</span>
-              <span>Hot Live</span>
+            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+              <span>LIVE</span>
             </div>
           </div>
 
@@ -1524,8 +1738,42 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         </div>
       </div>
 
-      {/* Middle Video Area - Clean Unobstructed Full Screen View */}
-      <div className="flex-1 pointer-events-none" />
+      {/* Middle Video Area - Live Overlay Chat & Entry Notification */}
+      <div className="flex-1 flex flex-col justify-end px-3 sm:px-5 pb-2 pointer-events-none">
+        {entryNotice && (
+          <div className="mb-2 w-fit max-w-[85%] px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#8B20FF]/90 to-[#F328D5]/90 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-lg animate-fade-in">
+            {entryNotice.name} entered the live.
+          </div>
+        )}
+
+        {(pinnedMessage || messages.length > 0) && (
+          <div className="w-full max-w-sm space-y-1.5 pointer-events-auto">
+            {pinnedMessage && (
+              <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 backdrop-blur-md text-[11px] text-amber-200 font-semibold">
+                {pinnedMessage}
+              </div>
+            )}
+            <div className="max-h-40 overflow-y-auto no-scrollbar space-y-1 pr-1">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  onClick={() => isActualHost && handlePinMessage(`${msg.senderName}: ${msg.text}`)}
+                  className="px-3 py-1.5 rounded-2xl bg-black/50 backdrop-blur-md border border-white/10 text-xs w-fit max-w-full cursor-pointer"
+                >
+                  {msg.isHost && (
+                    <span className="mr-1.5 px-1.5 py-0.2 rounded bg-[#FFC84A] text-black text-[9px] font-black">
+                      HOST
+                    </span>
+                  )}
+                  <span className="font-bold text-[#FFC84A] mr-1.5">{msg.senderName}:</span>
+                  <span className="text-white/95 break-words">{msg.text}</span>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Bottom Control Section */}
       <div className="relative z-30 p-3 sm:p-4 pb-safe bg-gradient-to-t from-black via-black/90 to-transparent">
@@ -1715,7 +1963,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
           {/* Share Stream Button */}
           <button
-            onClick={() => showToast('Live stream link copied to clipboard! 📋')}
+            onClick={() => {
+              const shareUrl = `https://lenzoparty.com/live/${encodeURIComponent(stream.id)}`;
+              navigator.clipboard?.writeText(shareUrl).catch(() => {});
+              showToast('Live stream link copied to clipboard');
+            }}
             className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:text-[#06B6D4] transition-colors active:scale-95 shadow"
             title="Share Stream"
           >

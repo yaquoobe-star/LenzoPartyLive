@@ -45,7 +45,6 @@ import {
   ChatGroup, 
   MessageReplyPreview 
 } from '../../types';
-import { MOCK_CONVERSATIONS, MOCK_USERS } from '../../data/mockData';
 import { 
   subscribeChatMessages, 
   sendChatMessage, 
@@ -81,28 +80,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 }) => {
   // Navigation & Tabs
   const [activeTab, setActiveTab] = useState<TabKey>('all');
-  const [conversationsList, setConversationsList] = useState<Conversation[]>(() => {
-    // Enrich initial mock conversations
-    return initialConversations.map((c, idx) => ({
-      ...c,
-      type: idx === 1 ? 'group' : 'direct',
-      group: idx === 1 ? {
-        id: 'grp_music_vip',
-        name: 'Lenzo VIP Club 🎵',
-        avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80',
-        description: 'Official VIP music creators & room hosts discussion',
-        creatorId: 'u2',
-        adminIds: ['u2', currentUser.id],
-        moderatorIds: [],
-        memberIds: ['u2', 'u3', 'u4', currentUser.id],
-        membersCount: 148,
-        privacy: 'public',
-        onlyAdminsCanMessage: false,
-        createdAt: '2026-01-01',
-        updatedAt: '2026-11-12',
-      } : undefined,
-    }));
-  });
+  const [callToast, setCallToast] = useState<string | null>(null);
+  const [conversationsList, setConversationsList] = useState<Conversation[]>(() =>
+    initialConversations.map((c) => ({ ...c, type: c.type || 'direct' }))
+  );
 
   // Selected Conversation State
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(() => {
@@ -123,72 +104,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   // Search in conversation list & messages
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Active Chat Message List
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'm1',
-      senderId: 'them',
-      senderName: 'Zara Khan',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-      text: 'Hey QueenSara! Amazing live stream tonight 👑 Loved the performance!',
-      timestamp: '09:30 AM',
-      createdAtMillis: Date.now() - 3600000,
-      status: 'read',
-      type: 'text',
-      reactions: [{ emoji: '❤️', userId: currentUser.id, userName: currentUser.name }],
-    },
-    {
-      id: 'm2',
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      senderAvatar: currentUser.avatar,
-      text: 'Thank you Zara! Thanks for dropping that Castle gift in the party room! 🏰',
-      timestamp: '09:32 AM',
-      createdAtMillis: Date.now() - 3500000,
-      status: 'read',
-      type: 'text',
-    },
-    {
-      id: 'm3',
-      senderId: 'them',
-      senderName: 'Zara Khan',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-      text: 'Voice note from after party room',
-      timestamp: '09:35 AM',
-      createdAtMillis: Date.now() - 3400000,
-      status: 'read',
-      type: 'voice',
-      voiceDuration: 18,
-      voiceWaveform: [40, 65, 80, 50, 95, 75, 60, 85, 45, 90, 100, 70, 50, 80, 60, 40, 75, 90],
-    },
-    {
-      id: 'm4',
-      senderId: 'them',
-      senderName: 'Zara Khan',
-      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-      text: 'Join our special 8-seat music room right now!',
-      timestamp: '09:40 AM',
-      createdAtMillis: Date.now() - 3000000,
-      status: 'read',
-      type: 'room_invite',
-      roomInvite: {
-        roomId: 'party_music_01',
-        title: 'Music Lovers Acoustic Party 🎸',
-        category: 'Music',
-        hostName: 'Zara Khan',
-        hostAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-      },
-    },
-  ]);
+  // Active Chat Message List (starts empty and loads real Firestore messages)
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   // Real-time Firestore sync when conversation is opened
   useEffect(() => {
-    if (!selectedConversation) return;
+    if (!selectedConversation) {
+      setMessages([]);
+      return;
+    }
 
     const unsubscribe = subscribeChatMessages(selectedConversation.id, (firestoreMsgs) => {
-      if (firestoreMsgs.length > 0) {
-        setMessages(firestoreMsgs);
-      }
+      setMessages(firestoreMsgs);
     });
 
     return () => unsubscribe();
@@ -216,72 +143,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
 
   // Message Requests & Blocked States
-  const [messageRequests, setMessageRequests] = useState<Conversation[]>([
-    {
-      id: 'req_unknown_1',
-      user: {
-        id: 'u_req_1',
-        displayId: '88392',
-        name: 'Alex Johnson',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-        bio: 'DJ & Electronic Music Producer',
-        level: 4,
-        vipLevel: 0,
-        isVIP: false,
-        fansCount: '450',
-        followingCount: 30,
-        likesCount: '2.1K',
-        coins: 50,
-        diamonds: 10,
-      },
-      lastMessage: 'Hi QueenSara! Would love to collab on an audio room session this Friday.',
-      timestamp: '2h ago',
-      unreadCount: 1,
-      isOnline: true,
-      isRequest: true,
-    },
-    {
-      id: 'req_unknown_2',
-      user: {
-        id: 'u_req_2',
-        displayId: '90123',
-        name: 'Elena Rostova',
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
-        bio: 'Singer and vocal coach',
-        level: 6,
-        vipLevel: 1,
-        isVIP: true,
-        fansCount: '1.2K',
-        followingCount: 90,
-        likesCount: '12K',
-        coins: 1200,
-        diamonds: 300,
-      },
-      lastMessage: 'Sent you a gift! Check your room ranking.',
-      timestamp: '5h ago',
-      unreadCount: 1,
-      isOnline: false,
-      isRequest: true,
-    },
-  ]);
+  const [messageRequests, setMessageRequests] = useState<Conversation[]>([]);
 
-  const [blockedUsers, setBlockedUsers] = useState<UserProfile[]>([
-    {
-      id: 'blocked_1',
-      displayId: '44991',
-      name: 'Spam Bot 99',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-      bio: 'Promoter',
-      level: 1,
-      vipLevel: 0,
-      isVIP: false,
-      fansCount: '0',
-      followingCount: 500,
-      likesCount: '0',
-      coins: 0,
-      diamonds: 0,
-    },
-  ]);
+  const [blockedUsers, setBlockedUsers] = useState<UserProfile[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -425,8 +289,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         status: 'sent',
         type: 'room_invite',
         roomInvite: {
-          roomId: 'party_vip_tonight',
-          title: '🔥 QueenSara Royal VIP Party Room',
+          roomId: `room_${currentUser.id}`,
+          title: `${currentUser.name}'s Party Room`,
           category: 'Party',
           hostName: currentUser.name,
           hostAvatar: currentUser.avatar,
@@ -779,14 +643,20 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </button>
                 <button 
-                  onClick={() => alert('Starting secure encrypted audio call...')}
+                  onClick={() => {
+                    setCallToast('Audio call request sent.');
+                    setTimeout(() => setCallToast(null), 2500);
+                  }}
                   className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
                   title="Audio Call"
                 >
                   <Phone className="w-4 h-4" />
                 </button>
                 <button 
-                  onClick={() => alert('Starting video call session...')}
+                  onClick={() => {
+                    setCallToast('Video call request sent.');
+                    setTimeout(() => setCallToast(null), 2500);
+                  }}
                   className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
                   title="Video Call"
                 >
@@ -794,6 +664,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </button>
               </div>
             </div>
+
+            {callToast && (
+              <div className="px-4 py-1.5 bg-[#8B20FF]/25 border-b border-[#F328D5]/30 text-[11px] font-bold text-white text-center">
+                {callToast}
+              </div>
+            )}
 
             {/* A2. Pinned Message Banner */}
             {pinnedMessage && (
@@ -1464,34 +1340,43 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               <div>
                 <label className="text-xs font-bold text-gray-300">Add Friends ({selectedGroupMembers.length} selected)</label>
                 <div className="max-h-40 overflow-y-auto space-y-1.5 mt-1.5 pr-1">
-                  {Object.values(MOCK_USERS).filter(u => u.id !== currentUser.id).map((u) => {
-                    const isSelected = selectedGroupMembers.includes(u.id);
-                    return (
-                      <div
-                        key={u.id}
-                        onClick={() => {
-                          setSelectedGroupMembers((prev) =>
-                            isSelected ? prev.filter((id) => id !== u.id) : [...prev, u.id]
-                          );
-                        }}
-                        className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'bg-purple-900/40 border-[#F328D5]'
-                            : 'bg-[#201337] border-white/5 hover:border-white/20'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
-                          <span className="text-xs font-bold text-white">{u.name}</span>
-                        </div>
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${
-                          isSelected ? 'bg-[#F328D5] border-[#F328D5]' : 'border-white/30'
-                        }`}>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {conversationsList.filter(c => c.type !== 'group' && c.user.id !== currentUser.id).length === 0 ? (
+                    <p className="text-[11px] text-[#B9AECF] py-3 text-center">
+                      Start a conversation with friends first to invite them into a group.
+                    </p>
+                  ) : (
+                    conversationsList
+                      .filter((c) => c.type !== 'group' && c.user.id !== currentUser.id)
+                      .map((c) => {
+                        const u = c.user;
+                        const isSelected = selectedGroupMembers.includes(u.id);
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setSelectedGroupMembers((prev) =>
+                                isSelected ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                              );
+                            }}
+                            className={`p-2 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-purple-900/40 border-[#F328D5]'
+                                : 'bg-[#201337] border-white/5 hover:border-white/20'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
+                              <span className="text-xs font-bold text-white">{u.name}</span>
+                            </div>
+                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border ${
+                              isSelected ? 'bg-[#F328D5] border-[#F328D5]' : 'border-white/30'
+                            }`}>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
                 </div>
               </div>
             </div>

@@ -1,16 +1,16 @@
 import { UserProfile, VideoItem } from '../types';
-import { CURRENT_USER, MOCK_USERS } from '../data/mockData';
-import { INITIAL_VIDEOS } from '../data/videoData';
+import { CURRENT_USER } from '../data/mockData';
 import { apiFetch } from './apiConfig';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { FirestoreUserData, mapFirestoreUserToProfile } from '../services/authService';
+import { syncFirestoreFollow } from '../services/firestoreService';
 
-const LOCAL_STORAGE_PROFILE_KEY = 'lenzo_party_user_profile_v2';
-const LOCAL_STORAGE_FOLLOWING_KEY = 'lenzo_party_following_v1';
-const LOCAL_STORAGE_LIKED_VIDEOS_KEY = 'lenzo_party_liked_videos_v1';
-const LOCAL_STORAGE_SAVED_VIDEOS_KEY = 'lenzo_party_saved_videos_v1';
-const LOCAL_STORAGE_CUSTOM_VIDEOS_KEY = 'lenzo_party_custom_videos_v1';
+const LOCAL_STORAGE_PROFILE_KEY = 'lenzo_party_user_profile_v3';
+const LOCAL_STORAGE_FOLLOWING_KEY = 'lenzo_party_following_v2';
+const LOCAL_STORAGE_LIKED_VIDEOS_KEY = 'lenzo_party_liked_videos_v2';
+const LOCAL_STORAGE_SAVED_VIDEOS_KEY = 'lenzo_party_saved_videos_v2';
+const LOCAL_STORAGE_CUSTOM_VIDEOS_KEY = 'lenzo_party_custom_videos_v2';
 
 export interface FollowListMember {
   id: string;
@@ -26,7 +26,6 @@ export interface FollowListMember {
 class ProfileService {
   private currentUserId: string = CURRENT_USER.id;
 
-  // Initialize cached followed IDs from storage
   private getStoredFollowingIds(): Set<string> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_FOLLOWING_KEY);
@@ -34,8 +33,7 @@ class ProfileService {
     } catch (e) {
       console.warn('Failed to load following set:', e);
     }
-    // Default following seed
-    return new Set(['user_sara', 'user_rohan', 'user_king']);
+    return new Set();
   }
 
   private saveStoredFollowingIds(ids: Set<string>): void {
@@ -46,7 +44,6 @@ class ProfileService {
     }
   }
 
-  // Liked Video IDs
   private getStoredLikedVideoIds(): Set<string> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_LIKED_VIDEOS_KEY);
@@ -54,7 +51,7 @@ class ProfileService {
     } catch (e) {
       console.warn('Failed to load liked videos:', e);
     }
-    return new Set(['vid_user_2', 'vid_1']);
+    return new Set();
   }
 
   private saveStoredLikedVideoIds(ids: Set<string>): void {
@@ -65,7 +62,6 @@ class ProfileService {
     }
   }
 
-  // Saved / Bookmarked Video IDs
   private getStoredSavedVideoIds(): Set<string> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_VIDEOS_KEY);
@@ -73,7 +69,7 @@ class ProfileService {
     } catch (e) {
       console.warn('Failed to load saved videos:', e);
     }
-    return new Set(['vid_user_1', 'vid_2']);
+    return new Set();
   }
 
   private saveStoredSavedVideoIds(ids: Set<string>): void {
@@ -84,44 +80,19 @@ class ProfileService {
     }
   }
 
-  // Custom User Uploaded Videos (persisted)
   getStoredVideos(): VideoItem[] {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_CUSTOM_VIDEOS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as VideoItem[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Failed to load stored videos:', e);
     }
-
-    // Seed default set including 1 private video for testing Tab 2
-    const defaultList: VideoItem[] = [
-      ...INITIAL_VIDEOS,
-      {
-        id: 'vid_user_private_1',
-        creator: CURRENT_USER,
-        videoUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&auto=format&fit=crop&q=80',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&auto=format&fit=crop&q=80',
-        description: '🔒 Exclusive Behind The Scenes DJ Rehearsal (Private)',
-        musicTitle: 'Private Studio Jam 2026',
-        hashtags: ['#bts', '#rehearsal', '#private'],
-        likesCount: 380,
-        commentsCount: 24,
-        sharesCount: 0,
-        repostsCount: 0,
-        viewsCount: 512,
-        isLiked: false,
-        isSaved: true,
-        createdAt: '4 days ago',
-        privacy: 'private',
-      },
-    ];
-    this.saveStoredVideos(defaultList);
-    return defaultList;
+    return [];
   }
 
   saveStoredVideos(videos: VideoItem[]): void {
@@ -132,40 +103,50 @@ class ProfileService {
     }
   }
 
+  isFollowingLocally(targetUserId: string): boolean {
+    return this.getStoredFollowingIds().has(targetUserId);
+  }
+
   /**
    * Fetch user profile from shared Cloud Firestore first, then backend API or local cache
    */
   async getUserProfile(userId: string): Promise<UserProfile> {
-    // 1. Check shared Cloud Firestore database first when authenticated
+    const followingSet = this.getStoredFollowingIds();
+
     if (auth.currentUser && userId && /^[a-zA-Z0-9_-]{1,128}$/.test(userId)) {
       try {
         const snap = await getDoc(doc(db, 'users', userId));
         if (snap.exists()) {
-          return mapFirestoreUserToProfile(
+          const profile = mapFirestoreUserToProfile(
             snap.data() as FirestoreUserData,
             userId === auth.currentUser.uid ? auth.currentUser : null
           );
+          return {
+            ...profile,
+            isFollowing: followingSet.has(profile.id),
+          };
         }
-      } catch (e) {
-        // Continue to API / local fallback
+      } catch {
+        // Continue to API
       }
     }
 
-    // 2. Check shared Railway backend API
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.user) {
-          return data.user;
+          return {
+            ...data.user,
+            isFollowing: followingSet.has(data.user.id),
+          };
         }
       }
-    } catch (e) {
+    } catch {
       // Backend unreachable or offline
     }
 
-    // 3. Fallback to local cached profile or mock user
-    if (userId === this.currentUserId || userId === CURRENT_USER.id || userId === auth.currentUser?.uid) {
+    if (userId === this.currentUserId || userId === auth.currentUser?.uid) {
       const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
       if (stored) {
         return { ...CURRENT_USER, ...JSON.parse(stored) };
@@ -173,23 +154,12 @@ class ProfileService {
       return CURRENT_USER;
     }
 
-    // Lookup other mock users
-    const found = Object.values(MOCK_USERS).find(
-      (u) => u.id === userId || u.displayId === userId || u.username === userId || u.username === `@${userId}`
-    );
-    if (found) {
-      const followingSet = this.getStoredFollowingIds();
-      return {
-        ...found,
-        isFollowing: followingSet.has(found.id),
-      };
-    }
-
     return {
       ...CURRENT_USER,
       id: userId,
-      name: 'Party Creator',
+      name: 'User',
       username: `@user_${userId.slice(0, 6)}`,
+      isFollowing: followingSet.has(userId),
     };
   }
 
@@ -205,19 +175,10 @@ class ProfileService {
     try {
       const res = await apiFetch(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
-        const data = await res.json();
-        return data;
+        return await res.json();
       }
-    } catch (e) {
-      // offline fallback
-    }
-
-    // Check existing mock users
-    const match = Object.values(MOCK_USERS).find(
-      (u) => u.id !== currentUserId && u.username?.toLowerCase().replace(/^@/, '') === clean
-    );
-    if (match) {
-      return { available: false, message: 'This username is already taken. Please choose another.' };
+    } catch {
+      // Offline
     }
 
     return { available: true };
@@ -236,7 +197,6 @@ class ProfileService {
       displayId: current.displayId,
     };
 
-    // 1. Persist directly to shared Cloud Firestore when authenticated
     if (auth.currentUser && auth.currentUser.uid === targetUid) {
       try {
         const fsUpdates: Record<string, any> = {};
@@ -259,7 +219,6 @@ class ProfileService {
       }
     }
 
-    // 2. Sync to shared backend API if available
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(targetUid)}`, {
         method: 'PUT',
@@ -281,113 +240,49 @@ class ProfileService {
   }
 
   /**
-   * Get Followers List for user
+   * Get Followers List for user from backend API (no fake list fallback)
    */
   async getFollowers(userId: string): Promise<FollowListMember[]> {
+    const followingSet = this.getStoredFollowingIds();
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/followers`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (data.followers) return data.followers;
+        if (Array.isArray(data.followers)) {
+          return data.followers.map((f: FollowListMember) => ({
+            ...f,
+            isFollowing: followingSet.has(f.id) || !!f.isFollowing,
+          }));
+        }
       }
-    } catch (e) {
-      // offline fallback
+    } catch {
+      // Backend unavailable
     }
 
-    const followingSet = this.getStoredFollowingIds();
-    // Default active community followers
-    return [
-      {
-        id: 'user_sara',
-        name: 'Sara Khan 🌸',
-        username: '@sarakhan',
-        avatar: MOCK_USERS.sara.avatar,
-        bio: 'Singing, dancing & late night vibes! 🎤',
-        level: 48,
-        isVIP: true,
-        isFollowing: followingSet.has('user_sara'),
-      },
-      {
-        id: 'user_rohan',
-        name: 'Rohan Kumar 🔥',
-        username: '@rohan_kumar',
-        avatar: MOCK_USERS.rohan.avatar,
-        bio: 'DJ & EDM Beatmaker. Party room host.',
-        level: 52,
-        isVIP: true,
-        isFollowing: followingSet.has('user_rohan'),
-      },
-      {
-        id: 'user_queen_girl',
-        name: 'Queen Star 👑',
-        username: '@queenstar',
-        avatar: MOCK_USERS.queen_girl.avatar,
-        bio: 'Top gifter on Lenzo Party Live! 💖',
-        level: 65,
-        isVIP: true,
-        isFollowing: followingSet.has('user_queen_girl'),
-      },
-      {
-        id: 'user_pink_girl',
-        name: 'Pink Rose 🌹',
-        username: '@pinkrose',
-        avatar: MOCK_USERS.pink_girl.avatar,
-        bio: 'Guitar acoustics & chill conversations.',
-        level: 39,
-        isVIP: false,
-        isFollowing: followingSet.has('user_pink_girl'),
-      },
-      {
-        id: 'user_sweetie',
-        name: 'Sweetie Girl ✨',
-        username: '@sweetie',
-        avatar: MOCK_USERS.sweetie.avatar,
-        bio: 'Daily life & party moments!',
-        level: 35,
-        isVIP: false,
-        isFollowing: followingSet.has('user_sweetie'),
-      },
-    ];
+    return [];
   }
 
   /**
-   * Get Following List for user
+   * Get Following List for user from backend API (no fake list fallback)
    */
   async getFollowing(userId: string): Promise<FollowListMember[]> {
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/following`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (data.following) return data.following;
+        if (Array.isArray(data.following)) {
+          return data.following;
+        }
       }
-    } catch (e) {
-      // offline fallback
+    } catch {
+      // Backend unavailable
     }
 
-    const followingSet = this.getStoredFollowingIds();
-    const allUsers = Object.values(MOCK_USERS);
-    const result: FollowListMember[] = [];
-
-    allUsers.forEach((u) => {
-      if (followingSet.has(u.id)) {
-        result.push({
-          id: u.id,
-          name: u.name,
-          username: u.username || `@${u.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          avatar: u.avatar,
-          bio: u.bio,
-          level: u.level,
-          isVIP: u.isVIP,
-          isFollowing: true,
-        });
-      }
-    });
-
-    return result;
+    return [];
   }
 
   /**
-   * Follow / Unfollow User with atomic count update & self-follow prevention
+   * Follow / Unfollow User synced across backend + Firestore follows graph
    */
   async toggleFollow(
     targetUserId: string,
@@ -397,11 +292,23 @@ class ProfileService {
       throw new Error('You cannot follow yourself.');
     }
 
-    try {
-      const followingSet = this.getStoredFollowingIds();
-      const isCurrentlyFollowing = followingSet.has(targetUserId);
-      const action = isCurrentlyFollowing ? 'unfollow' : 'follow';
+    const followingSet = this.getStoredFollowingIds();
+    const isCurrentlyFollowing = followingSet.has(targetUserId);
+    const willFollow = !isCurrentlyFollowing;
+    const action = isCurrentlyFollowing ? 'unfollow' : 'follow';
 
+    if (willFollow) {
+      followingSet.add(targetUserId);
+    } else {
+      followingSet.delete(targetUserId);
+    }
+    this.saveStoredFollowingIds(followingSet);
+
+    if (auth.currentUser && currentUserId === auth.currentUser.uid) {
+      syncFirestoreFollow(currentUserId, targetUserId, willFollow).catch(() => {});
+    }
+
+    try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(targetUserId)}/${action}`, {
         method: 'POST',
         body: JSON.stringify({ followerId: currentUserId }),
@@ -409,46 +316,23 @@ class ProfileService {
 
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (isCurrentlyFollowing) {
-          followingSet.delete(targetUserId);
-        } else {
-          followingSet.add(targetUserId);
-        }
-        this.saveStoredFollowingIds(followingSet);
         return {
-          isFollowing: !isCurrentlyFollowing,
-          targetFollowersCount: data.targetFollowersCount,
-          myFollowingCount: followingSet.size,
+          isFollowing: willFollow,
+          targetFollowersCount: typeof data.targetFollowersCount === 'number' ? data.targetFollowersCount : 0,
+          myFollowingCount: typeof data.followerFollowingCount === 'number' ? data.followerFollowingCount : followingSet.size,
         };
       }
-    } catch (e) {
-      // fallback
+    } catch {
+      // Non-blocking fallback
     }
-
-    // Local Toggle Fallback
-    const followingSet = this.getStoredFollowingIds();
-    const isNowFollowing = !followingSet.has(targetUserId);
-    if (isNowFollowing) {
-      followingSet.add(targetUserId);
-    } else {
-      followingSet.delete(targetUserId);
-    }
-    this.saveStoredFollowingIds(followingSet);
 
     return {
-      isFollowing: isNowFollowing,
-      targetFollowersCount: isNowFollowing ? 12421 : 12420,
+      isFollowing: willFollow,
+      targetFollowersCount: willFollow ? 1 : 0,
       myFollowingCount: followingSet.size,
     };
   }
 
-  /**
-   * Get 4 video tabs for profile
-   * TAB 1: Public Videos
-   * TAB 2: Private Videos (visible only to profile owner)
-   * TAB 3: Liked Videos (videos liked by the user)
-   * TAB 4: Saved Videos (videos bookmarked/saved by user)
-   */
   async getUserVideoTabs(
     profileOwnerId: string,
     viewerId: string
@@ -463,45 +347,41 @@ class ProfileService {
     const likedIds = this.getStoredLikedVideoIds();
     const savedIds = this.getStoredSavedVideoIds();
 
-    // Tab 1: Public videos created by profile owner
     const publicVideos = allVideos
-      .filter((v) => (v.creator.id === profileOwnerId || (profileOwnerId === CURRENT_USER.id && v.creator.id === CURRENT_USER.id)) && v.privacy !== 'private')
+      .filter((v) => v.creator.id === profileOwnerId && v.privacy !== 'private')
       .map((v) => ({
         ...v,
-        viewsCount: v.viewsCount || Math.max(120, v.likesCount * 3 + 450),
+        viewsCount: v.viewsCount || 0,
         isLiked: likedIds.has(v.id),
         isSaved: savedIds.has(v.id),
       }));
 
-    // Tab 2: Private videos (enforce ownership security: ONLY owner can view!)
     const privateVideos = isOwner
       ? allVideos
-          .filter((v) => (v.creator.id === profileOwnerId || (profileOwnerId === CURRENT_USER.id && v.creator.id === CURRENT_USER.id)) && v.privacy === 'private')
+          .filter((v) => v.creator.id === profileOwnerId && v.privacy === 'private')
           .map((v) => ({
             ...v,
-            viewsCount: v.viewsCount || 520,
+            viewsCount: v.viewsCount || 0,
             isLiked: likedIds.has(v.id),
             isSaved: savedIds.has(v.id),
           }))
       : [];
 
-    // Tab 3: Liked videos
     const likedVideos = allVideos
       .filter((v) => likedIds.has(v.id))
       .map((v) => ({
         ...v,
-        viewsCount: v.viewsCount || Math.max(150, v.likesCount * 3 + 200),
+        viewsCount: v.viewsCount || 0,
         isLiked: true,
         isSaved: savedIds.has(v.id),
       }));
 
-    // Tab 4: Saved videos (private to owner)
     const savedVideos = isOwner
       ? allVideos
           .filter((v) => savedIds.has(v.id))
           .map((v) => ({
             ...v,
-            viewsCount: v.viewsCount || Math.max(150, v.likesCount * 2 + 100),
+            viewsCount: v.viewsCount || 0,
             isLiked: likedIds.has(v.id),
             isSaved: true,
           }))
@@ -515,10 +395,7 @@ class ProfileService {
     };
   }
 
-  /**
-   * Toggle Like on a video
-   */
-  async toggleLikeVideo(videoId: string, userId: string): Promise<{ isLiked: boolean; newCount: number }> {
+  async toggleLikeVideo(videoId: string, _userId: string): Promise<{ isLiked: boolean; newCount: number }> {
     const likedSet = this.getStoredLikedVideoIds();
     const wasLiked = likedSet.has(videoId);
     const willLike = !wasLiked;
@@ -530,7 +407,6 @@ class ProfileService {
     }
     this.saveStoredLikedVideoIds(likedSet);
 
-    // Update stored video like count
     const videos = this.getStoredVideos();
     let newCount = 0;
     const updated = videos.map((v) => {
@@ -549,9 +425,6 @@ class ProfileService {
     return { isLiked: willLike, newCount };
   }
 
-  /**
-   * Toggle Save / Bookmark on a video
-   */
   async toggleSaveVideo(videoId: string): Promise<boolean> {
     const savedSet = this.getStoredSavedVideoIds();
     const wasSaved = savedSet.has(videoId);
@@ -564,7 +437,6 @@ class ProfileService {
     }
     this.saveStoredSavedVideoIds(savedSet);
 
-    // Update stored video isSaved flag
     const videos = this.getStoredVideos();
     const updated = videos.map((v) => {
       if (v.id === videoId) {
@@ -577,22 +449,14 @@ class ProfileService {
     return willSave;
   }
 
-  /**
-   * Calculate Total Likes across all published videos of a creator
-   */
   calculateTotalLikes(userId: string): number {
     const videos = this.getStoredVideos();
-    const userVids = videos.filter(
-      (v) => v.creator.id === userId || (userId === CURRENT_USER.id && v.creator.id === CURRENT_USER.id)
-    );
+    const userVids = videos.filter((v) => v.creator.id === userId);
     return userVids.reduce((sum, v) => sum + (v.likesCount || 0), 0);
   }
 
-  /**
-   * Generate clean shareable profile URL
-   */
   generateShareUrl(user: UserProfile): string {
-    const cleanUsername = (user.username || `@user_${user.displayId}`).replace(/^@/, '');
+    const cleanUsername = (user.username || `@user_${user.displayId || user.id}`).replace(/^@/, '');
     const origin =
       typeof window !== 'undefined' &&
       window.location.origin &&

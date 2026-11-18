@@ -9,6 +9,7 @@ import {
   Check, 
   Globe 
 } from 'lucide-react';
+import { auth } from '../../firebase';
 import { PartyRoom, UserProfile } from '../../types';
 
 interface CreateRoomScreenProps {
@@ -42,6 +43,10 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth.currentUser || !currentUser.id || currentUser.id === 'guest') {
+      setError('Please sign in first to create a party room.');
+      return;
+    }
     if (!roomName.trim()) {
       setError('Please enter a room name');
       return;
@@ -53,7 +58,7 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
     }
 
     // Initialize 8 or 16 empty seats
-    const emptySeats = Array(maxSeats).fill(null);
+    const emptySeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
     // Host sits in seat 0
     emptySeats[0] = currentUser;
 
@@ -71,10 +76,13 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
       maxSeats,
       roomType: isPrivate ? 'private' : 'public',
       password: isPrivate ? password.trim() : undefined,
-      announcement: announcement.trim() || 'Welcome to my party voice room! Respect everyone and enjoy! 🎶',
+      announcement: announcement.trim() || 'Welcome to my party voice room! Respect everyone and enjoy!',
       seats: emptySeats,
+      mutedSeatIndices: [],
       isLocked: false,
       allowJoin: true,
+      startTime: Date.now(),
+      likesCount: 0,
     };
 
     onCreateRoom(newRoom);

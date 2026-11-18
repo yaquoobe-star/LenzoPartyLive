@@ -15,6 +15,7 @@ import {
   Mic,
   MicOff
 } from 'lucide-react';
+import { auth } from '../../firebase';
 import { LiveStream, UserProfile } from '../../types';
 import { 
   acquireRealDeviceCamera, 
@@ -167,9 +168,23 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth.currentUser || !currentUser.id || currentUser.id === 'guest') {
+      setError('Please sign in first to start a live broadcast.');
+      return;
+    }
     if (!title.trim()) {
       setError('Please enter a live stream title');
       return;
+    }
+
+    // Release preview hardware handles cleanly before ActiveLiveScreen mounts Agora/camera
+    if (audioAnalyserRef.current) {
+      audioAnalyserRef.current.cleanup();
+      audioAnalyserRef.current = null;
+    }
+    if (streamRef.current) {
+      stopMediaStream(streamRef.current);
+      streamRef.current = null;
     }
 
     const createdStream: LiveStream = {
@@ -178,12 +193,16 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       category,
       host: currentUser,
       coverImage: coverUrl,
-      viewerCount: '1',
-      numericViewers: 1,
+      viewerCount: '0',
+      numericViewers: 0,
       isLive: true,
-      tags: [category, 'New', 'Live'],
+      tags: [category, 'Live'],
       guests: [],
       likesCount: 0,
+      commentsCount: 0,
+      startTime: Date.now(),
+      allowGuests,
+      isPrivate,
     };
 
     onStartLive(createdStream);
@@ -333,9 +352,9 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover filter brightness-75 group-hover:scale-105 transition-transform"
                 />
-                <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-emerald-500/80 backdrop-blur-md text-white text-[9px] font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                  <span>Camera Active</span>
+                <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-amber-300 border border-amber-400/30 text-[9px] font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Cover Preview (Camera Ready / Audio Fallback)</span>
                 </div>
               </div>
             ) : (

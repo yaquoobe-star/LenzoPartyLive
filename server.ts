@@ -270,58 +270,219 @@ const pendingInvitations = new Map<string, PKMatchInvitation>();
 const matchHistories = new Map<string, PKMatchHistoryItem[]>();
 const processedTransactions = new Set<string>();
 
-// Seed default history for demo/initial view
-const DEFAULT_USER_ID = 'user_current_01';
-matchHistories.set(DEFAULT_USER_ID, [
-  {
-    id: 'hist_01',
-    matchId: 'pk_prev_01',
-    date: 'Today, 2:15 PM',
-    durationSeconds: 300,
-    opponent: {
-      id: 'user_kingraja',
-      name: 'KingRaja 👑',
-      username: '@kingraja',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-      level: 68
-    },
-    myScore: 28400,
-    opponentScore: 24100,
-    result: 'win',
-    giftsReceived: 42,
-    likesReceived: 3820,
-    coinsEarned: 28400
-  },
-  {
-    id: 'hist_02',
-    matchId: 'pk_prev_02',
-    date: 'Yesterday, 8:45 PM',
-    durationSeconds: 300,
-    opponent: {
-      id: 'user_angel',
-      name: 'Angel Girl 💕',
-      username: '@angelgirl',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-      level: 56
-    },
-    myScore: 19500,
-    opponentScore: 23200,
-    result: 'loss',
-    giftsReceived: 29,
-    likesReceived: 2940,
-    coinsEarned: 19500
-  }
-]);
+// Shared Helpers: Input Sanitization & Rate Limiting
+function sanitizeText(raw: unknown, maxLen = 300): string {
+  if (typeof raw !== 'string') return '';
+  return raw
+    .replace(/[<>]/g, '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
 
-// WebSocket Server (PK Battles & Real-Time Sync)
+function formatCompactCount(num: number): string {
+  if (!Number.isFinite(num) || num <= 0) return '0';
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(Math.floor(num));
+}
+
+function isVerifiedAdmin(req: AuthenticatedRequest): boolean {
+  return Boolean(
+    req.firebaseUser &&
+    req.firebaseUser.email === 'yaquoobe@gmail.com' &&
+    req.firebaseUser.emailVerified
+  );
+}
+
+// Per-user rate limiters (comment / heart spam protection)
+const lastCommentTimeMap = new Map<string, number>();
+const lastHeartTimeMap = new Map<string, number>();
+
+// Authoritative Live Streams, Party Rooms, Rankings & Metrics
+interface ServerViewerRecord {
+  userId: string;
+  name: string;
+  username?: string;
+  avatar: string;
+  level: number;
+  vipLevel: number;
+  isVIP: boolean;
+  joinedAt: number;
+  lastSeen: number;
+  isHost?: boolean;
+}
+
+interface ServerLiveStream {
+  id: string;
+  title: string;
+  category: string;
+  host: any;
+  coverImage: string;
+  channelName: string;
+  isLive: boolean;
+  allowGuests: boolean;
+  isPrivate: boolean;
+  announcement?: string;
+  tags: string[];
+  likesCount: number;
+  commentsCount: number;
+  giftsCoinValue: number;
+  startTime: number;
+  viewers: Map<string, ServerViewerRecord>;
+  uniqueViewerIds: Set<string>;
+  recentJoinAnnouncements: Map<string, number>;
+  comments: any[];
+}
+
+interface ServerPartyRoom {
+  id: string;
+  displayId: string;
+  title: string;
+  category: string;
+  host: any;
+  coverImage: string;
+  iconType: string;
+  maxSeats: 8 | 16;
+  roomType: 'public' | 'private' | 'secret';
+  password?: string;
+  announcement: string;
+  isLocked: boolean;
+  allowJoin: boolean;
+  seats: (any | null)[];
+  mutedSeatIndices: Set<number>;
+  pendingRequests: Map<string, any>;
+  participants: Map<string, ServerViewerRecord>;
+  recentJoinAnnouncements: Map<string, number>;
+  messages: any[];
+  likesCount: number;
+  giftsCoinValue: number;
+  startTime: number;
+}
+
+interface BroadcasterMetricRecord {
+  user: any;
+  giftsCoinValue: number;
+  giftsCount: number;
+  totalLikes: number;
+  totalComments: number;
+  uniqueViewerIds: Set<string>;
+  liveStreamId?: string;
+  isCurrentlyLive: boolean;
+  lastActiveAt: number;
+}
+
+interface ContributorMetricRecord {
+  user: any;
+  coinsSpent: number;
+  giftsSentCount: number;
+  lastActiveAt: number;
+}
+
+interface RankingConfig {
+  giftValueWeight: number;
+  uniqueViewerWeight: number;
+  engagementWeight: number;
+  activeLiveBoost: number;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+const liveStreamsMap = new Map<string, ServerLiveStream>();
+const partyRoomsMap = new Map<string, ServerPartyRoom>();
+const broadcasterMetricsMap = new Map<string, BroadcasterMetricRecord>();
+const contributorMetricsMap = new Map<string, ContributorMetricRecord>();
+
+let rankingConfig: RankingConfig = {
+  giftValueWeight: 1.0,
+  uniqueViewerWeight: 25,
+  engagementWeight: 2,
+  activeLiveBoost: 500,
+  updatedAt: new Date().toISOString(),
+  updatedBy: 'system',
+};
+
+function ensureBroadcasterMetric(user: any): BroadcasterMetricRecord | null {
+  if (!user || !user.id) return null;
+  let rec = broadcasterMetricsMap.get(user.id);
+  if (!rec) {
+    rec = {
+      user,
+      giftsCoinValue: 0,
+      giftsCount: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      uniqueViewerIds: new Set<string>(),
+      isCurrentlyLive: false,
+      lastActiveAt: Date.now(),
+    };
+    broadcasterMetricsMap.set(user.id, rec);
+  } else {
+    rec.user = { ...rec.user, ...user };
+    rec.lastActiveAt = Date.now();
+  }
+  return rec;
+}
+
+function serializeLiveStream(stream: ServerLiveStream) {
+  const numericViewers = stream.viewers.size;
+  return {
+    id: stream.id,
+    title: stream.title,
+    category: stream.category,
+    host: stream.host,
+    coverImage: stream.coverImage,
+    viewerCount: formatCompactCount(numericViewers),
+    numericViewers,
+    isLive: stream.isLive,
+    tags: stream.tags,
+    guests: [],
+    likesCount: stream.likesCount,
+    commentsCount: stream.commentsCount,
+    streamUrl: stream.channelName,
+    startTime: stream.startTime,
+    announcement: stream.announcement || '',
+    allowGuests: stream.allowGuests,
+    isPrivate: stream.isPrivate,
+  };
+}
+
+function serializePartyRoom(room: ServerPartyRoom) {
+  const occupiedSeats = room.seats.filter(Boolean).length;
+  const numericParticipants = Math.max(room.participants.size, occupiedSeats);
+  return {
+    id: room.id,
+    displayId: room.displayId,
+    title: room.title,
+    category: room.category,
+    host: room.host,
+    coverImage: room.coverImage,
+    iconType: room.iconType,
+    participantCount: `${numericParticipants}/${room.maxSeats}`,
+    numericParticipants,
+    isAudioRoom: true,
+    maxSeats: room.maxSeats,
+    roomType: room.roomType,
+    hasPassword: Boolean(room.roomType === 'private' && room.password),
+    announcement: room.announcement,
+    seats: room.seats,
+    mutedSeatIndices: Array.from(room.mutedSeatIndices),
+    isLocked: room.isLocked,
+    allowJoin: room.allowJoin,
+    isOwnerPresent: room.seats.some((s) => s && s.id === room.host?.id) || room.participants.has(room.host?.id),
+    startTime: room.startTime,
+    likesCount: room.likesCount,
+  };
+}
+
+// WebSocket Server (PK Battles, Live Streams, Party Rooms & Real-Time Sync)
 const pkWss = new WebSocketServer({ noServer: true });
-const wss = pkWss; // PK & Match Real-Time Synchronization
+const wss = pkWss;
 
 pkWss.on('error', (err) => {
-  console.warn('[PK WS] warning/error:', err);
+  console.warn('[WS] warning/error:', err);
 });
 
-// Route HTTP Upgrade headers to WebSocket Server
 server.on('upgrade', (request, socket, head) => {
   try {
     const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
@@ -342,6 +503,8 @@ server.on('upgrade', (request, socket, head) => {
 interface ExtendedWebSocket extends WebSocket {
   userId?: string;
   subscribedMatchId?: string;
+  subscribedStreamId?: string;
+  subscribedRoomId?: string;
   isAlive?: boolean;
 }
 
@@ -350,6 +513,26 @@ function broadcastToMatch(matchId: string, event: string, payload: any) {
   wss.clients.forEach((client: WebSocket) => {
     const extClient = client as ExtendedWebSocket;
     if (extClient.readyState === WebSocket.OPEN && extClient.subscribedMatchId === matchId) {
+      extClient.send(message);
+    }
+  });
+}
+
+function broadcastToLive(streamId: string, event: string, payload: any) {
+  const message = JSON.stringify({ event, payload, timestamp: Date.now() });
+  wss.clients.forEach((client: WebSocket) => {
+    const extClient = client as ExtendedWebSocket;
+    if (extClient.readyState === WebSocket.OPEN && extClient.subscribedStreamId === streamId) {
+      extClient.send(message);
+    }
+  });
+}
+
+function broadcastToRoom(roomId: string, event: string, payload: any) {
+  const message = JSON.stringify({ event, payload, timestamp: Date.now() });
+  wss.clients.forEach((client: WebSocket) => {
+    const extClient = client as ExtendedWebSocket;
+    if (extClient.readyState === WebSocket.OPEN && extClient.subscribedRoomId === roomId) {
       extClient.send(message);
     }
   });
@@ -374,7 +557,38 @@ function broadcastAll(event: string, payload: any) {
   });
 }
 
-// PK WebSocket Connection handler
+function hasOtherSocketInStream(userId: string, streamId: string, excludeWs?: ExtendedWebSocket): boolean {
+  let found = false;
+  wss.clients.forEach((client: WebSocket) => {
+    const ext = client as ExtendedWebSocket;
+    if (
+      ext !== excludeWs &&
+      ext.readyState === WebSocket.OPEN &&
+      ext.userId === userId &&
+      ext.subscribedStreamId === streamId
+    ) {
+      found = true;
+    }
+  });
+  return found;
+}
+
+function hasOtherSocketInRoom(userId: string, roomId: string, excludeWs?: ExtendedWebSocket): boolean {
+  let found = false;
+  wss.clients.forEach((client: WebSocket) => {
+    const ext = client as ExtendedWebSocket;
+    if (
+      ext !== excludeWs &&
+      ext.readyState === WebSocket.OPEN &&
+      ext.userId === userId &&
+      ext.subscribedRoomId === roomId
+    ) {
+      found = true;
+    }
+  });
+  return found;
+}
+
 pkWss.on('connection', (ws: ExtendedWebSocket) => {
   ws.isAlive = true;
 
@@ -385,11 +599,10 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
   ws.on('message', (data: string) => {
     try {
       const msg = JSON.parse(data.toString());
-      if (msg.type === 'auth') {
-        ws.userId = msg.userId;
+      if (msg.type === 'auth' && msg.userId) {
+        ws.userId = String(msg.userId);
       } else if (msg.type === 'subscribe_match') {
         ws.subscribedMatchId = msg.matchId;
-        // Send initial match state if exists
         if (msg.matchId && activeSessions.has(msg.matchId)) {
           const session = activeSessions.get(msg.matchId)!;
           ws.send(JSON.stringify({
@@ -399,14 +612,85 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
         }
       } else if (msg.type === 'unsubscribe_match') {
         ws.subscribedMatchId = undefined;
+      } else if (msg.type === 'subscribe_live' && msg.streamId) {
+        ws.subscribedStreamId = String(msg.streamId);
+        if (msg.userId) ws.userId = String(msg.userId);
+        const stream = liveStreamsMap.get(ws.subscribedStreamId);
+        if (stream) {
+          ws.send(JSON.stringify({
+            event: 'live:sync_state',
+            payload: {
+              stream: serializeLiveStream(stream),
+              comments: stream.comments.slice(-50),
+              serverTime: Date.now(),
+            }
+          }));
+        }
+      } else if (msg.type === 'unsubscribe_live') {
+        ws.subscribedStreamId = undefined;
+      } else if (msg.type === 'subscribe_room' && msg.roomId) {
+        ws.subscribedRoomId = String(msg.roomId);
+        if (msg.userId) ws.userId = String(msg.userId);
+        const room = partyRoomsMap.get(ws.subscribedRoomId);
+        if (room) {
+          ws.send(JSON.stringify({
+            event: 'room:sync_state',
+            payload: {
+              room: serializePartyRoom(room),
+              pendingRequests: Array.from(room.pendingRequests.values()),
+              messages: room.messages.slice(-50),
+              serverTime: Date.now(),
+            }
+          }));
+        }
+      } else if (msg.type === 'unsubscribe_room') {
+        ws.subscribedRoomId = undefined;
       }
-    } catch (err) {
-      // Invalid message format
+    } catch {
+      // ignore invalid message
+    }
+  });
+
+  ws.on('close', () => {
+    const uid = ws.userId;
+    if (uid && ws.subscribedStreamId) {
+      const stream = liveStreamsMap.get(ws.subscribedStreamId);
+      if (stream && !hasOtherSocketInStream(uid, ws.subscribedStreamId, ws) && stream.viewers.has(uid)) {
+        stream.viewers.delete(uid);
+        const serialized = serializeLiveStream(stream);
+        broadcastToLive(stream.id, 'live:viewer_left', {
+          streamId: stream.id,
+          userId: uid,
+          numericViewers: serialized.numericViewers,
+          viewerCount: serialized.viewerCount,
+        });
+        broadcastAll('live:directory_updated', { streamId: stream.id });
+      }
+    }
+    if (uid && ws.subscribedRoomId) {
+      const room = partyRoomsMap.get(ws.subscribedRoomId);
+      if (room && !hasOtherSocketInRoom(uid, ws.subscribedRoomId, ws)) {
+        room.participants.delete(uid);
+        // Vacate non-host seat if disconnecting socket held one
+        const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === uid);
+        if (seatIdx > 0) {
+          const removedUser = room.seats[seatIdx];
+          room.seats[seatIdx] = null;
+          room.mutedSeatIndices.delete(seatIdx);
+          broadcastToRoom(room.id, 'room:seat_vacated', { roomId: room.id, seatIndex: seatIdx, removedUser });
+        }
+        broadcastToRoom(room.id, 'room:participant_left', {
+          roomId: room.id,
+          userId: uid,
+          room: serializePartyRoom(room),
+        });
+        broadcastAll('room:directory_updated', { roomId: room.id });
+      }
     }
   });
 });
 
-// Periodic ping to keep PK WS alive
+// Periodic ping to keep WS alive
 const pingInterval = setInterval(() => {
   pkWss.clients.forEach((client: WebSocket) => {
     const extClient = client as ExtendedWebSocket;
@@ -418,11 +702,40 @@ const pingInterval = setInterval(() => {
   });
 }, 25000);
 
+// Prune stale live viewers (>90s without heartbeat) & expired seat requests (>60s)
+setInterval(() => {
+  const now = Date.now();
+  for (const stream of liveStreamsMap.values()) {
+    let changed = false;
+    for (const [uid, v] of stream.viewers.entries()) {
+      if (now - v.lastSeen > 90000) {
+        stream.viewers.delete(uid);
+        changed = true;
+      }
+    }
+    if (changed) {
+      const serialized = serializeLiveStream(stream);
+      broadcastToLive(stream.id, 'live:viewer_count_updated', {
+        streamId: stream.id,
+        numericViewers: serialized.numericViewers,
+        viewerCount: serialized.viewerCount,
+      });
+    }
+  }
+  for (const room of partyRoomsMap.values()) {
+    for (const [uid, reqObj] of room.pendingRequests.entries()) {
+      if (reqObj.expiresAt && now > reqObj.expiresAt) {
+        room.pendingRequests.delete(uid);
+        broadcastToRoom(room.id, 'room:seat_request_cancelled', { roomId: room.id, userId: uid });
+      }
+    }
+  }
+}, 15000);
+
 // Authoritative Timer & Match Management Tick (every 1 second)
 setInterval(() => {
   const now = Date.now();
 
-  // 1. Check Invitations Timeout
   for (const [id, invite] of pendingInvitations.entries()) {
     if (invite.status === 'pending' && now >= invite.expiresAt) {
       invite.status = 'expired';
@@ -431,18 +744,15 @@ setInterval(() => {
     }
   }
 
-  // 2. Check Active PK Matches
   for (const [matchId, session] of activeSessions.entries()) {
     if (session.status === 'in_progress') {
       const remainingMs = Math.max(0, session.endTime - now);
       session.remainingSeconds = Math.ceil(remainingMs / 1000);
 
-      // Match Completion
       if (remainingMs <= 0) {
         session.status = 'completed';
         session.remainingSeconds = 0;
 
-        // Authoritative winner calculation
         if (session.host1.score > session.host2.score) {
           session.winnerId = session.host1.user.id;
         } else if (session.host2.score > session.host1.score) {
@@ -451,8 +761,10 @@ setInterval(() => {
           session.winnerId = 'draw';
         }
 
-        // Save to Persistent History for both hosts
-        const nowFormatted = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const nowFormatted =
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+          ', ' +
+          new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
 
         const host1HistoryItem: PKMatchHistoryItem = {
           id: `hist_${Date.now()}_1`,
@@ -500,7 +812,6 @@ setInterval(() => {
         const list2 = matchHistories.get(session.host2.user.id) || [];
         matchHistories.set(session.host2.user.id, [host2HistoryItem, ...list2]);
 
-        // Broadcast End Result
         broadcastToMatch(matchId, 'pk:match_ended', {
           session,
           winnerId: session.winnerId,
@@ -515,7 +826,7 @@ setInterval(() => {
 
 // REST API Endpoints
 
-// 0. Health & Ecosystem Verification Endpoint (Railway + Cloudflare + Android)
+// 0. Health & Ecosystem Verification Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -529,12 +840,14 @@ app.get('/api/health', (_req: Request, res: Response) => {
     firebaseWebAppId: FIREBASE_WEB_APP_ID,
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
     activeWebSocketClients: pkWss.clients.size,
+    activeLiveStreams: liveStreamsMap.size,
+    activePartyRooms: partyRoomsMap.size,
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: Date.now(),
   });
 });
 
-// 0b. Firebase Auth Session Verification Endpoint
+// 0b. Firebase Auth Session Verification Endpoints
 app.get('/api/auth/verify', async (req: Request, res: Response) => {
   try {
     const verified = await verifyFirebaseBearerToken(req.headers.authorization);
@@ -566,8 +879,8 @@ app.post('/api/auth/session', async (req: Request, res: Response) => {
   }
 });
 
-// 1. Get eligible active hosts
-app.get('/api/pk/hosts', (req: Request, res: Response) => {
+// 1. Get REAL eligible active live hosts for PK Battles (zero fake hosts)
+app.get('/api/pk/hosts', (_req: Request, res: Response) => {
   const busyHostIds = new Set<string>();
   for (const session of activeSessions.values()) {
     if (session.status === 'in_progress') {
@@ -576,71 +889,21 @@ app.get('/api/pk/hosts', (req: Request, res: Response) => {
     }
   }
 
-  const eligibleHosts = [
-    {
-      id: 'user_kingraja',
-      displayId: '77218390',
-      name: 'KingRaja 👑',
-      username: '@kingraja',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-      level: 68,
-      viewerCount: '12.5K',
+  const eligibleHosts = Array.from(liveStreamsMap.values())
+    .filter((s) => s.isLive && s.host?.id)
+    .map((s) => ({
+      id: s.host.id,
+      displayId: s.host.displayId || s.host.id.slice(0, 8),
+      name: s.host.name,
+      username: s.host.username || `@${(s.host.name || 'host').toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      avatar: s.host.avatar,
+      level: s.host.level || 1,
+      viewerCount: formatCompactCount(s.viewers.size),
       isLive: true,
-      category: 'PK Champion',
-      streamTitle: '🔥 Unbeatable PK Streak! Challenge me now!'
-    },
-    {
-      id: 'user_angel',
-      displayId: '88392104',
-      name: 'Angel Girl 💕',
-      username: '@angelgirl',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-      level: 56,
-      viewerCount: '8.7K',
-      isLive: true,
-      category: 'Music Live',
-      streamTitle: 'Singing & acoustic guitar vibes 🎶'
-    },
-    {
-      id: 'user_sweetie',
-      displayId: '55490218',
-      name: 'Sweetie 🌸',
-      username: '@sweetie',
-      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
-      level: 38,
-      viewerCount: '5.2K',
-      isLive: true,
-      category: 'Chat',
-      streamTitle: 'Late night chill & party stories 🌙'
-    },
-    {
-      id: 'user_riya',
-      displayId: '33109284',
-      name: 'Riya Khan 💕',
-      username: '@riyakhan',
-      avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&auto=format&fit=crop&q=80',
-      level: 45,
-      viewerCount: '7.9K',
-      isLive: true,
-      category: 'Dance',
-      streamTitle: 'Dance Battle Ready! Let the rhythm win!'
-    },
-    {
-      id: 'user_devilboy',
-      displayId: '99018241',
-      name: 'DevilBoy 🔥',
-      username: '@devilboy',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-      level: 49,
-      viewerCount: '6.4K',
-      isLive: true,
-      category: 'Gaming',
-      streamTitle: 'Apex & BGMI live arena 🎮'
-    }
-  ].map((host) => ({
-    ...host,
-    isBusy: busyHostIds.has(host.id)
-  }));
+      category: s.category,
+      streamTitle: s.title,
+      isBusy: busyHostIds.has(s.host.id),
+    }));
 
   res.json({ hosts: eligibleHosts });
 });
@@ -1025,111 +1288,284 @@ app.post('/api/pk/history', (req: Request, res: Response) => {
   res.json({ success: true, history: matchHistories.get(userId) });
 });
 
-// --- ROOM SEAT MANAGEMENT & REQUESTS (Role-based permissions) ---
-interface RoomSeatRecord {
-  roomId: string;
-  hostId: string;
-  seats: (any | null)[];
-  pendingRequests: Map<string, any>;
-}
+// --- REAL-TIME PARTY ROOM ENGINE (Dynamic 8 or 16 Seats, Zero Fake Seeds) ---
 
-const activeRooms = new Map<string, RoomSeatRecord>();
+app.get('/api/rooms', (_req: Request, res: Response) => {
+  const rooms = Array.from(partyRoomsMap.values())
+    .sort((a, b) => b.startTime - a.startTime)
+    .map(serializePartyRoom);
+  res.json({ rooms });
+});
 
-function getOrCreateRoom(roomId: string, hostId: string, initialSeats: any[] = []): RoomSeatRecord {
-  if (!activeRooms.has(roomId)) {
-    const s = initialSeats.length === 8 ? [...initialSeats] : Array(8).fill(null);
-    activeRooms.set(roomId, {
-      roomId,
-      hostId,
-      seats: s,
-      pendingRequests: new Map()
-    });
-  }
-  return activeRooms.get(roomId)!;
-}
-
-// Get room seats and pending requests
-app.get('/api/rooms/:roomId/seats', (req: Request, res: Response) => {
-  const room = activeRooms.get(req.params.roomId);
+app.get('/api/rooms/:roomId', (req: Request, res: Response) => {
+  const room = partyRoomsMap.get(req.params.roomId);
   if (!room) {
-    return res.json({ seats: Array(8).fill(null), pendingRequests: [] });
+    return res.status(404).json({ error: 'Party room not found or has ended.' });
   }
   res.json({
-    seats: room.seats,
-    pendingRequests: Array.from(room.pendingRequests.values())
+    room: serializePartyRoom(room),
+    pendingRequests: Array.from(room.pendingRequests.values()),
+    messages: room.messages.slice(-50),
   });
 });
 
-// Viewer requests an available seat
+app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
+  const { id, displayId, title, category, host, coverImage, iconType, maxSeats, roomType, password, announcement } = req.body;
+  if (!host || !host.id || !title || !String(title).trim()) {
+    return res.status(400).json({ error: 'Valid room title and authenticated host are required.' });
+  }
+  if (req.firebaseUser && req.firebaseUser.uid !== host.id) {
+    return res.status(403).json({ error: 'Host ID does not match authenticated user.' });
+  }
+
+  const normalizedMaxSeats: 8 | 16 = Number(maxSeats) === 16 ? 16 : 8;
+  const roomId = sanitizeText(id, 128) || `room_${Date.now()}`;
+  const seats = Array(normalizedMaxSeats).fill(null);
+  seats[0] = host;
+
+  const newRoom: ServerPartyRoom = {
+    id: roomId,
+    displayId: sanitizeText(displayId, 24) || Math.floor(10000 + Math.random() * 90000).toString(),
+    title: sanitizeText(title, 100),
+    category: sanitizeText(category, 40) || 'Party',
+    host,
+    coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 1500) : '',
+    iconType: sanitizeText(iconType, 20) || 'mic',
+    maxSeats: normalizedMaxSeats,
+    roomType: roomType === 'private' ? 'private' : roomType === 'secret' ? 'secret' : 'public',
+    password: roomType === 'private' && password ? sanitizeText(password, 64) : undefined,
+    announcement: sanitizeText(announcement, 250) || 'Welcome to our party voice room!',
+    isLocked: false,
+    allowJoin: true,
+    seats,
+    mutedSeatIndices: new Set<number>(),
+    pendingRequests: new Map(),
+    participants: new Map(),
+    recentJoinAnnouncements: new Map(),
+    messages: [],
+    likesCount: 0,
+    giftsCoinValue: 0,
+    startTime: Date.now(),
+  };
+
+  newRoom.participants.set(host.id, {
+    userId: host.id,
+    name: host.name || 'Host',
+    username: host.username,
+    avatar: host.avatar || '',
+    level: host.level || 1,
+    vipLevel: host.vipLevel || 0,
+    isVIP: Boolean(host.isVIP),
+    joinedAt: Date.now(),
+    lastSeen: Date.now(),
+    isHost: true,
+  });
+
+  serverUsers.set(host.id, host);
+  partyRoomsMap.set(roomId, newRoom);
+
+  const serialized = serializePartyRoom(newRoom);
+  broadcastAll('room:directory_updated', { roomId, action: 'created', room: serialized });
+
+  res.json({ success: true, room: serialized });
+});
+
+app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { user, password } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Party room not found or closed.' });
+  }
+  if (!user || !user.id) {
+    return res.status(400).json({ error: 'Authenticated user required to join room.' });
+  }
+
+  if (room.roomType === 'private' && room.password && user.id !== room.host.id && password !== room.password) {
+    return res.status(403).json({ error: 'Incorrect room password.' });
+  }
+
+  const now = Date.now();
+  const isNewParticipant = !room.participants.has(user.id);
+  const lastBannerAt = room.recentJoinAnnouncements.get(user.id) || 0;
+  const shouldEmitBanner = isNewParticipant && now - lastBannerAt > 15000 && user.id !== room.host.id;
+
+  const viewerRecord: ServerViewerRecord = {
+    userId: user.id,
+    name: user.name || 'Guest',
+    username: user.username,
+    avatar: user.avatar || '',
+    level: user.level || 1,
+    vipLevel: user.vipLevel || 0,
+    isVIP: Boolean(user.isVIP),
+    joinedAt: room.participants.get(user.id)?.joinedAt || now,
+    lastSeen: now,
+    isHost: user.id === room.host.id,
+  };
+  room.participants.set(user.id, viewerRecord);
+  serverUsers.set(user.id, user);
+
+  const serialized = serializePartyRoom(room);
+  if (shouldEmitBanner) {
+    room.recentJoinAnnouncements.set(user.id, now);
+    broadcastToRoom(roomId, 'room:participant_joined', {
+      roomId,
+      participant: viewerRecord,
+      room: serialized,
+    });
+  } else {
+    broadcastToRoom(roomId, 'room:state_updated', { roomId, room: serialized });
+  }
+  broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+
+  res.json({
+    success: true,
+    room: serialized,
+    pendingRequests: Array.from(room.pendingRequests.values()),
+    messages: room.messages.slice(-50),
+  });
+});
+
+app.post('/api/rooms/:roomId/leave', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { userId } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.json({ success: true });
+  }
+
+  if (userId) {
+    room.participants.delete(userId);
+    const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === userId);
+    if (seatIdx > 0) {
+      const removedUser = room.seats[seatIdx];
+      room.seats[seatIdx] = null;
+      room.mutedSeatIndices.delete(seatIdx);
+      broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex: seatIdx, removedUser });
+    }
+    const serialized = serializePartyRoom(room);
+    broadcastToRoom(roomId, 'room:participant_left', { roomId, userId, room: serialized });
+    broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+  }
+
+  res.json({ success: true });
+});
+
+app.post('/api/rooms/:roomId/end', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.json({ success: true, alreadyClosed: true });
+  }
+  if (room.host?.id !== hostId && !isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Only the room host can close this party room.' });
+  }
+
+  partyRoomsMap.delete(roomId);
+  broadcastToRoom(roomId, 'room:closed', { roomId, reason: 'Host ended the party room.' });
+  broadcastAll('room:directory_updated', { roomId, action: 'ended' });
+  res.json({ success: true });
+});
+
+app.get('/api/rooms/:roomId/participants', (req: Request, res: Response) => {
+  const room = partyRoomsMap.get(req.params.roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+  const all = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+  const start = (page - 1) * limit;
+  const slice = all.slice(start, start + limit);
+  res.json({
+    participants: slice,
+    totalCount: all.length,
+    page,
+    limit,
+    hasMore: start + slice.length < all.length,
+  });
+});
+
+app.get('/api/rooms/:roomId/seats', (req: Request, res: Response) => {
+  const room = partyRoomsMap.get(req.params.roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.', seats: [], mutedSeatIndices: [], pendingRequests: [] });
+  }
+  res.json({
+    seats: room.seats,
+    mutedSeatIndices: Array.from(room.mutedSeatIndices),
+    pendingRequests: Array.from(room.pendingRequests.values()),
+    isLocked: room.isLocked,
+    allowJoin: room.allowJoin,
+    maxSeats: room.maxSeats,
+  });
+});
+
 app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { user, requestedSeatIndex, roomHostId } = req.body;
-
+  const { user, requestedSeatIndex } = req.body;
   if (!user || !user.id) {
     return res.status(400).json({ error: 'Valid user object required.' });
   }
 
-  const room = getOrCreateRoom(roomId, roomHostId || user.id);
-
-  // Host doesn't need to request their own room
-  if (room.hostId === user.id) {
-    return res.status(400).json({ error: 'Room host already holds main stage authority.' });
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found or already closed.' });
   }
-
-  // Prevent duplicate requests
+  if (!room.allowJoin || room.isLocked) {
+    return res.status(403).json({ error: 'Stage seats are currently locked by host.' });
+  }
+  if (room.host?.id === user.id) {
+    return res.status(400).json({ error: 'Room host already holds stage authority.' });
+  }
   if (room.pendingRequests.has(user.id)) {
     return res.status(400).json({ error: 'You already have a pending seat request for this room.' });
   }
-
-  // Check if user already occupies a seat
   if (room.seats.some((s) => s && s.id === user.id)) {
     return res.status(400).json({ error: 'You already occupy a seat in this room.' });
   }
 
+  const idx = typeof requestedSeatIndex === 'number' && requestedSeatIndex > 0 && requestedSeatIndex < room.maxSeats ? requestedSeatIndex : 1;
   const requestId = `seat_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const requestObj = {
     id: requestId,
     roomId,
     user,
-    requestedSeatIndex: typeof requestedSeatIndex === 'number' ? requestedSeatIndex : 0,
+    requestedSeatIndex: idx,
     status: 'pending',
     createdAt: Date.now(),
-    expiresAt: Date.now() + 60000 // 60s timeout
+    expiresAt: Date.now() + 60000,
   };
 
   room.pendingRequests.set(user.id, requestObj);
-
-  // Broadcast to room host & room viewers
-  broadcastToUser(room.hostId, 'room:seat_request_received', requestObj);
-  broadcastAll('room:seat_request_updated', { roomId, requestObj });
+  broadcastToUser(room.host.id, 'room:seat_request_received', requestObj);
+  broadcastToRoom(roomId, 'room:seat_request_updated', { roomId, requestObj });
 
   res.json({ success: true, request: requestObj });
 });
 
-// Cancel pending seat request
 app.post('/api/rooms/:roomId/cancel_seat_request', (req: Request, res: Response) => {
   const { roomId } = req.params;
   const { userId } = req.body;
-  const room = activeRooms.get(roomId);
+  const room = partyRoomsMap.get(roomId);
   if (room && room.pendingRequests.has(userId)) {
     room.pendingRequests.delete(userId);
-    broadcastAll('room:seat_request_cancelled', { roomId, userId });
+    broadcastToRoom(roomId, 'room:seat_request_cancelled', { roomId, userId });
   }
   res.json({ success: true });
 });
 
-// Host approves or rejects seat request (Enforced host permissions)
-app.post('/api/rooms/:roomId/respond_seat_request', (req: Request, res: Response) => {
+app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
-  const { hostId, applicantId, approve, targetSeatIndex } = req.body;
-  const room = activeRooms.get(roomId);
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { applicantId, approve, targetSeatIndex } = req.body;
+  const room = partyRoomsMap.get(roomId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
-
-  // Strict host verification: Only the room owner can approve/reject
-  if (room.hostId !== hostId) {
+  if (room.host.id !== hostId) {
     return res.status(403).json({ error: 'Permission denied. Only the room host can approve or reject seat requests.' });
   }
 
@@ -1143,57 +1579,247 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: Request, res: Response
   if (!approve) {
     requestObj.status = 'rejected';
     broadcastToUser(applicantId, 'room:seat_request_rejected', { roomId });
+    broadcastToRoom(roomId, 'room:seat_request_cancelled', { roomId, userId: applicantId });
     return res.json({ success: true, status: 'rejected' });
   }
 
-  // Find target seat index
   let seatIdx = typeof targetSeatIndex === 'number' ? targetSeatIndex : requestObj.requestedSeatIndex;
-  if (seatIdx < 0 || seatIdx >= 8 || room.seats[seatIdx] !== null) {
-    // find first available empty seat
-    seatIdx = room.seats.findIndex((s) => s === null);
+  if (seatIdx <= 0 || seatIdx >= room.maxSeats || room.seats[seatIdx] !== null) {
+    seatIdx = room.seats.findIndex((s, i) => i > 0 && s === null);
   }
-
   if (seatIdx === -1) {
-    return res.status(400).json({ error: 'All seats are currently occupied.' });
+    return res.status(400).json({ error: 'All stage seats are currently occupied.' });
   }
 
   room.seats[seatIdx] = requestObj.user;
   requestObj.status = 'accepted';
 
-  broadcastAll('room:seat_occupied', {
+  const serialized = serializePartyRoom(room);
+  broadcastToRoom(roomId, 'room:seat_occupied', {
     roomId,
     seatIndex: seatIdx,
-    user: requestObj.user
+    user: requestObj.user,
+    room: serialized,
   });
-  broadcastToUser(applicantId, 'room:seat_request_accepted', {
-    roomId,
-    seatIndex: seatIdx
-  });
+  broadcastToUser(applicantId, 'room:seat_request_accepted', { roomId, seatIndex: seatIdx });
+  broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
 
-  res.json({ success: true, seatIndex: seatIdx, seats: room.seats });
+  res.json({ success: true, seatIndex: seatIdx, seats: room.seats, room: serialized });
 });
 
-// Host removes participant from seat (Enforced host permissions)
-app.post('/api/rooms/:roomId/remove_seat', (req: Request, res: Response) => {
+app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
-  const { hostId, seatIndex } = req.body;
-  const room = activeRooms.get(roomId);
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { seatIndex } = req.body;
+  const room = partyRoomsMap.get(roomId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
-
-  if (room.hostId !== hostId) {
+  if (room.host.id !== hostId) {
     return res.status(403).json({ error: 'Unauthorized. Only room host can remove participants.' });
   }
 
-  if (seatIndex >= 0 && seatIndex < 8) {
+  if (typeof seatIndex === 'number' && seatIndex > 0 && seatIndex < room.maxSeats) {
     const removedUser = room.seats[seatIndex];
     room.seats[seatIndex] = null;
-    broadcastAll('room:seat_vacated', { roomId, seatIndex, removedUser });
+    room.mutedSeatIndices.delete(seatIndex);
+    const serialized = serializePartyRoom(room);
+    broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex, removedUser, room: serialized });
+    broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   }
 
   res.json({ success: true, seats: room.seats });
+});
+
+app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const userId = req.firebaseUser?.uid || req.body?.userId;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === userId);
+  if (seatIdx > 0) {
+    const removedUser = room.seats[seatIdx];
+    room.seats[seatIdx] = null;
+    room.mutedSeatIndices.delete(seatIdx);
+    const serialized = serializePartyRoom(room);
+    broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex: seatIdx, removedUser, room: serialized });
+    broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+  }
+  res.json({ success: true, seats: room.seats });
+});
+
+app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { seatIndex, user } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (room.host.id !== hostId) {
+    return res.status(403).json({ error: 'Only host can assign seats directly.' });
+  }
+  if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats && user?.id) {
+    room.seats[seatIndex] = user;
+    const serialized = serializePartyRoom(room);
+    broadcastToRoom(roomId, 'room:seat_occupied', { roomId, seatIndex, user, room: serialized });
+    broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+  }
+  res.json({ success: true, seats: room.seats });
+});
+
+app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { seatIndex, muted } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (room.host.id !== hostId) {
+    return res.status(403).json({ error: 'Only room host can mute or unmute stage seats.' });
+  }
+  if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats) {
+    if (muted) {
+      room.mutedSeatIndices.add(seatIndex);
+    } else {
+      room.mutedSeatIndices.delete(seatIndex);
+    }
+    broadcastToRoom(roomId, 'room:seat_muted', {
+      roomId,
+      seatIndex,
+      muted: Boolean(muted),
+      mutedSeatIndices: Array.from(room.mutedSeatIndices),
+    });
+  }
+  res.json({ success: true, mutedSeatIndices: Array.from(room.mutedSeatIndices) });
+});
+
+app.post('/api/rooms/:roomId/settings', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { isLocked, allowJoin, announcement } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (room.host.id !== hostId) {
+    return res.status(403).json({ error: 'Only host can change room settings.' });
+  }
+  if (typeof isLocked === 'boolean') room.isLocked = isLocked;
+  if (typeof allowJoin === 'boolean') room.allowJoin = allowJoin;
+  if (typeof announcement === 'string') room.announcement = sanitizeText(announcement, 250);
+
+  const serialized = serializePartyRoom(room);
+  broadcastToRoom(roomId, 'room:settings_updated', { roomId, room: serialized });
+  res.json({ success: true, room: serialized });
+});
+
+app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { sender, text } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (!sender || !sender.id) {
+    return res.status(400).json({ error: 'Authenticated sender required.' });
+  }
+  const cleanText = sanitizeText(text, 300);
+  if (!cleanText) {
+    return res.status(400).json({ error: 'Message text cannot be empty.' });
+  }
+  const now = Date.now();
+  const lastAt = lastCommentTimeMap.get(sender.id) || 0;
+  if (now - lastAt < 750) {
+    return res.status(429).json({ error: 'You are sending messages too fast. Please wait a moment.' });
+  }
+  lastCommentTimeMap.set(sender.id, now);
+
+  const chatMsg = {
+    id: `rm_${now}_${Math.random().toString(36).substring(2, 6)}`,
+    senderId: sender.id,
+    senderName: sender.name || 'Guest',
+    senderAvatar: sender.avatar || '',
+    senderVip: sender.vipLevel || 0,
+    isHost: sender.id === room.host?.id,
+    text: cleanText,
+    timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    createdAtMillis: now,
+  };
+  room.messages.push(chatMsg);
+  if (room.messages.length > 200) room.messages.shift();
+
+  broadcastToRoom(roomId, 'room:chat', { roomId, message: chatMsg });
+  res.json({ success: true, message: chatMsg });
+});
+
+app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { senderId, count = 1 } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  const now = Date.now();
+  const lastAt = lastHeartTimeMap.get(senderId || 'anon') || 0;
+  if (now - lastAt < 200) {
+    return res.json({ success: true, likesCount: room.likesCount });
+  }
+  lastHeartTimeMap.set(senderId || 'anon', now);
+
+  const delta = Math.min(Math.max(1, Number(count) || 1), 10);
+  room.likesCount += delta;
+
+  broadcastToRoom(roomId, 'room:heart', { roomId, likesCount: room.likesCount, delta });
+  res.json({ success: true, likesCount: room.likesCount });
+});
+
+app.post('/api/rooms/:roomId/gift', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const { sender, recipient, gift, quantity = 1 } = req.body;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  const qty = Math.max(1, Number(quantity) || 1);
+  const totalCoins = Math.max(0, Number(gift?.coins || 0) * qty);
+  room.giftsCoinValue += totalCoins;
+
+  const targetHost = recipient?.id ? recipient : room.host;
+  const metric = ensureBroadcasterMetric(targetHost);
+  if (metric) {
+    metric.giftsCoinValue += totalCoins;
+    metric.giftsCount += qty;
+  }
+  if (sender?.id) {
+    const cRec = contributorMetricsMap.get(sender.id) || {
+      user: sender,
+      coinsSpent: 0,
+      giftsSentCount: 0,
+      lastActiveAt: Date.now(),
+    };
+    cRec.user = { ...cRec.user, ...sender };
+    cRec.coinsSpent += totalCoins;
+    cRec.giftsSentCount += qty;
+    cRec.lastActiveAt = Date.now();
+    contributorMetricsMap.set(sender.id, cRec);
+  }
+
+  const eventPayload = {
+    roomId,
+    sender,
+    recipient: targetHost,
+    gift,
+    quantity: qty,
+    totalCoins,
+    timestamp: Date.now(),
+  };
+  broadcastToRoom(roomId, 'room:gift', eventPayload);
+  res.json({ success: true, ...eventPayload });
 });
 
 // --- VIDEO UPLOAD & FEED ENDPOINTS ---
@@ -1225,39 +1851,39 @@ app.post('/api/videos/upload', (req: Request, res: Response) => {
   res.json({ success: true, video: newVideo });
 });
 
-// --- USER PROFILES, SOCIAL GRAPH & FOLLOWS ---
+// --- REAL USER PROFILES, SOCIAL GRAPH & FOLLOWS (ZERO FAKE OFFSETS) ---
 const serverUsers = new Map<string, any>();
 const userFollowersMap = new Map<string, Set<string>>();
 const userFollowingMap = new Map<string, Set<string>>();
 
-function initServerUsers() {
-  if (serverUsers.size > 0) return;
+app.post('/api/users/sync', (req: AuthenticatedRequest, res: Response) => {
+  const { user } = req.body;
+  if (!user || !user.id) {
+    return res.status(400).json({ error: 'Valid user object required.' });
+  }
+  if (req.firebaseUser && req.firebaseUser.uid !== user.id) {
+    return res.status(403).json({ error: 'Cannot sync profile for another user.' });
+  }
+  const existing = serverUsers.get(user.id) || {};
+  const merged = { ...existing, ...user };
+  serverUsers.set(user.id, merged);
+  res.json({ success: true, user: merged });
+});
 
-  const defaultUser = {
-    id: 'user_current_01',
-    displayId: 'SK99218',
-    name: 'Queen Sara 👑',
-    username: '@queensara',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    coverImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
-    bio: '✨ Official Lenzo Host & Singer | VIP Creator 👑 Catch my party rooms every night at 9 PM!',
-    level: 42,
-    vipLevel: 5,
-    isVIP: true,
-    coins: 12500,
-    diamonds: 4200,
-    gender: 'female',
-    country: 'Pakistan',
-    birthday: '2001-08-14',
-  };
-
-  serverUsers.set(defaultUser.id, defaultUser);
-  userFollowersMap.set(defaultUser.id, new Set(['user_sara', 'user_rohan', 'user_queen_girl', 'user_pink_girl', 'user_sweetie']));
-  userFollowingMap.set(defaultUser.id, new Set(['user_sara', 'user_rohan', 'user_king']));
-}
+app.get('/api/users/search', (req: Request, res: Response) => {
+  const q = String(req.query.q || '').toLowerCase().trim();
+  const users = Array.from(serverUsers.values()).filter((u) => {
+    if (!q) return true;
+    return (
+      u.name?.toLowerCase().includes(q) ||
+      u.username?.toLowerCase().includes(q) ||
+      u.displayId?.toLowerCase().includes(q)
+    );
+  });
+  res.json({ users: users.slice(0, 30) });
+});
 
 app.get('/api/users/check_username', (req: Request, res: Response) => {
-  initServerUsers();
   const username = String(req.query.username || '').toLowerCase().trim().replace(/^@/, '');
   const userId = String(req.query.userId || '');
 
@@ -1275,57 +1901,53 @@ app.get('/api/users/check_username', (req: Request, res: Response) => {
 });
 
 app.get('/api/users/:id', (req: Request, res: Response) => {
-  initServerUsers();
   const userId = req.params.id;
   const user = serverUsers.get(userId);
-
   if (!user) {
-    return res.status(404).json({ error: 'User not found in backend memory cache' });
+    return res.status(404).json({ error: 'User not found.' });
   }
 
   const followers = userFollowersMap.get(userId) || new Set();
   const following = userFollowingMap.get(userId) || new Set();
-  const userVideosList = serverVideos.filter((v) => v.creator?.id === userId || (userId === 'user_current_01' && v.creator?.id === 'user_current_01'));
-  const totalLikes = userVideosList.reduce((acc, v) => acc + (v.likesCount || 0), 0) + 52700;
+  const userVideosList = serverVideos.filter((v) => v.creator?.id === userId);
+  const totalLikes = userVideosList.reduce((acc, v) => acc + (v.likesCount || 0), 0);
 
   res.json({
     user: {
       ...user,
-      followersCount: followers.size + 12420,
-      fansCount: `${((followers.size + 12420) / 1000).toFixed(1)}K`,
-      followingCount: following.size + 142,
+      followersCount: followers.size,
+      fansCount: formatCompactCount(followers.size),
+      followingCount: following.size,
       totalLikes,
-      likesCount: `${(totalLikes / 1000).toFixed(1)}K`,
+      likesCount: formatCompactCount(totalLikes),
     },
   });
 });
 
 app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
-  initServerUsers();
   const userId = req.params.id;
-  if (userId !== 'user_current_01') {
-    if (!req.firebaseUser) {
-      return res.status(401).json({ error: 'Authentication required to update this user profile.' });
-    }
-    if (req.firebaseUser.uid !== userId) {
-      return res.status(403).json({ error: 'Forbidden: you can only update your own user profile.' });
-    }
+  if (!req.firebaseUser) {
+    return res.status(401).json({ error: 'Authentication required to update this user profile.' });
   }
+  if (req.firebaseUser.uid !== userId) {
+    return res.status(403).json({ error: 'Forbidden: you can only update your own user profile.' });
+  }
+
   const existing = serverUsers.get(userId) || {
     id: userId,
     displayId: userId.substring(0, 6).toUpperCase(),
-    name: req.body?.name || 'Lenzo Creator',
+    name: req.body?.name || 'Lenzo User',
     username: req.body?.username || `@${userId.slice(0, 8).toLowerCase()}`,
-    avatar: req.body?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    coverImage: req.body?.coverImage || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
+    avatar: req.body?.avatar || '',
+    coverImage: req.body?.coverImage || '',
     bio: req.body?.bio || '',
     level: 1,
-    vipLevel: 1,
+    vipLevel: 0,
     isVIP: false,
-    coins: 5000,
+    coins: 0,
     diamonds: 0,
     gender: 'unspecified',
-    country: 'Global',
+    country: '',
     birthday: '',
   };
 
@@ -1341,8 +1963,8 @@ app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
     existing.username = `@${clean}`;
   }
 
-  if (name) existing.name = String(name).trim();
-  if (typeof bio === 'string') existing.bio = bio.trim();
+  if (name) existing.name = sanitizeText(name, 60);
+  if (typeof bio === 'string') existing.bio = sanitizeText(bio, 300);
   if (avatar) existing.avatar = avatar;
   if (coverImage) existing.coverImage = coverImage;
   if (gender) existing.gender = gender;
@@ -1353,126 +1975,75 @@ app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
 
   const followers = userFollowersMap.get(userId) || new Set();
   const following = userFollowingMap.get(userId) || new Set();
-  const totalLikes = 52700;
+  const userVideosList = serverVideos.filter((v) => v.creator?.id === userId);
+  const totalLikes = userVideosList.reduce((acc, v) => acc + (v.likesCount || 0), 0);
 
   res.json({
     success: true,
     user: {
       ...existing,
-      followersCount: followers.size + 12420,
-      fansCount: `${((followers.size + 12420) / 1000).toFixed(1)}K`,
-      followingCount: following.size + 142,
+      followersCount: followers.size,
+      fansCount: formatCompactCount(followers.size),
+      followingCount: following.size,
       totalLikes,
-      likesCount: `${(totalLikes / 1000).toFixed(1)}K`,
+      likesCount: formatCompactCount(totalLikes),
     },
   });
 });
 
 app.get('/api/users/:id/followers', (req: Request, res: Response) => {
-  initServerUsers();
-  const myFollowingSet = userFollowingMap.get('user_current_01') || new Set();
+  const targetId = req.params.id;
+  const viewerId = String(req.query.viewerId || '');
+  const followerIds = Array.from(userFollowersMap.get(targetId) || new Set<string>());
+  const viewerFollowingSet = userFollowingMap.get(viewerId) || new Set<string>();
 
-  const mockFollowersList = [
-    {
-      id: 'user_sara',
-      name: 'Sara Khan 🌸',
-      username: '@sarakhan',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-      bio: 'Singing, dancing & late night vibes! 🎤',
-      level: 48,
-      isVIP: true,
-      isFollowing: myFollowingSet.has('user_sara'),
-    },
-    {
-      id: 'user_rohan',
-      name: 'Rohan Kumar 🔥',
-      username: '@rohan_kumar',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-      bio: 'DJ & EDM Beatmaker. Party room host.',
-      level: 52,
-      isVIP: true,
-      isFollowing: myFollowingSet.has('user_rohan'),
-    },
-    {
-      id: 'user_queen_girl',
-      name: 'Queen Star 👑',
-      username: '@queenstar',
-      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&auto=format&fit=crop&q=80',
-      bio: 'Top gifter on Lenzo Party Live! 💖',
-      level: 65,
-      isVIP: true,
-      isFollowing: myFollowingSet.has('user_queen_girl'),
-    },
-    {
-      id: 'user_pink_girl',
-      name: 'Pink Rose 🌹',
-      username: '@pinkrose',
-      avatar: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&auto=format&fit=crop&q=80',
-      bio: 'Guitar acoustics & chill conversations.',
-      level: 39,
-      isVIP: false,
-      isFollowing: myFollowingSet.has('user_pink_girl'),
-    },
-    {
-      id: 'user_sweetie',
-      name: 'Sweetie Girl ✨',
-      username: '@sweetie',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-      bio: 'Daily life & party moments!',
-      level: 35,
-      isVIP: false,
-      isFollowing: myFollowingSet.has('user_sweetie'),
-    },
-  ];
+  const followers = followerIds
+    .map((fid) => serverUsers.get(fid))
+    .filter(Boolean)
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      username: u.username || `@${u.displayId || u.id.slice(0, 6)}`,
+      avatar: u.avatar,
+      bio: u.bio || '',
+      level: u.level || 1,
+      isVIP: Boolean(u.isVIP),
+      isFollowing: viewerFollowingSet.has(u.id),
+    }));
 
-  res.json({ followers: mockFollowersList });
+  res.json({ followers });
 });
 
 app.get('/api/users/:id/following', (req: Request, res: Response) => {
-  initServerUsers();
-  const mockFollowingList = [
-    {
-      id: 'user_sara',
-      name: 'Sara Khan 🌸',
-      username: '@sarakhan',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-      bio: 'Singing, dancing & late night vibes! 🎤',
-      level: 48,
-      isVIP: true,
-      isFollowing: true,
-    },
-    {
-      id: 'user_rohan',
-      name: 'Rohan Kumar 🔥',
-      username: '@rohan_kumar',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
-      bio: 'DJ & EDM Beatmaker. Party room host.',
-      level: 52,
-      isVIP: true,
-      isFollowing: true,
-    },
-    {
-      id: 'user_king',
-      name: 'King Raja 👑',
-      username: '@kingraja',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
-      bio: 'Battle Champion. Unbeatable in PK.',
-      level: 68,
-      isVIP: true,
-      isFollowing: true,
-    },
-  ];
+  const targetId = req.params.id;
+  const followingIds = Array.from(userFollowingMap.get(targetId) || new Set<string>());
 
-  res.json({ following: mockFollowingList });
+  const following = followingIds
+    .map((fid) => serverUsers.get(fid))
+    .filter(Boolean)
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      username: u.username || `@${u.displayId || u.id.slice(0, 6)}`,
+      avatar: u.avatar,
+      bio: u.bio || '',
+      level: u.level || 1,
+      isVIP: Boolean(u.isVIP),
+      isFollowing: true,
+    }));
+
+  res.json({ following });
 });
 
-app.post('/api/users/:id/follow', (req: Request, res: Response) => {
-  initServerUsers();
+app.post('/api/users/:id/follow', (req: AuthenticatedRequest, res: Response) => {
   const targetId = req.params.id;
-  const { followerId = 'user_current_01' } = req.body;
+  const followerId = req.firebaseUser?.uid || req.body?.followerId;
 
+  if (!followerId) {
+    return res.status(401).json({ error: 'Authentication required to follow users.' });
+  }
   if (targetId === followerId) {
-    return res.status(400).json({ error: 'Cannot follow yourself' });
+    return res.status(400).json({ error: 'Cannot follow yourself.' });
   }
 
   let followers = userFollowersMap.get(targetId);
@@ -1492,15 +2063,18 @@ app.post('/api/users/:id/follow', (req: Request, res: Response) => {
   res.json({
     success: true,
     isFollowing: true,
-    targetFollowersCount: followers.size + 12420,
-    myFollowingCount: following.size + 142,
+    targetFollowersCount: followers.size,
+    myFollowingCount: following.size,
   });
 });
 
-app.post('/api/users/:id/unfollow', (req: Request, res: Response) => {
-  initServerUsers();
+app.post('/api/users/:id/unfollow', (req: AuthenticatedRequest, res: Response) => {
   const targetId = req.params.id;
-  const { followerId = 'user_current_01' } = req.body;
+  const followerId = req.firebaseUser?.uid || req.body?.followerId;
+
+  if (!followerId) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
 
   const followers = userFollowersMap.get(targetId);
   if (followers) followers.delete(followerId);
@@ -1511,35 +2085,457 @@ app.post('/api/users/:id/unfollow', (req: Request, res: Response) => {
   res.json({
     success: true,
     isFollowing: false,
-    targetFollowersCount: Math.max(0, (followers?.size || 0) + 12420),
-    myFollowingCount: Math.max(0, (following?.size || 0) + 142),
+    targetFollowersCount: followers?.size || 0,
+    myFollowingCount: following?.size || 0,
   });
 });
 
-// --- AGORA RTC ACTIVE LIVE STREAM REGISTRY ---
-interface ActiveAgoraStream {
-  roomId: string;
-  hostId: string;
-  hostProfile?: any;
-  channelName: string;
-  viewerCount: number;
-  isCameraOn: boolean;
-  isMicMuted: boolean;
-  startTime: number;
-}
-const activeAgoraStreams = new Map<string, ActiveAgoraStream>();
+// --- REAL-TIME LIVE STREAMING ENGINE ---
 
 app.get('/api/live/active_streams', (_req: Request, res: Response) => {
-  const streams = Array.from(activeAgoraStreams.values());
+  const streams = Array.from(liveStreamsMap.values())
+    .filter((s) => s.isLive)
+    .sort((a, b) => b.viewers.size - a.viewers.size || b.startTime - a.startTime)
+    .map(serializeLiveStream);
   res.json({ streams });
 });
 
-app.get('/api/live/stream/:roomId', (req: Request, res: Response) => {
-  const stream = activeAgoraStreams.get(req.params.roomId);
-  if (!stream) {
+app.get('/api/live/stream/:streamId', (req: Request, res: Response) => {
+  const stream = liveStreamsMap.get(req.params.streamId);
+  if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Stream not found or offline', isLive: false });
   }
-  res.json({ isLive: true, ...stream });
+  res.json({ ...serializeLiveStream(stream), isLive: true, comments: stream.comments.slice(-50) });
+});
+
+app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
+  const { id, title, category, host, coverImage, allowGuests, isPrivate, announcement, tags } = req.body;
+  if (!host || !host.id || !title || !String(title).trim()) {
+    return res.status(400).json({ error: 'Valid stream title and authenticated host are required.' });
+  }
+  if (req.firebaseUser && req.firebaseUser.uid !== host.id) {
+    return res.status(403).json({ error: 'Host ID mismatch.' });
+  }
+
+  const streamId = sanitizeText(id, 128) || `live_${Date.now()}`;
+  const cleanTitle = sanitizeText(title, 100);
+  const cleanCategory = sanitizeText(category, 40) || 'Music';
+
+  const newStream: ServerLiveStream = {
+    id: streamId,
+    title: cleanTitle,
+    category: cleanCategory,
+    host,
+    coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 1500) : '',
+    channelName: `live_${streamId}`,
+    isLive: true,
+    allowGuests: allowGuests !== false,
+    isPrivate: Boolean(isPrivate),
+    announcement: sanitizeText(announcement, 250),
+    tags: Array.isArray(tags) ? tags.slice(0, 6).map((t) => sanitizeText(t, 24)).filter(Boolean) : [cleanCategory, 'Live'],
+    likesCount: 0,
+    commentsCount: 0,
+    giftsCoinValue: 0,
+    startTime: Date.now(),
+    viewers: new Map(),
+    uniqueViewerIds: new Set(),
+    recentJoinAnnouncements: new Map(),
+    comments: [],
+  };
+
+  serverUsers.set(host.id, host);
+  liveStreamsMap.set(streamId, newStream);
+
+  const metric = ensureBroadcasterMetric(host);
+  if (metric) {
+    metric.isCurrentlyLive = true;
+    metric.liveStreamId = streamId;
+  }
+
+  const serialized = serializeLiveStream(newStream);
+  broadcastAll('live:directory_updated', { streamId, action: 'started', stream: serialized });
+  res.json({ success: true, stream: serialized });
+});
+
+app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
+  const { streamId } = req.params;
+  const { user } = req.body;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream || !stream.isLive) {
+    return res.status(404).json({ error: 'Live broadcast has ended or does not exist.' });
+  }
+  if (!user || !user.id) {
+    return res.status(400).json({ error: 'User profile required to join stream.' });
+  }
+
+  const now = Date.now();
+  const isNewInActiveMap = !stream.viewers.has(user.id);
+  const lastJoinedBanner = stream.recentJoinAnnouncements.get(user.id) || 0;
+  const shouldEmitEntryBanner = isNewInActiveMap && now - lastJoinedBanner > 15000 && user.id !== stream.host.id;
+
+  const viewerRecord: ServerViewerRecord = {
+    userId: user.id,
+    name: user.name || 'Viewer',
+    username: user.username,
+    avatar: user.avatar || '',
+    level: user.level || 1,
+    vipLevel: user.vipLevel || 0,
+    isVIP: Boolean(user.isVIP),
+    joinedAt: stream.viewers.get(user.id)?.joinedAt || now,
+    lastSeen: now,
+    isHost: user.id === stream.host.id,
+  };
+
+  // Track active non-host viewers (or unique connected audience members)
+  if (user.id !== stream.host.id) {
+    stream.viewers.set(user.id, viewerRecord);
+    stream.uniqueViewerIds.add(user.id);
+    const metric = ensureBroadcasterMetric(stream.host);
+    if (metric) {
+      metric.uniqueViewerIds.add(user.id);
+    }
+  }
+  serverUsers.set(user.id, user);
+
+  const serialized = serializeLiveStream(stream);
+  if (shouldEmitEntryBanner) {
+    stream.recentJoinAnnouncements.set(user.id, now);
+    broadcastToLive(streamId, 'live:viewer_joined', {
+      streamId,
+      viewer: viewerRecord,
+      numericViewers: serialized.numericViewers,
+      viewerCount: serialized.viewerCount,
+    });
+  } else {
+    broadcastToLive(streamId, 'live:viewer_count_updated', {
+      streamId,
+      numericViewers: serialized.numericViewers,
+      viewerCount: serialized.viewerCount,
+    });
+  }
+  broadcastAll('live:directory_updated', { streamId, action: 'updated', stream: serialized });
+
+  res.json({
+    success: true,
+    stream: serialized,
+    comments: stream.comments.slice(-50),
+  });
+});
+
+app.post('/api/live/:streamId/heartbeat', (req: Request, res: Response) => {
+  const stream = liveStreamsMap.get(req.params.streamId);
+  const { userId } = req.body;
+  if (!stream) return res.status(404).json({ error: 'Stream ended' });
+  if (userId && stream.viewers.has(userId)) {
+    stream.viewers.get(userId)!.lastSeen = Date.now();
+  }
+  res.json({ success: true, numericViewers: stream.viewers.size });
+});
+
+app.post('/api/live/:streamId/leave', (req: Request, res: Response) => {
+  const { streamId } = req.params;
+  const { userId } = req.body;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream) {
+    return res.json({ success: true });
+  }
+  if (userId && stream.viewers.has(userId)) {
+    stream.viewers.delete(userId);
+    const serialized = serializeLiveStream(stream);
+    broadcastToLive(streamId, 'live:viewer_left', {
+      streamId,
+      userId,
+      numericViewers: serialized.numericViewers,
+      viewerCount: serialized.viewerCount,
+    });
+    broadcastAll('live:directory_updated', { streamId, action: 'updated', stream: serialized });
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/live/:streamId/end', (req: AuthenticatedRequest, res: Response) => {
+  const { streamId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream) {
+    return res.json({ success: true, alreadyEnded: true });
+  }
+  if (stream.host?.id !== hostId && !isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Only the host can end this live broadcast.' });
+  }
+
+  stream.isLive = false;
+  liveStreamsMap.delete(streamId);
+
+  const metric = broadcasterMetricsMap.get(stream.host.id);
+  if (metric) {
+    metric.isCurrentlyLive = false;
+    metric.liveStreamId = undefined;
+  }
+
+  broadcastToLive(streamId, 'live:ended', { streamId, reason: 'Host ended the live broadcast.' });
+  broadcastAll('live:directory_updated', { streamId, action: 'ended' });
+  res.json({ success: true });
+});
+
+app.get('/api/live/:streamId/viewers', (req: Request, res: Response) => {
+  const stream = liveStreamsMap.get(req.params.streamId);
+  if (!stream) {
+    return res.status(404).json({ error: 'Stream not found or ended.' });
+  }
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)));
+  const all = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+  const start = (page - 1) * limit;
+  const slice = all.slice(start, start + limit);
+  res.json({
+    viewers: slice,
+    totalCount: all.length,
+    page,
+    limit,
+    hasMore: start + slice.length < all.length,
+  });
+});
+
+app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
+  const { streamId } = req.params;
+  const { sender, text } = req.body;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream || !stream.isLive) {
+    return res.status(404).json({ error: 'Stream has ended.' });
+  }
+  if (!sender || !sender.id) {
+    return res.status(400).json({ error: 'Authenticated sender required.' });
+  }
+  const cleanText = sanitizeText(text, 300);
+  if (!cleanText) {
+    return res.status(400).json({ error: 'Comment cannot be empty.' });
+  }
+
+  const now = Date.now();
+  const lastAt = lastCommentTimeMap.get(sender.id) || 0;
+  if (now - lastAt < 750) {
+    return res.status(429).json({ error: 'Rate limit exceeded. Please wait before commenting again.' });
+  }
+  lastCommentTimeMap.set(sender.id, now);
+
+  stream.commentsCount += 1;
+  const metric = ensureBroadcasterMetric(stream.host);
+  if (metric) metric.totalComments += 1;
+
+  const msg = {
+    id: `lc_${now}_${Math.random().toString(36).substring(2, 6)}`,
+    senderId: sender.id,
+    senderName: sender.name || 'Viewer',
+    senderAvatar: sender.avatar || '',
+    senderVip: sender.vipLevel || 0,
+    isHost: sender.id === stream.host.id,
+    text: cleanText,
+    timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    createdAtMillis: now,
+  };
+  stream.comments.push(msg);
+  if (stream.comments.length > 200) stream.comments.shift();
+
+  broadcastToLive(streamId, 'live:comment', { streamId, message: msg, commentsCount: stream.commentsCount });
+  res.json({ success: true, message: msg });
+});
+
+app.post('/api/live/:streamId/heart', (req: Request, res: Response) => {
+  const { streamId } = req.params;
+  const { senderId, count = 1 } = req.body;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream || !stream.isLive) {
+    return res.status(404).json({ error: 'Stream has ended.' });
+  }
+  const now = Date.now();
+  const lastAt = lastHeartTimeMap.get(senderId || 'anon') || 0;
+  if (now - lastAt < 180) {
+    return res.json({ success: true, likesCount: stream.likesCount });
+  }
+  lastHeartTimeMap.set(senderId || 'anon', now);
+
+  const delta = Math.min(Math.max(1, Number(count) || 1), 10);
+  stream.likesCount += delta;
+  const metric = ensureBroadcasterMetric(stream.host);
+  if (metric) metric.totalLikes += delta;
+
+  broadcastToLive(streamId, 'live:heart', { streamId, likesCount: stream.likesCount, delta });
+  res.json({ success: true, likesCount: stream.likesCount });
+});
+
+app.post('/api/live/:streamId/gift', (req: Request, res: Response) => {
+  const { streamId } = req.params;
+  const { sender, recipient, gift, quantity = 1 } = req.body;
+  const stream = liveStreamsMap.get(streamId);
+  if (!stream || !stream.isLive) {
+    return res.status(404).json({ error: 'Stream has ended.' });
+  }
+  const qty = Math.max(1, Number(quantity) || 1);
+  const totalCoins = Math.max(0, Number(gift?.coins || 0) * qty);
+  stream.giftsCoinValue += totalCoins;
+
+  const targetHost = recipient?.id ? recipient : stream.host;
+  const metric = ensureBroadcasterMetric(targetHost);
+  if (metric) {
+    metric.giftsCoinValue += totalCoins;
+    metric.giftsCount += qty;
+  }
+  if (sender?.id) {
+    const cRec = contributorMetricsMap.get(sender.id) || {
+      user: sender,
+      coinsSpent: 0,
+      giftsSentCount: 0,
+      lastActiveAt: Date.now(),
+    };
+    cRec.user = { ...cRec.user, ...sender };
+    cRec.coinsSpent += totalCoins;
+    cRec.giftsSentCount += qty;
+    cRec.lastActiveAt = Date.now();
+    contributorMetricsMap.set(sender.id, cRec);
+  }
+
+  const eventPayload = {
+    streamId,
+    sender,
+    recipient: targetHost,
+    gift,
+    quantity: qty,
+    totalCoins,
+    timestamp: Date.now(),
+  };
+  broadcastToLive(streamId, 'live:gift', eventPayload);
+  res.json({ success: true, ...eventPayload });
+});
+
+// --- CONFIGURABLE BROADCASTER RANKINGS & ADMIN CONTROLS ---
+
+function computeWeightedBroadcasterScore(rec: BroadcasterMetricRecord): number {
+  const giftPart = rec.giftsCoinValue * rankingConfig.giftValueWeight;
+  const viewerPart = rec.uniqueViewerIds.size * rankingConfig.uniqueViewerWeight;
+  const engagementPart = (rec.totalLikes + rec.totalComments * 3) * rankingConfig.engagementWeight;
+  const livePart = rec.isCurrentlyLive ? rankingConfig.activeLiveBoost : 0;
+  return Math.round(giftPart + viewerPart + engagementPart + livePart);
+}
+
+app.get('/api/rankings/top-broadcasters', (_req: Request, res: Response) => {
+  const entries = Array.from(broadcasterMetricsMap.values())
+    .map((rec) => {
+      const activeStream = Array.from(liveStreamsMap.values()).find((s) => s.host?.id === rec.user.id);
+      const isCurrentlyLive = Boolean(activeStream);
+      const computedScore = computeWeightedBroadcasterScore({ ...rec, isCurrentlyLive });
+      return {
+        user: rec.user,
+        score: computedScore,
+        formattedScore: formatCompactCount(computedScore),
+        liveStreamId: activeStream?.id,
+        isCurrentlyLive,
+        breakdown: {
+          giftsCoinValue: rec.giftsCoinValue,
+          uniqueViewers: rec.uniqueViewerIds.size,
+          totalLikes: rec.totalLikes,
+          totalComments: rec.totalComments,
+        },
+      };
+    })
+    .filter((entry) => entry.score > 0 || entry.isCurrentlyLive)
+    .sort((a, b) => b.score - a.score || (b.isCurrentlyLive ? 1 : 0) - (a.isCurrentlyLive ? 1 : 0))
+    .slice(0, 2)
+    .map((entry, idx) => ({
+      rank: idx + 1,
+      ...entry,
+    }));
+
+  res.json({ broadcasters: entries, config: rankingConfig });
+});
+
+app.get('/api/rankings', (req: Request, res: Response) => {
+  const tab = String(req.query.tab || 'Star');
+  const userId = String(req.query.userId || '');
+
+  let list: any[] = [];
+  if (tab === 'Star') {
+    list = Array.from(broadcasterMetricsMap.values())
+      .map((rec) => {
+        const isLive = Array.from(liveStreamsMap.values()).some((s) => s.host?.id === rec.user.id);
+        const numericScore = computeWeightedBroadcasterScore({ ...rec, isCurrentlyLive: isLive });
+        return {
+          user: rec.user,
+          numericScore,
+          score: formatCompactCount(numericScore),
+          isLive,
+        };
+      })
+      .filter((e) => e.numericScore > 0 || e.isLive)
+      .sort((a, b) => b.numericScore - a.numericScore);
+  } else if (tab === 'Contribution') {
+    list = Array.from(contributorMetricsMap.values())
+      .map((rec) => ({
+        user: rec.user,
+        numericScore: rec.coinsSpent,
+        score: formatCompactCount(rec.coinsSpent),
+      }))
+      .filter((e) => e.numericScore > 0)
+      .sort((a, b) => b.numericScore - a.numericScore);
+  } else {
+    list = Array.from(serverUsers.values())
+      .map((u) => {
+        const coinsSpent = contributorMetricsMap.get(u.id)?.coinsSpent || 0;
+        const levelVal = u.level || 1;
+        const vipVal = u.vipLevel || 0;
+        const numericScore = coinsSpent + vipVal * 10000 + levelVal * 100;
+        return {
+          user: u,
+          numericScore,
+          score: vipVal > 0 ? `VIP ${vipVal} • ${formatCompactCount(numericScore)}` : `Lv.${levelVal} • ${formatCompactCount(numericScore)}`,
+        };
+      })
+      .filter((e) => e.numericScore > 0)
+      .sort((a, b) => b.numericScore - a.numericScore);
+  }
+
+  const rankings = list.map((item, idx) => ({
+    rank: idx + 1,
+    user: item.user,
+    score: item.score,
+    numericScore: item.numericScore,
+    badge: idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : undefined,
+    trend: 'same',
+  }));
+
+  const myIndex = userId ? rankings.findIndex((r) => r.user.id === userId) : -1;
+  res.json({
+    rankings,
+    myRank: myIndex >= 0 ? myIndex + 1 : null,
+    totalCount: rankings.length,
+    config: rankingConfig,
+  });
+});
+
+app.get('/api/admin/ranking-config', (_req: Request, res: Response) => {
+  res.json({ config: rankingConfig });
+});
+
+app.put('/api/admin/ranking-config', (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Admin access required to update ranking weights.' });
+  }
+
+  const { giftValueWeight, uniqueViewerWeight, engagementWeight, activeLiveBoost } = req.body;
+  rankingConfig = {
+    giftValueWeight: Math.max(0, Number(giftValueWeight ?? rankingConfig.giftValueWeight)),
+    uniqueViewerWeight: Math.max(0, Number(uniqueViewerWeight ?? rankingConfig.uniqueViewerWeight)),
+    engagementWeight: Math.max(0, Number(engagementWeight ?? rankingConfig.engagementWeight)),
+    activeLiveBoost: Math.max(0, Number(activeLiveBoost ?? rankingConfig.activeLiveBoost)),
+    updatedAt: new Date().toISOString(),
+    updatedBy: req.firebaseUser.email || req.firebaseUser.uid,
+  };
+
+  broadcastAll('rankings:config_updated', { config: rankingConfig });
+  res.json({ success: true, config: rankingConfig });
 });
 
 // --- AGORA RTC TOKEN GENERATION & CONFIG ENDPOINTS ---
