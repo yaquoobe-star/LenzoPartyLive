@@ -9,13 +9,15 @@ const FRONTEND_PRODUCTION_HOSTS = new Set([
 
 /**
  * Resolve the Railway Backend API base URL across Web, Cloudflare Production, and Capacitor Android.
- * - If VITE_API_BASE_URL is explicitly defined, always honor it.
+ * - If VITE_RAILWAY_API_URL or VITE_API_BASE_URL is explicitly defined, always honor it.
  * - On Native Android/iOS (Capacitor WebView runs at https://localhost), use https://api.lenzoparty.com.
  * - On Cloudflare-hosted Web frontend (lenzoparty.com / www.lenzoparty.com), use https://api.lenzoparty.com.
  * - On AI Studio Preview (*.run.app) or localhost:3000 (where Express + Vite share origin), use relative paths.
  */
 export function getApiBaseUrl(): string {
-  const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
+  const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
+  const legacyBase = import.meta.env.VITE_API_BASE_URL;
+  const envBase = railwayUrl || legacyBase;
   if (envBase && envBase.trim().length > 0) {
     return envBase.trim().replace(/\/+$/, '');
   }

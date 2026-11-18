@@ -204,6 +204,7 @@ export async function checkRedirectAuthOutcome(): Promise<RedirectAuthOutcome> {
         fullName: result.user.displayName || undefined,
         profileImage: result.user.photoURL || undefined,
       });
+      await syncBackendAuthSession(result.user);
       return { profile: mapFirestoreUserToProfile(firestoreData, result.user) };
     }
     return { profile: null };
@@ -382,6 +383,7 @@ export async function registerWithEmail(params: {
       profileImage: chosenAvatar,
     });
 
+    await syncBackendAuthSession(user);
     const profile = mapFirestoreUserToProfile(firestoreData, user);
     return { user, profile };
   } catch (error: any) {
@@ -420,6 +422,7 @@ export async function loginWithEmail(
 
     // Sync lastLogin in Firestore
     const firestoreData = await syncUserInFirestore(user, 'password');
+    await syncBackendAuthSession(user);
     const profile = mapFirestoreUserToProfile(firestoreData, user);
     return { user, profile };
   } catch (error: any) {

@@ -48,6 +48,7 @@ app.use((req, res, next) => {
   } else {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Platform');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -470,9 +471,13 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'lenzo-party-live-backend',
+    nodeVersion: process.version,
+    environment: process.env.NODE_ENV || 'development',
     firebaseProjectId: FIREBASE_PROJECT_ID,
     firestoreDatabaseId: FIRESTORE_DATABASE_ID,
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
+    activeWebSocketClients: pkWss.clients.size,
+    uptimeSeconds: Math.floor(process.uptime()),
     timestamp: Date.now(),
   });
 });
@@ -1547,7 +1552,10 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
 async function startServer() {
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req: Request, res: Response) => {
+    app.get('*', (req: Request, res: Response) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+      }
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   } else {
