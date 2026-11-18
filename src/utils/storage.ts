@@ -49,11 +49,10 @@ export function getInitialUserProfile(): UserProfile {
 export function saveStoredUserProfile(profile: UserProfile): void {
   if (typeof window === 'undefined') return;
   try {
-    // Security check: Guard protected fields
     const safeProfile: UserProfile = {
       ...profile,
-      id: CURRENT_USER.id, // Immutable internal ID
-      displayId: CURRENT_USER.displayId, // Immutable unique account ID
+      id: profile.id || CURRENT_USER.id,
+      displayId: profile.displayId || CURRENT_USER.displayId,
     };
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(safeProfile));
   } catch (err) {

@@ -106,6 +106,12 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
 
+          echo "=== 0. Verify Firebase google-services.json ==="
+          if [ ! -f android/app/google-services.json ]; then
+            echo "::error::android/app/google-services.json is missing!"
+            exit 1
+          fi
+
           echo "=== 1. Verify APK Signature (apksigner) ==="
           "$APKSIGNER" verify --verbose --print-certs dist-android/app-release.apk > apk_verify.txt
           cat apk_verify.txt
@@ -115,11 +121,13 @@ jobs:
             exit 1
           fi
 
+          APK_SHA1=$(grep -i "Signer #1 certificate SHA-1 digest:" apk_verify.txt | awk '{print tolower($NF)}' | head -n 1)
           APK_SHA256=$(grep -i "Signer #1 certificate SHA-256 digest:" apk_verify.txt | awk '{print tolower($NF)}' | head -n 1)
           if [ -z "$APK_SHA256" ]; then
             echo "::error::Failed to extract APK SHA-256 signing certificate digest."
             exit 1
           fi
+          echo "APK Signer SHA-1: $APK_SHA1"
           echo "APK Signer SHA-256: $APK_SHA256"
 
           echo "=== 2. Check APK Package ID & Version ==="

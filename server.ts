@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
@@ -11,9 +12,14 @@ const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraToke
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'confident-drake-3bcxw';
+const FIRESTORE_DATABASE_ID =
+  process.env.FIRESTORE_DATABASE_ID ||
+  'ai-studio-lenzopartylive-752abd83-49ce-4746-993c-862081735425';
+
 const app = express();
 const server = http.createServer(app);
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 server.on('error', (err) => {
   console.error('HTTP server error:', err);
@@ -21,28 +27,112 @@ server.on('error', (err) => {
 
 app.use(express.json());
 
-// CORS Middleware supporting custom domain https://lenzoparty.com, local dev, and cloud run
+// CORS Middleware supporting Cloudflare frontend (lenzoparty.com), Railway API (api.lenzoparty.com),
+// Capacitor Android WebView (https://localhost / capacitor://localhost), local dev, and Cloud Run
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedOrigins = [
+  const allowedOrigins = new Set([
     'https://lenzoparty.com',
     'https://www.lenzoparty.com',
+    'https://api.lenzoparty.com',
+    'https://linzoparty.live',
+    'https://www.linzoparty.live',
+    'https://localhost',
+    'http://localhost',
+    'capacitor://localhost',
     'http://localhost:3000',
     'http://localhost:5173',
-  ];
-  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.run.app'))) {
+  ]);
+  if (origin && (allowedOrigins.has(origin) || origin.endsWith('.run.app') || origin.endsWith('.pages.dev'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
+  } else if (!origin) {
     res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Platform');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
+
+// Cached Google x509 certificates for verifying Firebase Auth ID tokens without IAM credentials
+let cachedFirebaseCerts: Record<string, string> = {};
+let certsExpiresAt = 0;
+
+async function getFirebasePublicCerts(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (now < certsExpiresAt && Object.keys(cachedFirebaseCerts).length > 0) {
+    return cachedFirebaseCerts;
+  }
+  const resp = await fetch(
+    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+  );
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch Firebase public keys (${resp.status})`);
+  }
+  const cacheControl = resp.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+  const maxAgeMs = maxAgeMatch ? Number(maxAgeMatch[1]) * 1000 : 3600 * 1000;
+  cachedFirebaseCerts = (await resp.json()) as Record<string, string>;
+  certsExpiresAt = now + maxAgeMs;
+  return cachedFirebaseCerts;
+}
+
+async function verifyFirebaseBearerToken(authHeader?: string) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.slice(7).trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new Error('Malformed JWT');
+  }
+  const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+
+  if (header.alg !== 'RS256' || !header.kid) {
+    throw new Error('Unsupported JWT algorithm or missing key ID');
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (payload.aud !== FIREBASE_PROJECT_ID) {
+    throw new Error('Firebase token audience mismatch');
+  }
+  if (payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`) {
+    throw new Error('Firebase token issuer mismatch');
+  }
+  if (!payload.sub || typeof payload.sub !== 'string') {
+    throw new Error('Firebase token subject missing');
+  }
+  if (typeof payload.exp !== 'number' || payload.exp <= nowSec) {
+    throw new Error('Firebase token expired');
+  }
+
+  const certs = await getFirebasePublicCerts();
+  const pem = certs[header.kid];
+  if (!pem) {
+    throw new Error('Unknown Firebase signing key ID');
+  }
+  const verifier = crypto.createVerify('RSA-SHA256');
+  verifier.update(`${parts[0]}.${parts[1]}`);
+  verifier.end();
+  const isValid = verifier.verify(pem, Buffer.from(parts[2], 'base64url'));
+  if (!isValid) {
+    throw new Error('Invalid Firebase token signature');
+  }
+
+  return {
+    uid: payload.sub as string,
+    email: (payload.email as string) || '',
+    emailVerified: Boolean(payload.email_verified),
+    name: (payload.name as string) || '',
+    picture: (payload.picture as string) || '',
+    signInProvider: payload.firebase?.sign_in_provider || 'unknown',
+  };
+}
 
 // In-Memory PK Match State (Authoritative Server Store)
 interface PKParticipant {
@@ -376,6 +466,50 @@ setInterval(() => {
 }, 1000);
 
 // REST API Endpoints
+
+// 0. Health & Ecosystem Verification Endpoint (Railway + Cloudflare + Android)
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'lenzo-party-live-backend',
+    firebaseProjectId: FIREBASE_PROJECT_ID,
+    firestoreDatabaseId: FIRESTORE_DATABASE_ID,
+    agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
+    timestamp: Date.now(),
+  });
+});
+
+// 0b. Firebase Auth Session Verification Endpoint
+app.get('/api/auth/verify', async (req: Request, res: Response) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ authenticated: false, error: 'Missing Bearer token' });
+    }
+    return res.json({ authenticated: true, user: verified, firebaseProjectId: FIREBASE_PROJECT_ID });
+  } catch (err: any) {
+    return res.status(401).json({ authenticated: false, error: err?.message || 'Invalid token' });
+  }
+});
+
+app.post('/api/auth/session', async (req: Request, res: Response) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ authenticated: false, error: 'Missing Bearer token' });
+    }
+    return res.json({
+      authenticated: true,
+      uid: verified.uid,
+      email: verified.email,
+      emailVerified: verified.emailVerified,
+      provider: verified.signInProvider,
+      firebaseProjectId: FIREBASE_PROJECT_ID,
+    });
+  } catch (err: any) {
+    return res.status(401).json({ authenticated: false, error: err?.message || 'Invalid Firebase ID token' });
+  }
+});
 
 // 1. Get eligible active hosts
 app.get('/api/pk/hosts', (req: Request, res: Response) => {
@@ -1088,10 +1222,10 @@ app.get('/api/users/check_username', (req: Request, res: Response) => {
 app.get('/api/users/:id', (req: Request, res: Response) => {
   initServerUsers();
   const userId = req.params.id;
-  const user = serverUsers.get(userId) || serverUsers.get('user_current_01');
+  const user = serverUsers.get(userId);
 
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({ error: 'User not found in backend memory cache' });
   }
 
   const followers = userFollowersMap.get(userId) || new Set();
@@ -1114,13 +1248,25 @@ app.get('/api/users/:id', (req: Request, res: Response) => {
 app.put('/api/users/:id', (req: Request, res: Response) => {
   initServerUsers();
   const userId = req.params.id;
-  const existing = serverUsers.get(userId) || serverUsers.get('user_current_01');
+  const existing = serverUsers.get(userId) || {
+    id: userId,
+    displayId: userId.substring(0, 6).toUpperCase(),
+    name: req.body?.name || 'Lenzo Creator',
+    username: req.body?.username || `@${userId.slice(0, 8).toLowerCase()}`,
+    avatar: req.body?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    coverImage: req.body?.coverImage || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
+    bio: req.body?.bio || '',
+    level: 1,
+    vipLevel: 1,
+    isVIP: false,
+    coins: 5000,
+    diamonds: 0,
+    gender: 'unspecified',
+    country: 'Global',
+    birthday: '',
+  };
 
-  if (!existing) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const { name, username, bio, avatar, gender, country, birthday } = req.body;
+  const { name, username, bio, avatar, coverImage, gender, country, birthday } = req.body;
 
   if (username) {
     const clean = String(username).toLowerCase().trim().replace(/^@/, '');
@@ -1135,6 +1281,7 @@ app.put('/api/users/:id', (req: Request, res: Response) => {
   if (name) existing.name = String(name).trim();
   if (typeof bio === 'string') existing.bio = bio.trim();
   if (avatar) existing.avatar = avatar;
+  if (coverImage) existing.coverImage = coverImage;
   if (gender) existing.gender = gender;
   if (country) existing.country = country;
   if (birthday) existing.birthday = birthday;

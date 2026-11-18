@@ -371,6 +371,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setAuthenticatedUid(firebaseUser ? firebaseUser.uid : null);
       if (firebaseUser) {
+        setCurrentScreen((prev) => (prev === 'auth' ? 'home' : prev));
         try {
           const profile = await fetchCurrentFirestoreProfile(firebaseUser.uid);
           if (profile) {

@@ -1,6 +1,6 @@
 {
   "appId": "com.linzo.partylive",
-  "appName": "Linzo Party Live",
+  "appName": "Lenzo Party Live",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
@@ -8,6 +8,7 @@
     "cleartext": true,
     "allowNavigation": [
       "lenzoparty.com",
+      "api.lenzoparty.com",
       "*.lenzoparty.com",
       "*.firebaseapp.com",
       "*.googleapis.com",

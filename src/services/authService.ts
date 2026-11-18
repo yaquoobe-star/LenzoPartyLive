@@ -1,6 +1,7 @@
 import {
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
@@ -12,7 +13,6 @@ import {
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
-  onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -21,8 +21,22 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { apiFetch } from '../utils/apiConfig';
 import { UserProfile } from '../types';
+
+interface NativeGoogleAuthPlugin {
+  signIn(): Promise<{
+    idToken: string;
+    email?: string;
+    displayName?: string;
+    photoUrl?: string;
+  }>;
+  signOut(): Promise<void>;
+}
+
+const NativeGoogleAuth = registerPlugin<NativeGoogleAuthPlugin>('NativeGoogleAuth');
 
 export interface FirestoreUserData {
   uid: string;
@@ -99,6 +113,15 @@ export function mapFirestoreUserToProfile(
   };
 }
 
+export const FIREBASE_AUTH_SETTINGS_URL =
+  'https://console.firebase.google.com/project/confident-drake-3bcxw/authentication/settings';
+
+function normalizeDisplayName(rawName?: string | null, fallback: string = 'Lenzo User'): string {
+  const cleaned = (rawName || fallback).trim().replace(/\s+/g, ' ');
+  if (cleaned.length < 2) return fallback;
+  return cleaned.slice(0, 60);
+}
+
 /**
  * Create or sync user in Firestore `users/{uid}`
  */
@@ -121,8 +144,8 @@ export async function syncUserInFirestore(
         isOnline: true,
       };
 
-      if (extra?.fullName && !existingData.fullName) {
-        updatePayload.fullName = extra.fullName;
+      if (!existingData.fullName || existingData.fullName.trim().length < 2) {
+        updatePayload.fullName = normalizeDisplayName(extra?.fullName || user.displayName, 'Lenzo User');
       }
       if (extra?.profileImage && !existingData.profileImage) {
         updatePayload.profileImage = extra.profileImage;
@@ -135,11 +158,12 @@ export async function syncUserInFirestore(
       };
     } else {
       // New user: create comprehensive Firestore record
+      const safeFullName = normalizeDisplayName(extra?.fullName || user.displayName, 'Lenzo User');
       const newUserData: FirestoreUserData = {
         uid: user.uid,
-        fullName: extra?.fullName || user.displayName || 'Lenzo User',
-        email: user.email || '',
-        profileImage: extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)],
+        fullName: safeFullName,
+        email: (user.email || '').slice(0, 120),
+        profileImage: (extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]).slice(0, 1500),
         authProvider: authProvider,
         createdAt: now,
         lastLogin: now,
@@ -162,10 +186,16 @@ export async function syncUserInFirestore(
   }
 }
 
+export interface RedirectAuthOutcome {
+  profile: UserProfile | null;
+  error?: string;
+  unauthorizedDomain?: string;
+}
+
 /**
- * Check if the user is returning from a Google redirect authentication flow
+ * Check if the user is returning from a Google redirect authentication flow (with error reporting)
  */
-export async function checkRedirectAuthResult(): Promise<UserProfile | null> {
+export async function checkRedirectAuthOutcome(): Promise<RedirectAuthOutcome> {
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
@@ -174,30 +204,101 @@ export async function checkRedirectAuthResult(): Promise<UserProfile | null> {
         fullName: result.user.displayName || undefined,
         profileImage: result.user.photoURL || undefined,
       });
-      return mapFirestoreUserToProfile(firestoreData, result.user);
+      return { profile: mapFirestoreUserToProfile(firestoreData, result.user) };
     }
+    return { profile: null };
   } catch (err: any) {
     console.error('[Google Redirect Result Error]:', err);
     if (err.code === 'auth/unauthorized-domain') {
-      console.error(
-        `[Firebase Auth] Domain unauthorized: "${window.location.hostname}" must be added to Authorized domains in Firebase Console (project confident-drake-3bcxw).`
-      );
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com';
+      return {
+        profile: null,
+        unauthorizedDomain: currentHost,
+        error: `Google Sign-In is blocked because "${currentHost}" is not yet added to Firebase Console Authorized Domains.`,
+      };
     }
+    return {
+      profile: null,
+      error: err?.message || 'Google authentication redirect failed.',
+    };
   }
-  return null;
 }
 
 /**
- * REAL Google Sign-In via Firebase (supports popup and seamless mobile redirect)
+ * Check if the user is returning from a Google redirect authentication flow
+ */
+export async function checkRedirectAuthResult(): Promise<UserProfile | null> {
+  const outcome = await checkRedirectAuthOutcome();
+  return outcome.profile;
+}
+
+async function syncBackendAuthSession(user: FirebaseUser): Promise<void> {
+  try {
+    const idToken = await user.getIdToken();
+    if (!idToken) return;
+    await apiFetch('/api/auth/session', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        'X-Platform': Capacitor.isNativePlatform() ? 'android' : 'web',
+      },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email || '',
+        platform: Capacitor.isNativePlatform() ? 'android' : 'web',
+      }),
+    });
+  } catch (err) {
+    console.warn('[Backend Auth Sync] Non-blocking notice:', err);
+  }
+}
+
+/**
+ * REAL Google Sign-In via Native Android Credential/Play Services OR Firebase Web Popup/Redirect
+ * Both platforms authenticate into the exact same Firebase project (`confident-drake-3bcxw`) and Firestore DB.
  */
 export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile: UserProfile } | null> {
   try {
-    // Ensure local persistence for Google login
     await setPersistence(auth, browserLocalPersistence);
+
+    // 1. Native Android (Capacitor): use Google Play Services Native Account Picker -> Firebase signInWithCredential
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      try {
+        const nativeRes = await NativeGoogleAuth.signIn();
+        if (!nativeRes?.idToken) {
+          throw new Error('Google Sign-In did not return an ID token.');
+        }
+
+        const credential = GoogleAuthProvider.credential(nativeRes.idToken);
+        const result = await signInWithCredential(auth, credential);
+        const user = result.user;
+
+        const firestoreData = await syncUserInFirestore(user, 'google', {
+          fullName: nativeRes.displayName || user.displayName || undefined,
+          profileImage: nativeRes.photoUrl || user.photoURL || undefined,
+        });
+
+        await syncBackendAuthSession(user);
+        const profile = mapFirestoreUserToProfile(firestoreData, user);
+        return { user, profile };
+      } catch (nativeErr: any) {
+        const rawMsg = String(nativeErr?.message || nativeErr || '');
+        if (rawMsg.includes('CANCELLED') || rawMsg.includes('12501')) {
+          throw new Error('Google Sign-In was cancelled.');
+        }
+        if (rawMsg.includes('DEVELOPER_ERROR') || rawMsg.includes('status code: 10') || rawMsg.includes('code=10')) {
+          throw new Error(
+            'Android Google OAuth SHA-1 mismatch (code 10). Add SHA-1 "FD:CB:00:31:00:EB:BE:8E:C9:D6:89:35:50:58:14:48:BB:03:98:59" to Firebase Console -> Project Settings -> Android App (com.linzo.partylive), then download updated google-services.json.'
+          );
+        }
+        throw nativeErr;
+      }
+    }
+
+    // 2. Web Browser (lenzoparty.com & AI Studio preview): Firebase Google Popup + Redirect fallback
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    // On mobile devices or browsers that strictly restrict popups, attempt popup first, fallback to redirect
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -207,13 +308,14 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
         profileImage: user.photoURL || undefined,
       });
 
+      await syncBackendAuthSession(user);
       const profile = mapFirestoreUserToProfile(firestoreData, user);
       return { user, profile };
     } catch (popupError: any) {
-      // If popup was blocked by browser (especially on mobile), automatically initiate redirect
       if (
         popupError.code === 'auth/popup-blocked' ||
         popupError.code === 'auth/cancelled-popup-request' ||
+        popupError.code === 'auth/operation-not-supported-in-this-environment' ||
         popupError.code === 'auth/internal-error'
       ) {
         console.warn('[Google Auth] Popup restricted, falling back to full-page redirect flow...');
@@ -228,9 +330,16 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
       throw new Error('Google Sign-In was cancelled.');
     } else if (error.code === 'auth/unauthorized-domain') {
       const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com';
-      throw new Error(
-        `Domain unauthorized (${currentHost}). Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+      const domainError: any = new Error(
+        `Google Sign-In blocked on "${currentHost}". Add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains, or sign in with Email below.`
       );
+      domainError.code = 'auth/unauthorized-domain';
+      domainError.unauthorizedDomain = currentHost;
+      throw domainError;
+    } else if (error.code === 'auth/account-exists-with-different-credential') {
+      throw new Error('An account already exists with this email using password login. Please sign in with Email.');
+    } else if (error.code === 'auth/user-disabled') {
+      throw new Error('This account has been disabled. Please contact support.');
     } else if (error.code === 'auth/network-request-failed') {
       throw new Error('Network error. Please check your internet connection.');
     }
@@ -283,6 +392,8 @@ export async function registerWithEmail(params: {
       throw new Error('Password should be at least 6 characters.');
     } else if (error.code === 'auth/invalid-email') {
       throw new Error('Please enter a valid email address.');
+    } else if (error.code === 'auth/operation-not-allowed') {
+      throw new Error('Email/Password sign-in is disabled in Firebase Console. Enable it under Authentication -> Sign-in method, or use Google Login.');
     } else if (error.code === 'auth/network-request-failed') {
       throw new Error('Network error. Please check your internet connection.');
     }
@@ -321,6 +432,8 @@ export async function loginWithEmail(
       throw new Error('Invalid email or password. Please check your credentials.');
     } else if (error.code === 'auth/invalid-email') {
       throw new Error('Please enter a valid email address.');
+    } else if (error.code === 'auth/operation-not-allowed') {
+      throw new Error('Email/Password sign-in is disabled in Firebase Console. Enable it under Authentication -> Sign-in method, or use Google Login.');
     } else if (error.code === 'auth/too-many-requests') {
       throw new Error('Too many failed login attempts. Please reset your password or try again later.');
     } else if (error.code === 'auth/network-request-failed') {
@@ -365,6 +478,9 @@ export async function logoutUser(): Promise<void> {
     if (auth.currentUser) {
       const userRef = doc(db, 'users', auth.currentUser.uid);
       await updateDoc(userRef, { isOnline: false }).catch(() => {});
+    }
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      await NativeGoogleAuth.signOut().catch(() => {});
     }
     await signOut(auth);
   } catch (error: any) {

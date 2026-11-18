@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.linzo.partylive",
+      "sha256_cert_fingerprints": [
+        "3D:27:1A:F9:93:17:40:2F:C2:EF:3F:79:0E:2A:04:1F:1D:38:15:D5:23:2D:3C:7D:00:B2:7F:6D:57:F2:75:2F"
+      ]
+    }
+  }
+]

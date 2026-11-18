@@ -21,11 +21,12 @@ import {
 import { LonzoLogo } from '../common/LonzoLogo';
 import { 
   signInWithGoogle, 
-  checkRedirectAuthResult,
+  checkRedirectAuthOutcome,
   registerWithEmail, 
   loginWithEmail, 
   resetPassword, 
   resendVerification,
+  FIREBASE_AUTH_SETTINGS_URL,
   DEFAULT_AVATARS 
 } from '../../services/authService';
 import { UserProfile } from '../../types';
@@ -63,6 +64,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unauthorizedHost, setUnauthorizedHost] = useState<string | null>(null);
+  const [copiedHost, setCopiedHost] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Terms and Privacy modals
@@ -76,6 +79,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Clear messages when switching views
   const navigateTo = (screen: AuthSubScreen) => {
     setErrorMessage(null);
+    setUnauthorizedHost(null);
     setSuccessMessage(null);
     setSubScreen(screen);
   };
@@ -83,12 +87,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Check for Google redirect result on component mount (for mobile/custom domain redirect flows)
   useEffect(() => {
     let active = true;
-    checkRedirectAuthResult().then((profile) => {
-      if (active && profile) {
-        setSuccessMessage(`Welcome to Linzo Party Live, ${profile.name}! ✨`);
+    checkRedirectAuthOutcome().then((outcome) => {
+      if (!active) return;
+      if (outcome.profile) {
+        setSuccessMessage(`Welcome to Linzo Party Live, ${outcome.profile.name}! ✨`);
         setTimeout(() => {
-          onSuccess(profile);
+          onSuccess(outcome.profile!);
         }, 500);
+      } else if (outcome.error) {
+        if (outcome.unauthorizedDomain) {
+          setUnauthorizedHost(outcome.unauthorizedDomain);
+        }
+        setErrorMessage(outcome.error);
       }
     });
     return () => {
@@ -100,6 +110,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleGoogleAuth = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
+    setUnauthorizedHost(null);
     try {
       const authResult = await signInWithGoogle();
       if (!authResult) {
@@ -112,6 +123,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         onSuccess(profile);
       }, 500);
     } catch (err: any) {
+      if (err?.code === 'auth/unauthorized-domain' || err?.unauthorizedDomain) {
+        const host = err.unauthorizedDomain || (typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com');
+        setUnauthorizedHost(host);
+      }
       setErrorMessage(err.message || 'Google Authentication failed. Please try again.');
     } finally {
       setIsGoogleLoading(false);
@@ -297,16 +312,51 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         
         {/* Animated Feedback Alerts */}
         {errorMessage && (
-          <div className="w-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs py-2.5 px-3.5 rounded-2xl mb-5 flex items-center gap-2 animate-fade-in">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span className="flex-1 leading-snug">{errorMessage}</span>
-            <button 
-              type="button" 
-              onClick={() => setErrorMessage(null)} 
-              className="text-rose-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+          <div className="w-full bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs py-3 px-3.5 rounded-2xl mb-5 space-y-2.5 animate-fade-in">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+              <span className="flex-1 leading-snug">{errorMessage}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setUnauthorizedHost(null);
+                }}
+                className="text-rose-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {unauthorizedHost && (
+              <div className="pt-2 border-t border-rose-400/25 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigateTo('login')}
+                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white font-bold text-[11px] shadow active:scale-95"
+                >
+                  Login with Email Instead
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(unauthorizedHost).catch(() => {});
+                    setCopiedHost(true);
+                    setTimeout(() => setCopiedHost(false), 2000);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px]"
+                >
+                  {copiedHost ? 'Copied Domain' : `Copy "${unauthorizedHost}"`}
+                </button>
+                <a
+                  href={FIREBASE_AUTH_SETTINGS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-400/20 border border-amber-400/40 text-[#FFC84A] font-semibold text-[11px] hover:bg-amber-400/30"
+                >
+                  Open Firebase Auth Settings
+                </a>
+              </div>
+            )}
           </div>
         )}
 

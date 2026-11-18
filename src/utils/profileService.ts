@@ -1,7 +1,10 @@
 import { UserProfile, VideoItem } from '../types';
 import { CURRENT_USER, MOCK_USERS } from '../data/mockData';
 import { INITIAL_VIDEOS } from '../data/videoData';
-import { apiUrl } from './apiConfig';
+import { apiFetch } from './apiConfig';
+import { auth, db } from '../firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { FirestoreUserData, mapFirestoreUserToProfile } from '../services/authService';
 
 const LOCAL_STORAGE_PROFILE_KEY = 'lonzo_party_user_profile_v2';
 const LOCAL_STORAGE_FOLLOWING_KEY = 'lonzo_party_following_v1';
@@ -130,11 +133,27 @@ class ProfileService {
   }
 
   /**
-   * Fetch user profile from backend API or local cache
+   * Fetch user profile from shared Cloud Firestore first, then backend API or local cache
    */
   async getUserProfile(userId: string): Promise<UserProfile> {
+    // 1. Check shared Cloud Firestore database first when authenticated
+    if (auth.currentUser && userId && /^[a-zA-Z0-9_-]{1,128}$/.test(userId)) {
+      try {
+        const snap = await getDoc(doc(db, 'users', userId));
+        if (snap.exists()) {
+          return mapFirestoreUserToProfile(
+            snap.data() as FirestoreUserData,
+            userId === auth.currentUser.uid ? auth.currentUser : null
+          );
+        }
+      } catch (e) {
+        // Continue to API / local fallback
+      }
+    }
+
+    // 2. Check shared Railway backend API
     try {
-      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}`));
+      const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.user) {
@@ -145,8 +164,8 @@ class ProfileService {
       // Backend unreachable or offline
     }
 
-    // Fallback to local profile or mock user
-    if (userId === this.currentUserId || userId === CURRENT_USER.id) {
+    // 3. Fallback to local cached profile or mock user
+    if (userId === this.currentUserId || userId === CURRENT_USER.id || userId === auth.currentUser?.uid) {
       const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
       if (stored) {
         return { ...CURRENT_USER, ...JSON.parse(stored) };
@@ -184,7 +203,7 @@ class ProfileService {
     }
 
     try {
-      const res = await fetch(apiUrl(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`));
+      const res = await apiFetch(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return data;
@@ -205,38 +224,60 @@ class ProfileService {
   }
 
   /**
-   * Update profile with database validation & persistence
+   * Update profile across Cloud Firestore (shared Web + Android), Railway backend API, and local cache
    */
   async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
-    // 1. Send to backend if available
+    const targetUid = auth.currentUser?.uid || userId;
+    const current = await this.getUserProfile(targetUid);
+    const merged: UserProfile = {
+      ...current,
+      ...updates,
+      id: targetUid,
+      displayId: current.displayId,
+    };
+
+    // 1. Persist directly to shared Cloud Firestore when authenticated
+    if (auth.currentUser && auth.currentUser.uid === targetUid) {
+      try {
+        const fsUpdates: Record<string, any> = {};
+        if (typeof updates.name === 'string' && updates.name.trim().length >= 2) {
+          fsUpdates.fullName = updates.name.trim().slice(0, 60);
+        }
+        if (typeof updates.username === 'string') fsUpdates.username = updates.username.slice(0, 40);
+        if (typeof updates.avatar === 'string') fsUpdates.profileImage = updates.avatar.slice(0, 1500);
+        if (typeof updates.coverImage === 'string') fsUpdates.coverImage = updates.coverImage.slice(0, 1500);
+        if (typeof updates.bio === 'string') fsUpdates.bio = updates.bio.slice(0, 300);
+        if (typeof updates.gender === 'string') fsUpdates.gender = updates.gender.slice(0, 24);
+        if (typeof updates.country === 'string') fsUpdates.country = updates.country.slice(0, 64);
+        if (typeof updates.birthday === 'string') fsUpdates.birthday = updates.birthday.slice(0, 32);
+
+        if (Object.keys(fsUpdates).length > 0) {
+          await updateDoc(doc(db, 'users', targetUid), fsUpdates);
+        }
+      } catch (err) {
+        console.warn('[Firestore] Profile update sync notice:', err);
+      }
+    }
+
+    // 2. Sync to shared backend API if available
     try {
-      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}`), {
+      const res = await apiFetch(`/api/users/${encodeURIComponent(targetUid)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify(merged),
       });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
-        if (data.user) {
+        if (data.user && !auth.currentUser) {
           localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(data.user));
           return data.user;
         }
       }
     } catch (e) {
-      console.warn('Backend update failed, persisting locally:', e);
+      console.warn('Backend profile sync notice:', e);
     }
 
-    // 2. Persist locally
-    const current = await this.getUserProfile(userId);
-    const updated: UserProfile = {
-      ...current,
-      ...updates,
-      id: current.id, // Protected
-      displayId: current.displayId, // Protected
-    };
-
-    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(updated));
-    return updated;
+    localStorage.setItem(LOCAL_STORAGE_PROFILE_KEY, JSON.stringify(merged));
+    return merged;
   }
 
   /**
@@ -244,7 +285,7 @@ class ProfileService {
    */
   async getFollowers(userId: string): Promise<FollowListMember[]> {
     try {
-      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}/followers`));
+      const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/followers`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.followers) return data.followers;
@@ -314,7 +355,7 @@ class ProfileService {
    */
   async getFollowing(userId: string): Promise<FollowListMember[]> {
     try {
-      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(userId)}/following`));
+      const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/following`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.following) return data.following;
@@ -361,9 +402,8 @@ class ProfileService {
       const isCurrentlyFollowing = followingSet.has(targetUserId);
       const action = isCurrentlyFollowing ? 'unfollow' : 'follow';
 
-      const res = await fetch(apiUrl(`/api/users/${encodeURIComponent(targetUserId)}/${action}`), {
+      const res = await apiFetch(`/api/users/${encodeURIComponent(targetUserId)}/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ followerId: currentUserId }),
       });
 

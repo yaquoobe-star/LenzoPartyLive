@@ -7,7 +7,7 @@ import {
   PKGiftEvent, 
   PKLikeEvent 
 } from '../types';
-import { apiUrl, getWsUrl } from './apiConfig';
+import { apiFetch, getWsUrl } from './apiConfig';
 
 type PKEventCallback = (event: string, payload: any) => void;
 
@@ -121,7 +121,7 @@ class PKService {
 
   public async fetchEligibleHosts(): Promise<any[]> {
     try {
-      const res = await fetch(apiUrl('/api/pk/hosts'));
+      const res = await apiFetch('/api/pk/hosts');
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return data.hosts || [];
@@ -188,9 +188,8 @@ class PKService {
     note?: string, 
     autoAccept: boolean = false
   ): Promise<{ invitation: PKMatchInvitation; session?: PKMatchSession }> {
-    const res = await fetch(apiUrl('/api/pk/invite'), {
+    const res = await apiFetch('/api/pk/invite', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fromHost, toHost, note, autoAccept })
     });
 
@@ -204,9 +203,8 @@ class PKService {
   }
 
   public async respondPKInvite(inviteId: string, accept: boolean, responderId: string): Promise<{ success: boolean; session?: PKMatchSession }> {
-    const res = await fetch(apiUrl('/api/pk/respond'), {
+    const res = await apiFetch('/api/pk/respond', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteId, accept, responderId })
     });
 
@@ -219,16 +217,15 @@ class PKService {
   }
 
   public async cancelPKInvite(inviteId: string, hostId: string): Promise<boolean> {
-    const res = await fetch(apiUrl('/api/pk/cancel_invite'), {
+    const res = await apiFetch('/api/pk/cancel_invite', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteId, hostId })
     });
     return res.ok;
   }
 
   public async fetchMatchSession(matchId: string): Promise<{ session: PKMatchSession; serverTime: number }> {
-    const res = await fetch(apiUrl(`/api/pk/session/${matchId}`));
+    const res = await apiFetch(`/api/pk/session/${matchId}`);
     if (!res.ok) {
       throw new Error('Session not found');
     }
@@ -243,9 +240,8 @@ class PKService {
     quantity: number = 1
   ): Promise<{ success: boolean; host1Score: number; host2Score: number; giftEvent: PKGiftEvent }> {
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const res = await fetch(apiUrl('/api/pk/gift'), {
+    const res = await apiFetch('/api/pk/gift', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         matchId,
         sender,
@@ -272,9 +268,8 @@ class PKService {
     y?: number
   ): Promise<void> {
     try {
-      await fetch(apiUrl('/api/pk/like'), {
+      await apiFetch('/api/pk/like', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, recipientId, count, x, y })
       });
     } catch (e) {
@@ -283,16 +278,15 @@ class PKService {
   }
 
   public async forfeitMatch(matchId: string, hostId: string, reason?: string): Promise<void> {
-    await fetch(apiUrl('/api/pk/forfeit'), {
+    await apiFetch('/api/pk/forfeit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ matchId, hostId, reason })
     });
   }
 
   public async fetchMatchHistory(userId: string): Promise<PKMatchHistoryItem[]> {
     try {
-      const res = await fetch(apiUrl(`/api/pk/history/${userId}`));
+      const res = await apiFetch(`/api/pk/history/${userId}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.history && data.history.length > 0) {

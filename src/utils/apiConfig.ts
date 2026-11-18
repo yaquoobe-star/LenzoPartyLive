@@ -1,11 +1,20 @@
 import { Capacitor } from '@capacitor/core';
+import { auth } from '../firebase';
 
-const DEFAULT_NATIVE_API_ORIGIN = 'https://lenzoparty.com';
+const DEFAULT_BACKEND_API_ORIGIN = 'https://api.lenzoparty.com';
+const FRONTEND_PRODUCTION_HOSTS = new Set([
+  'lenzoparty.com',
+  'www.lenzoparty.com',
+  'linzoparty.live',
+  'www.linzoparty.live',
+]);
 
 /**
- * Resolve the API base URL across Web and Native Capacitor Android environments.
- * - On Web (lenzoparty.com, localhost:3000, preview), uses relative paths unless VITE_API_BASE_URL overrides it.
- * - On Native Android/iOS (Capacitor WebView runs at https://localhost), uses VITE_API_BASE_URL or https://lenzoparty.com.
+ * Resolve the Railway Backend API base URL across Web, Cloudflare Production, and Capacitor Android.
+ * - If VITE_API_BASE_URL is explicitly defined, always honor it.
+ * - On Native Android/iOS (Capacitor WebView runs at https://localhost), use https://api.lenzoparty.com.
+ * - On Cloudflare-hosted Web frontend (lenzoparty.com / www.lenzoparty.com), use https://api.lenzoparty.com.
+ * - On AI Studio Preview (*.run.app) or localhost:3000 (where Express + Vite share origin), use relative paths.
  */
 export function getApiBaseUrl(): string {
   const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
@@ -13,8 +22,15 @@ export function getApiBaseUrl(): string {
     return envBase.trim().replace(/\/+$/, '');
   }
 
-  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
-    return DEFAULT_NATIVE_API_ORIGIN;
+  if (typeof window !== 'undefined') {
+    if (Capacitor.isNativePlatform()) {
+      return DEFAULT_BACKEND_API_ORIGIN;
+    }
+
+    const host = window.location.hostname.toLowerCase();
+    if (FRONTEND_PRODUCTION_HOSTS.has(host)) {
+      return DEFAULT_BACKEND_API_ORIGIN;
+    }
   }
 
   return '';
@@ -30,7 +46,35 @@ export function apiUrl(path: string): string {
 }
 
 /**
- * Build a WebSocket URL matching either the explicit/native API origin or current browser host.
+ * Perform an authenticated API request to the shared Express backend (Railway / local server),
+ * automatically attaching the current Firebase User's ID Token as a Bearer token when available.
+ */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  try {
+    const user = auth.currentUser;
+    if (user && !headers.has('Authorization')) {
+      const idToken = await user.getIdToken();
+      if (idToken) {
+        headers.set('Authorization', `Bearer ${idToken}`);
+      }
+    }
+  } catch (e) {
+    console.warn('[API] Could not attach Firebase ID token:', e);
+  }
+
+  return fetch(apiUrl(path), {
+    ...init,
+    headers,
+  });
+}
+
+/**
+ * Build a WebSocket URL matching either the Railway/explicit API origin or current browser host.
  */
 export function getWsUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -46,10 +90,10 @@ export function getWsUrl(path: string): string {
     }
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !Capacitor.isNativePlatform()) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${wsProtocol}//${window.location.host}${normalizedPath}`;
   }
 
-  return `wss://lenzoparty.com${normalizedPath}`;
+  return `wss://api.lenzoparty.com${normalizedPath}`;
 }
