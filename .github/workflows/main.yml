@@ -126,9 +126,7 @@ jobs:
                 const fs = require("fs");
                 const fb = JSON.parse(fs.readFileSync("firebase-applet-config.json", "utf8"));
                 const cap = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
-                const androidAppId = (fb.appId || "").includes(":web:")
-                  ? fb.appId.replace(":web:", ":android:")
-                  : (fb.appId || `1:${fb.messagingSenderId}:android:0832836cf24ff0781df43f`);
+                const androidAppId = `1:${fb.messagingSenderId || "238539539886"}:android:16b058b5f0154c3d1df43f`;
                 const googleServices = {
                   project_info: {
                     project_number: String(fb.messagingSenderId || ""),

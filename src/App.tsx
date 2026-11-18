@@ -475,7 +475,7 @@ export default function App() {
 
   // Handler: Splash Completion
   const handleSplashComplete = () => {
-    if (auth.currentUser) {
+    if (auth.currentUser || authenticatedUid) {
       setCurrentScreen('home');
     } else {
       setCurrentScreen('auth');
@@ -496,6 +496,11 @@ export default function App() {
     } catch (e) {
       console.warn('Logout notice:', e);
     }
+    setAuthenticatedUid(null);
+    setCurrentUser(CURRENT_USER);
+    try {
+      localStorage.removeItem('lenzo_party_user_profile_v2');
+    } catch (_) {}
     setCurrentScreen('auth');
     setActiveLiveStream(null);
     setActiveAudioRoom(null);

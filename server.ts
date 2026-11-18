@@ -1,5 +1,6 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import http from 'http';
+import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
@@ -16,6 +17,11 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'confident-drake-
 const FIRESTORE_DATABASE_ID =
   process.env.FIRESTORE_DATABASE_ID ||
   'ai-studio-lenzopartylive-752abd83-49ce-4746-993c-862081735425';
+const ANDROID_PACKAGE_NAME = process.env.ANDROID_PACKAGE_NAME || 'com.lenzoparty.app';
+const FIREBASE_ANDROID_APP_ID =
+  process.env.FIREBASE_ANDROID_APP_ID || '1:238539539886:android:16b058b5f0154c3d1df43f';
+const FIREBASE_WEB_APP_ID =
+  process.env.FIREBASE_WEB_APP_ID || '1:238539539886:web:0832836cf24ff0781df43f';
 
 const app = express();
 const server = http.createServer(app);
@@ -27,8 +33,13 @@ server.on('error', (err) => {
 
 app.use(express.json());
 
-// CORS Middleware supporting Cloudflare frontend (lenzoparty.com), Railway API (api.lenzoparty.com),
+// CORS Middleware supporting Cloudflare frontend (lenzoparty.com / FRONTEND_URL), Railway API (api.lenzoparty.com),
 // Capacitor Android WebView (https://localhost / capacitor://localhost), local dev, and Cloud Run
+const configuredFrontendOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((s) => s.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = new Set([
@@ -40,6 +51,7 @@ app.use((req, res, next) => {
     'capacitor://localhost',
     'http://localhost:3000',
     'http://localhost:5173',
+    ...configuredFrontendOrigins,
   ]);
   if (origin && (allowedOrigins.has(origin) || origin.endsWith('.run.app') || origin.endsWith('.pages.dev'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -90,8 +102,14 @@ async function verifyFirebaseBearerToken(authHeader?: string) {
   if (parts.length !== 3) {
     throw new Error('Malformed JWT');
   }
-  const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
-  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  let header: any;
+  let payload: any;
+  try {
+    header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
+    throw new Error('Malformed or invalid Firebase ID token');
+  }
 
   if (header.alg !== 'RS256' || !header.kid) {
     throw new Error('Unsupported JWT algorithm or missing key ID');
@@ -132,6 +150,37 @@ async function verifyFirebaseBearerToken(authHeader?: string) {
     signInProvider: payload.firebase?.sign_in_provider || 'unknown',
   };
 }
+
+interface AuthenticatedRequest extends Request {
+  firebaseUser?: Awaited<ReturnType<typeof verifyFirebaseBearerToken>>;
+}
+
+// Reject invalid or expired Firebase ID tokens anywhere on /api/*
+app.use('/api', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  if (req.path === '/health') {
+    return next();
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return next();
+  }
+  try {
+    const verified = await verifyFirebaseBearerToken(authHeader);
+    if (!verified) {
+      return res.status(401).json({
+        authenticated: false,
+        error: 'Malformed Authorization header. Expected Bearer <Firebase ID Token>.',
+      });
+    }
+    req.firebaseUser = verified;
+    return next();
+  } catch (err: any) {
+    return res.status(401).json({
+      authenticated: false,
+      error: err?.message || 'Invalid or expired Firebase ID token.',
+    });
+  }
+});
 
 // In-Memory PK Match State (Authoritative Server Store)
 interface PKParticipant {
@@ -472,9 +521,12 @@ app.get('/api/health', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'lenzo-party-live-backend',
     nodeVersion: process.version,
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || (process.env.RAILWAY_ENVIRONMENT ? 'production' : 'development'),
     firebaseProjectId: FIREBASE_PROJECT_ID,
     firestoreDatabaseId: FIRESTORE_DATABASE_ID,
+    androidPackageName: ANDROID_PACKAGE_NAME,
+    firebaseAndroidAppId: FIREBASE_ANDROID_APP_ID,
+    firebaseWebAppId: FIREBASE_WEB_APP_ID,
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
     activeWebSocketClients: pkWss.clients.size,
     uptimeSeconds: Math.floor(process.uptime()),
@@ -1248,9 +1300,17 @@ app.get('/api/users/:id', (req: Request, res: Response) => {
   });
 });
 
-app.put('/api/users/:id', (req: Request, res: Response) => {
+app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
   initServerUsers();
   const userId = req.params.id;
+  if (userId !== 'user_current_01') {
+    if (!req.firebaseUser) {
+      return res.status(401).json({ error: 'Authentication required to update this user profile.' });
+    }
+    if (req.firebaseUser.uid !== userId) {
+      return res.status(403).json({ error: 'Forbidden: you can only update your own user profile.' });
+    }
+  }
   const existing = serverUsers.get(userId) || {
     id: userId,
     displayId: userId.substring(0, 6).toUpperCase(),
@@ -1548,16 +1608,39 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
   }
 });
 
-// Vite Integration
+// Vite Integration & Production Static Serving (Cloudflare / Railway / Local Dev)
 async function startServer() {
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (req: Request, res: Response) => {
-      if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: 'API endpoint not found' });
-      }
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
-    });
+  const isRailwayRuntime = Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_SERVICE_ID ||
+      process.env.RAILWAY_PROJECT_ID
+  );
+  const isProduction = process.env.NODE_ENV === 'production' || isRailwayRuntime;
+  const distDir = path.resolve(__dirname, 'dist');
+  const distIndexPath = path.resolve(distDir, 'index.html');
+
+  if (isProduction) {
+    if (fs.existsSync(distIndexPath)) {
+      app.use(express.static(distDir));
+      app.get('*', (req: Request, res: Response) => {
+        if (req.path.startsWith('/api')) {
+          return res.status(404).json({ error: 'API endpoint not found' });
+        }
+        res.sendFile(distIndexPath);
+      });
+    } else {
+      app.get('*', (req: Request, res: Response) => {
+        if (req.path.startsWith('/api')) {
+          return res.status(404).json({ error: 'API endpoint not found' });
+        }
+        res.json({
+          status: 'ok',
+          service: 'lenzo-party-live-backend',
+          frontend: 'https://lenzoparty.com',
+          health: '/api/health',
+        });
+      });
+    }
   } else {
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
@@ -1567,7 +1650,7 @@ async function startServer() {
   }
 
   server.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Lenzo Party Live Server running on port ${PORT}`);
+    console.log(`Lenzo Party Live Server running on port ${PORT} (${isProduction ? 'production' : 'development'})`);
   });
 }
 
