@@ -221,9 +221,16 @@ jobs:
           echo "=== 2. Check APK Package ID & Version ==="
           "$AAPT2" dump badging dist-android/app-release.apk > apk_badging.txt
           grep -E "^package:|^sdkVersion:|^targetSdkVersion:" apk_badging.txt
-          PKG_NAME=$(sed -n "s/.*name='\([^']*\)'.*/\1/p" apk_badging.txt | head -n 1)
-          VER_CODE=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" apk_badging.txt | head -n 1)
-          VER_NAME=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" apk_badging.txt | head -n 1)
+          eval "$(node -e '
+            const fs = require("fs");
+            const line = fs.readFileSync("apk_badging.txt", "utf8").split("\n").find(l => l.startsWith("package:")) || "";
+            const pkg = (line.match(/(?:^|\s)name='\''([^'\'']+)'\''/) || [])[1] || "";
+            const vc = (line.match(/(?:^|\s)versionCode='\''([^'\'']+)'\''/) || [])[1] || "1";
+            const vn = (line.match(/(?:^|\s)versionName='\''([^'\'']+)'\''/) || [])[1] || "1.0";
+            console.log(`PKG_NAME="${pkg}"`);
+            console.log(`VER_CODE="${vc}"`);
+            console.log(`VER_NAME="${vn}"`);
+          ')"
           if [ "$PKG_NAME" != "com.lenzoparty.app" ]; then
             echo "::error::Unexpected package name '$PKG_NAME' (expected com.lenzoparty.app)."
             exit 1
@@ -234,8 +241,14 @@ jobs:
           tail -n 15 aab_verify.txt
 
           keytool -printcert -jarfile dist-android/app-release.aab > aab_cert.txt
-          AAB_SHA1=$(grep -m 1 "SHA1:" aab_cert.txt | sed 's/.*SHA1://g' | tr -d '[:space:]:' | tr '[:upper:]' '[:lower:]')
-          AAB_SHA256=$(grep -m 1 "SHA256:" aab_cert.txt | sed 's/.*SHA256://g' | tr -d '[:space:]:' | tr '[:upper:]' '[:lower:]')
+          eval "$(node -e '
+            const fs = require("fs");
+            const cert = fs.readFileSync("aab_cert.txt", "utf8");
+            const s1 = (cert.match(/SHA-?1:\s*([0-9A-Fa-f:]+)/i) || [])[1] || "";
+            const s256 = (cert.match(/SHA-?256:\s*([0-9A-Fa-f:]+)/i) || [])[1] || "";
+            console.log(`AAB_SHA1="${s1.replace(/:/g, "").toLowerCase()}"`);
+            console.log(`AAB_SHA256="${s256.replace(/:/g, "").toLowerCase()}"`);
+          ')"
           if [ -z "$AAB_SHA1" ] || [ -z "$AAB_SHA256" ]; then
             echo "::error::Failed to extract AAB SHA-1 / SHA-256 signing certificate digests."
             exit 1
