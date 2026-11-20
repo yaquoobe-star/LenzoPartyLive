@@ -37,8 +37,10 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   liveStreams,
+  partyRooms,
   topBroadcasters = [],
   onSelectLive,
+  onSelectRoom,
   onSelectUser,
   onNavigate,
   onOpenMicMenu,
@@ -58,10 +60,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return true;
   });
 
-  const regularStreams =
-    activeTab === 'foryou' && topStreamIds.size > 0
-      ? filteredStreams.filter((s) => !topStreamIds.has(s.id))
-      : filteredStreams;
+  // Always show all active real-time live streams as clickable live cards
+  const visibleLiveCards = filteredStreams;
 
   const heroFeaturedStream = liveStreams[0] || null;
   const heroFeaturedBroadcaster = topTwoBroadcasters[0] || null;
@@ -198,6 +198,86 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
+        {/* 2B. ACTIVE REAL-TIME PARTY ROOMS CARDS */}
+        {partyRooms.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#FA26A0]" />
+                <span>LIVE PARTY ROOMS</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/35 text-[10px] font-bold text-emerald-300">
+                  {partyRooms.length} Active
+                </span>
+              </h3>
+              <button
+                onClick={() => onNavigate('rooms')}
+                className="text-xs text-[#B9AECF] hover:text-[#FA26A0] flex items-center gap-0.5 font-semibold transition-colors"
+              >
+                <span>View All</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {partyRooms.slice(0, 6).map((room) => {
+                const maxSeats = room.maxSeats === 16 ? 16 : 8;
+                const occupiedSeats = Array.isArray(room.seats) ? room.seats.filter(Boolean).length : 0;
+                const onlineCount =
+                  typeof room.numericParticipants === 'number'
+                    ? room.numericParticipants
+                    : parseInt(String(room.participantCount || '0'), 10) || 0;
+                return (
+                  <div
+                    key={room.id}
+                    onClick={() => onSelectRoom(room)}
+                    className="group relative rounded-2xl bg-[#160C25] border border-white/10 hover:border-[#FA26A0]/60 p-3.5 cursor-pointer transition-all shadow-lg flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        {room.host?.avatar ? (
+                          <img
+                            src={room.host.avatar}
+                            alt={room.host.name}
+                            referrerPolicy="no-referrer"
+                            className="w-12 h-12 rounded-2xl object-cover ring-2 ring-[#FA26A0]/60"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#FA26A0] flex items-center justify-center text-white font-black text-base">
+                            {(room.title || 'P').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#160C25]" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-white truncate group-hover:text-pink-200 transition-colors">
+                          {room.title}
+                        </h4>
+                        <p className="text-[11px] text-[#B9AECF] truncate">
+                          Host: {room.host?.name || 'Host'} • {room.category || 'Party'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>{onlineCount} Online</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/80">
+                            {occupiedSeats}/{maxSeats} Seats
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <span className="px-3 py-1.5 rounded-full bg-gradient-to-r from-[#FA26A0] to-[#8B20FF] text-white text-[10px] font-black shrink-0 shadow">
+                      Join
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* 3. TOP BROADCASTERS (STRICTLY TOP 1 & TOP 2) */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -325,12 +405,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           )}
         </section>
 
-        {/* 4. REGULAR BROADCASTERS (Active Live Streams Grid) */}
+        {/* 4. LIVE BROADCASTERS (All Active Real-Time Live Stream Cards) */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
               <Flame className="w-5 h-5 text-[#F328D5]" />
-              <span>REGULAR BROADCASTERS</span>
+              <span>LIVE BROADCASTERS</span>
+              {visibleLiveCards.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/35 text-[10px] font-bold text-rose-300">
+                  {visibleLiveCards.length} Live
+                </span>
+              )}
             </h3>
             <button
               onClick={() => onNavigate('rooms')}
@@ -341,7 +426,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </button>
           </div>
 
-          {regularStreams.length === 0 ? (
+          {visibleLiveCards.length === 0 ? (
             <div className="py-12 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center">
               <div className="w-14 h-14 rounded-2xl bg-[#211333] flex items-center justify-center mb-3 text-[#F328D5]">
                 <Radio className="w-7 h-7" />
@@ -349,15 +434,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <h4 className="text-sm font-bold text-white mb-1">
                 {activeTab === 'following'
                   ? 'No Followed Hosts Are Live'
-                  : liveStreams.length > 0
-                  ? 'Top Broadcasters Are Live Above'
                   : 'No Live Streams Active'}
               </h4>
               <p className="text-xs text-[#B9AECF] max-w-xs mb-4">
                 {activeTab === 'following'
                   ? 'Follow broadcasters to see their live streams here as soon as they start.'
-                  : liveStreams.length > 0
-                  ? 'All active streams are currently highlighted in Top Broadcasters.'
                   : 'Be the first to go live and showcase your talent in real time.'}
               </p>
               <button
@@ -369,16 +450,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {regularStreams.map((stream) => (
+              {visibleLiveCards.map((stream) => {
+                const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
+                const topRankIndex = topTwoBroadcasters.findIndex(
+                  (b) => b.liveStreamId === stream.id || b.user.id === stream.host.id
+                );
+                return (
                 <div
                   key={stream.id}
                   onClick={() => onSelectLive(stream)}
                   className="group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col"
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#211333]">
-                    {stream.coverImage ? (
+                    {cardImage ? (
                       <img
-                        src={stream.coverImage}
+                        src={cardImage}
                         alt={stream.title}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -390,12 +476,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
 
-                    {/* Top Badges: LIVE + Viewer Count */}
-                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs">
-                      <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        LIVE
-                      </span>
+                    {/* Top Badges: LIVE + Optional Top Rank + Viewer Count */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1">
+                      <div className="flex items-center gap-1">
+                        <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          LIVE
+                        </span>
+                        {topRankIndex >= 0 && (
+                          <span className="bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow">
+                            #{topRankIndex + 1}
+                          </span>
+                        )}
+                      </div>
 
                       <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
                         <Eye className="w-3 h-3 text-cyan-300" />
@@ -454,7 +547,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

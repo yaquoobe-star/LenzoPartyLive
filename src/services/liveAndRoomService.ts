@@ -64,6 +64,49 @@ class LiveAndRoomService {
     }
   }
 
+  private pendingMessages: string[] = [];
+
+  private sendRaw(payloadObj: Record<string, any>) {
+    const serialized = JSON.stringify(payloadObj);
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(serialized);
+    } else {
+      if (this.pendingMessages.length < 40) {
+        this.pendingMessages.push(serialized);
+      }
+      if (!this.isConnecting && !this.socket) {
+        this.initWebSocket();
+      }
+    }
+  }
+
+  public sendSignal(params: {
+    signalType: string;
+    fromUserId: string;
+    targetUserId?: string;
+    streamId?: string;
+    roomId?: string;
+    payload?: Record<string, any>;
+  }) {
+    this.sendRaw({
+      type: 'webrtc:signal',
+      ...params,
+    });
+  }
+
+  public sendLiveMediaState(
+    streamId: string,
+    hostId: string,
+    state: { isCameraOn: boolean; isMicMuted: boolean; isFrontCamera?: boolean }
+  ) {
+    this.sendRaw({
+      type: 'live:media_state',
+      streamId,
+      hostId,
+      ...state,
+    });
+  }
+
   public addEventListener(cb: RealtimeCallback): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
@@ -102,6 +145,16 @@ class LiveAndRoomService {
           this.socket?.send(
             JSON.stringify({ type: 'subscribe_room', roomId: this.activeRoomId, userId: this.userId })
           );
+        }
+        if (this.pendingMessages.length > 0 && this.socket?.readyState === WebSocket.OPEN) {
+          const queued = this.pendingMessages.splice(0, this.pendingMessages.length);
+          queued.forEach((raw) => {
+            try {
+              this.socket?.send(raw);
+            } catch {
+              // ignore
+            }
+          });
         }
       };
 
@@ -172,7 +225,7 @@ class LiveAndRoomService {
   public async joinLiveStream(
     streamId: string,
     user: UserProfile
-  ): Promise<{ stream?: LiveStream; comments?: ChatMessage[] }> {
+  ): Promise<{ stream?: LiveStream; viewers?: LiveViewerInfo[]; comments?: ChatMessage[] }> {
     const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/join`, {
       method: 'POST',
       body: JSON.stringify({ user }),
@@ -301,7 +354,12 @@ class LiveAndRoomService {
     roomId: string,
     user: UserProfile,
     password?: string
-  ): Promise<{ room: PartyRoom; pendingRequests: any[]; messages: ChatMessage[] }> {
+  ): Promise<{
+    room: PartyRoom;
+    participants?: LiveViewerInfo[];
+    pendingRequests: any[];
+    messages: ChatMessage[];
+  }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/join`, {
       method: 'POST',
       body: JSON.stringify({ user, password }),
@@ -311,6 +369,13 @@ class LiveAndRoomService {
       throw new Error(err.error || 'Failed to join party room');
     }
     return await res.json();
+  }
+
+  public async sendRoomHeartbeat(roomId: string, userId: string): Promise<void> {
+    await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/heartbeat`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
   }
 
   public async leavePartyRoom(roomId: string, userId: string): Promise<void> {

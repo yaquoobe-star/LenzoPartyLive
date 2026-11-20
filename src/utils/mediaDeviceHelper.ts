@@ -4,6 +4,36 @@
  * device enumeration, fallback strategies, and real-time audio volume analysis.
  */
 
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+interface MediaPermissionsPluginInterface {
+  checkMediaPermissions(): Promise<{ camera: boolean; microphone: boolean }>;
+  requestMediaPermissions(options: { video: boolean; audio: boolean }): Promise<{ camera: boolean; microphone: boolean }>;
+}
+
+const NativeMediaPermissions = registerPlugin<MediaPermissionsPluginInterface>('MediaPermissions');
+
+/**
+ * Request native Android runtime CAMERA / RECORD_AUDIO permissions before calling getUserMedia.
+ * No-op on web browsers (where getUserMedia triggers the browser permission dialog directly).
+ */
+export async function ensureNativeMediaPermissions(options: {
+  video: boolean;
+  audio: boolean;
+}): Promise<{ camera: boolean; microphone: boolean }> {
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      return await NativeMediaPermissions.requestMediaPermissions({
+        video: options.video,
+        audio: options.audio,
+      });
+    } catch (err) {
+      console.warn('[MediaPermissions] Native permission request warning:', err);
+    }
+  }
+  return { camera: options.video, microphone: options.audio };
+}
+
 export interface CameraDeviceInfo {
   deviceId: string;
   label: string;
@@ -40,7 +70,7 @@ export async function enumerateCameraDevices(): Promise<{
 
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+    const videoDevices = devices.filter((d) => d.kind === 'videoinput' && Boolean(d.deviceId));
 
     // Patterns matching rear / back camera in mobile browsers & Android WebViews
     const backPattern = /back|rear|environment|wide|ultra-wide|telephoto|main|facing\s*0|camera\s*0/i;
@@ -81,6 +111,8 @@ export function stopMediaStream(stream: MediaStream | null | undefined): void {
 
 /**
  * Request real device camera with accurate front/back rotation and real-time audio.
+ * Prompts Android OS runtime permissions first (when native) and uses standard facingMode
+ * getUserMedia first so browser/WebView camera + microphone dialogs always appear cleanly.
  */
 export async function acquireRealDeviceCamera(options: {
   isFront: boolean;
@@ -91,10 +123,11 @@ export async function acquireRealDeviceCamera(options: {
   const { isFront, enableAudio, idealWidth = 1280, idealHeight = 720 } = options;
 
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-    throw new Error('Camera & Microphone API not supported on this device/browser');
+    throw new Error('Camera & Microphone API requires HTTPS or supported device browser');
   }
 
-  const { frontCamera, backCamera, allCameras } = await enumerateCameraDevices();
+  // Explicitly request Android runtime CAMERA + RECORD_AUDIO permissions first on native APK
+  await ensureNativeMediaPermissions({ video: true, audio: enableAudio });
 
   const audioConstraint = enableAudio
     ? {
@@ -107,14 +140,32 @@ export async function acquireRealDeviceCamera(options: {
   let stream: MediaStream | null = null;
   let isRealBackCamera = false;
   let activeLabel = '';
+  let lastError: any = null;
 
   if (!isFront) {
     // -------------------------------------------------------------------
     // TARGET: REAR / BACK CAMERA
     // -------------------------------------------------------------------
+    const { backCamera, allCameras } = await enumerateCameraDevices();
 
-    // Strategy 1: Explicit deviceId of identified back camera
-    if (backCamera?.deviceId) {
+    // Strategy 1: exact facingMode: 'environment' (Mobile Chrome / Safari / WebView standard)
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { exact: 'environment' },
+          width: { ideal: idealWidth },
+          height: { ideal: idealHeight },
+        },
+        audio: audioConstraint,
+      });
+      isRealBackCamera = true;
+      activeLabel = 'Back Camera';
+    } catch (err) {
+      lastError = err;
+    }
+
+    // Strategy 2: Explicit non-empty deviceId of identified back camera
+    if (!stream && backCamera?.deviceId) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -127,25 +178,7 @@ export async function acquireRealDeviceCamera(options: {
         isRealBackCamera = true;
         activeLabel = backCamera.label || 'Back Camera';
       } catch (err) {
-        console.warn('[Camera] Strategy 1 (back deviceId) failed, trying exact facingMode...', err);
-      }
-    }
-
-    // Strategy 2: exact facingMode: 'environment' (Mobile Chrome / Safari standard)
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { exact: 'environment' },
-            width: { ideal: idealWidth },
-            height: { ideal: idealHeight },
-          },
-          audio: audioConstraint,
-        });
-        isRealBackCamera = true;
-        activeLabel = 'Back Camera (Environment)';
-      } catch (err) {
-        console.warn('[Camera] Strategy 2 (exact environment) failed, trying ideal facingMode...', err);
+        lastError = err;
       }
     }
 
@@ -161,23 +194,23 @@ export async function acquireRealDeviceCamera(options: {
           audio: audioConstraint,
         });
         isRealBackCamera = true;
-        activeLabel = 'Back Camera (Ideal)';
+        activeLabel = 'Back Camera';
       } catch (err) {
-        console.warn('[Camera] Strategy 3 (ideal environment) failed, trying fallback video...', err);
+        lastError = err;
       }
     }
 
-    // Strategy 4: Fallback to available camera (e.g., PC with single webcam or if rear failed)
+    // Strategy 4: Fallback to any available camera + audio, then video-only
     if (!stream) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: audioConstraint,
+          audio: enableAudio ? true : false,
         });
-        isRealBackCamera = allCameras.length > 1; // if multiple cameras exist, it may still be rear
-        activeLabel = 'Camera (Rear Mode)';
+        isRealBackCamera = allCameras.length > 1;
+        activeLabel = 'Camera';
       } catch (err) {
-        // If audio caused the failure, try pure video
+        lastError = err;
         if (enableAudio) {
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
@@ -192,62 +225,49 @@ export async function acquireRealDeviceCamera(options: {
   } else {
     // -------------------------------------------------------------------
     // TARGET: FRONT / USER CAMERA
+    // Call facingMode: 'user' + audio FIRST so permission dialog triggers immediately!
     // -------------------------------------------------------------------
-
-    // Strategy 1: Explicit deviceId of identified front camera
-    if (frontCamera?.deviceId) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: idealWidth },
+          height: { ideal: idealHeight },
+        },
+        audio: audioConstraint,
+      });
+      activeLabel = 'Front Camera';
+    } catch (err) {
+      lastError = err;
+      // Fallback 1: Simple constraints { video: true, audio: true }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: frontCamera.deviceId },
-            width: { ideal: idealWidth },
-            height: { ideal: idealHeight },
-          },
-          audio: audioConstraint,
+          video: true,
+          audio: enableAudio ? true : false,
         });
-        activeLabel = frontCamera.label || 'Front Camera';
-      } catch (err) {
-        console.warn('[Camera] Front camera deviceId failed, trying facingMode...', err);
-      }
-    }
-
-    // Strategy 2: facingMode: 'user'
-    if (!stream) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: idealWidth },
-            height: { ideal: idealHeight },
-          },
-          audio: audioConstraint,
-        });
-        activeLabel = 'Front Camera (User)';
-      } catch (err) {
-        // Fallback
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: audioConstraint,
-          });
-          activeLabel = 'Default Camera';
-        } catch (errAudio) {
-          if (enableAudio) {
+        activeLabel = 'Default Camera';
+      } catch (errSimple) {
+        lastError = errSimple;
+        // Fallback 2: If microphone caused failure, try video-only so camera still opens
+        if (enableAudio) {
+          try {
             stream = await navigator.mediaDevices.getUserMedia({
               video: true,
               audio: false,
             });
-            activeLabel = 'Default Camera (Video Only)';
-          } else {
-            throw errAudio;
+            activeLabel = 'Camera (Video Only)';
+          } catch (errVideoOnly) {
+            throw errVideoOnly;
           }
+        } else {
+          throw errSimple;
         }
       }
     }
   }
 
   if (!stream) {
-    throw new Error('Unable to start real camera stream');
+    throw lastError || new Error('Unable to start real camera stream');
   }
 
   const hasAudio = stream.getAudioTracks().length > 0;
@@ -262,21 +282,35 @@ export async function acquireRealDeviceCamera(options: {
 }
 
 /**
- * Request real device microphone stream only (useful for audio rooms or audio-only live).
+ * Request real device microphone stream only (useful for party audio rooms or audio-only live).
  */
 export async function acquireRealMicrophone(): Promise<MediaStream> {
   if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     throw new Error('Microphone API not supported on this device/browser');
   }
 
-  return await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    video: false,
-  });
+  // Explicitly request Android runtime RECORD_AUDIO permission first on native APK
+  await ensureNativeMediaPermissions({ video: false, audio: true });
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+  } catch (err: any) {
+    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+      throw err;
+    }
+    // Retry with minimal audio constraint for older Android WebViews
+    return await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+  }
 }
 
 /**

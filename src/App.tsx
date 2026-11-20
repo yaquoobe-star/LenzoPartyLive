@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ScreenType, 
   UserProfile, 
@@ -100,6 +100,10 @@ export default function App() {
   const [partyRooms, setPartyRooms] = useState<PartyRoom[]>([]);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [topBroadcasters, setTopBroadcasters] = useState<BroadcasterRankingEntry[]>([]);
+  const endedLiveIdsRef = useRef<Set<string>>(new Set());
+  const endedRoomIdsRef = useRef<Set<string>>(new Set());
+  const backendLiveIdsRef = useRef<Set<string>>(new Set());
+  const backendRoomIdsRef = useRef<Set<string>>(new Set());
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [gifts] = useState<GiftItem[]>(MOCK_GIFTS);
@@ -391,6 +395,32 @@ export default function App() {
   // Real-Time Backend Discovery & WebSocket Broadcast Sync
   useEffect(() => {
     let active = true;
+    const upsertStream = (incoming: LiveStream) => {
+      if (!incoming?.id || endedLiveIdsRef.current.has(incoming.id)) return;
+      backendLiveIdsRef.current.add(incoming.id);
+      setLiveStreams((prev) => {
+        const exists = prev.some((s) => s.id === incoming.id);
+        if (exists) {
+          return prev.map((s) => (s.id === incoming.id ? { ...s, ...incoming } : s));
+        }
+        return [incoming, ...prev];
+      });
+      setActiveLiveStream((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
+    };
+
+    const upsertRoom = (incoming: PartyRoom) => {
+      if (!incoming?.id || endedRoomIdsRef.current.has(incoming.id)) return;
+      backendRoomIdsRef.current.add(incoming.id);
+      setPartyRooms((prev) => {
+        const exists = prev.some((r) => r.id === incoming.id);
+        if (exists) {
+          return prev.map((r) => (r.id === incoming.id ? { ...r, ...incoming } : r));
+        }
+        return [incoming, ...prev];
+      });
+      setActiveAudioRoom((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
+    };
+
     const loadRealtimeBackendState = async () => {
       const [streams, rooms, rankings] = await Promise.all([
         liveAndRoomService.fetchActiveStreams(),
@@ -398,29 +428,68 @@ export default function App() {
         liveAndRoomService.fetchTopBroadcasters(),
       ]);
       if (!active) return;
-      if (streams.length > 0) {
-        setLiveStreams((prev) => {
-          const mergedMap = new Map<string, LiveStream>();
-          prev.forEach((s) => mergedMap.set(s.id, s));
-          streams.forEach((s) => mergedMap.set(s.id, s));
-          return Array.from(mergedMap.values());
+
+      backendLiveIdsRef.current = new Set(streams.map((s) => s.id));
+      backendRoomIdsRef.current = new Set(rooms.map((r) => r.id));
+
+      setLiveStreams((prev) => {
+        const mergedMap = new Map<string, LiveStream>();
+        prev.forEach((s) => {
+          if (!endedLiveIdsRef.current.has(s.id)) mergedMap.set(s.id, s);
         });
-      }
-      if (rooms.length > 0) {
-        setPartyRooms((prev) => {
-          const mergedMap = new Map<string, PartyRoom>();
-          prev.forEach((r) => mergedMap.set(r.id, r));
-          rooms.forEach((r) => mergedMap.set(r.id, r));
-          return Array.from(mergedMap.values());
+        streams.forEach((s) => {
+          if (!endedLiveIdsRef.current.has(s.id)) mergedMap.set(s.id, s);
         });
-      }
+        return Array.from(mergedMap.values()).sort(
+          (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
+        );
+      });
+
+      setPartyRooms((prev) => {
+        const mergedMap = new Map<string, PartyRoom>();
+        prev.forEach((r) => {
+          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+        });
+        rooms.forEach((r) => {
+          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+        });
+        return Array.from(mergedMap.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      });
+
       setTopBroadcasters(rankings.broadcasters);
     };
 
     loadRealtimeBackendState();
 
     const unsubRealtime = liveAndRoomService.addEventListener((event, payload) => {
-      if (event === 'live:ended' && payload?.streamId) {
+      if (event === 'live:directory_updated' && payload) {
+        if (payload.action === 'ended' && payload.streamId) {
+          endedLiveIdsRef.current.add(payload.streamId);
+          backendLiveIdsRef.current.delete(payload.streamId);
+          setLiveStreams((prev) => prev.filter((s) => s.id !== payload.streamId));
+          setActiveLiveStream((prev) => {
+            if (prev && prev.id === payload.streamId) {
+              setActivePKSession(null);
+              setCurrentScreen('home');
+              return null;
+            }
+            return prev;
+          });
+          liveAndRoomService.fetchTopBroadcasters().then((res) => {
+            if (active) setTopBroadcasters(res.broadcasters);
+          });
+        } else if (payload.stream) {
+          endedLiveIdsRef.current.delete(payload.stream.id);
+          upsertStream(payload.stream as LiveStream);
+          if (payload.action === 'started') {
+            liveAndRoomService.fetchTopBroadcasters().then((res) => {
+              if (active) setTopBroadcasters(res.broadcasters);
+            });
+          }
+        }
+      } else if (event === 'live:ended' && payload?.streamId) {
+        endedLiveIdsRef.current.add(payload.streamId);
+        backendLiveIdsRef.current.delete(payload.streamId);
         setLiveStreams((prev) => prev.filter((s) => s.id !== payload.streamId));
         setActiveLiveStream((prev) => {
           if (prev && prev.id === payload.streamId) {
@@ -433,7 +502,10 @@ export default function App() {
         liveAndRoomService.fetchTopBroadcasters().then((res) => {
           if (active) setTopBroadcasters(res.broadcasters);
         });
-      } else if (event === 'live:viewer_count_updated' && payload?.streamId) {
+      } else if (
+        (event === 'live:viewer_count_updated' || event === 'live:viewer_joined' || event === 'live:viewer_left') &&
+        payload?.streamId
+      ) {
         setLiveStreams((prev) =>
           prev.map((s) =>
             s.id === payload.streamId
@@ -445,7 +517,7 @@ export default function App() {
               : s
           )
         );
-      } else if (event === 'live:like' && payload?.streamId) {
+      } else if ((event === 'live:like' || event === 'live:heart') && payload?.streamId) {
         setLiveStreams((prev) =>
           prev.map((s) =>
             s.id === payload.streamId && typeof payload.likesCount === 'number'
@@ -453,7 +525,25 @@ export default function App() {
               : s
           )
         );
+      } else if (event === 'room:directory_updated' && payload) {
+        if (payload.action === 'ended' && payload.roomId) {
+          endedRoomIdsRef.current.add(payload.roomId);
+          backendRoomIdsRef.current.delete(payload.roomId);
+          setPartyRooms((prev) => prev.filter((r) => r.id !== payload.roomId));
+          setActiveAudioRoom((prev) => {
+            if (prev && prev.id === payload.roomId) {
+              setCurrentScreen('rooms');
+              return null;
+            }
+            return prev;
+          });
+        } else if (payload.room) {
+          endedRoomIdsRef.current.delete(payload.room.id);
+          upsertRoom(payload.room as PartyRoom);
+        }
       } else if (event === 'room:closed' && payload?.roomId) {
+        endedRoomIdsRef.current.add(payload.roomId);
+        backendRoomIdsRef.current.delete(payload.roomId);
         setPartyRooms((prev) => prev.filter((r) => r.id !== payload.roomId));
         setActiveAudioRoom((prev) => {
           if (prev && prev.id === payload.roomId) {
@@ -462,10 +552,16 @@ export default function App() {
           }
           return prev;
         });
-      } else if (event === 'room:updated' && payload?.room) {
-        const updatedRoom = payload.room as PartyRoom;
-        setPartyRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
-        setActiveAudioRoom((prev) => (prev && prev.id === updatedRoom.id ? updatedRoom : prev));
+      } else if (
+        (event === 'room:updated' ||
+          event === 'room:state_updated' ||
+          event === 'room:participant_joined' ||
+          event === 'room:participant_left' ||
+          event === 'room:seat_occupied' ||
+          event === 'room:seat_vacated') &&
+        payload?.room
+      ) {
+        upsertRoom(payload.room as PartyRoom);
       } else if (event === 'room:seat_muted' && payload?.roomId && Array.isArray(payload.mutedSeatIndices)) {
         setPartyRooms((prev) =>
           prev.map((r) =>
@@ -544,11 +640,41 @@ export default function App() {
     });
 
     const unsubStreams = subscribeFirestoreLiveStreams((remoteStreams) => {
-      setLiveStreams(remoteStreams);
+      // Merge Firestore streams non-destructively: keep active real-time backend streams & counts
+      setLiveStreams((prev) => {
+        const merged = new Map<string, LiveStream>();
+        remoteStreams.forEach((s) => {
+          if (!endedLiveIdsRef.current.has(s.id)) merged.set(s.id, s);
+        });
+        prev.forEach((existing) => {
+          if (endedLiveIdsRef.current.has(existing.id)) return;
+          if (backendLiveIdsRef.current.has(existing.id)) {
+            const fsItem = merged.get(existing.id);
+            merged.set(existing.id, fsItem ? { ...fsItem, ...existing } : existing);
+          }
+        });
+        return Array.from(merged.values()).sort(
+          (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
+        );
+      });
     });
 
     const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
-      setPartyRooms(remoteRooms);
+      // Merge Firestore party rooms non-destructively: keep authoritative backend real-time seats & counts
+      setPartyRooms((prev) => {
+        const merged = new Map<string, PartyRoom>();
+        remoteRooms.forEach((r) => {
+          if (!endedRoomIdsRef.current.has(r.id)) merged.set(r.id, r);
+        });
+        prev.forEach((existing) => {
+          if (endedRoomIdsRef.current.has(existing.id)) return;
+          if (backendRoomIdsRef.current.has(existing.id)) {
+            const fsItem = merged.get(existing.id);
+            merged.set(existing.id, fsItem ? { ...fsItem, ...existing } : existing);
+          }
+        });
+        return Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      });
     });
 
     const unsubVideos = subscribeFirestoreVideos((remoteVideos) => {
@@ -614,22 +740,29 @@ export default function App() {
     setCurrentScreen('audio_room');
   };
 
-  // Handler: Start Newly Created Live (Sync with Backend + Firestore)
+  // Handler: Start Newly Created Live (Sync with Backend FIRST to avoid join/comment races, then Firestore)
   const handleStartLive = async (newStream: LiveStream) => {
-    setLiveStreams((prev) => [newStream, ...prev.filter((s) => s.id !== newStream.id)]);
-    setActiveLiveStream(newStream);
+    endedLiveIdsRef.current.delete(newStream.id);
+    backendLiveIdsRef.current.add(newStream.id);
+
+    let confirmedStream = newStream;
+    try {
+      confirmedStream = await liveAndRoomService.startLiveStream(newStream);
+    } catch (err) {
+      console.warn('[Backend] Live stream start notice:', err);
+    }
+
+    setLiveStreams((prev) => [confirmedStream, ...prev.filter((s) => s.id !== confirmedStream.id)]);
+    setActiveLiveStream(confirmedStream);
     setCurrentScreen('live_active');
 
     liveAndRoomService
-      .startLiveStream(newStream)
-      .then(() => liveAndRoomService.fetchTopBroadcasters())
+      .fetchTopBroadcasters()
       .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
-      .catch((err) => {
-        console.warn('[Backend] Live stream start notice:', err);
-      });
+      .catch(() => {});
 
     try {
-      await createFirestoreLiveStream(newStream);
+      await createFirestoreLiveStream(confirmedStream);
     } catch (err) {
       console.warn('[Firestore] Live stream creation notice:', err);
     }
@@ -637,6 +770,8 @@ export default function App() {
 
   // Handler: End Live Stream permanently (removes from feed, Firestore, refreshes rankings)
   const handleEndLive = async (streamId: string) => {
+    endedLiveIdsRef.current.add(streamId);
+    backendLiveIdsRef.current.delete(streamId);
     setLiveStreams((prev) => prev.filter((s) => s.id !== streamId));
     setActiveLiveStream(null);
     setActivePKSession(null);
@@ -650,18 +785,24 @@ export default function App() {
       .catch(() => {});
   };
 
-  // Handler: Create Newly Created Audio Room (Sync with Backend + Firestore)
+  // Handler: Create Newly Created Audio Room (Sync with Backend FIRST to avoid join/chat races, then Firestore)
   const handleCreateRoom = async (newRoom: PartyRoom) => {
-    setPartyRooms((prev) => [newRoom, ...prev.filter((r) => r.id !== newRoom.id)]);
-    setActiveAudioRoom(newRoom);
+    endedRoomIdsRef.current.delete(newRoom.id);
+    backendRoomIdsRef.current.add(newRoom.id);
+
+    let confirmedRoom = newRoom;
+    try {
+      confirmedRoom = await liveAndRoomService.createPartyRoom(newRoom);
+    } catch (err) {
+      console.warn('[Backend] Party room creation notice:', err);
+    }
+
+    setPartyRooms((prev) => [confirmedRoom, ...prev.filter((r) => r.id !== confirmedRoom.id)]);
+    setActiveAudioRoom(confirmedRoom);
     setCurrentScreen('audio_room');
 
-    liveAndRoomService.createPartyRoom(newRoom).catch((err) => {
-      console.warn('[Backend] Party room creation notice:', err);
-    });
-
     try {
-      await createFirestorePartyRoom(newRoom);
+      await createFirestorePartyRoom(confirmedRoom);
     } catch (err) {
       console.warn('[Firestore] Party room creation notice:', err);
     }
@@ -1020,6 +1161,8 @@ export default function App() {
           }}
           onCloseRoom={(roomId) => {
             // Intentional permanent close by Room Owner: removes room from directory & Firestore
+            endedRoomIdsRef.current.add(roomId);
+            backendRoomIdsRef.current.delete(roomId);
             setPartyRooms((prev) => prev.filter((r) => r.id !== roomId));
             setActiveAudioRoom(null);
             setCurrentScreen('rooms');

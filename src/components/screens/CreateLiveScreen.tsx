@@ -19,6 +19,7 @@ import { auth } from '../../firebase';
 import { LiveStream, UserProfile } from '../../types';
 import { 
   acquireRealDeviceCamera, 
+  ensureNativeMediaPermissions,
   stopMediaStream, 
   createAudioAnalyser, 
   AudioAnalyserController 
@@ -58,6 +59,9 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
   );
   const [error, setError] = useState<string | null>(null);
 
+  const [mediaPermissionError, setMediaPermissionError] = useState<string | null>(null);
+  const [isRequestingMedia, setIsRequestingMedia] = useState(false);
+
   const sampleCovers = [
     'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
@@ -65,8 +69,8 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
     'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
   ];
 
-  // Camera & Mic preview handling
-  const startPreview = async (front = isFrontCamera) => {
+  // Camera & Mic preview handling (explicitly triggers OS/Browser permission prompt)
+  const startPreview = async (front = isFrontCamera): Promise<boolean> => {
     if (audioAnalyserRef.current) {
       audioAnalyserRef.current.cleanup();
       audioAnalyserRef.current = null;
@@ -80,9 +84,12 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       setHasWebcam(false);
       setHasMic(false);
       setAudioVolumeLevel(0);
-      return;
+      setMediaPermissionError(null);
+      return true;
     }
 
+    setIsRequestingMedia(true);
+    setMediaPermissionError(null);
     try {
       const result = await acquireRealDeviceCamera({
         isFront: front,
@@ -92,24 +99,62 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       });
 
       streamRef.current = result.stream;
+      result.stream.getAudioTracks().forEach((t) => {
+        t.enabled = isMicOn;
+      });
       if (videoPreviewRef.current && isCameraPreviewOn) {
         videoPreviewRef.current.srcObject = result.stream;
         videoPreviewRef.current.play().catch(() => {});
       }
 
-      setHasWebcam(isCameraPreviewOn);
+      setHasWebcam(isCameraPreviewOn && result.stream.getVideoTracks().length > 0);
       setHasMic(result.hasAudio && isMicOn);
+      setMediaPermissionError(null);
 
       if (result.hasAudio && isMicOn) {
         const controller = createAudioAnalyser(result.stream);
         audioAnalyserRef.current = controller;
       }
-    } catch (err) {
+      return true;
+    } catch (err: any) {
       console.warn('Real camera/mic preview acquisition error:', err);
       setHasWebcam(false);
       setHasMic(false);
+      const errMsg =
+        err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+          ? 'Camera & Microphone permission denied. Tap below to allow access.'
+          : err?.name === 'NotFoundError'
+            ? 'No camera or microphone detected on this device.'
+            : 'Tap below to allow Camera & Microphone access.';
+      setMediaPermissionError(errMsg);
+      return false;
+    } finally {
+      setIsRequestingMedia(false);
     }
   };
+
+  // Bind acquired MediaStream as soon as <video> mounts (fixes black preview race!)
+  useEffect(() => {
+    if (hasWebcam && isCameraPreviewOn && videoPreviewRef.current && streamRef.current) {
+      videoPreviewRef.current.srcObject = streamRef.current;
+      videoPreviewRef.current.play().catch(() => {});
+    }
+  }, [hasWebcam, isCameraPreviewOn, isFrontCamera]);
+
+  // Toggle audio tracks live when user taps Mic button
+  useEffect(() => {
+    if (streamRef.current) {
+      const audioTracks = streamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        audioTracks.forEach((t) => {
+          t.enabled = isMicOn;
+        });
+        setHasMic(isMicOn);
+      } else if (isMicOn && isCameraPreviewOn) {
+        void startPreview(isFrontCamera);
+      }
+    }
+  }, [isMicOn]);
 
   // Real-time audio volume monitoring
   useEffect(() => {
@@ -135,7 +180,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
 
   useEffect(() => {
     if (isCameraPreviewOn) {
-      startPreview(isFrontCamera);
+      void startPreview(isFrontCamera);
     } else {
       if (audioAnalyserRef.current) {
         audioAnalyserRef.current.cleanup();
@@ -166,7 +211,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
     setTimeout(() => setIsFlippingCamera(false), 400);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth.currentUser || !currentUser.id || currentUser.id === 'guest') {
       setError('Please sign in first to start a live broadcast.');
@@ -177,7 +222,23 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       return;
     }
 
-    // Release preview hardware handles cleanly before ActiveLiveScreen mounts Agora/camera
+    // Explicitly trigger Camera & Mic permission prompt inside this user tap if not granted yet
+    if ((isCameraPreviewOn || isMicOn) && !hasWebcam) {
+      try {
+        await ensureNativeMediaPermissions({ video: isCameraPreviewOn, audio: isMicOn });
+        if (navigator.mediaDevices?.getUserMedia) {
+          const permProbe = await navigator.mediaDevices.getUserMedia({
+            video: isCameraPreviewOn ? { facingMode: isFrontCamera ? 'user' : 'environment' } : false,
+            audio: isMicOn,
+          });
+          stopMediaStream(permProbe);
+        }
+      } catch (permErr) {
+        console.warn('[CreateLive] Permission probe notice:', permErr);
+      }
+    }
+
+    // Release preview hardware handles cleanly before ActiveLiveScreen mounts camera & RTC
     if (audioAnalyserRef.current) {
       audioAnalyserRef.current.cleanup();
       audioAnalyserRef.current = null;
@@ -350,11 +411,23 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
                   src={coverUrl}
                   alt="Live Cover"
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover filter brightness-75 group-hover:scale-105 transition-transform"
+                  className="w-full h-full object-cover filter brightness-50"
                 />
-                <div className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-amber-300 border border-amber-400/30 text-[9px] font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  <span>Cover Preview (Camera Ready / Audio Fallback)</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-black/45 backdrop-blur-[2px]">
+                  <p className="text-[11px] font-bold text-white mb-2 max-w-xs">
+                    {mediaPermissionError || 'Camera & Microphone permission is required for live video.'}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isRequestingMedia}
+                    onClick={() => {
+                      void startPreview(isFrontCamera);
+                    }}
+                    className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg shadow-[#F328D5]/40 flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{isRequestingMedia ? 'Requesting Access...' : 'Allow Camera & Mic'}</span>
+                  </button>
                 </div>
               </div>
             ) : (

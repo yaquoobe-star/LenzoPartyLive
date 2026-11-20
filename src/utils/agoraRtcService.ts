@@ -41,11 +41,13 @@ class AgoraRtcService {
   private localVideoTrack: ILocalVideoTrack | null = null;
 
   private currentChannel: string | null = null;
+  private currentUserAccount: string | null = null;
   private currentRole: 'host' | 'audience' = 'audience';
   private currentUid: UID | null = null;
   private isFrontCamera: boolean = true;
   private isCameraOn: boolean = true;
   private isMicMuted: boolean = false;
+  private isSpeakerMuted: boolean = false;
   private cameraPermissionDenied: boolean = false;
   private micPermissionDenied: boolean = false;
   private availableCameras: MediaDeviceInfo[] = [];
@@ -63,10 +65,14 @@ class AgoraRtcService {
   private onUserLeftCallbacks: Set<(uid: UID) => void> = new Set();
   private onStatusCallbacks: Set<(status: AgoraConnectionStatus) => void> = new Set();
   private onVolumeCallbacks: Set<(volumes: AgoraVolumeInfo[]) => void> = new Set();
+  private onAutoplayBlockedCallbacks: Set<() => void> = new Set();
 
   constructor() {
     // Configure AgoraRTC client defaults - level 2 = WARNING
     AgoraRTC.setLogLevel(2);
+    AgoraRTC.onAudioAutoplayFailed = () => {
+      this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+    };
 
     // Safeguard against Agora internal WS_ABORT and device permission rejections (camera & microphone)
     if (typeof window !== 'undefined') {
@@ -205,10 +211,13 @@ class AgoraRtcService {
           remote.audioTrack = user.audioTrack;
           remote.hasAudio = true;
           remote.isMicMuted = false;
-          try {
-            user.audioTrack?.play();
-          } catch (e) {
-            console.warn('[Agora RTC] Audio play warning:', e);
+          if (!this.isSpeakerMuted) {
+            try {
+              user.audioTrack?.play();
+            } catch (e) {
+              console.warn('[Agora RTC] Audio play warning:', e);
+              this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+            }
           }
         }
 
@@ -402,8 +411,12 @@ class AgoraRtcService {
     isFront?: boolean;
     mediaStream?: MediaStream | null;
   }): Promise<UID> {
+    if (this.currentChannel && this.currentChannel !== params.channelName) {
+      await this.leaveChannel();
+    }
     const client = this.getOrCreateClient();
     this.currentChannel = params.channelName;
+    this.currentUserAccount = params.userAccount;
     this.currentRole = params.role;
 
     // Track active join promise to avoid racing with leaveChannel
@@ -482,31 +495,49 @@ class AgoraRtcService {
   }
 
   /**
-   * Dynamically switch client role (Host <-> Audience) for Party Live seat actions
+   * Dynamically switch client role (Host <-> Audience) for Party Live seat actions.
+   * Renews broadcaster token before promoting role so Agora allows immediate voice publishing.
    */
   async switchRole(
     newRole: 'host' | 'audience',
-    options?: { enableVideo?: boolean; enableAudio?: boolean; isFront?: boolean }
+    options?: { enableVideo?: boolean; enableAudio?: boolean; isFront?: boolean; mediaStream?: MediaStream | null }
   ): Promise<void> {
     if (!this.client || this.client.connectionState !== 'CONNECTED') return;
 
     try {
-      this.currentRole = newRole;
-      await this.client.setClientRole(newRole);
-
       if (newRole === 'host') {
+        // Renew token with publisher (broadcaster) privilege before role switch
+        if (this.currentChannel && this.currentUserAccount) {
+          const tokenRes = await this.requestRtcToken(
+            this.currentChannel,
+            this.currentUserAccount,
+            'broadcaster'
+          );
+          if (tokenRes.token) {
+            try {
+              await this.client.renewToken(tokenRes.token);
+            } catch (renewErr) {
+              console.warn('[Agora RTC] Token renewal notice:', renewErr);
+            }
+          }
+        }
+
+        this.currentRole = 'host';
+        await this.client.setClientRole('host');
+
         // Upgrade to Broadcaster: create & publish tracks
         await this.createLocalTracks({
           isFront: options?.isFront ?? this.isFrontCamera,
           enableVideo: options?.enableVideo ?? false,
           enableAudio: options?.enableAudio ?? true,
+          mediaStream: options?.mediaStream ?? null,
         });
 
         const tracks: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
         if (this.localAudioTrack && options?.enableAudio !== false) tracks.push(this.localAudioTrack);
         if (this.localVideoTrack && options?.enableVideo === true) tracks.push(this.localVideoTrack);
 
-        if (tracks.length > 0) {
+        if (tracks.length > 0 && this.client.connectionState === 'CONNECTED') {
           await this.client.publish(tracks);
           console.log('[Agora RTC] Dynamic role upgrade: published tracks', tracks.length);
         }
@@ -524,6 +555,8 @@ class AgoraRtcService {
           }
         }
         this.stopLocalTracks();
+        this.currentRole = 'audience';
+        await this.client.setClientRole('audience');
         console.log('[Agora RTC] Dynamic role downgrade: reverted to audience');
       }
     } catch (err: any) {
@@ -632,12 +665,33 @@ class AgoraRtcService {
    * Mute or unmute remote audio playback locally (Speaker toggle)
    */
   setSpeakerMuted(muted: boolean): void {
+    this.isSpeakerMuted = muted;
     this.remoteHosts.forEach((host) => {
       if (host.audioTrack) {
         if (muted) {
           host.audioTrack.stop();
         } else {
+          try {
+            host.audioTrack.play();
+          } catch {
+            this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Resume all remote audio tracks after user interaction (unlocks browser autoplay policy)
+   */
+  resumeRemoteAudio(): void {
+    if (this.isSpeakerMuted) return;
+    this.remoteHosts.forEach((host) => {
+      if (host.audioTrack) {
+        try {
           host.audioTrack.play();
+        } catch {
+          // ignore
         }
       }
     });
@@ -758,7 +812,20 @@ class AgoraRtcService {
   // Listeners registration
   onRemoteTrack(cb: (host: AgoraRemoteHost) => void): () => void {
     this.onRemoteTrackCallbacks.add(cb);
+    // Immediately replay already-subscribed remote hosts so late-mounting viewers never miss media
+    this.remoteHosts.forEach((host) => {
+      try {
+        cb(host);
+      } catch {
+        // ignore
+      }
+    });
     return () => this.onRemoteTrackCallbacks.delete(cb);
+  }
+
+  onAutoplayBlocked(cb: () => void): () => void {
+    this.onAutoplayBlockedCallbacks.add(cb);
+    return () => this.onAutoplayBlockedCallbacks.delete(cb);
   }
 
   onUserLeft(cb: (uid: UID) => void): () => void {

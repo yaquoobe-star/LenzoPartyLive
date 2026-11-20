@@ -449,7 +449,7 @@ function serializeLiveStream(stream: ServerLiveStream) {
 
 function serializePartyRoom(room: ServerPartyRoom) {
   const occupiedSeats = room.seats.filter(Boolean).length;
-  const numericParticipants = Math.max(room.participants.size, occupiedSeats);
+  const numericParticipants = room.participants.size;
   return {
     id: room.id,
     displayId: room.displayId,
@@ -458,8 +458,9 @@ function serializePartyRoom(room: ServerPartyRoom) {
     host: room.host,
     coverImage: room.coverImage,
     iconType: room.iconType,
-    participantCount: `${numericParticipants}/${room.maxSeats}`,
+    participantCount: String(numericParticipants),
     numericParticipants,
+    seatedCount: occupiedSeats,
     isAudioRoom: true,
     maxSeats: room.maxSeats,
     roomType: room.roomType,
@@ -469,7 +470,7 @@ function serializePartyRoom(room: ServerPartyRoom) {
     mutedSeatIndices: Array.from(room.mutedSeatIndices),
     isLocked: room.isLocked,
     allowJoin: room.allowJoin,
-    isOwnerPresent: room.seats.some((s) => s && s.id === room.host?.id) || room.participants.has(room.host?.id),
+    isOwnerPresent: room.participants.has(room.host?.id),
     startTime: room.startTime,
     likesCount: room.likesCount,
   };
@@ -620,7 +621,9 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
           ws.send(JSON.stringify({
             event: 'live:sync_state',
             payload: {
+              streamId: stream.id,
               stream: serializeLiveStream(stream),
+              viewers: Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt),
               comments: stream.comments.slice(-50),
               serverTime: Date.now(),
             }
@@ -636,7 +639,9 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
           ws.send(JSON.stringify({
             event: 'room:sync_state',
             payload: {
+              roomId: room.id,
               room: serializePartyRoom(room),
+              participants: Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt),
               pendingRequests: Array.from(room.pendingRequests.values()),
               messages: room.messages.slice(-50),
               serverTime: Date.now(),
@@ -645,6 +650,51 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
         }
       } else if (msg.type === 'unsubscribe_room') {
         ws.subscribedRoomId = undefined;
+      } else if (msg.type === 'webrtc:signal' && msg.signalType) {
+        // Real-time WebRTC signaling relay for live streams & party voice rooms
+        const fromUserId = String(msg.fromUserId || ws.userId || '');
+        if (!fromUserId) return;
+        const payload = {
+          ...(msg.payload || {}),
+          fromUserId,
+          streamId: msg.streamId,
+          roomId: msg.roomId,
+        };
+        if (msg.targetUserId) {
+          broadcastToUser(String(msg.targetUserId), String(msg.signalType), payload);
+        } else if (msg.streamId) {
+          const message = JSON.stringify({ event: String(msg.signalType), payload, timestamp: Date.now() });
+          wss.clients.forEach((client: WebSocket) => {
+            const extClient = client as ExtendedWebSocket;
+            if (
+              extClient !== ws &&
+              extClient.readyState === WebSocket.OPEN &&
+              extClient.subscribedStreamId === String(msg.streamId)
+            ) {
+              extClient.send(message);
+            }
+          });
+        } else if (msg.roomId) {
+          const message = JSON.stringify({ event: String(msg.signalType), payload, timestamp: Date.now() });
+          wss.clients.forEach((client: WebSocket) => {
+            const extClient = client as ExtendedWebSocket;
+            if (
+              extClient !== ws &&
+              extClient.readyState === WebSocket.OPEN &&
+              extClient.subscribedRoomId === String(msg.roomId)
+            ) {
+              extClient.send(message);
+            }
+          });
+        }
+      } else if (msg.type === 'live:media_state' && msg.streamId) {
+        broadcastToLive(String(msg.streamId), 'live:media_state', {
+          streamId: String(msg.streamId),
+          hostId: String(msg.hostId || ws.userId || ''),
+          isCameraOn: Boolean(msg.isCameraOn),
+          isMicMuted: Boolean(msg.isMicMuted),
+          isFrontCamera: msg.isFrontCamera !== false,
+        });
       }
     } catch {
       // ignore invalid message
@@ -655,36 +705,50 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
     const uid = ws.userId;
     if (uid && ws.subscribedStreamId) {
       const stream = liveStreamsMap.get(ws.subscribedStreamId);
-      if (stream && !hasOtherSocketInStream(uid, ws.subscribedStreamId, ws) && stream.viewers.has(uid)) {
-        stream.viewers.delete(uid);
-        const serialized = serializeLiveStream(stream);
-        broadcastToLive(stream.id, 'live:viewer_left', {
-          streamId: stream.id,
-          userId: uid,
-          numericViewers: serialized.numericViewers,
-          viewerCount: serialized.viewerCount,
-        });
-        broadcastAll('live:directory_updated', { streamId: stream.id });
+      if (stream && !hasOtherSocketInStream(uid, ws.subscribedStreamId, ws)) {
+        broadcastToLive(stream.id, 'webrtc:peer_left', { streamId: stream.id, fromUserId: uid });
+        if (stream.viewers.has(uid)) {
+          stream.viewers.delete(uid);
+          const serialized = serializeLiveStream(stream);
+          broadcastToLive(stream.id, 'live:viewer_left', {
+            streamId: stream.id,
+            userId: uid,
+            numericViewers: serialized.numericViewers,
+            viewerCount: serialized.viewerCount,
+          });
+          broadcastAll('live:directory_updated', { streamId: stream.id, action: 'updated', stream: serialized });
+        }
       }
     }
     if (uid && ws.subscribedRoomId) {
       const room = partyRoomsMap.get(ws.subscribedRoomId);
       if (room && !hasOtherSocketInRoom(uid, ws.subscribedRoomId, ws)) {
+        broadcastToRoom(room.id, 'webrtc:room_peer_left', { roomId: room.id, fromUserId: uid });
         room.participants.delete(uid);
-        // Vacate non-host seat if disconnecting socket held one
-        const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === uid);
-        if (seatIdx > 0) {
+        if (room.pendingRequests.has(uid)) {
+          room.pendingRequests.delete(uid);
+          broadcastToRoom(room.id, 'room:seat_request_cancelled', { roomId: room.id, userId: uid });
+        }
+        // Vacate any seat (including Host Seat 0) if disconnecting user has no other open socket in the room
+        const seatIdx = room.seats.findIndex((s) => s && s.id === uid);
+        if (seatIdx >= 0) {
           const removedUser = room.seats[seatIdx];
           room.seats[seatIdx] = null;
           room.mutedSeatIndices.delete(seatIdx);
-          broadcastToRoom(room.id, 'room:seat_vacated', { roomId: room.id, seatIndex: seatIdx, removedUser });
+          broadcastToRoom(room.id, 'room:seat_vacated', {
+            roomId: room.id,
+            seatIndex: seatIdx,
+            removedUser,
+            room: serializePartyRoom(room),
+          });
         }
+        const serialized = serializePartyRoom(room);
         broadcastToRoom(room.id, 'room:participant_left', {
           roomId: room.id,
           userId: uid,
-          room: serializePartyRoom(room),
+          room: serialized,
         });
-        broadcastAll('room:directory_updated', { roomId: room.id });
+        broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
       }
     }
   });
@@ -723,6 +787,34 @@ setInterval(() => {
     }
   }
   for (const room of partyRoomsMap.values()) {
+    let participantsChanged = false;
+    for (const [uid, participant] of room.participants.entries()) {
+      if (now - participant.lastSeen > 90000 && !hasOtherSocketInRoom(uid, room.id)) {
+        room.participants.delete(uid);
+        participantsChanged = true;
+        const seatIdx = room.seats.findIndex((s) => s && s.id === uid);
+        if (seatIdx >= 0) {
+          const removedUser = room.seats[seatIdx];
+          room.seats[seatIdx] = null;
+          room.mutedSeatIndices.delete(seatIdx);
+          broadcastToRoom(room.id, 'room:seat_vacated', {
+            roomId: room.id,
+            seatIndex: seatIdx,
+            removedUser,
+            room: serializePartyRoom(room),
+          });
+        }
+        broadcastToRoom(room.id, 'room:participant_left', {
+          roomId: room.id,
+          userId: uid,
+          room: serializePartyRoom(room),
+        });
+      }
+    }
+    if (participantsChanged) {
+      const serialized = serializePartyRoom(room);
+      broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
+    }
     for (const [uid, reqObj] of room.pendingRequests.entries()) {
       if (reqObj.expiresAt && now > reqObj.expiresAt) {
         room.pendingRequests.delete(uid);
@@ -1406,24 +1498,43 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   serverUsers.set(user.id, user);
 
   const serialized = serializePartyRoom(room);
+  const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
   if (shouldEmitBanner) {
     room.recentJoinAnnouncements.set(user.id, now);
     broadcastToRoom(roomId, 'room:participant_joined', {
       roomId,
       participant: viewerRecord,
+      participants: participantsSnapshot,
       room: serialized,
     });
   } else {
-    broadcastToRoom(roomId, 'room:state_updated', { roomId, room: serialized });
+    broadcastToRoom(roomId, 'room:state_updated', {
+      roomId,
+      participants: participantsSnapshot,
+      room: serialized,
+    });
   }
   broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
 
   res.json({
     success: true,
     room: serialized,
+    participants: participantsSnapshot,
     pendingRequests: Array.from(room.pendingRequests.values()),
     messages: room.messages.slice(-50),
   });
+});
+
+app.post('/api/rooms/:roomId/heartbeat', (req: Request, res: Response) => {
+  const room = partyRoomsMap.get(req.params.roomId);
+  const { userId } = req.body;
+  if (!room) {
+    return res.status(404).json({ error: 'Party room closed or not found.' });
+  }
+  if (userId && room.participants.has(userId)) {
+    room.participants.get(userId)!.lastSeen = Date.now();
+  }
+  res.json({ success: true, numericParticipants: room.participants.size });
 });
 
 app.post('/api/rooms/:roomId/leave', (req: Request, res: Response) => {
@@ -1436,15 +1547,31 @@ app.post('/api/rooms/:roomId/leave', (req: Request, res: Response) => {
 
   if (userId) {
     room.participants.delete(userId);
-    const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === userId);
-    if (seatIdx > 0) {
+    if (room.pendingRequests.has(userId)) {
+      room.pendingRequests.delete(userId);
+      broadcastToRoom(roomId, 'room:seat_request_cancelled', { roomId, userId });
+    }
+    const seatIdx = room.seats.findIndex((s) => s && s.id === userId);
+    if (seatIdx >= 0) {
       const removedUser = room.seats[seatIdx];
       room.seats[seatIdx] = null;
       room.mutedSeatIndices.delete(seatIdx);
-      broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex: seatIdx, removedUser });
+      broadcastToRoom(roomId, 'room:seat_vacated', {
+        roomId,
+        seatIndex: seatIdx,
+        removedUser,
+        room: serializePartyRoom(room),
+      });
     }
     const serialized = serializePartyRoom(room);
-    broadcastToRoom(roomId, 'room:participant_left', { roomId, userId, room: serialized });
+    broadcastToRoom(roomId, 'webrtc:room_peer_left', { roomId, fromUserId: userId });
+    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+    broadcastToRoom(roomId, 'room:participant_left', {
+      roomId,
+      userId,
+      participants: participantsSnapshot,
+      room: serialized,
+    });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   }
 
@@ -1639,8 +1766,9 @@ app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Respo
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
-  const seatIdx = room.seats.findIndex((s, i) => i > 0 && s && s.id === userId);
-  if (seatIdx > 0) {
+  // Allow both Host (Seat 0 or any seat) and Audience speakers to step down cleanly
+  const seatIdx = room.seats.findIndex((s) => s && s.id === userId);
+  if (seatIdx >= 0) {
     const removedUser = room.seats[seatIdx];
     room.seats[seatIdx] = null;
     room.mutedSeatIndices.delete(seatIdx);
@@ -1648,7 +1776,7 @@ app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Respo
     broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex: seatIdx, removedUser, room: serialized });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   }
-  res.json({ success: true, seats: room.seats });
+  res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
 });
 
 app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Response) => {
@@ -1663,12 +1791,18 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
     return res.status(403).json({ error: 'Only host can assign seats directly.' });
   }
   if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats && user?.id) {
+    // Ensure user does not occupy two seats at once
+    const existingIdx = room.seats.findIndex((s) => s && s.id === user.id);
+    if (existingIdx >= 0 && existingIdx !== seatIndex) {
+      room.seats[existingIdx] = null;
+      room.mutedSeatIndices.delete(existingIdx);
+    }
     room.seats[seatIndex] = user;
     const serialized = serializePartyRoom(room);
     broadcastToRoom(roomId, 'room:seat_occupied', { roomId, seatIndex, user, room: serialized });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   }
-  res.json({ success: true, seats: room.seats });
+  res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
 });
 
 app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Response) => {
@@ -1759,22 +1893,29 @@ app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
 
 app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { senderId, count = 1 } = req.body;
+  const { senderId, userId, count = 1 } = req.body;
+  const heartSenderId = senderId || userId || '';
   const room = partyRoomsMap.get(roomId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
   const now = Date.now();
-  const lastAt = lastHeartTimeMap.get(senderId || 'anon') || 0;
+  const lastAt = lastHeartTimeMap.get(heartSenderId || 'anon') || 0;
   if (now - lastAt < 200) {
     return res.json({ success: true, likesCount: room.likesCount });
   }
-  lastHeartTimeMap.set(senderId || 'anon', now);
+  lastHeartTimeMap.set(heartSenderId || 'anon', now);
 
   const delta = Math.min(Math.max(1, Number(count) || 1), 10);
   room.likesCount += delta;
 
-  broadcastToRoom(roomId, 'room:heart', { roomId, likesCount: room.likesCount, delta });
+  broadcastToRoom(roomId, 'room:heart', {
+    roomId,
+    userId: heartSenderId,
+    senderId: heartSenderId,
+    likesCount: room.likesCount,
+    delta,
+  });
   res.json({ success: true, likesCount: room.likesCount });
 });
 
@@ -2198,17 +2339,20 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   serverUsers.set(user.id, user);
 
   const serialized = serializeLiveStream(stream);
+  const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
   if (shouldEmitEntryBanner) {
     stream.recentJoinAnnouncements.set(user.id, now);
     broadcastToLive(streamId, 'live:viewer_joined', {
       streamId,
       viewer: viewerRecord,
+      viewers: viewersSnapshot.slice(0, 20),
       numericViewers: serialized.numericViewers,
       viewerCount: serialized.viewerCount,
     });
   } else {
     broadcastToLive(streamId, 'live:viewer_count_updated', {
       streamId,
+      viewers: viewersSnapshot.slice(0, 20),
       numericViewers: serialized.numericViewers,
       viewerCount: serialized.viewerCount,
     });
@@ -2218,6 +2362,7 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   res.json({
     success: true,
     stream: serialized,
+    viewers: viewersSnapshot,
     comments: stream.comments.slice(-50),
   });
 });
@@ -2242,9 +2387,11 @@ app.post('/api/live/:streamId/leave', (req: Request, res: Response) => {
   if (userId && stream.viewers.has(userId)) {
     stream.viewers.delete(userId);
     const serialized = serializeLiveStream(stream);
+    const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
     broadcastToLive(streamId, 'live:viewer_left', {
       streamId,
       userId,
+      viewers: viewersSnapshot.slice(0, 20),
       numericViewers: serialized.numericViewers,
       viewerCount: serialized.viewerCount,
     });

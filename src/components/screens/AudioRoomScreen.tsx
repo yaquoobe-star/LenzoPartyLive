@@ -40,6 +40,7 @@ import {
   AudioAnalyserController,
 } from '../../utils/mediaDeviceHelper';
 import { agoraRtcService } from '../../utils/agoraRtcService';
+import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import { roomService } from '../../utils/roomService';
 
@@ -91,15 +92,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const isRoomHost = currentUser.id === room.host.id;
   const maxSeats = room.maxSeats === 16 ? 16 : 8;
 
+  // Strictly mirror server seat occupancy — NEVER inject a ghost Host into an empty Seat 0
   const normalizeSeats = (raw?: (UserProfile | null)[], count = maxSeats): (UserProfile | null)[] => {
     const arr: (UserProfile | null)[] = Array(count).fill(null);
     if (Array.isArray(raw)) {
       for (let i = 0; i < Math.min(count, raw.length); i++) {
         arr[i] = raw[i] || null;
       }
-    }
-    if (!arr[0] && room.host) {
-      arr[0] = room.host;
     }
     return arr;
   };
@@ -108,9 +107,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [mutedSeatIndices, setMutedSeatIndices] = useState<number[]>(room.mutedSeatIndices || []);
   const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(room.seatRequests || []);
   const [participantsList, setParticipantsList] = useState<LiveViewerInfo[]>([]);
-  const [participantTotal, setParticipantTotal] = useState<number>(room.numericParticipants || 1);
+  const [participantTotal, setParticipantTotal] = useState<number>(room.numericParticipants ?? 0);
 
   const userSeatIndex = seats.findIndex((s) => s?.id === currentUser.id);
+  const isCurrentlySeated = userSeatIndex !== -1;
   const isHostMutedOnMySeat = userSeatIndex !== -1 && mutedSeatIndices.includes(userSeatIndex);
 
   // Modals & Interactive States
@@ -123,17 +123,28 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [showOwnerSeatChoice, setShowOwnerSeatChoice] = useState<number | null>(null);
   const [showCloseRoomConfirmModal, setShowCloseRoomConfirmModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+  const [showExitRoomModal, setShowExitRoomModal] = useState(false);
+  const [showMySeatModal, setShowMySeatModal] = useState<number | null>(null);
 
   // Microphone, Speaker & Real Speaking States (NO simulated Math.random intervals)
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+  const [partyEntryNotice, setPartyEntryNotice] = useState<{ id: string; name: string } | null>(null);
   const [speakingSeats, setSpeakingSeats] = useState<Record<number, number>>({});
   const [realMicVolume, setRealMicVolume] = useState(0);
   const [agoraVoiceState, setAgoraVoiceState] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [voiceTransport, setVoiceTransport] = useState<'agora' | 'webrtc' | 'connecting'>('connecting');
 
   const realMicStreamRef = useRef<MediaStream | null>(null);
   const realMicAnalyserRef = useRef<AudioAnalyserController | null>(null);
   const realMicRafRef = useRef<number | null>(null);
+  const hasExplicitlyLeftRef = useRef<boolean>(false);
+  const partyEntryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenPartyEntriesRef = useRef<Map<string, number>>(new Map());
+  const voiceTransportRef = useRef<'agora' | 'webrtc' | 'connecting'>('connecting');
+  voiceTransportRef.current = voiceTransport;
   const seatsRef = useRef<(UserProfile | null)[]>(seats);
   seatsRef.current = seats;
 
@@ -166,28 +177,57 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (room.seatRequests) setSeatRequests(room.seatRequests);
   }, [room.id]);
 
-  // Real-Time Backend & WebSocket Room Lifecycle
+  // Real-Time Backend & WebSocket Room Lifecycle (15s Heartbeat + Strict Real-Time Participants Only)
   useEffect(() => {
     let active = true;
+    hasExplicitlyLeftRef.current = false;
     liveAndRoomService.setCurrentUser(currentUser.id);
     liveAndRoomService.subscribeRoom(room.id, currentUser.id);
+
+    const applyServerRoomState = (nextRoom: PartyRoom) => {
+      setSeats(normalizeSeats(nextRoom.seats, nextRoom.maxSeats || maxSeats));
+      if (Array.isArray(nextRoom.mutedSeatIndices)) {
+        setMutedSeatIndices(nextRoom.mutedSeatIndices);
+      }
+      setIsSeatLocked(Boolean(nextRoom.isLocked));
+      setIsAllowJoin(nextRoom.allowJoin !== false);
+      if (nextRoom.announcement !== undefined) setRoomAnnouncement(nextRoom.announcement);
+      if (typeof nextRoom.numericParticipants === 'number') {
+        setParticipantTotal(nextRoom.numericParticipants);
+      }
+      onUpdateRoom?.(nextRoom);
+    };
+
+    const refreshRealTimeParticipants = () => {
+      liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((res) => {
+        if (!active) return;
+        setParticipantsList(res.participants);
+        setParticipantTotal(res.totalCount);
+      });
+    };
 
     liveAndRoomService
       .joinPartyRoom(room.id, currentUser, room.password)
       .then((res) => {
         if (!active) return;
         if (res.room) {
-          setSeats(normalizeSeats(res.room.seats, res.room.maxSeats || maxSeats));
-          setMutedSeatIndices(res.room.mutedSeatIndices || []);
-          setIsSeatLocked(Boolean(res.room.isLocked));
-          setIsAllowJoin(res.room.allowJoin !== false);
-          if (res.room.announcement) setRoomAnnouncement(res.room.announcement);
-          if (typeof res.room.numericParticipants === 'number') {
-            setParticipantTotal(res.room.numericParticipants);
-          }
+          applyServerRoomState(res.room);
+        }
+        if (Array.isArray(res.participants)) {
+          setParticipantsList(res.participants);
+          setParticipantTotal(res.participants.length);
+        } else {
+          refreshRealTimeParticipants();
         }
         if (Array.isArray(res.pendingRequests)) {
-          setSeatRequests(res.pendingRequests);
+          setSeatRequests(
+            res.pendingRequests.map((r: any) => ({
+              id: r.id,
+              user: r.user,
+              seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
+              requestedAt: r.createdAt || r.requestedAt || Date.now(),
+            }))
+          );
         }
         if (Array.isArray(res.messages)) {
           setActivities(
@@ -204,34 +244,134 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       })
       .catch((err) => {
         console.warn('[AudioRoom] Join notice:', err?.message || err);
+        refreshRealTimeParticipants();
       });
 
-    liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((res) => {
-      if (!active) return;
-      setParticipantsList(res.participants);
-      if (res.totalCount > 0) setParticipantTotal(res.totalCount);
-    });
+    const heartbeatInterval = setInterval(() => {
+      liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
+    }, 15000);
 
     const unsubWs = liveAndRoomService.addEventListener((event, payload) => {
-      if (!active || payload?.roomId !== room.id) return;
+      if (!active || !payload) return;
+      if (payload.roomId && payload.roomId !== room.id) return;
 
-      if (event === 'room:updated' && payload.room) {
-        const nextRoom: PartyRoom = payload.room;
-        setSeats(normalizeSeats(nextRoom.seats, nextRoom.maxSeats || maxSeats));
-        if (Array.isArray(nextRoom.mutedSeatIndices)) {
-          setMutedSeatIndices(nextRoom.mutedSeatIndices);
+      if (
+        (event === 'room:updated' ||
+          event === 'room:state_updated' ||
+          event === 'room:sync_state' ||
+          event === 'room:settings_updated' ||
+          event === 'room:seat_occupied' ||
+          event === 'room:seat_vacated') &&
+        payload.room
+      ) {
+        applyServerRoomState(payload.room as PartyRoom);
+        if (Array.isArray(payload.participants)) {
+          setParticipantsList(payload.participants);
+          setParticipantTotal(payload.participants.length);
         }
-        setIsSeatLocked(Boolean(nextRoom.isLocked));
-        setIsAllowJoin(nextRoom.allowJoin !== false);
-        if (nextRoom.announcement !== undefined) setRoomAnnouncement(nextRoom.announcement);
-        if (typeof nextRoom.numericParticipants === 'number') {
-          setParticipantTotal(nextRoom.numericParticipants);
+        if (event === 'room:sync_state') {
+          if (Array.isArray(payload.pendingRequests)) {
+            setSeatRequests(
+              payload.pendingRequests.map((r: any) => ({
+                id: r.id,
+                user: r.user,
+                seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
+                requestedAt: r.createdAt || r.requestedAt || Date.now(),
+              }))
+            );
+          }
+          if (Array.isArray(payload.messages)) {
+            setActivities(
+              payload.messages.map((m: any) => ({
+                id: m.id,
+                name: m.senderName,
+                avatar: m.senderAvatar,
+                text: m.text,
+                isHost: m.isHost,
+                type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
+              }))
+            );
+          }
         }
-        onUpdateRoom?.(nextRoom);
+      } else if (event === 'room:participant_joined') {
+        if (payload.room) applyServerRoomState(payload.room as PartyRoom);
+        if (Array.isArray(payload.participants)) {
+          setParticipantsList(payload.participants);
+          setParticipantTotal(payload.participants.length);
+        } else {
+          refreshRealTimeParticipants();
+        }
+        if (payload.participant && payload.participant.userId !== currentUser.id) {
+          const p = payload.participant;
+          const now = Date.now();
+          const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
+          if (now - lastSeen > 10000) {
+            seenPartyEntriesRef.current.set(p.userId, now);
+            setPartyEntryNotice({ id: `entry_${p.userId}_${now}`, name: p.name || 'Viewer' });
+            if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
+            partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
+            setActivities((prev) => [
+              ...prev.slice(-49),
+              {
+                id: `join_${p.userId}_${now}`,
+                name: p.name || 'Viewer',
+                avatar: p.avatar || '',
+                text: 'joined the party room',
+                isHost: Boolean(p.isHost),
+                type: 'join',
+              },
+            ]);
+            setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
+          }
+        }
+      } else if (event === 'room:participant_left') {
+        if (payload.room) applyServerRoomState(payload.room as PartyRoom);
+        if (Array.isArray(payload.participants)) {
+          setParticipantsList(payload.participants);
+          setParticipantTotal(payload.participants.length);
+        } else if (payload.userId) {
+          setParticipantsList((prev) => {
+            const next = prev.filter((p) => p.userId !== payload.userId);
+            setParticipantTotal(next.length);
+            return next;
+          });
+        } else {
+          refreshRealTimeParticipants();
+        }
+      } else if (event === 'room:heart') {
+        if (payload.userId && payload.userId !== currentUser.id) {
+          const remoteHeart: FloatingHeart = {
+            id: Date.now() + Math.random(),
+            x: 72 + Math.random() * 18,
+            size: 24 + Math.random() * 14,
+            color: ['#FF2A85', '#FF6090', '#FA26A0', '#FFB703', '#9D4EDD'][Math.floor(Math.random() * 5)],
+          };
+          setFloatingHearts((prev) => [...prev, remoteHeart]);
+          setTimeout(() => {
+            setFloatingHearts((prev) => prev.filter((h) => h.id !== remoteHeart.id));
+          }, 2000);
+        }
       } else if (event === 'room:seat_muted' && Array.isArray(payload.mutedSeatIndices)) {
         setMutedSeatIndices(payload.mutedSeatIndices);
-      } else if (event === 'room:seat_request' && Array.isArray(payload.pendingRequests)) {
-        setSeatRequests(payload.pendingRequests);
+      } else if (event === 'room:seat_request_received' || event === 'room:seat_request_updated') {
+        const reqObj = payload.requestObj || payload;
+        if (reqObj?.user?.id) {
+          setSeatRequests((prev) => [
+            ...prev.filter((r) => r.user.id !== reqObj.user.id),
+            {
+              id: reqObj.id || `sr_${Date.now()}`,
+              user: reqObj.user,
+              seatIndex: reqObj.requestedSeatIndex ?? reqObj.seatIndex ?? 1,
+              requestedAt: reqObj.createdAt || Date.now(),
+            },
+          ]);
+        }
+      } else if (event === 'room:seat_request_cancelled' && payload.userId) {
+        setSeatRequests((prev) => prev.filter((r) => r.user.id !== payload.userId));
+      } else if (event === 'room:seat_request_accepted') {
+        showToast(`Approved! You are now on Seat #${(payload.seatIndex ?? 1) + 1}`);
+      } else if (event === 'room:seat_request_rejected') {
+        showToast('Host declined your seat request');
       } else if (event === 'room:chat' && payload.message) {
         const m = payload.message;
         setActivities((prev) =>
@@ -252,7 +392,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
       } else if (event === 'room:closed') {
         if (!isRoomHost) {
-          showToast('Host has closed the room');
+          showToast('Host has closed this party room');
+          webrtcMediaService.stopPartyVoice();
+          agoraRtcService.leaveChannel().catch(() => {});
           setTimeout(() => {
             if (active) onClose();
           }, 1200);
@@ -262,56 +404,117 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     return () => {
       active = false;
+      clearInterval(heartbeatInterval);
+      if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
       unsubWs();
       liveAndRoomService.unsubscribeRoom();
-      if (!isRoomHost) {
+      if (!hasExplicitlyLeftRef.current) {
         liveAndRoomService.leavePartyRoom(room.id, currentUser.id);
       }
     };
   }, [room.id, currentUser.id, isRoomHost]);
 
-  // Agora RTC Engine Setup
+  // Unified Real-Time Party Voice Engine (Agora RTC + WebRTC Audio Mesh Fallback)
   useEffect(() => {
     let isMounted = true;
-    const isSeated = userSeatIndex !== -1 || currentUser.id === room.host.id;
+    const initiallySeated = seatsRef.current.some((s) => s?.id === currentUser.id);
     const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
-    const initialRole: 'host' | 'audience' = isSeated ? 'host' : 'audience';
+    const initialRole: 'host' | 'audience' = initiallySeated ? 'host' : 'audience';
 
-    const joinPartyAgora = async () => {
+    const joinPartyVoice = async () => {
       try {
         setAgoraVoiceState('connecting');
+        setVoiceTransport('connecting');
+
+        let localMicStream: MediaStream | null = realMicStreamRef.current;
+        if (initiallySeated && !localMicStream) {
+          try {
+            localMicStream = await acquireRealMicrophone();
+            if (!isMounted) {
+              stopMediaStream(localMicStream);
+              return;
+            }
+            localMicStream.getAudioTracks().forEach((t) => {
+              t.enabled = !effectiveMuted;
+            });
+            realMicStreamRef.current = localMicStream;
+            realMicAnalyserRef.current = createAudioAnalyser(localMicStream);
+            setMicPermissionDenied(false);
+          } catch (micErr) {
+            console.warn('[Party Voice] Mic acquisition notice:', micErr);
+            if (isMounted) setMicPermissionDenied(true);
+          }
+        }
+
         const config = await agoraRtcService.getAgoraConfig();
         if (!isMounted) return;
-        if (!config.configured || !config.appId) {
-          setAgoraVoiceState('disconnected');
-          return;
+
+        if (config.configured && config.appId) {
+          try {
+            const tokenData = await agoraRtcService.requestRtcToken(
+              `party_${room.id}`,
+              currentUser.id,
+              initiallySeated ? 'broadcaster' : 'audience'
+            );
+            if (!isMounted) return;
+
+            if (tokenData.token) {
+              setVoiceTransport('agora');
+              await agoraRtcService.joinChannel({
+                appId: config.appId,
+                channelName: `party_${room.id}`,
+                userAccount: currentUser.id,
+                role: initialRole,
+                token: tokenData.token,
+                enableVideo: false,
+                enableAudio: initiallySeated,
+                mediaStream: initiallySeated ? localMicStream : null,
+              });
+              if (!isMounted) return;
+              if (effectiveMuted) {
+                await agoraRtcService.setMicrophoneMuted(true);
+              }
+              setAgoraVoiceState('connected');
+              return;
+            }
+          } catch (agoraErr) {
+            console.warn('[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:', agoraErr);
+            await agoraRtcService.leaveChannel().catch(() => {});
+          }
         }
-        const tokenData = await agoraRtcService.requestRtcToken(
-          `party_${room.id}`,
+
+        if (!isMounted) return;
+
+        // WebRTC Real-Time Party Voice Mesh fallback
+        setVoiceTransport('webrtc');
+        webrtcMediaService.startPartyVoice(
+          room.id,
           currentUser.id,
-          isSeated ? 'broadcaster' : 'audience'
+          initiallySeated,
+          initiallySeated ? localMicStream : null,
+          {
+            onStatusChange: (status) => {
+              if (!isMounted) return;
+              setAgoraVoiceState(status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected');
+            },
+            onAutoplayBlocked: () => {
+              if (!isMounted) return;
+              setAutoplayBlocked(true);
+            },
+          }
         );
-        if (!isMounted || !tokenData.token) {
-          setAgoraVoiceState('disconnected');
-          return;
-        }
-        await agoraRtcService.joinChannel({
-          appId: config.appId,
-          channelName: `party_${room.id}`,
-          userAccount: currentUser.id,
-          role: initialRole,
-          token: tokenData.token,
-          enableVideo: false,
-          enableAudio: isSeated && !effectiveMuted,
-        });
         if (isMounted) setAgoraVoiceState('connected');
       } catch (err) {
-        console.warn('[Party Live Agora] Join warning:', err);
+        console.warn('[Party Voice] Join warning:', err);
         if (isMounted) setAgoraVoiceState('disconnected');
       }
     };
 
-    joinPartyAgora();
+    joinPartyVoice();
+
+    const unsubAutoplay = agoraRtcService.onAutoplayBlocked(() => {
+      if (isMounted) setAutoplayBlocked(true);
+    });
 
     const unsubVolumes = agoraRtcService.onVolumeIndicator((volumes) => {
       if (!isMounted) return;
@@ -336,78 +539,149 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     return () => {
       isMounted = false;
+      unsubAutoplay();
       unsubVolumes();
+      webrtcMediaService.stopPartyVoice();
       agoraRtcService.leaveChannel().catch(() => {});
     };
-  }, [room.id]);
+  }, [room.id, currentUser.id]);
 
-  // Synchronize dynamic seat/mute role changes with Agora RTC
+  // Manual user-gesture microphone permission request & publish for seated speakers
+  const handleRetryPartyMic = async () => {
+    try {
+      const micStream = await acquireRealMicrophone();
+      if (realMicAnalyserRef.current) {
+        realMicAnalyserRef.current.cleanup();
+      }
+      if (realMicStreamRef.current) {
+        stopMediaStream(realMicStreamRef.current);
+      }
+      const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
+      micStream.getAudioTracks().forEach((t) => {
+        t.enabled = !effectiveMuted;
+      });
+      realMicStreamRef.current = micStream;
+      realMicAnalyserRef.current = createAudioAnalyser(micStream);
+      setMicPermissionDenied(false);
+
+      if (voiceTransportRef.current === 'agora') {
+        await agoraRtcService.switchRole('host', {
+          enableVideo: false,
+          enableAudio: true,
+          mediaStream: micStream,
+        });
+        await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+      } else {
+        webrtcMediaService.updatePartySpeakerRole(true, micStream);
+        webrtcMediaService.setPartyMicMuted(effectiveMuted);
+      }
+      showToast('Microphone access granted — voice is live');
+    } catch {
+      setMicPermissionDenied(true);
+      showToast('Please allow Microphone permission in app/browser settings');
+    }
+  };
+
+  // Synchronize seat join / seat leave role changes (NEVER triggered by mute toggles!)
   useEffect(() => {
-    const isSeated = userSeatIndex !== -1 || currentUser.id === room.host.id;
-    const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
-    const targetRole: 'host' | 'audience' = isSeated ? 'host' : 'audience';
-    agoraRtcService
-      .switchRole(targetRole, {
-        enableVideo: false,
-        enableAudio: isSeated && !effectiveMuted,
-      })
-      .catch(() => {});
-  }, [userSeatIndex, currentUser.id, room.host.id, isMicMuted, isHostMutedOnMySeat]);
+    let active = true;
+    const syncSeatRole = async () => {
+      if (voiceTransport === 'connecting') return;
 
-  // Real local microphone capture when seated and unmuted
-  useEffect(() => {
-    let isSubscribed = true;
-    const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
-
-    const setupRealMic = async () => {
-      const isSeated = userSeatIndex !== -1 || currentUser.id === room.host.id;
-      if (isSeated && !effectiveMuted) {
-        try {
-          if (!realMicStreamRef.current) {
-            const stream = await acquireRealMicrophone();
-            if (!isSubscribed) {
-              stopMediaStream(stream);
+      if (isCurrentlySeated) {
+        let micStream = realMicStreamRef.current;
+        if (!micStream) {
+          try {
+            micStream = await acquireRealMicrophone();
+            if (!active) {
+              stopMediaStream(micStream);
               return;
             }
-            realMicStreamRef.current = stream;
-            realMicAnalyserRef.current = createAudioAnalyser(stream);
-          } else {
-            realMicStreamRef.current.getAudioTracks().forEach((t) => (t.enabled = true));
+            realMicStreamRef.current = micStream;
+            realMicAnalyserRef.current = createAudioAnalyser(micStream);
+            setMicPermissionDenied(false);
+          } catch (err) {
+            console.warn('[Party Voice] Mic unavailable when taking seat:', err);
+            if (active) setMicPermissionDenied(true);
           }
-
-          const pollVolume = () => {
-            if (!isSubscribed) return;
-            if (realMicAnalyserRef.current && !effectiveMuted) {
-              const vol = realMicAnalyserRef.current.getVolumeLevel();
-              setRealMicVolume(vol);
-              if (vol > 8 && userSeatIndex !== -1) {
-                setSpeakingSeats((prev) => ({ ...prev, [userSeatIndex]: Date.now() }));
-              }
-            } else {
-              setRealMicVolume(0);
-            }
-            realMicRafRef.current = requestAnimationFrame(pollVolume);
-          };
-
-          realMicRafRef.current = requestAnimationFrame(pollVolume);
-        } catch (err) {
-          console.warn('Real microphone not available in room:', err);
+        }
+        const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
+        if (micStream) {
+          micStream.getAudioTracks().forEach((t) => {
+            t.enabled = !effectiveMuted;
+          });
+        }
+        if (voiceTransport === 'agora') {
+          await agoraRtcService.switchRole('host', {
+            enableVideo: false,
+            enableAudio: true,
+            mediaStream: micStream,
+          });
+          await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+        } else if (voiceTransport === 'webrtc') {
+          webrtcMediaService.updatePartySpeakerRole(true, micStream);
+          webrtcMediaService.setPartyMicMuted(effectiveMuted);
         }
       } else {
+        // Stepped down from seat -> switch cleanly to listener and release mic
+        setMicPermissionDenied(false);
+        if (voiceTransport === 'agora') {
+          await agoraRtcService.switchRole('audience', { enableVideo: false, enableAudio: false });
+        } else if (voiceTransport === 'webrtc') {
+          webrtcMediaService.updatePartySpeakerRole(false, null);
+        }
+        if (realMicAnalyserRef.current) {
+          realMicAnalyserRef.current.cleanup();
+          realMicAnalyserRef.current = null;
+        }
         if (realMicStreamRef.current) {
-          realMicStreamRef.current.getAudioTracks().forEach((t) => (t.enabled = false));
+          stopMediaStream(realMicStreamRef.current);
+          realMicStreamRef.current = null;
         }
         setRealMicVolume(0);
       }
     };
 
-    setupRealMic();
+    syncSeatRole();
+    return () => {
+      active = false;
+    };
+  }, [isCurrentlySeated, voiceTransport]);
+
+  // Lightweight local mute toggle & speaking volume meter (Zero track teardown!)
+  useEffect(() => {
+    const effectiveMuted = isMicMuted || isHostMutedOnMySeat || !isCurrentlySeated;
+    if (realMicStreamRef.current) {
+      realMicStreamRef.current.getAudioTracks().forEach((t) => {
+        t.enabled = !effectiveMuted;
+      });
+    }
+    agoraRtcService.setMicrophoneMuted(effectiveMuted);
+    webrtcMediaService.setPartyMicMuted(effectiveMuted);
+
+    let active = true;
+    if (!effectiveMuted) {
+      const pollVolume = () => {
+        if (!active) return;
+        if (realMicAnalyserRef.current) {
+          const vol = realMicAnalyserRef.current.getVolumeLevel();
+          setRealMicVolume(vol);
+          if (vol > 8 && userSeatIndex !== -1) {
+            setSpeakingSeats((prev) => ({ ...prev, [userSeatIndex]: Date.now() }));
+          }
+        }
+        realMicRafRef.current = requestAnimationFrame(pollVolume);
+      };
+      realMicRafRef.current = requestAnimationFrame(pollVolume);
+    } else {
+      setRealMicVolume(0);
+    }
 
     return () => {
-      isSubscribed = false;
+      active = false;
       if (realMicRafRef.current) cancelAnimationFrame(realMicRafRef.current);
     };
-  }, [userSeatIndex, isMicMuted, isHostMutedOnMySeat, room.host.id, currentUser.id]);
+  }, [isMicMuted, isHostMutedOnMySeat, isCurrentlySeated, userSeatIndex]);
 
   // Expire speaking rings naturally after 1.1s of silence
   useEffect(() => {
@@ -444,20 +718,38 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     updatedAllowJoin?: boolean,
     updatedAnnouncement?: string
   ) => {
-    const seatedCount = updatedSeats.filter(Boolean).length;
     const nextRoom: PartyRoom = {
       ...room,
       seats: updatedSeats,
       mutedSeatIndices,
-      numericParticipants: Math.max(participantTotal, seatedCount),
-      participantCount: `${Math.max(participantTotal, seatedCount)}/${maxSeats}`,
+      numericParticipants: participantTotal,
+      participantCount: String(participantTotal),
       isLocked: updatedLocked !== undefined ? updatedLocked : isSeatLocked,
       allowJoin: updatedAllowJoin !== undefined ? updatedAllowJoin : isAllowJoin,
       announcement: updatedAnnouncement !== undefined ? updatedAnnouncement : roomAnnouncement,
       seatRequests: updatedRequests !== undefined ? updatedRequests : seatRequests,
-      isOwnerPresent: isRoomHost,
+      isOwnerPresent: participantsList.some((p) => p.userId === room.host.id),
     };
     onUpdateRoom?.(nextRoom);
+  };
+
+  // Cleanly exit party room (vacates seat, removes pending request, disconnects voice & leaves server room)
+  const handleCleanLeaveParty = async () => {
+    setShowExitRoomModal(false);
+    setShowSettingsSheet(false);
+    hasExplicitlyLeftRef.current = true;
+    webrtcMediaService.stopPartyVoice();
+    if (realMicAnalyserRef.current) {
+      realMicAnalyserRef.current.cleanup();
+      realMicAnalyserRef.current = null;
+    }
+    if (realMicStreamRef.current) {
+      stopMediaStream(realMicStreamRef.current);
+      realMicStreamRef.current = null;
+    }
+    await agoraRtcService.leaveChannel().catch(() => {});
+    await liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
+    onClose();
   };
 
   // Seat Click Handler
@@ -466,7 +758,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     const isMe = occupant?.id === currentUser.id;
 
     if (isMe) {
-      handleLeaveSeat(index);
+      setShowMySeatModal(index);
       return;
     }
 
@@ -682,15 +974,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   const handleLeaveSeat = async (index: number) => {
-    if (index === 0 && isRoomHost) {
-      onSelectUser(currentUser);
-      return;
-    }
+    setShowMySeatModal(null);
+    setShowExitRoomModal(false);
     try {
-      const nextSeats = normalizeSeats(
-        await liveAndRoomService.leaveOwnSeat(room.id, currentUser.id),
-        maxSeats
-      );
+      const returnedSeats = await liveAndRoomService.leaveOwnSeat(room.id, currentUser.id);
+      const nextSeats =
+        returnedSeats.length > 0
+          ? normalizeSeats(returnedSeats, maxSeats)
+          : seats.map((s, i) => (i === index ? null : s));
       setSeats(nextSeats);
       syncRoom(nextSeats);
     } catch {
@@ -699,7 +990,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       setSeats(updated);
       syncRoom(updated);
     }
-    showToast(`Left Seat #${index + 1}`);
+    showToast(`Stepped down from Seat #${index + 1}`);
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -756,7 +1047,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  const seatZero = seats[0] || room.host;
+  const seatZero = seats[0] || null;
   const seatOne = seats[1] || null;
   const remainingSeatIndices = Array.from({ length: maxSeats - 2 }, (_, i) => i + 2);
   const gridColsClass = maxSeats === 16 ? 'grid-cols-4 sm:grid-cols-5' : 'grid-cols-3';
@@ -821,28 +1112,28 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
       {/* HEADER BAR */}
       <header className="relative z-30 flex items-center justify-between px-3 pt-safe pt-2.5 pb-2">
-        <div className="flex items-center gap-2 max-w-[55%]">
+        <div className="flex items-center gap-2 max-w-[52%]">
           <button
-            onClick={onClose}
+            onClick={() => setShowExitRoomModal(true)}
             className="w-8 h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-white/15 flex items-center justify-center text-white transition-all active:scale-95 shrink-0"
-            title="Leave Room View"
+            title="Exit Party Options"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
           <div
-            onClick={() => onSelectUser(seatZero)}
+            onClick={() => onSelectUser(room.host)}
             className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform min-w-0"
           >
-            {seatZero.avatar ? (
+            {room.host.avatar ? (
               <img
-                src={seatZero.avatar}
-                alt={seatZero.name}
+                src={room.host.avatar}
+                alt={room.host.name}
                 className="w-9 h-9 rounded-full object-cover ring-2 ring-[#FFDF00] shrink-0"
               />
             ) : (
               <div className="w-9 h-9 rounded-full bg-[#8B20FF] ring-2 ring-[#FFDF00] flex items-center justify-center text-xs font-black shrink-0">
-                {(seatZero.name || 'H').charAt(0).toUpperCase()}
+                {(room.host.name || 'H').charAt(0).toUpperCase()}
               </div>
             )}
 
@@ -860,7 +1151,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Participants Count Pill */}
+          {/* Real-Time Top Viewers Avatar Stack + Participants Count Pill */}
           <button
             onClick={() => {
               liveAndRoomService
@@ -871,29 +1162,36 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 });
               setShowParticipantsModal(true);
             }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1C0B35]/90 border border-white/15 text-white text-[10px] font-mono font-bold shadow"
+            className="flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-[#1C0B35]/90 border border-white/15 text-white text-[10px] font-mono font-bold shadow hover:bg-[#2B1252] transition-colors"
+            title="Real-Time Connected Viewers"
           >
+            {participantsList.length > 0 && (
+              <span className="flex items-center -space-x-1.5">
+                {participantsList.slice(0, 3).map((p) => (
+                  p.avatar ? (
+                    <img
+                      key={p.userId}
+                      src={p.avatar}
+                      alt={p.name}
+                      className="w-5 h-5 rounded-full object-cover border border-[#1C0B35] ring-1 ring-white/30"
+                    />
+                  ) : (
+                    <span
+                      key={p.userId}
+                      className="w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-black flex items-center justify-center border border-[#1C0B35] ring-1 ring-white/30"
+                    >
+                      {(p.name || 'V').charAt(0).toUpperCase()}
+                    </span>
+                  )
+                ))}
+              </span>
+            )}
             <Users className="w-3 h-3 text-cyan-300" />
             <span>{participantTotal}</span>
           </button>
 
-          {/* Real Coin Balance Pill */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1C0B35]/90 border border-[#D4AF37]/60 text-white text-[10px] font-mono font-black shadow">
-            <span className="text-[#FFDF00]">🪙</span>
-            <span>{(currentUser.coins || 0).toLocaleString()}</span>
-            {onOpenWallet && (
-              <button
-                onClick={onOpenWallet}
-                className="w-3.5 h-3.5 rounded-full bg-gradient-to-r from-[#FF007A] to-[#FA26A0] text-white flex items-center justify-center text-[9px] font-black ml-0.5"
-                title="Recharge Coins"
-              >
-                +
-              </button>
-            )}
-          </div>
-
-          {/* Local Mic Mute (visible when seated) */}
-          {(userSeatIndex !== -1 || isRoomHost) && (
+          {/* Local Mic Mute (visible ONLY when currently seated) */}
+          {isCurrentlySeated && (
             <button
               onClick={() => {
                 if (isHostMutedOnMySeat) {
@@ -902,7 +1200,6 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 }
                 const next = !isMicMuted;
                 setIsMicMuted(next);
-                agoraRtcService.setMicrophoneMuted(next);
                 showToast(next ? 'Mic muted' : 'Mic active');
               }}
               className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border flex items-center justify-center transition-all active:scale-95 shadow shrink-0 ${
@@ -925,7 +1222,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             onClick={() => {
               const next = !isSpeakerMuted;
               setIsSpeakerMuted(next);
+              if (!next) setAutoplayBlocked(false);
               agoraRtcService.setSpeakerMuted(next);
+              webrtcMediaService.setPartySpeakerMuted(next);
+              if (!next) {
+                agoraRtcService.resumeRemoteAudio();
+                webrtcMediaService.resumePartyRemoteAudio();
+              }
               showToast(next ? 'Room audio muted' : 'Room audio active');
             }}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-white/15 flex items-center justify-center text-white transition-all active:scale-95 shrink-0"
@@ -951,41 +1254,109 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               </span>
             )}
           </button>
+
+          {/* Dedicated Exit Button (Host & Audience Exit Menu) */}
+          <button
+            onClick={() => setShowExitRoomModal(true)}
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-rose-600/80 hover:bg-rose-600 border border-rose-400/40 flex items-center justify-center text-white transition-all active:scale-95 shrink-0"
+            title="Exit Party Room"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </header>
 
       {/* STAGE AREA */}
       <main className="flex-1 relative z-10 flex flex-col justify-start px-3 sm:px-5 overflow-y-auto no-scrollbar space-y-3">
-        {/* Announcement Strip */}
+        {/* Announcement Strip + Join Notice + Mic Permission / Autoplay Unlock Banners */}
         {roomAnnouncement && (
           <div className="max-w-md mx-auto w-full px-3 py-1.5 rounded-full bg-[#17092E]/85 border border-white/10 text-[11px] text-[#E6DCF8] text-center truncate">
             {roomAnnouncement}
           </div>
         )}
 
-        {/* HERO THRONES (Seat 0: Host Owner, Seat 1: Co-Host / Seat #2) */}
+        {partyEntryNotice && (
+          <div className="max-w-md mx-auto w-full flex justify-center animate-fade-in">
+            <div className="px-4 py-1 rounded-full bg-gradient-to-r from-[#8B20FF]/90 to-[#FA26A0]/90 border border-white/25 text-white text-[11px] font-bold shadow-lg">
+              {partyEntryNotice.name} joined the party room
+            </div>
+          </div>
+        )}
+
+        {isCurrentlySeated && micPermissionDenied && (
+          <div className="max-w-md mx-auto w-full flex justify-center">
+            <button
+              type="button"
+              onClick={() => void handleRetryPartyMic()}
+              className="px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-[#060212] text-xs font-black flex items-center gap-1.5 shadow-lg active:scale-95 transition-all"
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span>Allow Microphone Access to Speak</span>
+            </button>
+          </div>
+        )}
+
+        {autoplayBlocked && !isSpeakerMuted && (
+          <div className="max-w-md mx-auto w-full flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setAutoplayBlocked(false);
+                agoraRtcService.resumeRemoteAudio();
+                webrtcMediaService.resumePartyRemoteAudio();
+                showToast('Party room voice enabled');
+              }}
+              className="px-4 py-1.5 rounded-full bg-[#FA26A0] text-white text-xs font-bold flex items-center gap-1.5 shadow-lg animate-pulse"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Tap to Enable Party Voice Audio</span>
+            </button>
+          </div>
+        )}
+
+        {/* Quick Seated Action Strip (One-tap Mute & Leave Seat for both Host and Audience) */}
+        {isCurrentlySeated && (
+          <div className="max-w-md mx-auto w-full flex items-center justify-center gap-2">
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-[10px] font-bold">
+              On Seat #{userSeatIndex + 1} • {isMicMuted || isHostMutedOnMySeat ? 'Mic Muted' : 'Voice Live'}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleLeaveSeat(userSeatIndex)}
+              className="px-3 py-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-[10px] font-extrabold active:scale-95 transition-all"
+            >
+              Leave Seat
+            </button>
+          </div>
+        )}
+
+        {/* HERO THRONES (Seat 0: Host Throne, Seat 1: Co-Host / Seat #2) */}
         <div className="flex items-center justify-center gap-6 sm:gap-12 pt-2 pb-1">
-          {/* Seat 0: Host Owner */}
+          {/* Seat 0: Host Seat (Renders actual occupant OR empty Host Seat if host stepped down) */}
           <div
             onClick={() => handleSeatClick(0)}
             className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
           >
             <div className="relative flex flex-col items-center">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 text-lg">👑</div>
-              {Boolean(speakingSeats[0]) && !mutedSeatIndices.includes(0) && (
+              {Boolean(speakingSeats[0]) && seatZero && !mutedSeatIndices.includes(0) && (
                 <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
               )}
               <div className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-tr from-[#9B7110] via-[#FFDF00] to-[#FFE770] shadow-[0_0_22px_rgba(255,223,0,0.5)]">
                 <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] border-2 border-[#FFDF00] flex items-center justify-center">
-                  {seatZero.avatar ? (
-                    <img src={seatZero.avatar} alt={seatZero.name} className="w-full h-full object-cover" />
+                  {seatZero ? (
+                    seatZero.avatar ? (
+                      <img src={seatZero.avatar} alt={seatZero.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl font-black text-white">
+                        {(seatZero.name || 'H').charAt(0).toUpperCase()}
+                      </span>
+                    )
                   ) : (
-                    <span className="text-xl font-black text-white">
-                      {(seatZero.name || 'H').charAt(0).toUpperCase()}
-                    </span>
+                    <Plus className="w-6 h-6 text-[#FFDF00]/80" />
                   )}
                 </div>
-                {(mutedSeatIndices.includes(0) || (isRoomHost && isMicMuted)) && (
+                {seatZero && (mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted)) && (
                   <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-rose-600 border border-white flex items-center justify-center">
                     <MicOff className="w-3 h-3 text-white" />
                   </div>
@@ -995,7 +1366,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 Host
               </div>
               <span className="mt-1 text-xs font-black text-white truncate max-w-[95px]">
-                {seatZero.name}
+                {seatZero ? seatZero.name : isRoomHost ? 'Take Seat' : 'Empty'}
               </span>
             </div>
           </div>
@@ -1382,6 +1753,26 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   />
                 </div>
 
+                {isCurrentlySeated && (
+                  <button
+                    onClick={() => {
+                      setShowSettingsSheet(false);
+                      handleLeaveSeat(userSeatIndex);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-200 text-xs font-bold"
+                  >
+                    Leave Seat #{userSeatIndex + 1} (Stay as Listener)
+                  </button>
+                )}
+
+                <button
+                  onClick={handleCleanLeaveParty}
+                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Exit Room View (Keep Party Active)</span>
+                </button>
+
                 <button
                   onClick={() => {
                     setShowSettingsSheet(false);
@@ -1403,21 +1794,145 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     }}
                     className="w-full py-2.5 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-200 text-xs font-bold"
                   >
-                    Step Down From Seat #{userSeatIndex + 1}
+                    Leave Seat #{userSeatIndex + 1} (Step Down to Audience)
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    setShowSettingsSheet(false);
-                    onClose();
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
+                  onClick={handleCleanLeaveParty}
+                  className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-center gap-2"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Leave Room</span>
+                  <span>Leave Party Room</span>
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ROLE-AWARE EXIT PARTY ROOM MODAL (Host & Audience Complete Exit System) */}
+      {showExitRoomModal && (
+        <div
+          onClick={() => setShowExitRoomModal(false)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-3"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <LogOut className="w-4 h-4 text-[#FA26A0]" />
+                <span>{isRoomHost ? 'Host Exit & Seat Controls' : 'Party Room Exit'}</span>
+              </h3>
+              <button
+                onClick={() => setShowExitRoomModal(false)}
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {isCurrentlySeated && (
+              <button
+                onClick={() => handleLeaveSeat(userSeatIndex)}
+                className="w-full py-3 px-4 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-extrabold flex items-center justify-between transition-all"
+              >
+                <span>Leave Seat #{userSeatIndex + 1} (Listen in Audience)</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+
+            {isRoomHost ? (
+              <>
+                <button
+                  onClick={handleCleanLeaveParty}
+                  className="w-full py-3 px-4 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold flex items-center justify-between transition-all"
+                >
+                  <span>Exit Room View (Keep Party Open)</span>
+                  <LogOut className="w-4 h-4 text-white/70" />
+                </button>
+                <button
+                  onClick={() => {
+                    setShowExitRoomModal(false);
+                    setShowCloseRoomConfirmModal(true);
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-rose-600/25 hover:bg-rose-600/35 border border-rose-500/50 text-rose-200 text-xs font-extrabold flex items-center justify-between transition-all"
+                >
+                  <span>End & Close Party Room for Everyone</span>
+                  <Trash2 className="w-4 h-4 text-rose-300" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleCleanLeaveParty}
+                className="w-full py-3 px-4 rounded-2xl bg-rose-600/25 hover:bg-rose-600/35 border border-rose-500/50 text-rose-200 text-xs font-extrabold flex items-center justify-between transition-all"
+              >
+                <span>Leave Party Room</span>
+                <LogOut className="w-4 h-4 text-rose-300" />
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowExitRoomModal(false)}
+              className="w-full py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white/75 text-xs font-bold"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAP OWN SEAT ACTION SHEET (Mute/Unmute, Leave Seat, Profile) */}
+      {showMySeatModal !== null && (
+        <div
+          onClick={() => setShowMySeatModal(null)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-2.5"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-black text-white">Seat #{showMySeatModal + 1} Controls</h3>
+              <button
+                onClick={() => setShowMySeatModal(null)}
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                if (isHostMutedOnMySeat) {
+                  showToast('Your seat microphone is muted by Host');
+                  return;
+                }
+                const next = !isMicMuted;
+                setIsMicMuted(next);
+                setShowMySeatModal(null);
+                showToast(next ? 'Mic muted' : 'Mic active');
+              }}
+              className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
+            >
+              {isMicMuted ? <Mic className="w-4 h-4 text-emerald-400" /> : <MicOff className="w-4 h-4 text-rose-400" />}
+              <span>{isMicMuted ? 'Unmute My Microphone' : 'Mute My Microphone'}</span>
+            </button>
+            <button
+              onClick={() => handleLeaveSeat(showMySeatModal)}
+              className="w-full py-3 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-extrabold"
+            >
+              Leave Seat #{showMySeatModal + 1}
+            </button>
+            <button
+              onClick={() => {
+                setShowMySeatModal(null);
+                onSelectUser(currentUser);
+              }}
+              className="w-full py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white/80 text-xs font-bold"
+            >
+              View My Profile
+            </button>
           </div>
         </div>
       )}
@@ -1541,7 +2056,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             <h3 className="text-sm font-black text-white">Request Seat #{requestTargetSeat + 1}</h3>
             <p className="text-xs text-white/70 leading-relaxed">
               Send a microphone request to Host{' '}
-              <span className="text-white font-bold">{seatZero.name}</span>.
+              <span className="text-white font-bold">{(seatZero || room.host).name}</span>.
             </p>
             <div className="flex gap-2">
               <button
@@ -1796,8 +2311,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               <button
                 onClick={async () => {
                   setShowCloseRoomConfirmModal(false);
+                  hasExplicitlyLeftRef.current = true;
                   if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
                   if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
+                  webrtcMediaService.stopPartyVoice();
                   await agoraRtcService.leaveChannel().catch(() => {});
                   await liveAndRoomService.endPartyRoom(room.id, currentUser.id).catch(() => {});
                   onCloseRoom?.(room.id);

@@ -300,7 +300,8 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
            ======================================================== */}
         <div className="space-y-3 pt-1">
           {filteredRooms.map((room) => {
-            const isFull = room.numericParticipants >= room.maxSeats;
+            const liveOnlineCount = typeof room.numericParticipants === 'number' ? room.numericParticipants : 0;
+            const seatedCount = Array.isArray(room.seats) ? room.seats.filter(Boolean).length : 0;
             return (
               <div
                 key={room.id}
@@ -322,7 +323,6 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                         {(room.host.name || 'R').charAt(0).toUpperCase()}
                       </div>
                     )}
-                    {/* Tiny music icon badge */}
                     <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FA26A0] text-white flex items-center justify-center text-[9px] shadow">
                       🎙️
                     </div>
@@ -330,34 +330,33 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
 
                   {/* Middle Content */}
                   <div className="flex flex-col min-w-0">
-                    {/* Room Name with Emoji */}
                     <h3 className="text-sm font-extrabold text-white group-hover:text-[#FA26A0] transition-colors truncate leading-snug">
                       {room.title}
                     </h3>
-                    
-                    {/* Host Name */}
                     <span className="text-xs text-[#9E97AA] font-medium truncate leading-snug">
                       {room.host.name}
                     </span>
-
-                    {/* Room ID & Tag */}
-                    {room.displayId && (
-                      <span className="text-[10px] text-[#6E677A] font-mono leading-none mt-0.5">
-                        ID: {room.displayId}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {room.displayId && (
+                        <span className="text-[10px] text-[#6E677A] font-mono leading-none">
+                          ID: {room.displayId}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#9E97AA] font-mono leading-none">
+                        • {seatedCount}/{room.maxSeats} seats
                       </span>
-                    )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Right Side: Participant Count & Pink Join Button */}
+                {/* Right Side: Real-Time Online Count & Pink Join Button */}
                 <div className="flex items-center gap-3 shrink-0 ml-2">
-                  {/* Current Participants / Capacity Badge: 👥 6/8 */}
-                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-white/90">
+                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-white/90" title="Real-time connected viewers">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     <Users className="w-3.5 h-3.5 text-[#9E97AA]" />
-                    <span>{room.participantCount || `${room.numericParticipants}/${room.maxSeats}`}</span>
+                    <span>{liveOnlineCount}</span>
                   </div>
 
-                  {/* Pink "Join" Button matching Screenshot 1 exactly */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

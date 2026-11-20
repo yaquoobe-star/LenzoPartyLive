@@ -51,6 +51,7 @@ import {
   AudioAnalyserController 
 } from '../../utils/mediaDeviceHelper';
 import { agoraRtcService } from '../../utils/agoraRtcService';
+import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import { getUserLevelProgress } from '../../utils/levelSystem';
 
@@ -166,22 +167,31 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const [isRealBackCamera, setIsRealBackCamera] = useState<boolean>(false);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState<boolean>(false);
 
-  // Agora RTC Live Subscription States (For Remote Viewers & Broadcasters)
+  // Real-Time Live Subscription States (Agora RTC + WebRTC Fallback for Viewers & Broadcasters)
   const [hasRemoteAgoraStream, setHasRemoteAgoraStream] = useState<boolean>(false);
   const [remoteHostIsCameraOn, setRemoteHostIsCameraOn] = useState<boolean>(true);
   const [agoraConnectionState, setAgoraConnectionState] = useState<string>('connecting');
+  const [mediaTransport, setMediaTransport] = useState<'agora' | 'webrtc' | 'connecting'>('connecting');
   const [viewerSoundMuted, setViewerSoundMuted] = useState<boolean>(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState<boolean>(false);
+  const [remoteWebRtcStream, setRemoteWebRtcStream] = useState<MediaStream | null>(null);
   const remotePlayerContainerRef = useRef<HTMLDivElement>(null);
+  const remoteWebRtcVideoRef = useRef<HTMLVideoElement>(null);
   const localPlayerContainerRef = useRef<HTMLDivElement>(null);
 
   // Agora RTC Engine States
   const [agoraConfig, setAgoraConfig] = useState<{ configured: boolean; appId: string }>({ configured: false, appId: '' });
   const [agoraConnected, setAgoraConnected] = useState<boolean>(false);
+  const [hasAgoraLocalVideo, setHasAgoraLocalVideo] = useState<boolean>(false);
   const [agoraRole, setAgoraRole] = useState<'host' | 'audience'>('audience');
 
   // References
   const videoElementRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaTransportRef = useRef<'agora' | 'webrtc' | 'connecting'>('connecting');
+  mediaTransportRef.current = mediaTransport;
+  const isMutedRef = useRef<boolean>(false);
+  isMutedRef.current = isMuted;
   const audioAnalyserControllerRef = useRef<AudioAnalyserController | null>(null);
   const audioVolumeRafRef = useRef<number | null>(null);
   const isAcquiringRef = useRef<boolean>(false);
@@ -229,12 +239,19 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             setStreamLikes(res.stream.likesCount);
           }
         }
+        if (Array.isArray(res.viewers)) {
+          setViewersList(res.viewers);
+          setViewersTotalCount(res.viewers.length);
+        } else {
+          loadLiveViewers(1, false);
+        }
         if (Array.isArray(res.comments)) {
           setMessages(res.comments);
         }
       })
       .catch((err) => {
         console.warn('[ActiveLive] Join notice:', err?.message || err);
+        loadLiveViewers(1, false);
       });
 
     const heartbeat = setInterval(() => {
@@ -244,20 +261,67 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     const unsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
       if (!active || payload?.streamId !== stream.id) return;
 
-      if (event === 'live:viewer_joined') {
+      if (event === 'live:sync_state') {
+        if (payload.stream && typeof payload.stream.numericViewers === 'number') {
+          setLiveViewerCount(payload.stream.numericViewers);
+        }
+        if (Array.isArray(payload.viewers)) {
+          setViewersList(payload.viewers);
+          setViewersTotalCount(payload.viewers.length);
+        }
+        if (Array.isArray(payload.comments)) {
+          setMessages(payload.comments);
+        }
+      } else if (event === 'live:viewer_joined') {
         if (typeof payload.numericViewers === 'number') {
           setLiveViewerCount(payload.numericViewers);
         }
-        const joinedViewer = payload.viewer;
+        const joinedViewer: LiveViewerInfo | undefined = payload.viewer;
+        if (Array.isArray(payload.viewers)) {
+          setViewersList(payload.viewers);
+          setViewersTotalCount(payload.viewers.length);
+        } else if (joinedViewer?.userId) {
+          setViewersList((prev) => {
+            const next = [
+              ...prev.filter((v) => v.userId !== joinedViewer.userId),
+              joinedViewer,
+            ];
+            setViewersTotalCount(next.length);
+            return next;
+          });
+        }
+
+        // Proactively send WebRTC offer from Host to newly joined viewer
+        if (
+          isActualHost &&
+          mediaTransportRef.current === 'webrtc' &&
+          joinedViewer?.userId &&
+          joinedViewer.userId !== currentUser.id
+        ) {
+          webrtcMediaService.sendOfferToViewer(joinedViewer.userId);
+        }
+
         if (joinedViewer && joinedViewer.userId !== currentUser.id) {
           const now = Date.now();
           const lastShown = seenEntriesRef.current.get(joinedViewer.userId) || 0;
-          if (now - lastShown > 15000) {
+          if (now - lastShown > 10000) {
             seenEntriesRef.current.set(joinedViewer.userId, now);
             setEntryNotice({
               id: `${joinedViewer.userId}_${now}`,
               name: joinedViewer.name || 'Viewer',
             });
+            setMessages((prev) => [
+              ...prev.slice(-79),
+              {
+                id: `join_${joinedViewer.userId}_${now}`,
+                senderId: joinedViewer.userId,
+                senderName: joinedViewer.name || 'Viewer',
+                senderAvatar: joinedViewer.avatar || '',
+                text: 'joined the live',
+                timestamp: 'Now',
+                isSystem: true,
+              },
+            ]);
             if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
             entryTimerRef.current = setTimeout(() => setEntryNotice(null), 3500);
           }
@@ -266,13 +330,27 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         if (typeof payload.numericViewers === 'number') {
           setLiveViewerCount(payload.numericViewers);
         }
+        if (Array.isArray(payload.viewers)) {
+          setViewersList(payload.viewers);
+          setViewersTotalCount(payload.viewers.length);
+        } else if (event === 'live:viewer_left' && payload.userId) {
+          setViewersList((prev) => {
+            const next = prev.filter((v) => v.userId !== payload.userId);
+            setViewersTotalCount(next.length);
+            return next;
+          });
+        }
       } else if (event === 'live:comment' && payload.message) {
         const incoming: ChatMessage = payload.message;
         setMessages((prev) =>
           prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]
         );
-      } else if (event === 'live:like' && typeof payload.likesCount === 'number') {
+      } else if ((event === 'live:like' || event === 'live:heart') && typeof payload.likesCount === 'number') {
         setStreamLikes(payload.likesCount);
+      } else if (event === 'live:media_state') {
+        if (!isActualHost && typeof payload.isCameraOn === 'boolean') {
+          setRemoteHostIsCameraOn(payload.isCameraOn);
+        }
       } else if (event === 'live:gift') {
         if (payload.message) {
           const giftMsg: ChatMessage = payload.message;
@@ -291,6 +369,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             stopMediaStream(mediaStreamRef.current);
             mediaStreamRef.current = null;
           }
+          webrtcMediaService.stopLive();
           agoraRtcService.leaveChannel().catch(() => {});
           setTimeout(() => {
             if (active) onClose();
@@ -311,9 +390,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     };
   }, [stream.id, currentUser.id, isActualHost]);
 
-  // Web Camera & Realtime Microphone Initialization & Lifecycle
-  const startCamera = async (front = isFrontCamera) => {
-    if (isAcquiringRef.current) return;
+  // Web Camera & Realtime Microphone Initialization & Lifecycle (Returns acquired MediaStream)
+  const startCamera = async (front = isFrontCamera): Promise<MediaStream | null> => {
+    if (isAcquiringRef.current) return mediaStreamRef.current;
     isAcquiringRef.current = true;
 
     // Clean up previous stream and audio analyser safely
@@ -326,17 +405,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       mediaStreamRef.current = null;
     }
 
-    if (!isCameraOn) {
-      setHasWebcamStream(false);
-      setAudioVolumeLevel(0);
-      isAcquiringRef.current = false;
-      return;
-    }
-
     try {
       const result = await acquireRealDeviceCamera({
         isFront: front,
-        enableAudio: true, // Always capture real microphone for live broadcast!
+        enableAudio: true,
         idealWidth: 1280,
         idealHeight: 720,
       });
@@ -345,35 +417,39 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       setIsRealBackCamera(result.isRealBackCamera);
       setCameraLabel(result.label);
 
-      // Enforce current mute state on real audio tracks
       result.stream.getAudioTracks().forEach((track) => {
         track.enabled = !isMicMuted;
       });
 
-      // Bind to video element
       if (videoElementRef.current) {
         videoElementRef.current.srcObject = result.stream;
         videoElementRef.current.play().catch(() => {});
       }
 
-      // Initialize real-time Web Audio Analyser
       if (result.hasAudio) {
         const controller = createAudioAnalyser(result.stream);
         audioAnalyserControllerRef.current = controller;
       }
 
-      // Camera and mic captured successfully
       setHasWebcamStream(true);
       setCameraPermissionDenied(false);
+      webrtcMediaService.updateLiveHostStream(result.stream);
+      liveAndRoomService.sendLiveMediaState(stream.id, currentUser.id, {
+        isCameraOn: true,
+        isMicMuted,
+        isFrontCamera: front,
+      });
       if (localPlayerContainerRef.current) {
         agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
       }
+      return result.stream;
     } catch (err: any) {
       console.warn('Real camera/mic acquisition error:', err);
       setHasWebcamStream(false);
       if (err?.name === 'NotAllowedError' || err?.message?.includes('Permission denied')) {
         setCameraPermissionDenied(true);
       }
+      return null;
     } finally {
       isAcquiringRef.current = false;
     }
@@ -403,7 +479,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     };
   }, [isMicMuted]);
 
-  // Ensure video element rebinds when camera or front/rear state mounts
+  // Ensure local video element rebinds when camera or front/rear state mounts
   useEffect(() => {
     if (videoElementRef.current && mediaStreamRef.current) {
       videoElementRef.current.srcObject = mediaStreamRef.current;
@@ -411,31 +487,58 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
   }, [hasWebcamStream, isCameraOn, isFrontCamera]);
 
+  // Bind WebRTC remote MediaStream to viewer video element cleanly
+  useEffect(() => {
+    const videoEl = remoteWebRtcVideoRef.current;
+    if (!videoEl || !remoteWebRtcStream) return;
+    videoEl.srcObject = remoteWebRtcStream;
+    videoEl.muted = isMuted;
+    videoEl.play().catch(() => {
+      // Browser autoplay blocked unmuted audio: fallback to muted playback + tap-to-unmute banner
+      videoEl.muted = true;
+      setAutoplayBlocked(true);
+      setViewerSoundMuted(true);
+      videoEl.play().catch(() => {});
+    });
+  }, [remoteWebRtcStream]);
+
   // Toggle Camera On / Off
   const handleToggleCamera = () => {
     if (isCameraOn) {
-      // Turn Camera OFF
-      if (audioAnalyserControllerRef.current) {
-        audioAnalyserControllerRef.current.cleanup();
-        audioAnalyserControllerRef.current = null;
-      }
       if (mediaStreamRef.current) {
-        stopMediaStream(mediaStreamRef.current);
-        mediaStreamRef.current = null;
-      }
-      if (videoElementRef.current) {
-        videoElementRef.current.srcObject = null;
+        mediaStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = false;
+        });
       }
       setIsCameraOn(false);
       setHasWebcamStream(false);
-      setAudioVolumeLevel(0);
       agoraRtcService.setCameraEnabled(false);
+      liveAndRoomService.sendLiveMediaState(stream.id, currentUser.id, {
+        isCameraOn: false,
+        isMicMuted,
+        isFrontCamera,
+      });
       showToast('📷 Camera turned OFF (Audio Mode)');
     } else {
-      // Turn Camera ON
       setIsCameraOn(true);
       agoraRtcService.setCameraEnabled(true);
-      startCamera(isFrontCamera);
+      if (mediaStreamRef.current && mediaStreamRef.current.getVideoTracks().length > 0) {
+        mediaStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = true;
+        });
+        setHasWebcamStream(true);
+        if (videoElementRef.current) {
+          videoElementRef.current.srcObject = mediaStreamRef.current;
+          videoElementRef.current.play().catch(() => {});
+        }
+        liveAndRoomService.sendLiveMediaState(stream.id, currentUser.id, {
+          isCameraOn: true,
+          isMicMuted,
+          isFrontCamera,
+        });
+      } else {
+        void startCamera(isFrontCamera);
+      }
       showToast('📹 Camera turned ON');
     }
   };
@@ -453,6 +556,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
 
     agoraRtcService.setMicrophoneMuted(nextMuted);
+    liveAndRoomService.sendLiveMediaState(stream.id, currentUser.id, {
+      isCameraOn,
+      isMicMuted: nextMuted,
+      isFrontCamera,
+    });
 
     if (nextMuted) {
       setAudioVolumeLevel(0);
@@ -460,6 +568,40 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     } else {
       showToast('🎙️ Microphone Active (Realtime On)');
     }
+  };
+
+  // Toggle Viewer Speaker Mute / Unmute (Controls BOTH Agora & WebRTC remote playback)
+  const handleToggleViewerSound = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    setViewerSoundMuted(nextMuted);
+    if (!nextMuted) {
+      setAutoplayBlocked(false);
+    }
+    agoraRtcService.setSpeakerMuted(nextMuted);
+    if (!nextMuted) {
+      agoraRtcService.resumeRemoteAudio();
+    }
+    if (remoteWebRtcVideoRef.current) {
+      remoteWebRtcVideoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        remoteWebRtcVideoRef.current.play().catch(() => {});
+      }
+    }
+    showToast(nextMuted ? '🔇 Stream sound muted' : '🔊 Stream sound active');
+  };
+
+  const handleUnlockViewerAudio = () => {
+    setIsMuted(false);
+    setViewerSoundMuted(false);
+    setAutoplayBlocked(false);
+    agoraRtcService.setSpeakerMuted(false);
+    agoraRtcService.resumeRemoteAudio();
+    if (remoteWebRtcVideoRef.current) {
+      remoteWebRtcVideoRef.current.muted = false;
+      remoteWebRtcVideoRef.current.play().catch(() => {});
+    }
+    showToast('🔊 Live stream audio enabled');
   };
 
   // Flip Camera Front / Back (Rotate to Back Camera)
@@ -477,105 +619,190 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     setTimeout(() => setIsFlippingCamera(false), 500);
   };
 
-  // React to Camera On/Off state for Host
-  useEffect(() => {
-    if (isActualHost && isHostMode) {
-      if (isCameraOn) {
-        startCamera(isFrontCamera);
-      } else {
-        if (audioAnalyserControllerRef.current) {
-          audioAnalyserControllerRef.current.cleanup();
-          audioAnalyserControllerRef.current = null;
-        }
-        if (mediaStreamRef.current) {
-          stopMediaStream(mediaStreamRef.current);
-          mediaStreamRef.current = null;
-        }
-        if (videoElementRef.current) {
-          videoElementRef.current.srcObject = null;
-        }
-        setHasWebcamStream(false);
-        setAudioVolumeLevel(0);
-      }
+  // Retry camera + mic permission acquisition and republish to active transport
+  const handleRetryHostCamera = async () => {
+    setCameraPermissionDenied(false);
+    agoraRtcService.resetPermissionDeniedFlags();
+    const newStream = await startCamera(isFrontCamera);
+    if (!newStream) {
+      showToast('Please allow Camera & Microphone permissions in settings');
+      return;
     }
-
-    return () => {
-      if (audioAnalyserControllerRef.current) {
-        audioAnalyserControllerRef.current.cleanup();
+    if (mediaTransportRef.current === 'agora') {
+      try {
+        await agoraRtcService.switchRole('host', {
+          enableVideo: true,
+          enableAudio: !isMicMuted,
+          mediaStream: newStream,
+        });
+        if (localPlayerContainerRef.current && agoraRtcService.getLocalVideoTrack()) {
+          agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
+          setHasAgoraLocalVideo(true);
+        }
+      } catch (err) {
+        console.warn('[Live Media] Agora camera republish notice:', err);
+        setHasAgoraLocalVideo(false);
       }
-      if (mediaStreamRef.current) {
-        stopMediaStream(mediaStreamRef.current);
-      }
-    };
-  }, [isCameraOn, isActualHost, isHostMode]);
+    } else {
+      webrtcMediaService.updateLiveHostStream(newStream);
+      setHasAgoraLocalVideo(false);
+    }
+    showToast('Camera & microphone are now live');
+  };
 
-  // Agora RTC Engine Solo Live Broadcasting & Viewing Integration
+  // Unified Real-Time Live Media Engine (Serialized Host Camera -> Agora RTC with Automatic WebRTC Fallback)
   useEffect(() => {
     let isSubscribed = true;
+    const role = isActualHost && isHostMode ? 'host' : 'audience';
+    setAgoraRole(role);
+    setHasRemoteAgoraStream(false);
+    setHasAgoraLocalVideo(false);
+    setRemoteWebRtcStream(null);
+    setAutoplayBlocked(false);
 
-    const setupAgoraLive = async () => {
+    const setupLiveMedia = async () => {
       try {
         setAgoraConnectionState('connecting');
+        setMediaTransport('connecting');
+
+        // 1. For Host: acquire camera & mic FIRST before publishing (eliminates double getUserMedia race)
+        let acquiredStream: MediaStream | null = mediaStreamRef.current;
+        if (role === 'host' && isCameraOn && !acquiredStream) {
+          acquiredStream = await startCamera(isFrontCamera);
+          if (!isSubscribed) return;
+        }
+
         const config = await agoraRtcService.getAgoraConfig();
         if (!isSubscribed) return;
         setAgoraConfig(config);
 
-        const role = isActualHost && isHostMode ? 'host' : 'audience';
-        setAgoraRole(role);
-
         if (config.configured && config.appId) {
-          const tokenData = await agoraRtcService.requestRtcToken(
-            stream.id,
-            currentUser.id,
-            role === 'host' ? 'broadcaster' : 'audience'
-          );
-
-          if (!isSubscribed) return;
-
-          if (tokenData.token) {
-            await agoraRtcService.joinChannel({
-              appId: config.appId,
-              channelName: stream.id,
-              userAccount: currentUser.id,
-              role,
-              token: tokenData.token,
-              enableVideo: isCameraOn && !cameraPermissionDenied,
-              enableAudio: !isMicMuted,
-              isFront: isFrontCamera,
-              mediaStream: mediaStreamRef.current,
-            });
-
+          try {
+            const tokenData = await agoraRtcService.requestRtcToken(
+              stream.id,
+              currentUser.id,
+              role === 'host' ? 'broadcaster' : 'audience'
+            );
             if (!isSubscribed) return;
-            setAgoraConnected(true);
-            setAgoraConnectionState('connected');
-            console.log(`[Agora Solo Live] Successfully joined channel ${stream.id} as ${role}`);
 
-            if (agoraRtcService.getIsCameraPermissionDenied()) {
-              setCameraPermissionDenied(true);
-            }
+            if (tokenData.token) {
+              setMediaTransport('agora');
+              await agoraRtcService.joinChannel({
+                appId: config.appId,
+                channelName: stream.id,
+                userAccount: currentUser.id,
+                role,
+                token: tokenData.token,
+                enableVideo: isCameraOn && Boolean(acquiredStream || !cameraPermissionDenied),
+                enableAudio: !isMicMuted,
+                isFront: isFrontCamera,
+                mediaStream: acquiredStream,
+              });
 
-            // If broadcaster and video track is live, mount local camera preview to container
-            if (role === 'host' && localPlayerContainerRef.current && agoraRtcService.getLocalVideoTrack()) {
-              agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
+              if (!isSubscribed) return;
+              setAgoraConnected(true);
+              setAgoraConnectionState('connected');
+
+              if (agoraRtcService.getIsCameraPermissionDenied()) {
+                setCameraPermissionDenied(true);
+              }
+
+              if (role === 'host' && localPlayerContainerRef.current && agoraRtcService.getLocalVideoTrack()) {
+                agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
+                setHasAgoraLocalVideo(true);
+              } else if (role === 'audience') {
+                const existingHost = agoraRtcService.getRemoteHosts()[0];
+                if (existingHost) {
+                  if (existingHost.videoTrack && remotePlayerContainerRef.current) {
+                    agoraRtcService.playRemoteVideo(existingHost.uid, remotePlayerContainerRef.current);
+                    setHasRemoteAgoraStream(true);
+                  }
+                  if (existingHost.audioTrack) {
+                    setHasRemoteAgoraStream(true);
+                    if (!isMutedRef.current) {
+                      try {
+                        existingHost.audioTrack.play();
+                      } catch {
+                        setAutoplayBlocked(true);
+                        setViewerSoundMuted(true);
+                      }
+                    }
+                  }
+                  setRemoteHostIsCameraOn(existingHost.hasVideo);
+                }
+              }
+              return;
             }
+          } catch (agoraErr: any) {
+            console.warn('[Live Media] Agora connection failed, falling back to real-time WebRTC:', agoraErr?.message || agoraErr);
+            await agoraRtcService.leaveChannel().catch(() => {});
           }
         }
+
+        if (!isSubscribed) return;
+
+        // 2. Real-Time WebRTC Signaling Fallback over /ws
+        setHasAgoraLocalVideo(false);
+        setMediaTransport('webrtc');
+        if (role === 'host') {
+          webrtcMediaService.startLiveHost(stream.id, currentUser.id, acquiredStream);
+          setAgoraConnected(true);
+          setAgoraConnectionState('connected');
+        } else {
+          webrtcMediaService.startLiveViewer(stream.id, currentUser.id, stream.host.id, {
+            onRemoteStream: (remoteStream) => {
+              if (!isSubscribed) return;
+              setRemoteWebRtcStream(remoteStream);
+              setHasRemoteAgoraStream(true);
+              const hasActiveVideo = remoteStream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled);
+              setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
+              setAgoraConnected(true);
+              setAgoraConnectionState('connected');
+            },
+            onStatusChange: (status) => {
+              if (!isSubscribed) return;
+              if (status === 'connected') {
+                setAgoraConnected(true);
+                setAgoraConnectionState('connected');
+              } else if (status === 'connecting' || status === 'reconnecting') {
+                setAgoraConnectionState('connecting');
+              } else if (status === 'failed') {
+                setAgoraConnectionState('error');
+              }
+            },
+            onAutoplayBlocked: () => {
+              if (!isSubscribed) return;
+              setAutoplayBlocked(true);
+              setViewerSoundMuted(true);
+            },
+          });
+        }
       } catch (err: any) {
-        console.warn('[Agora Solo Live] Channel join error:', err?.message || err);
-        setAgoraConnectionState('error');
+        console.warn('[Live Media] Connection notice:', err?.message || err);
+        if (isSubscribed) setAgoraConnectionState('error');
       }
     };
 
-    setupAgoraLive();
+    setupLiveMedia();
 
     const unsubRemote = agoraRtcService.onRemoteTrack((remoteHost) => {
+      if (!isSubscribed) return;
       try {
         if (remoteHost.videoTrack && remotePlayerContainerRef.current) {
           agoraRtcService.playRemoteVideo(remoteHost.uid, remotePlayerContainerRef.current);
           setHasRemoteAgoraStream(true);
         }
         if (remoteHost.audioTrack) {
-          remoteHost.audioTrack.play();
+          // Audio-only streams still count as connected remote broadcast!
+          setHasRemoteAgoraStream(true);
+          if (!isMutedRef.current) {
+            try {
+              remoteHost.audioTrack.play();
+            } catch {
+              setAutoplayBlocked(true);
+              setViewerSoundMuted(true);
+            }
+          }
         }
         setRemoteHostIsCameraOn(remoteHost.hasVideo);
       } catch (e) {
@@ -583,19 +810,36 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       }
     });
 
-    const unsubUserLeft = agoraRtcService.onUserLeft(() => {
-      setHasRemoteAgoraStream(false);
-      showToast('🛑 Host has ended the live broadcast');
-      setTimeout(() => {
-        onClose();
-      }, 1800);
+    const unsubAutoplay = agoraRtcService.onAutoplayBlocked(() => {
+      if (!isSubscribed) return;
+      setAutoplayBlocked(true);
+      setViewerSoundMuted(true);
+    });
+
+    const unsubUserLeft = agoraRtcService.onUserLeft((leftUid) => {
+      if (!isSubscribed) return;
+      // Only handle host leaving; never disconnect when another viewer leaves!
+      if (String(leftUid) === String(stream.host.id) && !isActualHost) {
+        setHasRemoteAgoraStream(false);
+        showToast('Host temporarily disconnected from media stream');
+      }
     });
 
     return () => {
       isSubscribed = false;
       unsubRemote();
+      unsubAutoplay();
       unsubUserLeft();
+      webrtcMediaService.stopLive();
       agoraRtcService.leaveChannel().catch(() => {});
+      if (audioAnalyserControllerRef.current) {
+        audioAnalyserControllerRef.current.cleanup();
+        audioAnalyserControllerRef.current = null;
+      }
+      if (mediaStreamRef.current) {
+        stopMediaStream(mediaStreamRef.current);
+        mediaStreamRef.current = null;
+      }
     };
   }, [stream.id, currentUser.id, isActualHost, isHostMode]);
 
@@ -1254,7 +1498,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 {/* Agora Local Video Container & Direct Hardware Camera Stream */}
                 <div
                   ref={localPlayerContainerRef}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover [&>div]:w-full [&>div]:h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover ${
+                    mediaTransport === 'agora' && hasAgoraLocalVideo
+                      ? 'opacity-100'
+                      : 'opacity-0 pointer-events-none'
+                  }`}
                 />
                 <video
                   ref={videoElementRef}
@@ -1262,7 +1510,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   playsInline
                   muted
                   className={`w-full h-full object-cover transition-all absolute inset-0 ${isFrontCamera ? '-scale-x-100' : 'scale-x-100'} ${VIDEO_FILTERS[activeFilter].css} ${
-                    hasWebcamStream && !agoraConnected ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    hasWebcamStream && !(mediaTransport === 'agora' && hasAgoraLocalVideo)
+                      ? 'opacity-100'
+                      : 'opacity-0 pointer-events-none'
                   }`}
                 />
 
@@ -1271,7 +1521,13 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                     {/* Real Device Camera Mode & Instant Rotate Button */}
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[11px] font-bold shadow-lg">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      <span>{agoraConnected ? '🔴 Agora Live' : isFrontCamera ? '🤳 Front Camera' : '📷 Back Camera (Rear)'}</span>
+                      <span>
+                        {mediaTransport === 'agora'
+                          ? 'Live HD'
+                          : isFrontCamera
+                            ? 'Front Camera'
+                            : 'Back Camera'}
+                      </span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1357,14 +1613,12 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setCameraPermissionDenied(false);
-                          agoraRtcService.resetPermissionDeniedFlags();
-                          startCamera(isFrontCamera);
+                          void handleRetryHostCamera();
                         }}
                         className="px-6 py-3 rounded-full bg-gradient-to-r from-[#FA26A0] via-[#F328D5] to-[#8B20FF] text-white text-xs font-black shadow-xl shadow-pink-900/60 flex items-center gap-2 active:scale-95 transition-all"
                       >
                         <Camera className="w-4 h-4" />
-                        <span>{cameraPermissionDenied ? 'Allow Camera & Retry 🔄' : 'Activate Real Device Camera 🎥'}</span>
+                        <span>{cameraPermissionDenied ? 'Allow Camera & Mic' : 'Activate Camera & Mic'}</span>
                       </button>
 
                       {cameraPermissionDenied && (
@@ -1421,38 +1675,50 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             )
           ) : (
             /* ========================================================
-               REMOTE VIEWER PERSPECTIVE: Real Agora RTC Live Broadcast Stream from Host
-               NO FAKE PICTURES OR DUMMY COVERS!
+               REMOTE VIEWER PERSPECTIVE: Real-Time Agora RTC or WebRTC Live Broadcast Stream
                ======================================================== */
             <div className="relative w-full h-full">
               {/* Agora RTC Remote Video Player Container */}
               <div
                 ref={remotePlayerContainerRef}
                 className={`w-full h-full overflow-hidden [&>div]:w-full [&>div]:h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover ${
-                  hasRemoteAgoraStream && remoteHostIsCameraOn ? 'opacity-100' : 'opacity-0 absolute pointer-events-none'
+                  mediaTransport === 'agora' && hasRemoteAgoraStream && remoteHostIsCameraOn
+                    ? 'opacity-100'
+                    : 'opacity-0 absolute inset-0 pointer-events-none'
                 }`}
               />
 
-              {/* Status Overlay: Real-Time Agora Stream Status */}
-              {hasRemoteAgoraStream && remoteHostIsCameraOn && (
+              {/* WebRTC Real-Time Remote Video Player */}
+              <video
+                ref={remoteWebRtcVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover ${
+                  mediaTransport === 'webrtc' && hasRemoteAgoraStream && remoteHostIsCameraOn
+                    ? 'opacity-100'
+                    : 'opacity-0 absolute inset-0 pointer-events-none'
+                }`}
+              />
+
+              {/* Status Overlay: Real-Time Stream Status + Tap to Unmute Audio */}
+              {hasRemoteAgoraStream && (
                 <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[11px] font-bold shadow-lg">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span>🔴 LIVE • Agora RTC Broadcast</span>
+                    <span>LIVE • Real-Time Stream</span>
                   </div>
 
-                  {viewerSoundMuted && (
+                  {(viewerSoundMuted || autoplayBlocked) && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setViewerSoundMuted(false);
-                        setIsMuted(false);
+                        handleUnlockViewerAudio();
                       }}
-                      className="px-3 py-1 rounded-full bg-[#FA26A0] text-white text-[11px] font-bold shadow-lg shadow-pink-900/50 flex items-center gap-1 animate-pulse"
+                      className="px-3 py-1.5 rounded-full bg-[#FA26A0] text-white text-[11px] font-bold shadow-lg shadow-pink-900/50 flex items-center gap-1.5 animate-pulse"
                     >
                       <VolumeX className="w-3.5 h-3.5" />
-                      <span>Tap to Unmute Host Audio 🔊</span>
+                      <span>Tap to Enable Host Audio</span>
                     </button>
                   )}
                 </div>
@@ -1481,13 +1747,13 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                       <span>Host Audio Broadcast (Camera Off)</span>
                     </div>
                     <p className="text-xs text-[#B9AECF] max-w-xs">
-                      {stream.host.name} is streaming live audio via Agora RTC.
+                      {stream.host.name} is broadcasting live audio in real time.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* If Remote Stream is Connecting or Host hasn't published yet */}
+              {/* If Remote Stream is Connecting or Waiting for Host Video */}
               {!hasRemoteAgoraStream && (
                 <div className="relative w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-[#160B29] via-[#090513] to-[#030107]">
                   <div className="relative mb-5 flex items-center justify-center">
@@ -1501,11 +1767,37 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   </div>
                   <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/70 border border-white/15 text-white text-xs font-bold shadow-lg mb-2">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                    <span>{agoraConnectionState === 'connecting' ? 'Connecting Agora RTC Live Feed...' : 'Waiting for Host Live Stream...'}</span>
+                    <span>
+                      {agoraConnectionState === 'connecting'
+                        ? 'Connecting to Live Stream...'
+                        : 'Waiting for Host Video Feed...'}
+                    </span>
                   </div>
-                  <p className="text-xs text-[#9E97AA] text-center max-w-xs">
-                    Real-time low-latency video and audio stream from {stream.host.name} powered by Agora RTC.
+                  <p className="text-xs text-[#9E97AA] text-center max-w-xs mb-4">
+                    Real-time video & audio from {stream.host.name} will appear as soon as the host feed links.
                   </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (mediaTransport === 'webrtc') {
+                        webrtcMediaService.requestOfferFromHost();
+                      } else {
+                        const existing = agoraRtcService.getRemoteHosts()[0];
+                        if (existing?.videoTrack && remotePlayerContainerRef.current) {
+                          agoraRtcService.playRemoteVideo(existing.uid, remotePlayerContainerRef.current);
+                          setHasRemoteAgoraStream(true);
+                          setRemoteHostIsCameraOn(true);
+                        }
+                        agoraRtcService.resumeRemoteAudio();
+                      }
+                      showToast('Refreshing live stream feed...');
+                    }}
+                    className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reconnect Feed</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1638,26 +1930,58 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </button>
             )}
 
-            {/* Viewer Count Pill + (i) Info Modal Trigger */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow">
-              <Eye className="w-3.5 h-3.5 text-cyan-300" />
-              <span className="font-mono">{liveViewerCount.toLocaleString()}</span>
+            {/* Real-Time Top Viewers Avatar Stack + Viewer Count Pill */}
+            <div className="flex items-center gap-1.5">
+              {viewersList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowViewersModal(true);
+                    loadLiveViewers(1, false);
+                  }}
+                  className="flex items-center -space-x-2 pr-0.5 cursor-pointer"
+                  title="Real-Time Viewers"
+                >
+                  {viewersList.slice(0, 3).map((v) => (
+                    v.avatar ? (
+                      <img
+                        key={v.userId}
+                        src={v.avatar}
+                        alt={v.name}
+                        className="w-6 h-6 rounded-full object-cover border border-[#160C25] ring-1 ring-white/30"
+                      />
+                    ) : (
+                      <div
+                        key={v.userId}
+                        className="w-6 h-6 rounded-full bg-[#8B20FF] text-white text-[10px] font-black flex items-center justify-center border border-[#160C25] ring-1 ring-white/30"
+                      >
+                        {(v.name || 'V').charAt(0).toUpperCase()}
+                      </div>
+                    )
+                  ))}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
                   setShowViewersModal(true);
                   loadLiveViewers(1, false);
                 }}
-                className="w-5 h-5 rounded-full bg-white/15 hover:bg-[#F328D5] flex items-center justify-center text-white transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow hover:bg-black/75 transition-colors"
                 title="View Live Audience List"
               >
-                <Info className="w-3 h-3" />
+                <Eye className="w-3.5 h-3.5 text-cyan-300" />
+                <span className="font-mono">{liveViewerCount.toLocaleString()}</span>
+                <span className="w-4 h-4 rounded-full bg-white/15 flex items-center justify-center text-white">
+                  <Info className="w-2.5 h-2.5" />
+                </span>
               </button>
             </div>
 
-            {/* Audio Mute toggle */}
+            {/* Audio Mute toggle (Controls both Agora & WebRTC remote sound) */}
             <button
-              onClick={() => setIsMuted(!isMuted)}
+              onClick={handleToggleViewerSound}
               className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
@@ -1757,15 +2081,21 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               {messages.map((msg) => (
                 <div
                   key={msg.id}
-                  onClick={() => isActualHost && handlePinMessage(`${msg.senderName}: ${msg.text}`)}
-                  className="px-3 py-1.5 rounded-2xl bg-black/50 backdrop-blur-md border border-white/10 text-xs w-fit max-w-full cursor-pointer"
+                  onClick={() => isActualHost && !msg.isSystem && handlePinMessage(`${msg.senderName}: ${msg.text}`)}
+                  className={`px-3 py-1.5 rounded-2xl backdrop-blur-md border text-xs w-fit max-w-full ${
+                    msg.isSystem
+                      ? 'bg-[#8B20FF]/35 border-[#F328D5]/40 text-white'
+                      : 'bg-black/50 border-white/10 cursor-pointer'
+                  }`}
                 >
-                  {msg.isHost && (
+                  {msg.isHost && !msg.isSystem && (
                     <span className="mr-1.5 px-1.5 py-0.2 rounded bg-[#FFC84A] text-black text-[9px] font-black">
                       HOST
                     </span>
                   )}
-                  <span className="font-bold text-[#FFC84A] mr-1.5">{msg.senderName}:</span>
+                  <span className={`font-bold mr-1.5 ${msg.isSystem ? 'text-[#FFE28A]' : 'text-[#FFC84A]'}`}>
+                    {msg.senderName}{msg.isSystem ? '' : ':'}
+                  </span>
                   <span className="text-white/95 break-words">{msg.text}</span>
                 </div>
               ))}
