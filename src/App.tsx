@@ -80,13 +80,20 @@ import { PKIncomingChallengeModal } from './components/screens/PKIncomingChallen
 import { PKWinnerAnnouncementModal } from './components/screens/PKWinnerAnnouncementModal';
 import { WalletModal } from './components/screens/WalletModal';
 import { VIPModal } from './components/screens/VIPModal';
-import { LevelAndVIPModal } from './components/screens/LevelAndVIPModal';
+import { LevelAndVIPModal, ProgressionModalTab } from './components/screens/LevelAndVIPModal';
 import { LevelUpCelebrationModal } from './components/screens/LevelUpCelebrationModal';
+import { AdminProgressionModal } from './components/screens/AdminProgressionModal';
 import {
   addQualifyingGiftingCoins,
+  equipSuperVipFrame,
   equipVipFrame,
   subscribeUserLevelProgression,
 } from './services/levelAndVipService';
+import {
+  AchievementBadgeDefinition,
+  SuperVipTierDefinition,
+  VipTierDefinition,
+} from './types/levelAndVip';
 import { SearchModal } from './components/screens/SearchModal';
 import { NotificationsModal } from './components/screens/NotificationsModal';
 
@@ -127,10 +134,15 @@ export default function App() {
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isVIPOpen, setIsVIPOpen] = useState(false);
   const [isLevelVIPOpen, setIsLevelVIPOpen] = useState(false);
+  const [levelVIPInitialTab, setLevelVIPInitialTab] = useState<ProgressionModalTab>('roadmap');
+  const [isAdminProgressionOpen, setIsAdminProgressionOpen] = useState(false);
   const [levelUpData, setLevelUpData] = useState<{
     oldLevel: number;
     newLevel: number;
     coinsSpent: number;
+    unlockedVipFrames?: VipTierDefinition[];
+    unlockedSuperVipFrames?: SuperVipTierDefinition[];
+    newlyEarnedAchievements?: AchievementBadgeDefinition[];
   } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -631,9 +643,21 @@ export default function App() {
         const next = {
           ...prev,
           level: prog.currentLevel,
-          vipLevel: prog.equippedVipFrame || prev.vipLevel,
+          totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+          vipLevel: Math.max(prog.highestUnlockedVipTier, prog.equippedVipFrame),
           equippedVipFrame: prog.equippedVipFrame,
-          isVIP: prog.equippedVipFrame > 0,
+          isVIP: prog.highestUnlockedVipTier > 0 || prog.equippedVipFrame > 0,
+          superVipLevel: Math.max(prog.highestUnlockedSuperVipTier, prog.equippedSuperVipFrame),
+          equippedSuperVipFrame: prog.equippedSuperVipFrame,
+          isSuperVIP: prog.highestUnlockedSuperVipTier > 0 || prog.equippedSuperVipFrame > 0,
+          activeFrameType: prog.activeFrameType,
+          unlockedVipTiers: prog.unlockedVipTiers,
+          unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+          earnedAchievements: prog.earnedAchievements,
+          equippedBadges:
+            prog.equippedAchievementBadges.length > 0
+              ? prog.equippedAchievementBadges
+              : prev.equippedBadges,
         };
         saveStoredUserProfile(next);
         return next;
@@ -942,25 +966,58 @@ export default function App() {
         console.warn('Gift transaction backend error:', e);
       }
 
-      // Qualifying coins gifting progression update for LEVEL & VIP system
+      // Authoritative 100-Level, 12-VIP, 6-Super-VIP & Achievement Progression Update
       try {
-        const levelRes = await addQualifyingGiftingCoins(currentUser.id, cost);
-        if (levelRes.levelUpEvent) {
+        const txId = `gift_prog_${currentUser.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const levelRes = await addQualifyingGiftingCoins(currentUser.id, cost, {
+          transactionId: txId,
+          reason: `gift:${gift.name}x${quantity}`,
+          userSnapshot: {
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            email: currentUser.email,
+            metrics: {
+              diamondsEarned: currentUser.diamonds || 0,
+              followersCount: currentUser.followersCount || 0,
+              followingCount: currentUser.followingCount || 0,
+              totalLikesCount: currentUser.totalLikes || 0,
+              liveSessionsHosted: currentUser.liveSessionsHosted || 0,
+              loginStreakDays: currentUser.loginStreakDays || 1,
+              hasAgency: Boolean(currentUser.agencyId && currentUser.agencyStatus === 'active'),
+            },
+          },
+        });
+        const prog = levelRes.progression;
+        setCurrentUser((prev) => {
+          const next = {
+            ...prev,
+            level: prog.currentLevel,
+            totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+            vipLevel: prog.highestUnlockedVipTier,
+            isVIP: prog.highestUnlockedVipTier > 0,
+            superVipLevel: prog.highestUnlockedSuperVipTier,
+            isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
+            activeFrameType: prog.activeFrameType,
+            equippedVipFrame: prog.equippedVipFrame,
+            equippedSuperVipFrame: prog.equippedSuperVipFrame,
+            unlockedVipTiers: prog.unlockedVipTiers,
+            unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+            earnedAchievements: prog.earnedAchievements,
+            giftsSentCount: (prev.giftsSentCount || 0) + 1,
+          };
+          saveStoredUserProfile(next);
+          return next;
+        });
+
+        if (levelRes.levelUpEvent && levelRes.levelUpEvent.newLevel > levelRes.levelUpEvent.oldLevel) {
           const event = levelRes.levelUpEvent;
           setLevelUpData({
             oldLevel: event.oldLevel,
             newLevel: event.newLevel,
             coinsSpent: cost,
-          });
-          setCurrentUser((prev) => {
-            const next = {
-              ...prev,
-              level: event.newLevel,
-              vipLevel: event.unlockedVipFrame?.tier || prev.vipLevel,
-              equippedVipFrame: event.unlockedVipFrame?.tier || prev.equippedVipFrame,
-            };
-            saveStoredUserProfile(next);
-            return next;
+            unlockedVipFrames: event.unlockedVipFrames,
+            unlockedSuperVipFrames: event.unlockedSuperVipFrames,
+            newlyEarnedAchievements: event.newlyEarnedAchievements,
           });
         }
       } catch (levelErr) {
@@ -1459,8 +1516,15 @@ export default function App() {
                 setCurrentScreen(s);
               }}
               onOpenWallet={() => setIsWalletOpen(true)}
-              onOpenVIP={() => setIsLevelVIPOpen(true)}
-              onOpenLevelVIP={() => setIsLevelVIPOpen(true)}
+              onOpenVIP={() => {
+                setLevelVIPInitialTab('vip');
+                setIsLevelVIPOpen(true);
+              }}
+              onOpenLevelVIP={(tab) => {
+                setLevelVIPInitialTab(tab || 'roadmap');
+                setIsLevelVIPOpen(true);
+              }}
+              onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
               userVideos={videos}
               onSelectVideo={(_v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
@@ -1473,6 +1537,8 @@ export default function App() {
               onNavigate={(s) => setCurrentScreen(s)}
               onLogout={handleLogout}
               onOpenWallet={() => setIsWalletOpen(true)}
+              isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
+              onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
             />
           )}
 
@@ -1554,13 +1620,15 @@ export default function App() {
         onRechargeSuccess={handleRechargeSuccess}
       />
 
-      {/* 5. LEVEL & VIP Progression & Frames Modal */}
+      {/* 5. 100-LEVEL, 12-VIP, 6-SUPER-VIP & ACHIEVEMENT VAULT MODAL */}
       <LevelAndVIPModal
         isOpen={isLevelVIPOpen}
         onClose={() => setIsLevelVIPOpen(false)}
         currentUser={currentUser}
+        initialTab={levelVIPInitialTab}
+        onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
         onUpdateUser={(updated) => {
-          setCurrentUser(prev => {
+          setCurrentUser((prev) => {
             const next = { ...prev, ...updated };
             saveStoredUserProfile(next);
             return next;
@@ -1568,7 +1636,7 @@ export default function App() {
         }}
       />
 
-      {/* 5b. Level Up Milestone Celebration Modal */}
+      {/* 5b. Multi-Milestone Level Up Celebration Modal */}
       <LevelUpCelebrationModal
         isOpen={!!levelUpData}
         onClose={() => setLevelUpData(null)}
@@ -1577,19 +1645,54 @@ export default function App() {
         coinsSpent={levelUpData?.coinsSpent || 0}
         userAvatar={currentUser.avatar}
         userName={currentUser.name}
-        onEquipVipFrame={async (tier) => {
-          await equipVipFrame(currentUser.id, tier);
-          setCurrentUser(prev => {
-            const next = {
-              ...prev,
-              equippedVipFrame: tier,
-              vipLevel: tier,
-              isVIP: true,
-            };
-            saveStoredUserProfile(next);
-            return next;
-          });
+        unlockedVipFrames={levelUpData?.unlockedVipFrames}
+        unlockedSuperVipFrames={levelUpData?.unlockedSuperVipFrames}
+        newlyEarnedAchievements={levelUpData?.newlyEarnedAchievements}
+        onOpenRoadmap={() => {
+          setLevelVIPInitialTab('roadmap');
+          setIsLevelVIPOpen(true);
         }}
+        onEquipVipFrame={async (tier) => {
+          const res = await equipVipFrame(currentUser.id, tier);
+          if (res.success) {
+            setCurrentUser((prev) => {
+              const next = {
+                ...prev,
+                activeFrameType: 'vip' as const,
+                equippedVipFrame: tier,
+                equippedSuperVipFrame: 0,
+                vipLevel: Math.max(prev.vipLevel || 0, tier),
+                isVIP: true,
+              };
+              saveStoredUserProfile(next);
+              return next;
+            });
+          }
+        }}
+        onEquipSuperVipFrame={async (tier) => {
+          const res = await equipSuperVipFrame(currentUser.id, tier);
+          if (res.success) {
+            setCurrentUser((prev) => {
+              const next = {
+                ...prev,
+                activeFrameType: 'super_vip' as const,
+                equippedSuperVipFrame: tier,
+                equippedVipFrame: 0,
+                superVipLevel: Math.max(prev.superVipLevel || 0, tier),
+                isSuperVIP: true,
+              };
+              saveStoredUserProfile(next);
+              return next;
+            });
+          }
+        }}
+      />
+
+      {/* 5c. Admin-Only Progression Management Console */}
+      <AdminProgressionModal
+        isOpen={isAdminProgressionOpen}
+        onClose={() => setIsAdminProgressionOpen(false)}
+        currentUserEmail={currentUser.email}
       />
 
       {/* VIP Membership Privileges Modal */}

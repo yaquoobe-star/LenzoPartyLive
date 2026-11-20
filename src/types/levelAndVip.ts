@@ -1,56 +1,88 @@
-export type LevelMajorTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+import {
+  ActiveFrameType,
+  AchievementBadgeDefinition,
+  EarnedAchievementRecord,
+  EvaluatedAchievementBadge,
+  LevelDefinition,
+  LevelTierConfig,
+  LevelTierId,
+  SuperVipTierDefinition,
+  VipTierDefinition,
+} from '../shared/progressionEngine';
 
-export interface LevelDefinition {
-  level: number;
-  tier: LevelMajorTier;
-  tierRank: string; // e.g., 'Bronze I', 'Bronze II' ... 'Diamond X'
-  name: string; // e.g., 'Apprentice Singer', 'Grand Champion'
-  requiredCoins: number; // Cumulative coins needed to reach this level
-  coinsForThisLevel: number; // Coins needed from previous level to this level
-  badgeTheme: {
-    shape: 'shield' | 'star' | 'crown' | 'gem' | 'hexagon' | 'flame' | 'crest' | 'diamond';
-    primaryColor: string;
-    gradient: string;
-    borderStyle: string;
-    glowEffect: string;
-    metallicFinish: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
-    romanNumeral: string; // I, II, III, IV, V, VI, VII, VIII, IX, X
-    icon: string;
-  };
-  perks: string[];
-}
+export type {
+  ActiveFrameType,
+  AchievementBadgeDefinition,
+  EarnedAchievementRecord,
+  EvaluatedAchievementBadge,
+  LevelDefinition,
+  LevelTierConfig,
+  LevelTierId,
+  SuperVipTierDefinition,
+  VipTierDefinition,
+};
 
-export interface VipFrameDefinition {
-  tier: number; // 1 to 8
-  name: string; // e.g., 'VIP 1 - Neon Cyan Ring'
-  unlockLevel: number; // 6, 12, 18, 24, 30, 36, 42, 48
-  themeColor: string;
-  borderGradient: string;
-  glowShadow: string;
-  animationClass: string;
-  decorativeElements: string; // crown, wings, flames, dragon, celestial
+export type LevelTierName = LevelTierId;
+
+export interface VipFrameDefinition extends VipTierDefinition {
+  tier: number;
+  name: string;
+  unlockLevel: number;
+  borderColor: string;
+  glowColor: string;
+  gradientBg: string;
+  badgeIcon: string;
   perks: string[];
 }
 
 export interface UserLevelProgression {
   userId: string;
-  currentLevel: number;
-  currentTier: LevelMajorTier;
+  currentLevel: number; // 1..100
+  currentTier: LevelTierId;
+  currentTierName: string;
   totalQualifyingCoinsSpent: number;
   coinsInCurrentLevel: number;
   coinsNeededForNextLevel: number;
-  progressPercent: number;
-  remainingCoins: number;
+  remainingCoinsNeeded: number;
+  percentage: number;
   isMaxLevel: boolean;
+  isMaxMastery: boolean;
+  highestUnlockedVipTier: number; // 0..12
   unlockedVipTiers: number[];
-  equippedVipFrame: number; // 0 for none, 1-8 for VIP frames
-  updatedAt: string;
+  highestUnlockedSuperVipTier: number; // 0..6
+  unlockedSuperVipTiers: number[];
+  activeFrameType: ActiveFrameType;
+  equippedVipFrame: number; // 0..12
+  equippedSuperVipFrame: number; // 0..6
+  earnedAchievements: EarnedAchievementRecord[];
+  equippedAchievementBadges: string[]; // max 3
+  updatedAt?: string;
 }
 
 export interface LevelUpEvent {
-  newLevel: number;
   oldLevel: number;
-  newTier: LevelMajorTier;
+  newLevel: number;
+  oldTier: LevelTierId;
+  newTier: LevelTierId;
+  tierChanged?: boolean;
+  coinsSpent?: number;
   badge: LevelDefinition;
   unlockedVipFrame?: VipFrameDefinition;
+  unlockedVipFrames?: VipTierDefinition[];
+  unlockedSuperVipFrame?: SuperVipTierDefinition;
+  unlockedSuperVipFrames?: SuperVipTierDefinition[];
+  newlyEarnedAchievements?: AchievementBadgeDefinition[];
+}
+
+export interface ProgressionUnlockHistoryEntry {
+  id: string;
+  userId: string;
+  type: 'level_up' | 'tier_up' | 'vip_unlock' | 'super_vip_unlock' | 'achievement_earned' | 'frame_equipped' | 'admin_adjustment';
+  title: string;
+  detail: string;
+  oldLevel?: number;
+  newLevel?: number;
+  coinsDelta?: number;
+  transactionId?: string;
+  createdAt: string;
 }

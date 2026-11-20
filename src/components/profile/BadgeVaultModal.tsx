@@ -11,13 +11,17 @@ import {
   Sparkles,
   Lock,
   Check,
+  Calendar,
 } from 'lucide-react';
 import { ProfileBadgeDefinition } from '../../types';
+import { EvaluatedAchievementBadge } from '../../types/levelAndVip';
+import { AchievementBadgeEmblem } from '../common/AchievementBadgeArt';
 
 interface BadgeVaultModalProps {
   isOpen: boolean;
   onClose: () => void;
-  badges: ProfileBadgeDefinition[];
+  badges?: ProfileBadgeDefinition[];
+  achievementBadges?: EvaluatedAchievementBadge[];
   isOwner: boolean;
   onToggleEquipBadge: (badgeId: string) => Promise<void> | void;
 }
@@ -47,7 +51,8 @@ export function renderBadgeIcon(iconKey: ProfileBadgeDefinition['iconKey'], clas
 export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
   isOpen,
   onClose,
-  badges,
+  badges = [],
+  achievementBadges,
   isOwner,
   onToggleEquipBadge,
 }) => {
@@ -56,18 +61,20 @@ export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
 
   if (!isOpen) return null;
 
-  const earnedBadges = badges.filter((b) => b.isEarned);
-  const equippedBadges = badges.filter((b) => b.isEquipped);
-  const lockedBadges = badges.filter((b) => !b.isEarned);
+  const usingUnified = Boolean(achievementBadges && achievementBadges.length > 0);
+  const list = usingUnified ? achievementBadges! : badges;
+  const earnedList = list.filter((b) => b.isEarned);
+  const equippedList = list.filter((b) => b.isEquipped);
+  const lockedList = list.filter((b) => !b.isEarned);
 
-  const visibleBadges =
-    filter === 'earned' ? earnedBadges : filter === 'locked' ? lockedBadges : badges;
+  const visibleList =
+    filter === 'earned' ? earnedList : filter === 'locked' ? lockedList : list;
 
-  const handleToggle = async (badge: ProfileBadgeDefinition) => {
-    if (!isOwner || !badge.isEarned || busyId) return;
-    setBusyId(badge.id);
+  const handleToggle = async (badgeId: string, isEarned: boolean) => {
+    if (!isOwner || !isEarned || busyId) return;
+    setBusyId(badgeId);
     try {
-      await onToggleEquipBadge(badge.id);
+      await onToggleEquipBadge(badgeId);
     } finally {
       setBusyId(null);
     }
@@ -89,10 +96,10 @@ export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
           <div>
             <h3 className="text-base font-extrabold text-white tracking-tight flex items-center gap-2">
               <Award className="w-5 h-5 text-[#FFC84A]" />
-              <span>Badge Vault</span>
+              <span>Achievement Badge Vault</span>
             </h3>
             <p className="text-xs text-[#B9AECF] mt-0.5 tabular-nums">
-              {earnedBadges.length} of {badges.length} earned · {equippedBadges.length}/3 equipped on profile
+              {earnedList.length} of {list.length} earned · {equippedList.length}/3 equipped on profile
             </p>
           </div>
           <button
@@ -107,9 +114,9 @@ export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
         {/* Filter Tabs */}
         <div className="px-5 pt-3 pb-2 flex items-center gap-2">
           {([
-            { id: 'all', label: `All (${badges.length})` },
-            { id: 'earned', label: `Earned (${earnedBadges.length})` },
-            { id: 'locked', label: `Locked (${lockedBadges.length})` },
+            { id: 'all', label: `All (${list.length})` },
+            { id: 'earned', label: `Earned (${earnedList.length})` },
+            { id: 'locked', label: `Locked (${lockedList.length})` },
           ] as const).map((tab) => (
             <button
               key={tab.id}
@@ -127,16 +134,100 @@ export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
 
         {/* Badge Grid */}
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
-          {visibleBadges.length === 0 ? (
+          {visibleList.length === 0 ? (
             <div className="py-12 text-center rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4">
               <Lock className="w-8 h-8 text-[#B9AECF]/60 mx-auto mb-2" />
               <p className="text-sm font-bold text-white">No badges in this category yet</p>
               <p className="text-xs text-[#B9AECF] mt-1">
-                Host live sessions, publish moments, or join an Agency to unlock milestone badges.
+                Host live sessions, send gifts, win PK battles, or grow your fanbase to earn independent achievements.
               </p>
             </div>
+          ) : usingUnified ? (
+            (visibleList as EvaluatedAchievementBadge[]).map((badge) => (
+              <div
+                key={badge.id}
+                className={`p-3.5 rounded-2xl border transition-all ${
+                  badge.isEquipped
+                    ? 'bg-[#21123B] border-[#FA26A0]/55 shadow-lg shadow-[#8B20FF]/15'
+                    : badge.isEarned
+                    ? 'bg-white/[0.04] border-white/10'
+                    : 'bg-white/[0.02] border-white/[0.06] opacity-85'
+                }`}
+              >
+                <div className="flex items-start gap-3.5">
+                  <AchievementBadgeEmblem
+                    shape={badge.shape}
+                    iconKey={badge.iconKey}
+                    accentFrom={badge.accentFrom}
+                    accentTo={badge.accentTo}
+                    borderHex={badge.borderHex}
+                    isEarned={badge.isEarned}
+                    size="md"
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h4 className="text-sm font-bold text-white truncate">{badge.name}</h4>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/[0.08] text-[#D7CEEB]">
+                          {badge.rarity}
+                        </span>
+                      </div>
+
+                      {isOwner && badge.isEarned && (
+                        <button
+                          onClick={() => handleToggle(badge.id, badge.isEarned)}
+                          disabled={busyId === badge.id}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                            badge.isEquipped
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                              : 'bg-white/10 hover:bg-white/20 text-white'
+                          }`}
+                        >
+                          {badge.isEquipped ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Equipped</span>
+                            </>
+                          ) : (
+                            <span>Equip</span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-[#B9AECF] mt-1 leading-relaxed">{badge.description}</p>
+
+                    {badge.isEarned ? (
+                      <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-300 font-semibold">
+                        <Calendar className="w-3 h-3" />
+                        <span>
+                          Earned{' '}
+                          {badge.earnedAt ? new Date(badge.earnedAt).toLocaleDateString() : 'Verified'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mt-2.5 space-y-1">
+                        <div className="flex items-center justify-between text-[11px] text-[#B9AECF]">
+                          <span className="truncate">{badge.unlockConditionText}</span>
+                          <span className="font-mono tabular-nums text-white/80 shrink-0">
+                            {badge.progressCurrent.toLocaleString()}/{badge.progressTarget.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]"
+                            style={{ width: `${Math.max(4, badge.progressPercent)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
           ) : (
-            visibleBadges.map((badge) => {
+            (visibleList as ProfileBadgeDefinition[]).map((badge) => {
               const pct = Math.min(
                 100,
                 Math.round((badge.progressCurrent / Math.max(1, badge.progressTarget)) * 100)
@@ -171,51 +262,28 @@ export const BadgeVaultModal: React.FC<BadgeVaultModalProps> = ({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <h4 className="text-sm font-bold text-white truncate">{badge.name}</h4>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/[0.08] text-[#D7CEEB]">
-                            {badge.tier}
-                          </span>
-                        </div>
-
+                        <h4 className="text-sm font-bold text-white truncate">{badge.name}</h4>
                         {isOwner && badge.isEarned && (
                           <button
-                            onClick={() => handleToggle(badge)}
+                            onClick={() => handleToggle(badge.id, badge.isEarned)}
                             disabled={busyId === badge.id}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 ${
                               badge.isEquipped
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                : 'bg-white/10 hover:bg-white/20 text-white'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : 'bg-white/10 text-white'
                             }`}
                           >
-                            {badge.isEquipped ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Equipped</span>
-                              </>
-                            ) : (
-                              <span>Equip</span>
-                            )}
+                            {badge.isEquipped ? 'Equipped' : 'Equip'}
                           </button>
                         )}
                       </div>
-
-                      <p className="text-xs text-[#B9AECF] mt-1 leading-relaxed">{badge.description}</p>
-
+                      <p className="text-xs text-[#B9AECF] mt-1">{badge.description}</p>
                       {!badge.isEarned && (
-                        <div className="mt-2.5 space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-[#B9AECF]">
-                            <span>{badge.requirementText}</span>
-                            <span className="font-mono tabular-nums text-white/80">
-                              {badge.progressCurrent.toLocaleString()}/{badge.progressTarget.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]"
-                              style={{ width: `${Math.max(4, pct)}%` }}
-                            />
-                          </div>
+                        <div className="mt-2 h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]"
+                            style={{ width: `${Math.max(4, pct)}%` }}
+                          />
                         </div>
                       )}
                     </div>

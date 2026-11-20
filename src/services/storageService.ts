@@ -54,7 +54,7 @@ export async function uploadUserImage(
   onProgress?: UploadProgressCallback
 ): Promise<string> {
   const user = auth.currentUser;
-  const maxDim = folder === 'covers' ? 1400 : 640;
+  const maxDim = folder === 'covers' ? 1200 : 512;
 
   if (user) {
     try {
@@ -105,7 +105,7 @@ export async function uploadUserImage(
 
   // Fallback: compress cleanly and upload via backend /api/media/upload so URL stays short (< 80 chars) for Firestore
   onProgress?.(45, {} as UploadTaskSnapshot);
-  const dataUrl = await compressImageToDataUrl(file, maxDim, 0.82);
+  const dataUrl = await compressImageToDataUrl(file, maxDim, 0.78);
 
   try {
     const res = await apiFetch('/api/media/upload', {

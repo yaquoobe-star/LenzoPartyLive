@@ -20,12 +20,16 @@ interface SettingsScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onLogout: () => void;
   onOpenWallet?: () => void;
+  isAdmin?: boolean;
+  onOpenAdminProgression?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onNavigate,
   onLogout,
   onOpenWallet,
+  isAdmin = false,
+  onOpenAdminProgression,
 }) => {
 
   const [notifications, setNotifications] = useState(true);
@@ -120,6 +124,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     </span>
                   </span>
                   <span className="text-[10px] text-[#B9AECF] block">Recharge coins, convert earnings, and request bank payouts</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" />
+            </div>
+          )}
+
+          {/* Admin-Only Progression Management Console */}
+          {isAdmin && onOpenAdminProgression && (
+            <div
+              onClick={onOpenAdminProgression}
+              className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-[#2D1154] via-[#1C0B36] to-[#2B1707] hover:opacity-95 border border-[#FFC84A]/50 transition-all cursor-pointer group shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#FFC84A]/20 border border-[#FFC84A]/50 text-[#FFC84A] flex items-center justify-center font-black">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-sm font-black text-white flex items-center gap-1.5">
+                    ADMIN PROGRESSION PANEL
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#FFC84A]/20 text-[#FFC84A] font-mono">
+                      100 LV · VIP · SVIP
+                    </span>
+                  </span>
+                  <span className="text-[10px] text-[#C5B9DE] block">
+                    Inspect 100 levels, edit VIP/Super VIP/badges &amp; audit logs
+                  </span>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" />

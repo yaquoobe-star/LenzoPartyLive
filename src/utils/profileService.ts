@@ -259,9 +259,16 @@ class ProfileService {
     }
 
     try {
+      const apiPayload: Record<string, any> = { ...merged };
+      if (typeof apiPayload.avatar === 'string' && apiPayload.avatar.length > 1500) {
+        delete apiPayload.avatar;
+      }
+      if (typeof apiPayload.coverImage === 'string' && apiPayload.coverImage.length > 1500) {
+        delete apiPayload.coverImage;
+      }
       const res = await apiFetch(`/api/users/${encodeURIComponent(targetUid)}`, {
         method: 'PUT',
-        body: JSON.stringify(merged),
+        body: JSON.stringify(apiPayload),
       });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();

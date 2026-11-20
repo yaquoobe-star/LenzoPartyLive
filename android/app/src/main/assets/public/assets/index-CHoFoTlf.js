@@ -11617,135 +11617,1052 @@ var MOCK_GIFTS = [
 		animationType: "blast"
 	}
 ];
+var LEVELS_1_TO_50_EXACT_TOTAL = 6e8;
+var LEVELS_51_TO_100_EXACT_TOTAL = 14e8;
+var ROMAN_SUBRANKS = [
+	"0",
+	"I",
+	"II",
+	"III",
+	"IV",
+	"V",
+	"VI",
+	"VII",
+	"VIII",
+	"IX",
+	"X"
+];
+var LEVEL_TIER_CONFIGS = [
+	{
+		id: "bronze",
+		name: "BRONZE",
+		displayName: "Bronze",
+		minLevel: 0,
+		maxLevel: 9,
+		primaryColor: "#CD7F32",
+		secondaryColor: "#8C4A19",
+		accentColor: "#F3B87A",
+		gradientCss: "linear-gradient(135deg, #E29B52 0%, #B46024 55%, #6B3210 100%)",
+		borderHex: "#E5A362",
+		glowRgba: "rgba(205, 127, 50, 0.35)",
+		textColorHex: "#F7C998",
+		insignia: "shield",
+		visualEffect: "metallic",
+		tierPerks: [
+			"Bronze Metallic Insignia on Profile & Rooms",
+			"Room Chat Level Tag Highlight",
+			"Eligible for VIP 1 Frame at Level 8"
+		]
+	},
+	{
+		id: "silver",
+		name: "SILVER",
+		displayName: "Silver",
+		minLevel: 10,
+		maxLevel: 19,
+		primaryColor: "#CBD5E1",
+		secondaryColor: "#64748B",
+		accentColor: "#F8FAFC",
+		gradientCss: "linear-gradient(135deg, #F1F5F9 0%, #94A3B8 55%, #475569 100%)",
+		borderHex: "#E2E8F0",
+		glowRgba: "rgba(203, 213, 225, 0.42)",
+		textColorHex: "#F1F5F9",
+		insignia: "chevron",
+		visualEffect: "brushed",
+		tierPerks: [
+			"Brushed Silver Crest Insignia",
+			"Unlocks Super VIP 1 at Level 12 & VIP 2 at Level 16",
+			"Silver Entrance Sparkle in Audio Party Rooms"
+		]
+	},
+	{
+		id: "gold",
+		name: "GOLD",
+		displayName: "Gold",
+		minLevel: 20,
+		maxLevel: 29,
+		primaryColor: "#FBBF24",
+		secondaryColor: "#B45309",
+		accentColor: "#FEF08A",
+		gradientCss: "linear-gradient(135deg, #FDE047 0%, #F59E0B 52%, #B45309 100%)",
+		borderHex: "#FDE047",
+		glowRgba: "rgba(251, 191, 36, 0.48)",
+		textColorHex: "#FEF08A",
+		insignia: "star",
+		visualEffect: "shimmer",
+		tierPerks: [
+			"24K Golden Star Insignia with Shimmer",
+			"Unlocks VIP 3 & Super VIP 2 Dual Milestone at Level 24",
+			"Golden Room Entry Callout Banner"
+		]
+	},
+	{
+		id: "platinum",
+		name: "PLATINUM",
+		displayName: "Platinum",
+		minLevel: 30,
+		maxLevel: 39,
+		primaryColor: "#A78BFA",
+		secondaryColor: "#4F46E5",
+		accentColor: "#E0E7FF",
+		gradientCss: "linear-gradient(135deg, #E0E7FF 0%, #A78BFA 45%, #4F46E5 100%)",
+		borderHex: "#C4B5FD",
+		glowRgba: "rgba(167, 139, 250, 0.5)",
+		textColorHex: "#EDE9FE",
+		insignia: "prism",
+		visualEffect: "hologram",
+		tierPerks: [
+			"Platinum Prism Holographic Badge",
+			"Unlocks VIP 4 (Lv 32), Super VIP 3 (Lv 36) & VIP 5 (Lv 40)",
+			"Priority Guest Seat Queue in Live & Party Rooms"
+		]
+	},
+	{
+		id: "diamond",
+		name: "DIAMOND",
+		displayName: "Diamond",
+		minLevel: 40,
+		maxLevel: 49,
+		primaryColor: "#22D3EE",
+		secondaryColor: "#2563EB",
+		accentColor: "#CFFAFE",
+		gradientCss: "linear-gradient(135deg, #A5F3FC 0%, #06B6D4 48%, #1D4ED8 100%)",
+		borderHex: "#67E8F9",
+		glowRgba: "rgba(34, 211, 238, 0.55)",
+		textColorHex: "#CFFAFE",
+		insignia: "diamond",
+		visualEffect: "crystalline",
+		tierPerks: [
+			"Faceted Diamond Crystal Emblem",
+			"Unlocks VIP 6 & Super VIP 4 Dual Milestone at Level 48",
+			"Crystalline Aura in Top Broadcaster Rankings"
+		]
+	},
+	{
+		id: "ruby",
+		name: "RUBY",
+		displayName: "Ruby",
+		minLevel: 50,
+		maxLevel: 59,
+		primaryColor: "#F43F5E",
+		secondaryColor: "#9F1239",
+		accentColor: "#FECDD3",
+		gradientCss: "linear-gradient(135deg, #FDA4AF 0%, #E11D48 48%, #881337 100%)",
+		borderHex: "#FB7185",
+		glowRgba: "rgba(244, 63, 94, 0.55)",
+		textColorHex: "#FFE4E6",
+		insignia: "flame",
+		visualEffect: "ember",
+		tierPerks: [
+			"Crimson Ruby Flame Emblem (Elite Halfway Tier)",
+			"Unlocks VIP 7 (Lv 56) & Super VIP 5 Diamond Aurora (Lv 60)",
+			"Ruby Spotlight Entrance Across All Streams"
+		]
+	},
+	{
+		id: "emerald",
+		name: "EMERALD",
+		displayName: "Emerald",
+		minLevel: 60,
+		maxLevel: 69,
+		primaryColor: "#10B981",
+		secondaryColor: "#065F46",
+		accentColor: "#A7F3D0",
+		gradientCss: "linear-gradient(135deg, #6EE7B7 0%, #10B981 48%, #064E3B 100%)",
+		borderHex: "#34D399",
+		glowRgba: "rgba(16, 185, 129, 0.55)",
+		textColorHex: "#D1FAE5",
+		insignia: "leaf",
+		visualEffect: "aurora",
+		tierPerks: [
+			"Imperial Emerald Crest with Aurora Sheen",
+			"Unlocks VIP 8 Sapphire Frame at Level 64",
+			"Dedicated VIP Lounge Badge & Priority Support"
+		]
+	},
+	{
+		id: "sapphire",
+		name: "SAPPHIRE",
+		displayName: "Sapphire",
+		minLevel: 70,
+		maxLevel: 79,
+		primaryColor: "#3B82F6",
+		secondaryColor: "#1E3A8A",
+		accentColor: "#BFDBFE",
+		gradientCss: "linear-gradient(135deg, #93C5FD 0%, #2563EB 48%, #172554 100%)",
+		borderHex: "#60A5FA",
+		glowRgba: "rgba(59, 130, 246, 0.6)",
+		textColorHex: "#DBEAFE",
+		insignia: "gem",
+		visualEffect: "celestial",
+		tierPerks: [
+			"Deep Celestial Sapphire Jewel Emblem",
+			"Unlocks VIP 9 & Ultimate Super VIP 6 Cosmic Gold at Level 72, VIP 10 at Level 80",
+			"Celestial Entrance Wave on Stream Join"
+		]
+	},
+	{
+		id: "crown",
+		name: "CROWN",
+		displayName: "Crown",
+		minLevel: 80,
+		maxLevel: 89,
+		primaryColor: "#F59E0B",
+		secondaryColor: "#9333EA",
+		accentColor: "#FDE68A",
+		gradientCss: "linear-gradient(135deg, #FDE047 0%, #F59E0B 40%, #9333EA 100%)",
+		borderHex: "#FBBF24",
+		glowRgba: "rgba(245, 158, 11, 0.65)",
+		textColorHex: "#FEF3C7",
+		insignia: "crown",
+		visualEffect: "radiant",
+		tierPerks: [
+			"Sovereign Crown Radiant Emblem",
+			"Unlocks VIP 11 Luxury Animated Frame at Level 88",
+			"Global Sovereign Banner on High-Value Gifts"
+		]
+	},
+	{
+		id: "royal",
+		name: "ROYAL",
+		displayName: "Royal",
+		minLevel: 90,
+		maxLevel: 100,
+		primaryColor: "#FA26A0",
+		secondaryColor: "#7C3AED",
+		accentColor: "#FFC84A",
+		gradientCss: "linear-gradient(135deg, #FFC84A 0%, #FA26A0 48%, #7C3AED 100%)",
+		borderHex: "#FFC84A",
+		glowRgba: "rgba(255, 200, 74, 0.72)",
+		textColorHex: "#FFF7D6",
+		insignia: "imperial",
+		visualEffect: "imperial_aura",
+		tierPerks: [
+			"Supreme Lenzo Royal Imperial Insignia (Lv 91–100)",
+			"Unlocks VIP 12 Ultimate Legendary Frame at Level 96",
+			"Permanent Hall of Royalty Distinction & Cosmic Entrance"
+		]
+	}
+];
+var VIP_TIER_DEFINITIONS = [
+	{
+		tier: 1,
+		code: "VIP 1",
+		name: "Bronze VIP",
+		frameName: "Bronze Premium Frame",
+		unlockLevel: 8,
+		primaryColor: "#CD7F32",
+		secondaryColor: "#7C3E12",
+		accentColor: "#F6C690",
+		gradientCss: "linear-gradient(135deg, #E39F58, #B56225, #7C3E12)",
+		glowColor: "rgba(205, 127, 50, 0.55)",
+		animationStyle: "subtle",
+		perks: [
+			"Bronze Premium Avatar Frame",
+			"VIP 1 Profile Crest",
+			"Priority Chat Highlight"
+		]
+	},
+	{
+		tier: 2,
+		code: "VIP 2",
+		name: "Silver VIP",
+		frameName: "Silver Metallic Frame",
+		unlockLevel: 16,
+		primaryColor: "#CBD5E1",
+		secondaryColor: "#475569",
+		accentColor: "#F8FAFC",
+		gradientCss: "linear-gradient(135deg, #F8FAFC, #94A3B8, #475569)",
+		glowColor: "rgba(203, 213, 225, 0.55)",
+		animationStyle: "subtle",
+		perks: [
+			"Silver Metallic Avatar Frame",
+			"VIP 2 Profile Crest",
+			"Silver Room Entry Tag"
+		]
+	},
+	{
+		tier: 3,
+		code: "VIP 3",
+		name: "Golden VIP",
+		frameName: "Golden Animated Frame",
+		unlockLevel: 24,
+		primaryColor: "#FBBF24",
+		secondaryColor: "#B45309",
+		accentColor: "#FEF08A",
+		gradientCss: "linear-gradient(135deg, #FEF08A, #F59E0B, #B45309)",
+		glowColor: "rgba(251, 191, 36, 0.65)",
+		animationStyle: "shimmer",
+		perks: [
+			"Golden Animated Avatar Frame",
+			"Golden Shimmer Chat Bubble",
+			"VIP Seat Priority"
+		]
+	},
+	{
+		tier: 4,
+		code: "VIP 4",
+		name: "Platinum VIP",
+		frameName: "Platinum Frame",
+		unlockLevel: 32,
+		primaryColor: "#A78BFA",
+		secondaryColor: "#4338CA",
+		accentColor: "#EDE9FE",
+		gradientCss: "linear-gradient(135deg, #EDE9FE, #A78BFA, #4338CA)",
+		glowColor: "rgba(167, 139, 250, 0.65)",
+		animationStyle: "shimmer",
+		perks: [
+			"Platinum Mirror Avatar Frame",
+			"Holographic Profile Shine",
+			"Custom Gift Combo Trail"
+		]
+	},
+	{
+		tier: 5,
+		code: "VIP 5",
+		name: "Diamond VIP",
+		frameName: "Diamond Frame",
+		unlockLevel: 40,
+		primaryColor: "#22D3EE",
+		secondaryColor: "#1D4ED8",
+		accentColor: "#CFFAFE",
+		gradientCss: "linear-gradient(135deg, #CFFAFE, #06B6D4, #1D4ED8)",
+		glowColor: "rgba(34, 211, 238, 0.7)",
+		animationStyle: "pulse",
+		perks: [
+			"Diamond Facet Avatar Frame",
+			"Diamond Sparkle Room Entry",
+			"Anti-Kick Room Shield"
+		]
+	},
+	{
+		tier: 6,
+		code: "VIP 6",
+		name: "Ruby VIP",
+		frameName: "Ruby Frame",
+		unlockLevel: 48,
+		primaryColor: "#F43F5E",
+		secondaryColor: "#881337",
+		accentColor: "#FECDD3",
+		gradientCss: "linear-gradient(135deg, #FDA4AF, #E11D48, #881337)",
+		glowColor: "rgba(244, 63, 94, 0.72)",
+		animationStyle: "pulse",
+		perks: [
+			"Crimson Ruby Avatar Frame",
+			"Ruby Flare Stream Notice",
+			"VIP Host Invite Priority"
+		]
+	},
+	{
+		tier: 7,
+		code: "VIP 7",
+		name: "Emerald VIP",
+		frameName: "Emerald Frame",
+		unlockLevel: 56,
+		primaryColor: "#10B981",
+		secondaryColor: "#064E3B",
+		accentColor: "#A7F3D0",
+		gradientCss: "linear-gradient(135deg, #6EE7B7, #10B981, #064E3B)",
+		glowColor: "rgba(16, 185, 129, 0.72)",
+		animationStyle: "orbit",
+		perks: [
+			"Emerald Jewel Avatar Frame",
+			"Emerald Aura on Rankings",
+			"Exclusive VIP Support Lane"
+		]
+	},
+	{
+		tier: 8,
+		code: "VIP 8",
+		name: "Sapphire VIP",
+		frameName: "Sapphire Frame",
+		unlockLevel: 64,
+		primaryColor: "#3B82F6",
+		secondaryColor: "#1E3A8A",
+		accentColor: "#BFDBFE",
+		gradientCss: "linear-gradient(135deg, #93C5FD, #2563EB, #1E3A8A)",
+		glowColor: "rgba(59, 130, 246, 0.75)",
+		animationStyle: "orbit",
+		perks: [
+			"Sapphire Royal Avatar Frame",
+			"Celestial Blue Entrance Wave",
+			"Featured Viewer Tag"
+		]
+	},
+	{
+		tier: 9,
+		code: "VIP 9",
+		name: "Crown VIP",
+		frameName: "Crown Frame",
+		unlockLevel: 72,
+		primaryColor: "#F59E0B",
+		secondaryColor: "#7C3AED",
+		accentColor: "#FEF08A",
+		gradientCss: "linear-gradient(135deg, #FEF08A, #F59E0B, #7C3AED)",
+		glowColor: "rgba(245, 158, 11, 0.78)",
+		animationStyle: "prism",
+		perks: [
+			"Sovereign Crown Avatar Frame",
+			"Golden Crown Chat Prefix",
+			"Top Audience List Pin"
+		]
+	},
+	{
+		tier: 10,
+		code: "VIP 10",
+		name: "Royal Gold VIP",
+		frameName: "Royal Gold Frame",
+		unlockLevel: 80,
+		primaryColor: "#FFC84A",
+		secondaryColor: "#92400E",
+		accentColor: "#FFFBEB",
+		gradientCss: "linear-gradient(135deg, #FFFBEB, #FFC84A, #B45309)",
+		glowColor: "rgba(255, 200, 74, 0.82)",
+		animationStyle: "prism",
+		perks: [
+			"Royal Gold Embossed Frame",
+			"Royal Gold Entrance Spotlight",
+			"VIP Concierge Perks"
+		]
+	},
+	{
+		tier: 11,
+		code: "VIP 11",
+		name: "Luxury VIP",
+		frameName: "Luxury Animated Frame",
+		unlockLevel: 88,
+		primaryColor: "#EC4899",
+		secondaryColor: "#7C3AED",
+		accentColor: "#FFC84A",
+		gradientCss: "linear-gradient(135deg, #FFC84A, #EC4899, #7C3AED)",
+		glowColor: "rgba(236, 72, 153, 0.85)",
+		animationStyle: "legendary",
+		perks: [
+			"Luxury Animated Prism Frame",
+			"Global Room Announcement",
+			"Exclusive Luxury Gift Aura"
+		]
+	},
+	{
+		tier: 12,
+		code: "VIP 12",
+		name: "Ultimate Legendary VIP",
+		frameName: "Ultimate Legendary Frame",
+		unlockLevel: 96,
+		primaryColor: "#FFC84A",
+		secondaryColor: "#FA26A0",
+		accentColor: "#38BDF8",
+		gradientCss: "linear-gradient(135deg, #FFC84A, #FA26A0, #8B20FF, #38BDF8)",
+		glowColor: "rgba(255, 200, 74, 0.92)",
+		animationStyle: "legendary",
+		perks: [
+			"Ultimate Legendary Multi-Ring Frame",
+			"Hall of Legends Profile Distinction",
+			"Supreme VIP Entrance Showcase"
+		]
+	}
+];
+var SUPER_VIP_TIER_DEFINITIONS = [
+	{
+		tier: 1,
+		code: "SUPER VIP 1",
+		name: "Royal Purple Energy",
+		frameName: "Royal Purple Energy Frame",
+		themeKey: "royal_purple_energy",
+		unlockLevel: 12,
+		primaryColor: "#9333EA",
+		secondaryColor: "#4C1D95",
+		accentColor: "#E879F9",
+		gradientCss: "linear-gradient(135deg, #F0ABFC 0%, #9333EA 50%, #3B0764 100%)",
+		glowColor: "rgba(168, 85, 247, 0.78)",
+		particleColor: "#E879F9",
+		perks: [
+			"Royal Purple Energy Animated Frame",
+			"Super VIP 1 Separate Profile Crest",
+			"Violet Energy Pulse in Audio & Live Rooms"
+		]
+	},
+	{
+		tier: 2,
+		code: "SUPER VIP 2",
+		name: "Electric Blue Crystal",
+		frameName: "Electric Blue Crystal Frame",
+		themeKey: "electric_blue_crystal",
+		unlockLevel: 24,
+		primaryColor: "#0EA5E9",
+		secondaryColor: "#1E3A8A",
+		accentColor: "#7DD3FC",
+		gradientCss: "linear-gradient(135deg, #BAE6FD 0%, #0EA5E9 50%, #1E3A8A 100%)",
+		glowColor: "rgba(14, 165, 233, 0.82)",
+		particleColor: "#38BDF8",
+		perks: [
+			"Electric Blue Crystal Animated Frame",
+			"Super VIP 2 Crystal Shard Crest",
+			"Electric Crystal Entrance Flash"
+		]
+	},
+	{
+		tier: 3,
+		code: "SUPER VIP 3",
+		name: "Red Inferno",
+		frameName: "Red Inferno Frame",
+		themeKey: "red_inferno",
+		unlockLevel: 36,
+		primaryColor: "#EF4444",
+		secondaryColor: "#7F1D1D",
+		accentColor: "#FDBA74",
+		gradientCss: "linear-gradient(135deg, #FDBA74 0%, #EF4444 50%, #7F1D1D 100%)",
+		glowColor: "rgba(239, 68, 68, 0.85)",
+		particleColor: "#FB923C",
+		perks: [
+			"Red Inferno Flame Animated Frame",
+			"Super VIP 3 Ember Crest",
+			"Inferno Spark Trail on Live Gifts"
+		]
+	},
+	{
+		tier: 4,
+		code: "SUPER VIP 4",
+		name: "Emerald Royal",
+		frameName: "Emerald Royal Frame",
+		themeKey: "emerald_royal",
+		unlockLevel: 48,
+		primaryColor: "#10B981",
+		secondaryColor: "#064E3B",
+		accentColor: "#FDE047",
+		gradientCss: "linear-gradient(135deg, #A7F3D0 0%, #10B981 52%, #065F46 100%)",
+		glowColor: "rgba(16, 185, 129, 0.85)",
+		particleColor: "#34D399",
+		perks: [
+			"Emerald Royal Crown Animated Frame",
+			"Super VIP 4 Sovereign Emerald Crest",
+			"Royal Emerald Entrance Banner"
+		]
+	},
+	{
+		tier: 5,
+		code: "SUPER VIP 5",
+		name: "Diamond Aurora",
+		frameName: "Diamond Aurora Frame",
+		themeKey: "diamond_aurora",
+		unlockLevel: 60,
+		primaryColor: "#22D3EE",
+		secondaryColor: "#8B5CF6",
+		accentColor: "#F472B6",
+		gradientCss: "linear-gradient(135deg, #A5F3FC 0%, #22D3EE 35%, #8B5CF6 70%, #F472B6 100%)",
+		glowColor: "rgba(34, 211, 238, 0.88)",
+		particleColor: "#A5F3FC",
+		perks: [
+			"Diamond Aurora Prismatic Animated Frame",
+			"Super VIP 5 Aurora Prism Crest",
+			"Aurora Borealis Entrance Effect"
+		]
+	},
+	{
+		tier: 6,
+		code: "SUPER VIP 6",
+		name: "Legendary Cosmic Gold",
+		frameName: "Legendary Cosmic Gold Frame",
+		themeKey: "legendary_cosmic_gold",
+		unlockLevel: 72,
+		primaryColor: "#FFC84A",
+		secondaryColor: "#9333EA",
+		accentColor: "#FFF7D6",
+		gradientCss: "linear-gradient(135deg, #FFF7D6 0%, #FFC84A 38%, #FA26A0 72%, #7C3AED 100%)",
+		glowColor: "rgba(255, 200, 74, 0.95)",
+		particleColor: "#FFC84A",
+		perks: [
+			"Legendary Cosmic Gold Animated Frame (Max Super VIP through Lv 100)",
+			"Super VIP 6 Cosmic Sovereign Crest",
+			"Supreme Cosmic Gold Room & Stream Entrance"
+		]
+	}
+];
+var ACHIEVEMENT_BADGE_DEFINITIONS = [
+	{
+		id: "contributor",
+		name: "Contributor",
+		category: "gifting",
+		rarity: "rare",
+		description: "Generous community supporter who actively sends virtual gifts across live streams and party rooms.",
+		unlockConditionText: "Spend 1,000,000 qualifying coins on gifts",
+		shape: "hex",
+		iconKey: "gift",
+		accentFrom: "#38BDF8",
+		accentTo: "#6366F1",
+		borderHex: "#7DD3FC",
+		metricKey: "coinsSpent",
+		targetValue: 1e6
+	},
+	{
+		id: "diamond_host",
+		name: "Diamond Host",
+		category: "hosting",
+		rarity: "epic",
+		description: "Recognizes talented hosts who earn 1,000+ Diamonds from audience appreciation.",
+		unlockConditionText: "Earn 1,000 Diamonds from live & party gifts",
+		shape: "diamond",
+		iconKey: "gem",
+		accentFrom: "#06B6D4",
+		accentTo: "#2563EB",
+		borderHex: "#67E8F9",
+		metricKey: "diamondsEarned",
+		targetValue: 1e3
+	},
+	{
+		id: "marathoner",
+		name: "Marathoner",
+		category: "activity",
+		rarity: "rare",
+		description: "Dedicated broadcaster and video creator who shows up consistently for the community.",
+		unlockConditionText: "Host 5 live sessions or publish 5 public videos",
+		shape: "shield",
+		iconKey: "flame",
+		accentFrom: "#F59E0B",
+		accentTo: "#EF4444",
+		borderHex: "#FDBA74",
+		metricKey: "sessionsAndVideos",
+		targetValue: 5
+	},
+	{
+		id: "streak_pro",
+		name: "Streak Pro",
+		category: "activity",
+		rarity: "rare",
+		description: "Maintains a consistent daily presence on Lenzo Party Live.",
+		unlockConditionText: "Reach a 7-day active login streak",
+		shape: "bolt",
+		iconKey: "zap",
+		accentFrom: "#10B981",
+		accentTo: "#06B6D4",
+		borderHex: "#6EE7B7",
+		metricKey: "loginStreakDays",
+		targetValue: 7
+	},
+	{
+		id: "top_gifter",
+		name: "Top Gifter",
+		category: "gifting",
+		rarity: "legendary",
+		description: "Elite patron celebrated for showering hosts with grand gifts.",
+		unlockConditionText: "Send 25+ gifts or 25,000,000 qualifying coins",
+		shape: "crown",
+		iconKey: "crown",
+		accentFrom: "#FFC84A",
+		accentTo: "#FA26A0",
+		borderHex: "#FDE047",
+		metricKey: "giftsSentCount",
+		targetValue: 25
+	},
+	{
+		id: "popular_host",
+		name: "Popular Host",
+		category: "social",
+		rarity: "epic",
+		description: "Beloved creator attracting followers and likes across streams and videos.",
+		unlockConditionText: "Reach 50 followers or 100 total likes",
+		shape: "heart",
+		iconKey: "heart",
+		accentFrom: "#EC4899",
+		accentTo: "#F43F5E",
+		borderHex: "#F9A8D4",
+		metricKey: "followersOrLikes",
+		targetValue: 50
+	},
+	{
+		id: "rising_star",
+		name: "Rising Star",
+		category: "creator",
+		rarity: "rare",
+		description: "Completed Lenzo Party profile identity and published your spotlight moment.",
+		unlockConditionText: "Complete display name, bio & country (3/3)",
+		shape: "star",
+		iconKey: "sparkles",
+		accentFrom: "#8B20FF",
+		accentTo: "#FA26A0",
+		borderHex: "#D8B4FE",
+		metricKey: "profileAndUploads",
+		targetValue: 3
+	},
+	{
+		id: "community_champion",
+		name: "Community Champion",
+		category: "social",
+		rarity: "epic",
+		description: "Pillar of the Lenzo Party ecosystem who joins an Agency or connects with 10+ creators.",
+		unlockConditionText: "Join an Agency or follow 10 creators",
+		shape: "crest",
+		iconKey: "shield",
+		accentFrom: "#A855F7",
+		accentTo: "#EC4899",
+		borderHex: "#C084FC",
+		metricKey: "agencyAndFollowing",
+		targetValue: 1
+	},
+	{
+		id: "event_winner",
+		name: "Event Winner",
+		category: "events",
+		rarity: "legendary",
+		description: "Victorious competitor who claimed glory in PK Live Battles or special Lenzo events.",
+		unlockConditionText: "Win 1 PK Battle or official Lenzo event",
+		shape: "trophy",
+		iconKey: "trophy",
+		accentFrom: "#FBBF24",
+		accentTo: "#D97706",
+		borderHex: "#FEF08A",
+		metricKey: "pkWinsOrEvents",
+		targetValue: 1
+	},
+	{
+		id: "legendary_creator",
+		name: "Legendary Creator",
+		category: "creator",
+		rarity: "mythic",
+		description: "Highest independent creator honor uniting audience love, diamonds earned, and published moments.",
+		unlockConditionText: "Achieve 5,000+ Diamonds & 200+ Followers/Likes combined score",
+		shape: "sunburst",
+		iconKey: "award",
+		accentFrom: "#FFC84A",
+		accentTo: "#7C3AED",
+		borderHex: "#FFC84A",
+		metricKey: "legendaryScore",
+		targetValue: 5200
+	}
+];
+/**
+* Deterministic largest-remainder (Hamilton) integer apportionment for a 50-level linear ramp.
+* Guarantees exact endpoints (startCost, endCost), strictly increasing costs, and exact integer total.
+*/
+function buildLinearRampExact(count, startCost, endCost, expectedSum) {
+	const step = (endCost - startCost) / (count - 1);
+	const floors = [];
+	const remainders = [];
+	let sumFloors = 0;
+	for (let i = 0; i < count; i++) if (i === 0) {
+		floors.push(startCost);
+		sumFloors += startCost;
+	} else if (i === count - 1) {
+		floors.push(endCost);
+		sumFloors += endCost;
+	} else {
+		const exact = startCost + i * step;
+		const floored = Math.floor(exact);
+		floors.push(floored);
+		sumFloors += floored;
+		remainders.push({
+			index: i,
+			frac: exact - floored
+		});
+	}
+	let residual = expectedSum - sumFloors;
+	if (residual > 0) {
+		remainders.sort((a, b) => b.frac - a.frac || a.index - b.index);
+		for (let k = 0; k < residual && k < remainders.length; k++) floors[remainders[k].index] += 1;
+	} else if (residual < 0) {
+		remainders.sort((a, b) => a.frac - b.frac || b.index - a.index);
+		for (let k = 0; k < -residual && k < remainders.length; k++) floors[remainders[k].index] -= 1;
+	}
+	return floors;
+}
+function getTierConfigForLevel(level) {
+	const clamped = Math.max(0, Math.min(100, Number.isFinite(level) ? Math.floor(level) : 0));
+	return LEVEL_TIER_CONFIGS[Math.min(LEVEL_TIER_CONFIGS.length - 1, Math.floor(clamped / 10))];
+}
+function generateAll101Levels() {
+	const firstHalf = buildLinearRampExact(50, 1e6, 23e6, LEVELS_1_TO_50_EXACT_TOTAL);
+	const secondHalf = buildLinearRampExact(50, 232e5, 328e5, LEVELS_51_TO_100_EXACT_TOTAL);
+	const allCosts = [...firstHalf, ...secondHalf];
+	const vipByLevel = /* @__PURE__ */ new Map();
+	for (const v of VIP_TIER_DEFINITIONS) vipByLevel.set(v.unlockLevel, v);
+	const superVipByLevel = /* @__PURE__ */ new Map();
+	for (const sv of SUPER_VIP_TIER_DEFINITIONS) superVipByLevel.set(sv.unlockLevel, sv);
+	const levels = [];
+	const starterTier = getTierConfigForLevel(0);
+	levels.push({
+		level: 0,
+		tierId: starterTier.id,
+		tierName: starterTier.name,
+		subRank: "0",
+		title: "Starter 0",
+		coinsForThisLevel: 0,
+		cumulativeStart: 0,
+		cumulativeCoins: 0,
+		colorHex: starterTier.primaryColor,
+		secondaryHex: starterTier.secondaryColor,
+		gradientCss: starterTier.gradientCss,
+		glowRgba: starterTier.glowRgba,
+		insignia: starterTier.insignia,
+		perks: [
+			"Level 0 Crystal Shield Emblem on Profile",
+			"Send gifts in Live & Party Rooms to advance to Level 1 (1,000,000 coins)",
+			...starterTier.tierPerks
+		]
+	});
+	let runningCumulative = 0;
+	for (let i = 0; i < 100; i++) {
+		const level = i + 1;
+		const cost = allCosts[i];
+		const cumulativeStart = runningCumulative;
+		runningCumulative += cost;
+		const tierCfg = getTierConfigForLevel(level);
+		const subIdx = level === 100 ? 10 : level % 10 + 1;
+		const subRank = ROMAN_SUBRANKS[Math.min(ROMAN_SUBRANKS.length - 1, subIdx)];
+		const vipUnlock = vipByLevel.get(level);
+		const superVipUnlock = superVipByLevel.get(level);
+		const perks = [...tierCfg.tierPerks];
+		if (vipUnlock) perks.unshift(`Unlocks ${vipUnlock.code} — ${vipUnlock.frameName}`);
+		if (superVipUnlock) perks.unshift(`Unlocks ${superVipUnlock.code} — ${superVipUnlock.frameName}`);
+		levels.push({
+			level,
+			tierId: tierCfg.id,
+			tierName: tierCfg.name,
+			subRank,
+			title: level === 100 ? "Royal Sovereign 100" : `${tierCfg.displayName} ${subRank}`,
+			coinsForThisLevel: cost,
+			cumulativeStart,
+			cumulativeCoins: runningCumulative,
+			colorHex: tierCfg.primaryColor,
+			secondaryHex: tierCfg.secondaryColor,
+			gradientCss: tierCfg.gradientCss,
+			glowRgba: tierCfg.glowRgba,
+			insignia: tierCfg.insignia,
+			vipUnlockTier: vipUnlock?.tier,
+			superVipUnlockTier: superVipUnlock?.tier,
+			perks
+		});
+	}
+	return levels;
+}
+var ALL_100_LEVELS = generateAll101Levels();
+function getLevelDefinition(level) {
+	return ALL_100_LEVELS[Math.max(0, Math.min(100, Number.isFinite(level) ? Math.floor(level) : 0))];
+}
+function getVipTierDefinition(tier) {
+	return VIP_TIER_DEFINITIONS.find((v) => v.tier === tier);
+}
+function getSuperVipTierDefinition(tier) {
+	return SUPER_VIP_TIER_DEFINITIONS.find((sv) => sv.tier === tier);
+}
+function getUnlockedVipTiersForLevel(level) {
+	const clamped = Math.max(0, Math.min(100, Number.isFinite(level) ? Math.floor(level) : 0));
+	return VIP_TIER_DEFINITIONS.filter((v) => clamped >= v.unlockLevel).map((v) => v.tier);
+}
+function getUnlockedSuperVipTiersForLevel(level) {
+	const clamped = Math.max(0, Math.min(100, Number.isFinite(level) ? Math.floor(level) : 0));
+	return SUPER_VIP_TIER_DEFINITIONS.filter((sv) => clamped >= sv.unlockLevel).map((sv) => sv.tier);
+}
+/**
+* Authoritative progression calculation from total qualifying coins spent.
+* 101 Levels (0..100):
+* - 0 coins starts at Level 0 (0 -> 1 requires 1,000,000 coins)
+* - Reaching Level 50 = 600,000,000 coins EXACT
+* - Reaching Level 100 = 2,000,000,000 coins EXACT (Lv 51–100 = 1,400,000,000)
+*/
+function calculateProgressionState(totalQualifyingCoinsSpent, options) {
+	const safeCoins = Math.max(0, Math.floor(Number.isFinite(totalQualifyingCoinsSpent) ? totalQualifyingCoinsSpent : 0));
+	let currentLevel = 0;
+	let isMaxMastery = false;
+	if (safeCoins >= 2e9) {
+		currentLevel = 100;
+		isMaxMastery = true;
+	} else for (let lvl = 100; lvl >= 0; lvl--) if (safeCoins >= ALL_100_LEVELS[lvl].cumulativeCoins) {
+		currentLevel = lvl;
+		break;
+	}
+	const currentLevelDef = getLevelDefinition(currentLevel);
+	const nextLevelDef = currentLevel < 100 ? getLevelDefinition(currentLevel + 1) : null;
+	const coinsForCurrentLevel = nextLevelDef ? nextLevelDef.coinsForThisLevel : currentLevelDef.coinsForThisLevel;
+	const coinsInCurrentLevel = isMaxMastery ? coinsForCurrentLevel : Math.max(0, Math.min(coinsForCurrentLevel, safeCoins - currentLevelDef.cumulativeCoins));
+	const remainingCoinsNeeded = isMaxMastery || !nextLevelDef ? 0 : Math.max(0, nextLevelDef.cumulativeCoins - safeCoins);
+	const percentage = isMaxMastery ? 100 : Math.min(100, Math.max(0, Math.floor(coinsInCurrentLevel / Math.max(1, coinsForCurrentLevel) * 100)));
+	const unlockedVipTiers = getUnlockedVipTiersForLevel(currentLevel);
+	const highestUnlockedVipTier = unlockedVipTiers.length > 0 ? unlockedVipTiers[unlockedVipTiers.length - 1] : 0;
+	const unlockedSuperVipTiers = getUnlockedSuperVipTiersForLevel(currentLevel);
+	const highestUnlockedSuperVipTier = unlockedSuperVipTiers.length > 0 ? unlockedSuperVipTiers[unlockedSuperVipTiers.length - 1] : 0;
+	let activeFrameType = options?.activeFrameType || "none";
+	let equippedVipFrame = options?.equippedVipFrame ?? 0;
+	let equippedSuperVipFrame = options?.equippedSuperVipFrame ?? 0;
+	if (!unlockedVipTiers.includes(equippedVipFrame)) equippedVipFrame = 0;
+	if (!unlockedSuperVipTiers.includes(equippedSuperVipFrame)) equippedSuperVipFrame = 0;
+	if (activeFrameType === "super_vip") {
+		if (equippedSuperVipFrame === 0) activeFrameType = equippedVipFrame > 0 ? "vip" : "none";
+	} else if (activeFrameType === "vip") {
+		if (equippedVipFrame === 0) activeFrameType = equippedSuperVipFrame > 0 ? "super_vip" : "none";
+	} else if (equippedSuperVipFrame > 0) activeFrameType = "super_vip";
+	else if (equippedVipFrame > 0) activeFrameType = "vip";
+	return {
+		userId: options?.userId || "",
+		currentLevel,
+		currentTierId: currentLevelDef.tierId,
+		currentTierName: currentLevelDef.tierName,
+		currentLevelDef,
+		nextLevelDef,
+		totalQualifyingCoinsSpent: safeCoins,
+		coinsInCurrentLevel,
+		coinsForCurrentLevel,
+		remainingCoinsNeeded,
+		percentage,
+		isMaxLevel: currentLevel >= 100,
+		isMaxMastery,
+		highestUnlockedVipTier,
+		unlockedVipTiers,
+		highestUnlockedSuperVipTier,
+		unlockedSuperVipTiers,
+		activeFrameType,
+		equippedVipFrame,
+		equippedSuperVipFrame,
+		equippedAchievementBadges: (options?.equippedAchievementBadges || []).slice(0, 3)
+	};
+}
+/**
+* Computes exact crossed levels & milestone unlocks when coins advance from oldCoins -> newCoins.
+* Guarantees multi-level jumps award EVERY crossed VIP & Super VIP milestone exactly once.
+*/
+function detectMilestoneUnlocks(oldTotalCoins, newTotalCoins) {
+	const before = calculateProgressionState(oldTotalCoins);
+	const after = calculateProgressionState(newTotalCoins);
+	const crossedLevels = [];
+	for (let lvl = before.currentLevel + 1; lvl <= after.currentLevel; lvl++) crossedLevels.push(lvl);
+	const oldVipSet = new Set(before.unlockedVipTiers);
+	const newlyUnlockedVipTiers = after.unlockedVipTiers.filter((t) => !oldVipSet.has(t));
+	const oldSuperVipSet = new Set(before.unlockedSuperVipTiers);
+	const newlyUnlockedSuperVipTiers = after.unlockedSuperVipTiers.filter((t) => !oldSuperVipSet.has(t));
+	return {
+		oldLevel: before.currentLevel,
+		newLevel: after.currentLevel,
+		leveledUp: after.currentLevel > before.currentLevel,
+		crossedLevels,
+		tierChanged: after.currentTierId !== before.currentTierId,
+		oldTierId: before.currentTierId,
+		newTierId: after.currentTierId,
+		newlyUnlockedVipTiers,
+		newlyUnlockedSuperVipTiers,
+		newlyUnlockedVipFrames: newlyUnlockedVipTiers.map((t) => getVipTierDefinition(t)).filter((d) => Boolean(d)),
+		newlyUnlockedSuperVipFrames: newlyUnlockedSuperVipTiers.map((t) => getSuperVipTierDefinition(t)).filter((d) => Boolean(d))
+	};
+}
+/**
+* Evaluates all 10 independent achievement badges against authoritative user metrics
+* plus any already-persisted earned achievement records (preserving earnedAt timestamps).
+*/
+function evaluateAchievementBadges(metrics, persistedEarned = [], equippedIds = [], definitions = ACHIEVEMENT_BADGE_DEFINITIONS) {
+	const earnedMap = /* @__PURE__ */ new Map();
+	for (const rec of persistedEarned) earnedMap.set(rec.badgeId, rec);
+	const equippedSet = new Set(equippedIds.slice(0, 3));
+	return definitions.map((def) => {
+		let progressCurrent = 0;
+		switch (def.metricKey) {
+			case "coinsSpent":
+				progressCurrent = metrics.totalQualifyingCoinsSpent;
+				break;
+			case "diamondsEarned":
+				progressCurrent = metrics.diamondsEarned;
+				break;
+			case "sessionsAndVideos":
+				progressCurrent = metrics.liveSessionsHosted + metrics.publicVideosCount;
+				break;
+			case "loginStreakDays":
+				progressCurrent = metrics.loginStreakDays;
+				break;
+			case "giftsSentCount":
+				progressCurrent = metrics.totalQualifyingCoinsSpent >= 25e6 ? def.targetValue : metrics.giftsSentCount;
+				break;
+			case "followersOrLikes":
+				progressCurrent = Math.max(metrics.followersCount, Math.floor(metrics.totalLikesCount / 2));
+				break;
+			case "profileAndUploads":
+				progressCurrent = metrics.profileCompletedSteps;
+				break;
+			case "agencyAndFollowing":
+				progressCurrent = metrics.hasAgency || metrics.followingCount >= 10 ? 1 : 0;
+				break;
+			case "pkWinsOrEvents":
+				progressCurrent = metrics.pkWinsCount + metrics.eventsWonCount;
+				break;
+			case "legendaryScore":
+				progressCurrent = metrics.diamondsEarned + metrics.followersCount + metrics.totalLikesCount;
+				break;
+			default: progressCurrent = 0;
+		}
+		const clampedProgress = Math.min(def.targetValue, Math.max(0, Math.floor(progressCurrent)));
+		const persisted = earnedMap.get(def.id);
+		const isEarned = Boolean(persisted) || clampedProgress >= def.targetValue;
+		const progressPercent = isEarned ? 100 : Math.min(99, Math.max(0, Math.floor(clampedProgress / Math.max(1, def.targetValue) * 100)));
+		return {
+			...def,
+			isEarned,
+			isEquipped: isEarned && equippedSet.has(def.id),
+			earnedAt: persisted?.earnedAt,
+			progressCurrent: isEarned ? def.targetValue : clampedProgress,
+			progressTarget: def.targetValue,
+			progressPercent
+		};
+	});
+}
+/**
+* Utility formatter for large progression coin values (e.g., 1,000,000 -> "1M", 2,000,000,000 -> "2B").
+*/
+function formatCoinsCompact(coins) {
+	if (!Number.isFinite(coins) || coins <= 0) return "0";
+	if (coins >= 1e9) return `${(coins / 1e9).toFixed(2).replace(/\.?0+$/, "")}B`;
+	if (coins >= 1e6) return `${(coins / 1e6).toFixed(2).replace(/\.?0+$/, "")}M`;
+	if (coins >= 1e3) return `${(coins / 1e3).toFixed(1).replace(/\.0$/, "")}K`;
+	return Math.floor(coins).toLocaleString();
+}
+// src/utils/levelSystem.ts
+var MAX_LEVEL = 100;
 function getExpNeededForLevel(level) {
-	if (level >= 100) return 0;
-	if (level < 1) return 100;
-	return Math.round(100 * Math.pow(level, 1.25));
+	return getLevelDefinition(level).coinsForThisLevel;
+}
+function getCumulativeExpForLevel(level) {
+	return ALL_100_LEVELS[Math.min(MAX_LEVEL, Math.max(0, Number.isFinite(level) ? Math.floor(level) : 0))].cumulativeCoins;
 }
 function getLevelTierDetails(level) {
-	const boundedLevel = Math.min(100, Math.max(1, level));
-	if (boundedLevel >= 100) return {
-		tier: "emperor",
-		tierName: "Emperor Supreme (Level 100)",
-		badgeLabel: "Emperor",
-		iconName: "flame",
-		badgeGradient: "from-[#F328D5] via-[#8B20FF] to-[#FFC84A]",
-		avatarRing: "ring-4 ring-[#FFC84A] shadow-[0_0_25px_rgba(255,200,74,0.7)]",
-		textColor: "text-[#FFC84A]",
-		glowEffect: "shadow-[0_0_15px_rgba(243,40,213,0.6)]",
-		perks: [
-			"Imperial Dragon Entrance Animation",
-			"Custom 3D Profile Hologram Border",
-			"Global Banner Broadcast on Stream Join",
-			"Top Seat Override in Audio Rooms"
-		]
-	};
-	if (boundedLevel >= 75) return {
-		tier: "diamond",
-		tierName: "Diamond Master",
-		badgeLabel: "Diamond",
-		iconName: "gem",
-		badgeGradient: "from-[#06B6D4] via-[#3B82F6] to-[#8B20FF]",
-		avatarRing: "ring-4 ring-[#06B6D4] shadow-[0_0_20px_rgba(6,182,212,0.6)]",
-		textColor: "text-[#06B6D4]",
-		glowEffect: "shadow-[0_0_12px_rgba(6,182,212,0.5)]",
-		perks: [
-			"Diamond Sparkle Chat Bubble",
-			"20% Coin Bonus on Daily Login",
-			"Priority Guest Microphone Access",
-			"Diamond Crown Room Badge"
-		]
-	};
-	if (level >= 50) return {
-		tier: "platinum",
-		tierName: "Platinum Legend",
-		badgeLabel: "Platinum",
-		iconName: "sparkle",
-		badgeGradient: "from-[#8B20FF] via-[#A855F7] to-[#F328D5]",
-		avatarRing: "ring-4 ring-[#A855F7] shadow-[0_0_15px_rgba(139,32,255,0.5)]",
-		textColor: "text-[#C084FC]",
-		glowEffect: "shadow-[0_0_10px_rgba(139,32,255,0.4)]",
-		perks: [
-			"Platinum Shimmer Entrance",
-			"Exclusive Animated Stickers",
-			"15% Gift Coin Cash-back",
-			"Dedicated VIP Fast-Lane Support"
-		]
-	};
-	if (level >= 25) return {
-		tier: "gold",
-		tierName: "Gold Champion",
-		badgeLabel: "Gold",
-		iconName: "crown",
-		badgeGradient: "from-[#FFC84A] to-[#D97706]",
-		avatarRing: "ring-3 ring-[#FFC84A] shadow-[0_0_12px_rgba(255,200,74,0.4)]",
-		textColor: "text-[#FFC84A]",
-		glowEffect: "shadow-[0_0_8px_rgba(255,200,74,0.3)]",
-		perks: [
-			"Golden Crown Profile Badge",
-			"Special Sound Effect on Room Entry",
-			"10% Bonus Diamonds on Gifts",
-			"Gold Badge in Host Chat"
-		]
-	};
-	if (level >= 10) return {
-		tier: "silver",
-		tierName: "Silver Knight",
-		badgeLabel: "Silver",
-		iconName: "shield",
-		badgeGradient: "from-slate-300 via-slate-400 to-slate-500",
-		avatarRing: "ring-2 ring-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.4)]",
-		textColor: "text-slate-200",
-		glowEffect: "shadow-[0_0_6px_rgba(203,213,225,0.3)]",
-		perks: [
-			"Silver Shield Nickname Frame",
-			"Custom Chat Highlight",
-			"5% Gifting Bonus"
-		]
-	};
+	const cfg = getTierConfigForLevel(level);
 	return {
-		tier: "bronze",
-		tierName: "Bronze Star",
-		badgeLabel: "Bronze",
-		iconName: "star",
-		badgeGradient: "from-amber-600 to-amber-800",
-		avatarRing: "ring-2 ring-amber-700/80",
-		textColor: "text-amber-400",
-		glowEffect: "shadow-[0_0_4px_rgba(180,83,9,0.3)]",
-		perks: [
-			"Bronze Level Badge",
-			"Community Chat Access",
-			"Daily Free Gift Drop"
-		]
+		tier: cfg.id,
+		tierName: `${cfg.displayName} Tier (Lv ${cfg.minLevel}–${cfg.maxLevel})`,
+		badgeLabel: cfg.name,
+		iconName: {
+			shield: "shield",
+			chevron: "shield",
+			star: "star",
+			prism: "sparkle",
+			diamond: "gem",
+			flame: "flame",
+			leaf: "sparkle",
+			gem: "gem",
+			crown: "crown",
+			imperial: "crown"
+		}[cfg.insignia],
+		badgeGradient: "from-[#8B20FF] to-[#FA26A0]",
+		avatarRing: `ring-2 shadow-lg`,
+		textColor: "text-white",
+		glowEffect: `shadow-md`,
+		perks: cfg.tierPerks
 	};
 }
+/**
+* Calculates unified 100-level coin progression for any UserProfile.
+* Uses user.totalQualifyingCoinsSpent if available, or derives baseline from user.level.
+*/
 function getUserLevelProgress(user) {
-	const level = Math.min(100, Math.max(1, user.level || 1));
-	const isMax = level >= 100;
-	const neededForCurrentLevel = getExpNeededForLevel(level);
-	if (isMax) return {
-		currentLevel: 100,
-		currentExp: 0,
-		expInCurrentLevel: 0,
-		expNeededForNextLevel: 0,
-		remainingExp: 0,
-		progressPercent: 100,
-		tierDetails: getLevelTierDetails(100)
-	};
-	let expInLevel = user.currentExp ?? Math.round(neededForCurrentLevel * .75);
-	if (expInLevel < 0) expInLevel = 0;
-	if (expInLevel > neededForCurrentLevel) expInLevel = neededForCurrentLevel;
-	const remaining = Math.max(0, neededForCurrentLevel - expInLevel);
-	const percent = Math.min(100, Math.max(0, Math.round(expInLevel / neededForCurrentLevel * 100)));
-	const tierDetails = getLevelTierDetails(level);
+	const computed = calculateProgressionState(typeof user.totalQualifyingCoinsSpent === "number" ? user.totalQualifyingCoinsSpent : getCumulativeExpForLevel(Math.max(0, user.level ?? 0)) + Math.max(0, user.currentExp || 0), {
+		userId: user.id,
+		activeFrameType: user.activeFrameType,
+		equippedVipFrame: user.equippedVipFrame ?? user.vipLevel ?? 0,
+		equippedSuperVipFrame: user.equippedSuperVipFrame ?? user.superVipLevel ?? 0
+	});
 	return {
-		currentLevel: level,
-		currentExp: expInLevel,
-		expInCurrentLevel: expInLevel,
-		expNeededForNextLevel: neededForCurrentLevel,
-		remainingExp: remaining,
-		progressPercent: percent,
-		tierDetails
+		currentLevel: computed.currentLevel,
+		currentExp: computed.coinsInCurrentLevel,
+		expInCurrentLevel: computed.coinsInCurrentLevel,
+		expNeededForNextLevel: computed.coinsForCurrentLevel,
+		remainingExp: computed.remainingCoinsNeeded,
+		progressPercent: computed.percentage,
+		totalQualifyingCoinsSpent: computed.totalQualifyingCoinsSpent,
+		tierDetails: getLevelTierDetails(computed.currentLevel)
 	};
 }
 // src/utils/storage.ts
@@ -52541,21 +53458,36 @@ function mapFirestoreUserToProfile(data, fallbackUser) {
 	const displayId = data.displayId || data.uid.substring(0, 6).toUpperCase();
 	const rawEmailName = data.email ? data.email.split("@")[0] : "user";
 	const username = data.username || `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase()}`;
-	const vipTier = data.equippedVipFrame ?? data.vipLevel ?? 0;
+	const vipTier = data.vipLevel ?? data.equippedVipFrame ?? 0;
+	const superVipTier = data.superVipLevel ?? data.equippedSuperVipFrame ?? 0;
+	const userEmail = data.email || fallbackUser?.email || "";
 	return {
 		id: data.uid,
 		displayId,
 		name: data.fullName || fallbackUser?.displayName || "User",
 		username,
+		email: userEmail,
 		avatar: data.profileImage || fallbackUser?.photoURL || DEFAULT_AVATARS[0],
 		coverImage: data.coverImage || "",
 		bio: data.bio || "",
-		level: data.level || 1,
+		level: typeof data.level === "number" ? Math.max(0, Math.min(100, Math.floor(data.level))) : 0,
 		currentExp: 0,
-		nextLevelExp: 500,
+		nextLevelExp: 1e6,
+		totalQualifyingCoinsSpent: data.totalQualifyingCoinsSpent ?? 0,
 		vipLevel: vipTier || 0,
 		isVIP: data.isVIP ?? vipTier > 0,
-		equippedVipFrame: data.equippedVipFrame,
+		superVipLevel: superVipTier || 0,
+		isSuperVIP: data.isSuperVIP ?? superVipTier > 0,
+		activeFrameType: data.activeFrameType || (data.equippedSuperVipFrame ? "super_vip" : data.equippedVipFrame ? "vip" : "none"),
+		equippedVipFrame: data.equippedVipFrame ?? 0,
+		equippedSuperVipFrame: data.equippedSuperVipFrame ?? 0,
+		unlockedVipTiers: Array.isArray(data.unlockedVipTiers) ? data.unlockedVipTiers : [],
+		unlockedSuperVipTiers: Array.isArray(data.unlockedSuperVipTiers) ? data.unlockedSuperVipTiers : [],
+		earnedAchievements: Array.isArray(data.earnedAchievements) ? data.earnedAchievements : [],
+		giftsSentCount: data.giftsSentCount ?? 0,
+		pkWinsCount: data.pkWinsCount ?? 0,
+		eventsWonCount: data.eventsWonCount ?? 0,
+		isAdmin: userEmail.toLowerCase() === "yaquoobe@gmail.com",
 		fansCount: (data.followersCount || 0).toLocaleString(),
 		followersCount: data.followersCount || 0,
 		followingCount: data.followingCount || 0,
@@ -52570,7 +53502,7 @@ function mapFirestoreUserToProfile(data, fallbackUser) {
 		showGender: data.showGender ?? true,
 		showAge: data.showAge ?? true,
 		showOnlineStatus: data.showOnlineStatus ?? true,
-		equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges : [],
+		equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges.slice(0, 3) : [],
 		agencyId: data.agencyId || "",
 		agencyName: data.agencyName || "",
 		agencyCode: data.agencyCode || "",
@@ -52626,7 +53558,7 @@ async function syncUserInFirestore(user, authProvider, extra) {
 				isOnline: true,
 				followersCount: 0,
 				followingCount: 0,
-				level: 1,
+				level: 0,
 				coins: 0,
 				diamonds: 0,
 				vipLevel: 0,
@@ -53475,9 +54407,12 @@ var ProfileService = class {
 			console.warn("[Firestore] Profile update sync notice:", err);
 		}
 		try {
+			const apiPayload = { ...merged };
+			if (typeof apiPayload.avatar === "string" && apiPayload.avatar.length > 1500) delete apiPayload.avatar;
+			if (typeof apiPayload.coverImage === "string" && apiPayload.coverImage.length > 1500) delete apiPayload.coverImage;
 			const res = await apiFetch(`/api/users/${encodeURIComponent(targetUid)}`, {
 				method: "PUT",
-				body: JSON.stringify(merged)
+				body: JSON.stringify(apiPayload)
 			});
 			if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
 				const data = await res.json();
@@ -53862,7 +54797,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-foNk5zaf.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-yJeVyann.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -53914,7 +54849,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-D38oc9AF.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-DknTE997.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -55936,6 +56871,16 @@ var ChevronRight = createLucideIcon("chevron-right", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var ChevronUp = createLucideIcon("chevron-up", [["path", {
+	d: "m18 15-6-6-6 6",
+	key: "153udz"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var CircleAlert = createLucideIcon("circle-alert", [
 	["circle", {
 		cx: "12",
@@ -56036,6 +56981,21 @@ var Coins = createLucideIcon("coins", [
 		key: "1rbuyh"
 	}]
 ]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Compass = createLucideIcon("compass", [["path", {
+	d: "m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z",
+	key: "9ktpf1"
+}], ["circle", {
+	cx: "12",
+	cy: "12",
+	r: "10",
+	key: "1mglay"
+}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -56200,6 +57160,32 @@ var Eye = createLucideIcon("eye", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var FileClock = createLucideIcon("file-clock", [
+	["path", {
+		d: "M14 2v4a2 2 0 0 0 2 2h4",
+		key: "tnqrlb"
+	}],
+	["path", {
+		d: "M16 22h2a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3",
+		key: "37hlfg"
+	}],
+	["path", {
+		d: "M8 14v2.2l1.6 1",
+		key: "6m4bie"
+	}],
+	["circle", {
+		cx: "8",
+		cy: "16",
+		r: "6",
+		key: "10v15b"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var FileText = createLucideIcon("file-text", [
 	["path", {
 		d: "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
@@ -56285,6 +57271,16 @@ var Flag = createLucideIcon("flag", [["path", {
 var Flame = createLucideIcon("flame", [["path", {
 	d: "M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4",
 	key: "1slcih"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Funnel = createLucideIcon("funnel", [["path", {
+	d: "M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z",
+	key: "sc7q7i"
 }]]);
 /**
 * @license lucide-react v0.546.0 - ISC
@@ -56408,6 +57404,16 @@ var Heart = createLucideIcon("heart", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Hexagon = createLucideIcon("hexagon", [["path", {
+	d: "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z",
+	key: "yt0hxn"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var History = createLucideIcon("history", [
 	["path", {
 		d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8",
@@ -56500,6 +57506,26 @@ var KeyRound = createLucideIcon("key-round", [["path", {
 	fill: "currentColor",
 	key: "w0ekpg"
 }]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Layers = createLucideIcon("layers", [
+	["path", {
+		d: "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
+		key: "zw3jo"
+	}],
+	["path", {
+		d: "M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12",
+		key: "1wduqc"
+	}],
+	["path", {
+		d: "M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17",
+		key: "kqbvx6"
+	}]
+]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -56924,6 +57950,26 @@ var RotateCcw = createLucideIcon("rotate-ccw", [["path", {
 	d: "M3 3v5h5",
 	key: "1xhq8a"
 }]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Save = createLucideIcon("save", [
+	["path", {
+		d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+		key: "1c8476"
+	}],
+	["path", {
+		d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7",
+		key: "1ydtos"
+	}],
+	["path", {
+		d: "M7 3v4a1 1 0 0 0 1 1h7",
+		key: "t51u73"
+	}]
+]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -58100,640 +59146,1196 @@ var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className =
 	});
 };
 // src/utils/levelAndVipConfig.ts
-var ROMAN_NUMERALS = [
-	"I",
-	"II",
-	"III",
-	"IV",
-	"V",
-	"VI",
-	"VII",
-	"VIII",
-	"IX",
-	"X"
-];
-var LEVEL_COIN_REQUIREMENTS = [
-	0,
-	250,
-	600,
-	1100,
-	1800,
-	2700,
-	3900,
-	5400,
-	7200,
-	9500,
-	12500,
-	16e3,
-	20500,
-	26e3,
-	32500,
-	4e4,
-	49e3,
-	59e3,
-	71e3,
-	85e3,
-	102e3,
-	122e3,
-	145e3,
-	172e3,
-	203e3,
-	238e3,
-	278e3,
-	323e3,
-	373e3,
-	43e4,
-	495e3,
-	568e3,
-	65e4,
-	742e3,
-	845e3,
-	96e4,
-	109e4,
-	1235e3,
-	1395e3,
-	1575e3,
-	1775e3,
-	2e6,
-	225e4,
-	253e4,
-	284e4,
-	318e4,
-	356e4,
-	398e4,
-	445e4,
-	5e6
-];
-function getTierFromLevel(level) {
-	if (level <= 10) return "bronze";
-	if (level <= 20) return "silver";
-	if (level <= 30) return "gold";
-	if (level <= 40) return "platinum";
-	return "diamond";
+/**
+* 12 VIP Frame definitions mapped with legacy display helpers so all existing consumers stay compatible.
+*/
+var VIP_FRAME_DEFINITIONS = VIP_TIER_DEFINITIONS.map((v) => ({
+	...v,
+	borderColor: v.primaryColor,
+	glowColor: v.glowColor,
+	gradientBg: v.gradientCss,
+	badgeIcon: v.code
+}));
+function getVipFrameDefinition(tier) {
+	return VIP_FRAME_DEFINITIONS.find((f) => f.tier === tier);
 }
-var FIFTY_LEVELS = Array.from({ length: 50 }, (_, i) => {
-	const level = i + 1;
-	const tier = getTierFromLevel(level);
-	const subIndex = (level - 1) % 10;
-	const roman = ROMAN_NUMERALS[subIndex];
-	const tierNames = {
-		bronze: "Bronze",
-		silver: "Silver",
-		gold: "Gold",
-		platinum: "Platinum",
-		diamond: "Diamond"
-	};
-	const titles = {
-		bronze: [
-			"Apprentice Gifter",
-			"Rising Voice",
-			"Party Starter",
-			"Club Cadet",
-			"Rhythm Seeker",
-			"Bronze Vanguard",
-			"Stage Enthusiast",
-			"Acoustic Knight",
-			"Echo Champion",
-			"Bronze Supreme"
-		],
-		silver: [
-			"Silver Vanguard",
-			"Harmonic Scout",
-			"Room Trendsetter",
-			"Radiant Supporter",
-			"Silver Sovereign",
-			"Melody Master",
-			"Silver Knight",
-			"Sonic Baron",
-			"Silver Luminary",
-			"Silver Archon"
-		],
-		gold: [
-			"Golden Patron",
-			"Crown Gifter",
-			"Aura Commander",
-			"Golden Maestro",
-			"Star Benefactor",
-			"Golden Warlord",
-			"Sunfire Host",
-			"Golden Royal",
-			"Imperial Patron",
-			"Golden Emperor"
-		],
-		platinum: [
-			"Platinum Sovereign",
-			"Mythic Contributor",
-			"Stellar Titan",
-			"Platinum Regent",
-			"Grand Dynast",
-			"Celestial Knight",
-			"Platinum Dominator",
-			"Nebula Overlord",
-			"Infinity Benefactor",
-			"Platinum Apex"
-		],
-		diamond: [
-			"Diamond Monarch",
-			"Astral Overlord",
-			"Galactic Luminary",
-			"Cosmic Sovereign",
-			"Supernova Patron",
-			"Omniscient Gifter",
-			"Eternal Archangel",
-			"Celestial Deity",
-			"Supreme Emperor",
-			"MAX APEX DEITY"
-		]
-	};
-	const shapes = [
-		"shield",
-		"star",
-		"crown",
-		"crest",
-		"hexagon",
-		"shield",
-		"gem",
-		"star",
-		"flame",
-		"diamond"
-	];
-	const gradients = {
-		bronze: "from-[#a75d28] via-[#cd7f32] to-[#8a4216]",
-		silver: "from-[#94a3b8] via-[#e2e8f0] to-[#64748b]",
-		gold: "from-[#f59e0b] via-[#fbbf24] to-[#d97706]",
-		platinum: "from-[#8b5cf6] via-[#c084fc] to-[#6d28d9]",
-		diamond: "from-[#06b6d4] via-[#38bdf8] to-[#ec4899]"
-	};
-	const glows = {
-		bronze: "shadow-[0_0_10px_rgba(205,127,50,0.5)]",
-		silver: "shadow-[0_0_12px_rgba(226,232,240,0.6)]",
-		gold: "shadow-[0_0_16px_rgba(251,191,36,0.7)]",
-		platinum: "shadow-[0_0_18px_rgba(192,132,252,0.75)]",
-		diamond: "shadow-[0_0_24px_rgba(56,189,248,0.85)]"
-	};
-	const icons = {
-		bronze: "🛡️",
-		silver: "⚔️",
-		gold: "👑",
-		platinum: "✨",
-		diamond: "💎"
-	};
-	const currentReq = LEVEL_COIN_REQUIREMENTS[level - 1];
-	const coinsForThisLevel = currentReq - (level > 1 ? LEVEL_COIN_REQUIREMENTS[level - 2] : 0);
-	return {
-		level,
-		tier,
-		tierRank: `${tierNames[tier]} ${roman}`,
-		name: titles[tier][subIndex],
-		requiredCoins: currentReq,
-		coinsForThisLevel,
-		badgeTheme: {
-			shape: shapes[subIndex],
-			primaryColor: tier === "bronze" ? "#cd7f32" : tier === "silver" ? "#e2e8f0" : tier === "gold" ? "#fbbf24" : tier === "platinum" ? "#c084fc" : "#38bdf8",
-			gradient: gradients[tier],
-			borderStyle: `border-2 ${tier === "bronze" ? "border-[#cd7f32]" : tier === "silver" ? "border-[#e2e8f0]" : tier === "gold" ? "border-[#fbbf24]" : tier === "platinum" ? "border-[#c084fc]" : "border-[#38bdf8]"}`,
-			glowEffect: glows[tier],
-			metallicFinish: tier,
-			romanNumeral: roman,
-			icon: icons[tier]
-		},
-		perks: [
-			`Exclusive ${tierNames[tier]} ${roman} chat badge`,
-			level >= 6 && level % 6 === 0 ? `Unlocks VIP ${level / 6} Animated Profile Frame` : `Gifting multiplier boost (${level * 2}%)`,
-			level >= 25 ? "Anti-kick priority in 8-seat rooms" : "Special entrance chime sound",
-			level >= 40 ? "Full screen broadcast on entering rooms" : "Highlighted comment aura"
-		]
-	};
-});
-var EIGHT_VIP_FRAMES = [
-	{
-		tier: 1,
-		name: "VIP 1: Neon Cyan Ring",
-		unlockLevel: 6,
-		themeColor: "#06b6d4",
-		borderGradient: "from-cyan-400 via-sky-300 to-blue-500",
-		glowShadow: "0 0 14px rgba(6,182,212,0.6)",
-		animationClass: "animate-spin-slow",
-		decorativeElements: "cyan_particles",
-		perks: [
-			"Neon Cyan Pulsing Avatar Border",
-			"VIP 1 Badge in Room Seats",
-			"Daily Free 50 Coins Drop"
-		]
-	},
-	{
-		tier: 2,
-		name: "VIP 2: Amethyst Radiance",
-		unlockLevel: 12,
-		themeColor: "#a855f7",
-		borderGradient: "from-purple-500 via-fuchsia-400 to-indigo-500",
-		glowShadow: "0 0 16px rgba(168,85,247,0.7)",
-		animationClass: "animate-pulse",
-		decorativeElements: "amethyst_crystals",
-		perks: [
-			"Violet Crystalline Profile Frame",
-			"Custom Entry Sound Effect",
-			"5% Cashback on Gift Sending"
-		]
-	},
-	{
-		tier: 3,
-		name: "VIP 3: Radiant Golden Crown",
-		unlockLevel: 18,
-		themeColor: "#eab308",
-		borderGradient: "from-amber-400 via-yellow-200 to-amber-600",
-		glowShadow: "0 0 18px rgba(234,179,8,0.8)",
-		animationClass: "animate-bounce-subtle",
-		decorativeElements: "golden_crown",
-		perks: [
-			"Animated Golden Crown Top Adornment",
-			"Golden Shimmer Message Aura",
-			"10% Gifting Bonus Points"
-		]
-	},
-	{
-		tier: 4,
-		name: "VIP 4: Cyber Rose Flare",
-		unlockLevel: 24,
-		themeColor: "#f43f5e",
-		borderGradient: "from-rose-500 via-pink-400 to-fuchsia-600",
-		glowShadow: "0 0 20px rgba(244,63,94,0.8)",
-		animationClass: "animate-pulse",
-		decorativeElements: "rose_wings",
-		perks: [
-			"Dual Neon Rose Blade Wings",
-			"Stealth Incognito Mode in Audio Rooms",
-			"Special PK Battle Entrance Strobe"
-		]
-	},
-	{
-		tier: 5,
-		name: "VIP 5: Emerald Dragon Crest",
-		unlockLevel: 30,
-		themeColor: "#10b981",
-		borderGradient: "from-emerald-400 via-teal-300 to-green-600",
-		glowShadow: "0 0 22px rgba(16,185,129,0.85)",
-		animationClass: "animate-glow",
-		decorativeElements: "emerald_dragon",
-		perks: [
-			"Imperial Emerald Dragon Ring with Coiling Tail",
-			"Anti-Kick Immunity in All Party Rooms",
-			"15% Gifting Bonus"
-		]
-	},
-	{
-		tier: 6,
-		name: "VIP 6: Solar Phoenix Blaze",
-		unlockLevel: 36,
-		themeColor: "#f97316",
-		borderGradient: "from-orange-500 via-amber-300 to-red-600",
-		glowShadow: "0 0 24px rgba(249,115,22,0.9)",
-		animationClass: "animate-flame",
-		decorativeElements: "solar_flames",
-		perks: [
-			"Blazing Phoenix Wings & Solar Sparks",
-			"Broadcast Banner when Entering Live Streams",
-			"Dedicated VIP Concierge Priority"
-		]
-	},
-	{
-		tier: 7,
-		name: "VIP 7: Void Nebula Aura",
-		unlockLevel: 42,
-		themeColor: "#d946ef",
-		borderGradient: "from-fuchsia-500 via-purple-300 to-cyan-400",
-		glowShadow: "0 0 28px rgba(217,70,239,0.95)",
-		animationClass: "animate-nebula",
-		decorativeElements: "cosmic_nebula",
-		perks: [
-			"Cosmic Hologram Orbiting Planets",
-			"Global Soundboard Access in Audio Rooms",
-			"20% Gift Cashback & EXP Multiplier"
-		]
-	},
-	{
-		tier: 8,
-		name: "VIP 8: Archon Celestial Eternity",
-		unlockLevel: 48,
-		themeColor: "#38bdf8",
-		borderGradient: "from-sky-300 via-amber-200 to-fuchsia-400",
-		glowShadow: "0 0 34px rgba(56,189,248,1)",
-		animationClass: "animate-celestial",
-		decorativeElements: "archon_halo",
-		perks: [
-			"Supreme Floating Archon Halo & Stardust Trail",
-			"Unrestricted Top Host Seating Priority",
-			"Global System Announcement across entire app",
-			"Permanent VIP Sovereign Title"
-		]
-	}
-];
-function calculateLevelProgression(totalQualifyingCoins, userId = "current_user", equippedFrame = 0) {
-	let currentLevel = 1;
-	for (let i = 0; i < FIFTY_LEVELS.length; i++) if (totalQualifyingCoins >= FIFTY_LEVELS[i].requiredCoins) currentLevel = FIFTY_LEVELS[i].level;
-	else break;
-	const isMaxLevel = currentLevel >= 50;
-	const currentDef = FIFTY_LEVELS[currentLevel - 1];
-	const nextDef = !isMaxLevel ? FIFTY_LEVELS[currentLevel] : currentDef;
-	const coinsInCurrentLevel = totalQualifyingCoins - currentDef.requiredCoins;
-	const coinsNeededForNextLevel = !isMaxLevel ? nextDef.requiredCoins - currentDef.requiredCoins : 0;
-	const remainingCoins = !isMaxLevel ? Math.max(0, nextDef.requiredCoins - totalQualifyingCoins) : 0;
-	const progressPercent = isMaxLevel ? 100 : Math.min(100, Math.max(0, Math.round(coinsInCurrentLevel / coinsNeededForNextLevel * 100)));
-	const unlockedVipTiers = EIGHT_VIP_FRAMES.filter((f) => currentLevel >= f.unlockLevel).map((f) => f.tier);
-	let resolvedEquippedFrame = equippedFrame;
-	if (resolvedEquippedFrame === 0 && unlockedVipTiers.length > 0) resolvedEquippedFrame = Math.max(...unlockedVipTiers);
-	else if (!unlockedVipTiers.includes(resolvedEquippedFrame)) resolvedEquippedFrame = unlockedVipTiers.length > 0 ? Math.max(...unlockedVipTiers) : 0;
+/**
+* Computes full UserLevelProgression from total qualifying coins spent using the exact 2B coin engine.
+*/
+function calculateLevelProgression(totalQualifyingCoinsSpent, userId = "", equippedVipFrame = 0, options) {
+	const computed = calculateProgressionState(totalQualifyingCoinsSpent, {
+		userId,
+		activeFrameType: options?.activeFrameType,
+		equippedVipFrame,
+		equippedSuperVipFrame: options?.equippedSuperVipFrame ?? 0,
+		equippedAchievementBadges: options?.equippedAchievementBadges ?? []
+	});
 	return {
 		userId,
-		currentLevel,
-		currentTier: currentDef.tier,
-		totalQualifyingCoinsSpent: totalQualifyingCoins,
-		coinsInCurrentLevel: Math.max(0, coinsInCurrentLevel),
-		coinsNeededForNextLevel,
-		progressPercent,
-		remainingCoins,
-		isMaxLevel,
-		unlockedVipTiers,
-		equippedVipFrame: resolvedEquippedFrame,
-		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+		currentLevel: computed.currentLevel,
+		currentTier: computed.currentTierId,
+		currentTierName: computed.currentTierName,
+		totalQualifyingCoinsSpent: computed.totalQualifyingCoinsSpent,
+		coinsInCurrentLevel: computed.coinsInCurrentLevel,
+		coinsNeededForNextLevel: computed.coinsForCurrentLevel,
+		remainingCoinsNeeded: computed.remainingCoinsNeeded,
+		percentage: computed.percentage,
+		isMaxLevel: computed.isMaxLevel,
+		isMaxMastery: computed.isMaxMastery,
+		highestUnlockedVipTier: computed.highestUnlockedVipTier,
+		unlockedVipTiers: computed.unlockedVipTiers,
+		highestUnlockedSuperVipTier: computed.highestUnlockedSuperVipTier,
+		unlockedSuperVipTiers: computed.unlockedSuperVipTiers,
+		activeFrameType: computed.activeFrameType,
+		equippedVipFrame: computed.equippedVipFrame,
+		equippedSuperVipFrame: computed.equippedSuperVipFrame,
+		earnedAchievements: options?.earnedAchievements ?? [],
+		equippedAchievementBadges: computed.equippedAchievementBadges
 	};
 }
-function getLevelDefinition(level) {
-	return FIFTY_LEVELS[Math.min(50, Math.max(1, level)) - 1];
-}
-function getVipFrameDefinition(tier) {
-	return EIGHT_VIP_FRAMES.find((f) => f.tier === tier);
-}
-var LEVEL_DEFINITIONS = FIFTY_LEVELS;
-var VIP_FRAME_DEFINITIONS = EIGHT_VIP_FRAMES;
-var MAJOR_TIERS = [
-	{
-		tier: "bronze",
-		name: "Bronze",
-		range: "Lv 1 - 10"
-	},
-	{
-		tier: "silver",
-		name: "Silver",
-		range: "Lv 11 - 20"
-	},
-	{
-		tier: "gold",
-		name: "Gold",
-		range: "Lv 21 - 30"
-	},
-	{
-		tier: "platinum",
-		name: "Platinum",
-		range: "Lv 31 - 40"
-	},
-	{
-		tier: "diamond",
-		name: "Diamond",
-		range: "Lv 41 - 50 (MAX)"
-	}
-];
 // src/components/common/AvatarWithFrame.tsx
-var AvatarWithFrame = ({ src, avatar, name, level = 1, vipLevel, isVIP = false, equippedVipFrame, size = "md", showFrame = true, showVipBadge = false, className = "", onClick }) => {
-	const [imageError, setImageError] = (0, import_react.useState)(false);
-	const imageSource = avatar || src;
-	const activeFrameTier = equippedVipFrame ?? (vipLevel || (isVIP ? 4 : 0));
-	const frameDef = activeFrameTier > 0 ? getVipFrameDefinition(activeFrameTier) : void 0;
-	const sizeDimensions = {
-		xs: {
-			outer: "w-8 h-8",
-			inner: "w-7 h-7",
-			iconSize: "w-3.5 h-3.5",
-			badgeSize: "w-2.5 h-2.5",
-			stroke: 2
-		},
-		sm: {
-			outer: "w-10 h-10",
-			inner: "w-9 h-9",
-			iconSize: "w-4 h-4",
-			badgeSize: "w-3 h-3",
-			stroke: 2
-		},
-		md: {
-			outer: "w-14 h-14",
-			inner: "w-12 h-12",
-			iconSize: "w-5 h-5",
-			badgeSize: "w-3.5 h-3.5",
-			stroke: 2.5
-		},
-		lg: {
-			outer: "w-18 h-18",
-			inner: "w-16 h-16",
-			iconSize: "w-7 h-7",
-			badgeSize: "w-4 h-4",
-			stroke: 3
-		},
-		xl: {
-			outer: "w-28 h-28",
-			inner: "w-24 h-24",
-			iconSize: "w-10 h-10",
-			badgeSize: "w-5 h-5",
-			stroke: 3.5
-		},
-		"2xl": {
-			outer: "w-36 h-36",
-			inner: "w-32 h-32",
-			iconSize: "w-12 h-12",
-			badgeSize: "w-6 h-6",
-			stroke: 4
-		}
-	}[size];
-	const getInitials = (n) => {
-		return (n || "User").replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() || "LP";
-	};
-	const renderVipFrameRing = () => {
-		if (!showFrame || !frameDef) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full border border-white/10 pointer-events-none" });
-		switch (frameDef.tier) {
-			case 8: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-2 rounded-full pointer-events-none",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[3px] border-transparent bg-gradient-to-r from-sky-300 via-amber-200 to-fuchsia-400 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_25px_rgba(56,189,248,0.9)] animate-spin-slow" }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -top-3.5 left-1/2 -translate-x-1/2 w-8 h-4 rounded-full border border-amber-300 bg-amber-400/30 blur-[0.5px] shadow-[0_0_12px_rgba(251,191,36,0.9)]" }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] animate-pulse",
-						children: "👑"
-					})
-				]
-			});
-			case 7: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[3px] border-transparent bg-gradient-to-tr from-fuchsia-500 via-purple-300 to-cyan-400 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_20px_rgba(217,70,239,0.85)] animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "absolute -bottom-1 -right-1 text-cyan-300 text-[10px]",
-					children: "✨"
-				})]
-			});
-			case 6: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[3px] border-transparent bg-gradient-to-tr from-orange-500 via-amber-300 to-red-600 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_18px_rgba(249,115,22,0.85)] animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "absolute -top-2 right-0 text-amber-300 text-[10px]",
-					children: "🔥"
-				})]
-			});
-			case 5: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[2.5px] border-transparent bg-gradient-to-tr from-emerald-400 via-teal-200 to-green-600 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_16px_rgba(16,185,129,0.8)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "absolute -bottom-1 left-0 text-emerald-300 text-[10px]",
-					children: "🐉"
-				})]
-			});
-			case 4: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[2.5px] border-transparent bg-gradient-to-tr from-rose-500 via-pink-300 to-fuchsia-600 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_15px_rgba(244,63,94,0.75)] animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "absolute -top-2 left-1/2 -translate-x-1/2 text-pink-300 text-[9px]",
-					children: "🌸"
-				})]
-			});
-			case 3: return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[2.5px] border-transparent bg-gradient-to-tr from-amber-400 via-yellow-200 to-amber-600 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_14px_rgba(251,191,36,0.75)]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "absolute -top-2.5 left-1/2 -translate-x-1/2 text-amber-300 text-[11px]",
-					children: "👑"
-				})]
-			});
-			case 2: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "absolute -inset-1.5 rounded-full pointer-events-none",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[2px] border-transparent bg-gradient-to-tr from-purple-500 via-fuchsia-300 to-indigo-500 [mask:linear-gradient(#fff_0_0)_padding-box,linear-gradient(#fff_0_0)] [mask-composite:exclude] shadow-[0_0_12px_rgba(168,85,247,0.7)]" })
-			});
-			default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "absolute -inset-1 rounded-full pointer-events-none",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-[2px] border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.65)] animate-pulse" })
-			});
-		}
-	};
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+var SIZE_MAP = {
+	xs: {
+		container: "w-7 h-7",
+		padding: "p-[2px]",
+		badge: "text-[7px] px-1",
+		dot: "w-1.5 h-1.5"
+	},
+	sm: {
+		container: "w-9 h-9",
+		padding: "p-[2px]",
+		badge: "text-[8px] px-1",
+		dot: "w-1.5 h-1.5"
+	},
+	md: {
+		container: "w-12 h-12",
+		padding: "p-[2.5px]",
+		badge: "text-[8px] px-1.5",
+		dot: "w-2 h-2"
+	},
+	lg: {
+		container: "w-16 h-16",
+		padding: "p-[3px]",
+		badge: "text-[9px] px-1.5",
+		dot: "w-2 h-2"
+	},
+	xl: {
+		container: "w-24 h-24",
+		padding: "p-[4px]",
+		badge: "text-[10px] px-2",
+		dot: "w-2.5 h-2.5"
+	},
+	"2xl": {
+		container: "w-28 h-28",
+		padding: "p-[4.5px]",
+		badge: "text-[11px] px-2.5",
+		dot: "w-3 h-3"
+	}
+};
+/**
+* Reusable VIP 1–12 Membership Crest Badge
+*/
+var VipTierBadge = ({ tier, size = "sm", onClick, className = "" }) => {
+	const def = tier > 0 ? getVipFrameDefinition(tier) : void 0;
+	const pad = size === "xs" ? "px-1.5 py-0.5 text-[9px] gap-1" : size === "md" ? "px-3 py-1 text-xs gap-1.5" : "px-2 py-0.5 text-[10px] gap-1";
+	const style = def ? {
+		background: def.gradientCss,
+		borderColor: def.accentColor,
+		boxShadow: `0 2px 10px ${def.glowColor}`
+	} : {};
+	const body = /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: size === "md" ? "w-3.5 h-3.5 fill-current" : "w-3 h-3 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		className: "font-black tracking-wide whitespace-nowrap",
+		children: def ? def.code : "VIP 0"
+	})] });
+	if (onClick) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		type: "button",
 		onClick,
-		className: `relative inline-flex items-center justify-center shrink-0 ${sizeDimensions.outer} ${onClick ? "cursor-pointer hover:scale-105 active:scale-95 transition-transform" : ""} ${className}`,
-		children: [
-			renderVipFrameRing(),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: `relative ${sizeDimensions.inner} rounded-full overflow-hidden bg-[#160C25] flex items-center justify-center z-10 shadow-inner`,
-				children: imageSource && !imageError ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-					src: imageSource,
-					alt: name || "User DP",
-					referrerPolicy: "no-referrer",
-					onError: () => setImageError(true),
-					className: "w-full h-full object-cover rounded-full"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "w-full h-full rounded-full bg-gradient-to-tr from-[#211333] via-[#351854] to-[#8B20FF]/40 flex flex-col items-center justify-center text-white border border-white/10",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(User, { className: `${sizeDimensions.iconSize} text-[#FFC84A]/80 mb-0.5` }), size === "xl" || size === "2xl" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] font-bold font-mono tracking-wider text-white/90",
-						children: getInitials(name)
-					}) : null]
+		style,
+		className: `inline-flex items-center rounded-lg border font-black transition-transform active:scale-95 ${def ? "text-white" : "bg-white/[0.08] border-white/15 text-[#D7CEEB] hover:bg-white/[0.14]"} ${pad} ${className}`,
+		children: body
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		style,
+		className: `inline-flex items-center rounded-lg border font-black ${def ? "text-white" : "bg-white/[0.08] border-white/15 text-[#D7CEEB]"} ${pad} ${className}`,
+		children: body
+	});
+};
+/**
+* Reusable Super VIP 1–6 Separate Ultra-Premium Crest Badge
+*/
+var SuperVipTierBadge = ({ tier, size = "sm", onClick, className = "" }) => {
+	if (tier <= 0) return null;
+	const def = getSuperVipTierDefinition(tier);
+	if (!def) return null;
+	const pad = size === "xs" ? "px-1.5 py-0.5 text-[9px] gap-1" : size === "md" ? "px-3 py-1 text-xs gap-1.5" : "px-2 py-0.5 text-[10px] gap-1";
+	const style = {
+		background: def.gradientCss,
+		borderColor: def.accentColor,
+		boxShadow: `0 2px 14px ${def.glowColor}`
+	};
+	const body = /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: size === "md" ? "w-3.5 h-3.5" : "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+		className: "font-black tracking-wider whitespace-nowrap",
+		children: ["SVIP ", def.tier]
+	})] });
+	if (onClick) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		type: "button",
+		onClick,
+		style,
+		className: `inline-flex items-center rounded-lg border text-white transition-transform hover:scale-105 active:scale-95 ${pad} ${className}`,
+		children: body
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		style,
+		className: `inline-flex items-center rounded-lg border text-white ${pad} ${className}`,
+		children: body
+	});
+};
+/**
+* Renders user avatar with mutually exclusive VIP (1..12) OR Super VIP (1..6) frame.
+* Guarantees VIP and Super VIP frames NEVER overlap or corrupt rendering.
+*/
+var AvatarWithFrame = ({ src, avatar, name = "User", level, vipLevel = 0, superVipLevel = 0, activeFrameType, isVIP = false, size = "md", showFrame = true, showVipBadge = true, onClick, className = "" }) => {
+	const s = SIZE_MAP[size] || SIZE_MAP.md;
+	const fallbackImg = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80";
+	const resolvedSrc = src || avatar || fallbackImg;
+	const effectiveVipLevel = vipLevel > 0 ? vipLevel : !activeFrameType && superVipLevel === 0 && typeof level === "number" && level >= 8 ? Math.min(12, Math.floor(level / 8)) : 0;
+	const resolvedMode = (() => {
+		if (!showFrame) return "none";
+		if (activeFrameType === "none") return "none";
+		if (activeFrameType === "super_vip" && superVipLevel > 0) return "super_vip";
+		if (activeFrameType === "vip" && effectiveVipLevel > 0) return "vip";
+		if (!activeFrameType) {
+			if (superVipLevel > 0) return "super_vip";
+			if (effectiveVipLevel > 0) return "vip";
+		}
+		return "none";
+	})();
+	const superVipDef = resolvedMode === "super_vip" ? getSuperVipTierDefinition(superVipLevel) : void 0;
+	const vipDef = resolvedMode === "vip" ? getVipFrameDefinition(effectiveVipLevel) : void 0;
+	const isLarge = size === "lg" || size === "xl" || size === "2xl";
+	if (superVipDef) {
+		const orbitClass = superVipDef.tier >= 5 ? "animate-lenzo-orbit-fast" : "animate-lenzo-orbit";
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick,
+			className: `relative inline-flex items-center justify-center shrink-0 select-none ${onClick ? "cursor-pointer" : ""} ${className}`,
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "absolute -inset-[4px] rounded-full blur-md pointer-events-none animate-lenzo-glow",
+					style: {
+						background: superVipDef.gradientCss,
+						opacity: .55
+					}
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `relative ${s.container} rounded-full ${s.padding} overflow-visible flex items-center justify-center`,
+					style: { boxShadow: `0 0 ${isLarge ? "22px" : "12px"} ${superVipDef.glowColor}` },
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `absolute inset-0 rounded-full ${orbitClass}`,
+							style: { background: {
+								royal_purple_energy: "conic-gradient(from 0deg, #F0ABFC, #9333EA, #3B0764, #C084FC, #F0ABFC)",
+								electric_blue_crystal: "conic-gradient(from 0deg, #E0F2FE, #0EA5E9, #1E3A8A, #38BDF8, #E0F2FE)",
+								red_inferno: "conic-gradient(from 0deg, #FDE68A, #F97316, #EF4444, #7F1D1D, #FDE68A)",
+								emerald_royal: "conic-gradient(from 0deg, #FEF08A, #10B981, #064E3B, #34D399, #FEF08A)",
+								diamond_aurora: "conic-gradient(from 0deg, #CFFAFE, #22D3EE, #8B5CF6, #F472B6, #CFFAFE)",
+								legendary_cosmic_gold: "conic-gradient(from 0deg, #FFF7D6, #FFC84A, #FA26A0, #7C3AED, #38BDF8, #FFF7D6)"
+							}[superVipDef.themeKey] }
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "absolute inset-[1.5px] rounded-full border pointer-events-none",
+							style: { borderColor: `${superVipDef.accentColor}aa` }
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "relative z-10 w-full h-full rounded-full overflow-hidden bg-[#0E071B] ring-2 ring-[#090611]",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+								src: resolvedSrc,
+								alt: name,
+								referrerPolicy: "no-referrer",
+								className: "w-full h-full object-cover",
+								onError: (e) => {
+									e.currentTarget.src = fallbackImg;
+								}
+							})
+						}),
+						isLarge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center w-5 h-5 rounded-full border text-white shadow-md",
+								style: {
+									background: superVipDef.gradientCss,
+									borderColor: superVipDef.accentColor
+								},
+								children: superVipDef.themeKey === "red_inferno" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: "w-2.5 h-2.5 fill-current" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 fill-current" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: `pointer-events-none absolute top-1 -right-0.5 z-20 ${s.dot} rounded-full animate-lenzo-particle`,
+								style: {
+									backgroundColor: superVipDef.particleColor,
+									boxShadow: `0 0 8px ${superVipDef.particleColor}`
+								}
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: `pointer-events-none absolute bottom-1.5 -left-0.5 z-20 ${s.dot} rounded-full animate-lenzo-particle`,
+								style: {
+									backgroundColor: superVipDef.accentColor,
+									boxShadow: `0 0 8px ${superVipDef.accentColor}`,
+									animationDelay: "1.1s"
+								}
+							})
+						] })
+					]
+				}),
+				showVipBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-20 rounded-full font-black text-white shadow-md flex items-center gap-0.5 border whitespace-nowrap ${s.badge}`,
+					style: {
+						background: superVipDef.gradientCss,
+						borderColor: superVipDef.accentColor
+					},
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["SVIP", superVipDef.tier] })]
 				})
+			]
+		});
+	}
+	if (vipDef) {
+		const isAnimatedVip = vipDef.tier >= 3;
+		const isOrbitVip = vipDef.tier >= 7;
+		const vipConic = vipDef.tier === 12 ? "conic-gradient(from 0deg, #FFC84A, #FA26A0, #8B20FF, #38BDF8, #FFC84A)" : vipDef.tier === 11 ? "conic-gradient(from 0deg, #FFC84A, #EC4899, #7C3AED, #FFC84A)" : `conic-gradient(from 0deg, ${vipDef.accentColor}, ${vipDef.primaryColor}, ${vipDef.secondaryColor}, ${vipDef.accentColor})`;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick,
+			className: `relative inline-flex items-center justify-center shrink-0 select-none ${onClick ? "cursor-pointer" : ""} ${className}`,
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: `absolute -inset-[3px] rounded-full blur-[5px] pointer-events-none ${isAnimatedVip ? "animate-lenzo-glow" : "opacity-65"}`,
+					style: { background: vipDef.gradientCss }
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `relative ${s.container} rounded-full ${s.padding} flex items-center justify-center`,
+					style: { boxShadow: `0 0 ${isLarge ? "16px" : "9px"} ${vipDef.glowColor}` },
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `absolute inset-0 rounded-full ${isOrbitVip ? "animate-lenzo-orbit" : ""}`,
+							style: { background: isOrbitVip ? vipConic : vipDef.gradientCss }
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "relative z-10 w-full h-full rounded-full overflow-hidden bg-[#0E071B] ring-2 ring-[#090611]",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+								src: resolvedSrc,
+								alt: name,
+								referrerPolicy: "no-referrer",
+								className: "w-full h-full object-cover",
+								onError: (e) => {
+									e.currentTarget.src = fallbackImg;
+								}
+							})
+						}),
+						isLarge && vipDef.tier >= 9 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "pointer-events-none absolute -top-1.5 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center w-4 h-4 rounded-full border text-white shadow",
+							style: {
+								background: vipDef.gradientCss,
+								borderColor: vipDef.accentColor
+							},
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 fill-current" })
+						})
+					]
+				}),
+				showVipBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `absolute -bottom-1.5 left-1/2 -translate-x-1/2 z-20 rounded-full font-black text-white shadow-md flex items-center gap-0.5 border whitespace-nowrap ${s.badge}`,
+					style: {
+						background: vipDef.gradientCss,
+						borderColor: vipDef.accentColor
+					},
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["VIP", vipDef.tier] })]
+				})
+			]
+		});
+	}
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick,
+		className: `relative inline-flex items-center justify-center shrink-0 select-none ${onClick ? "cursor-pointer" : ""} ${className}`,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: `relative ${s.container} rounded-full p-[2px] ${isVIP ? "bg-gradient-to-tr from-[#FFC84A] to-[#F59E0B]" : "bg-white/15"}`,
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "w-full h-full rounded-full overflow-hidden bg-[#140B24] border border-[#090611]",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: resolvedSrc,
+					alt: name,
+					referrerPolicy: "no-referrer",
+					className: "w-full h-full object-cover",
+					onError: (e) => {
+						e.currentTarget.src = fallbackImg;
+					}
+				})
+			})
+		})
+	});
+};
+// src/components/common/LevelEmblemBadge.tsx
+/**
+* 11 bespoke visual palettes faithfully matching the 0–100 Level Emblem Chart:
+* 0–9 Silver-Teal Crystal · 10–19 Bronze Flame · 20–29 Frost Steel · 30–39 Imperial Gold
+* 40–49 Emerald Jade · 50–59 Electric Sapphire · 60–69 Crimson Ruby · 70–79 Amethyst Mystic
+* 80–89 Obsidian Magenta · 90–99 Celestial Platinum-Gold · 100 Supreme Golden Phoenix
+*/
+function getLevelEmblemPalette(rawLevel) {
+	const level = Math.max(0, Math.min(100, Math.floor(Number.isFinite(rawLevel) ? rawLevel : 0)));
+	if (level === 100) return {
+		decade: 10,
+		label: "ROYAL 100",
+		frameLight: "#FFF7C2",
+		frameMid: "#F59E0B",
+		frameDark: "#92400E",
+		innerTop: "#241205",
+		innerBottom: "#0D0614",
+		gemLight: "#F5D0FE",
+		gemMid: "#A855F7",
+		gemDark: "#581C87",
+		wingLight: "#FEF08A",
+		wingMid: "#F59E0B",
+		wingDark: "#B45309",
+		glow: "rgba(251, 191, 36, 0.72)",
+		textColor: "#FFFBEB",
+		crownColor: "#FDE047"
+	};
+	const decade = Math.floor(level / 10);
+	const palettes = [
+		{
+			decade: 0,
+			label: "CRYSTAL",
+			frameLight: "#F1F5F9",
+			frameMid: "#94A3B8",
+			frameDark: "#334155",
+			innerTop: "#162831",
+			innerBottom: "#0A131A",
+			gemLight: "#CCFBF1",
+			gemMid: "#2DD4BF",
+			gemDark: "#0F766E",
+			wingLight: "#99F6E4",
+			wingMid: "#14B8A6",
+			wingDark: "#115E59",
+			glow: "rgba(45, 212, 191, 0.48)",
+			textColor: "#F8FAFC",
+			crownColor: "#5EEAD4"
+		},
+		{
+			decade: 1,
+			label: "BRONZE",
+			frameLight: "#FDE68A",
+			frameMid: "#CD7F32",
+			frameDark: "#6B2F0E",
+			innerTop: "#2D160B",
+			innerBottom: "#140905",
+			gemLight: "#FEF3C7",
+			gemMid: "#F59E0B",
+			gemDark: "#B45309",
+			wingLight: "#FCD34D",
+			wingMid: "#D97706",
+			wingDark: "#7C2D12",
+			glow: "rgba(245, 158, 11, 0.5)",
+			textColor: "#FFFBEB",
+			crownColor: "#FBBF24"
+		},
+		{
+			decade: 2,
+			label: "SILVER",
+			frameLight: "#F0F9FF",
+			frameMid: "#93C5FD",
+			frameDark: "#1E3A8A",
+			innerTop: "#11203B",
+			innerBottom: "#081020",
+			gemLight: "#E0F2FE",
+			gemMid: "#38BDF8",
+			gemDark: "#0369A1",
+			wingLight: "#DBEAFE",
+			wingMid: "#60A5FA",
+			wingDark: "#1D4ED8",
+			glow: "rgba(96, 165, 250, 0.52)",
+			textColor: "#F0F9FF",
+			crownColor: "#BAE6FD"
+		},
+		{
+			decade: 3,
+			label: "GOLD",
+			frameLight: "#FEF9C3",
+			frameMid: "#FACC15",
+			frameDark: "#A16207",
+			innerTop: "#2E2007",
+			innerBottom: "#160E03",
+			gemLight: "#FEF9C3",
+			gemMid: "#F59E0B",
+			gemDark: "#B45309",
+			wingLight: "#FEF08A",
+			wingMid: "#EAB308",
+			wingDark: "#A16207",
+			glow: "rgba(250, 204, 21, 0.56)",
+			textColor: "#FFFDF0",
+			crownColor: "#FDE047"
+		},
+		{
+			decade: 4,
+			label: "EMERALD",
+			frameLight: "#D1FAE5",
+			frameMid: "#10B981",
+			frameDark: "#065F46",
+			innerTop: "#0A291D",
+			innerBottom: "#04140E",
+			gemLight: "#ECFDF5",
+			gemMid: "#34D399",
+			gemDark: "#047857",
+			wingLight: "#A7F3D0",
+			wingMid: "#10B981",
+			wingDark: "#065F46",
+			glow: "rgba(16, 185, 129, 0.54)",
+			textColor: "#ECFDF5",
+			crownColor: "#6EE7B7"
+		},
+		{
+			decade: 5,
+			label: "SAPPHIRE",
+			frameLight: "#BAE6FD",
+			frameMid: "#2563EB",
+			frameDark: "#1E3A8A",
+			innerTop: "#0B1D47",
+			innerBottom: "#050C24",
+			gemLight: "#E0F2FE",
+			gemMid: "#0EA5E9",
+			gemDark: "#1D4ED8",
+			wingLight: "#7DD3FC",
+			wingMid: "#3B82F6",
+			wingDark: "#1E40AF",
+			glow: "rgba(56, 189, 248, 0.58)",
+			textColor: "#F0F9FF",
+			crownColor: "#7DD3FC"
+		},
+		{
+			decade: 6,
+			label: "RUBY",
+			frameLight: "#FDE68A",
+			frameMid: "#EF4444",
+			frameDark: "#7F1D1D",
+			innerTop: "#38090C",
+			innerBottom: "#180406",
+			gemLight: "#FEF08A",
+			gemMid: "#F97316",
+			gemDark: "#B91C1C",
+			wingLight: "#FCA5A5",
+			wingMid: "#EF4444",
+			wingDark: "#991B1B",
+			glow: "rgba(239, 68, 68, 0.58)",
+			textColor: "#FFF5F5",
+			crownColor: "#FDBA74"
+		},
+		{
+			decade: 7,
+			label: "AMETHYST",
+			frameLight: "#F3E8FF",
+			frameMid: "#A855F7",
+			frameDark: "#581C87",
+			innerTop: "#260C44",
+			innerBottom: "#120521",
+			gemLight: "#FAE8FF",
+			gemMid: "#D946EF",
+			gemDark: "#7E22CE",
+			wingLight: "#E9D5FF",
+			wingMid: "#A855F7",
+			wingDark: "#6B21A8",
+			glow: "rgba(168, 85, 247, 0.6)",
+			textColor: "#FAF5FF",
+			crownColor: "#E879F9"
+		},
+		{
+			decade: 8,
+			label: "CROWN",
+			frameLight: "#F8FAFC",
+			frameMid: "#CBD5E1",
+			frameDark: "#831843",
+			innerTop: "#1E091E",
+			innerBottom: "#0B0410",
+			gemLight: "#FCE7F3",
+			gemMid: "#EC4899",
+			gemDark: "#9D174D",
+			wingLight: "#FBCFE8",
+			wingMid: "#EC4899",
+			wingDark: "#831843",
+			glow: "rgba(236, 72, 153, 0.6)",
+			textColor: "#FFF1F2",
+			crownColor: "#F472B6"
+		},
+		{
+			decade: 9,
+			label: "ROYAL",
+			frameLight: "#FEF9C3",
+			frameMid: "#F59E0B",
+			frameDark: "#78350F",
+			innerTop: "#1A1424",
+			innerBottom: "#090710",
+			gemLight: "#E0E7FF",
+			gemMid: "#818CF8",
+			gemDark: "#4338CA",
+			wingLight: "#FFFFFF",
+			wingMid: "#CBD5E1",
+			wingDark: "#94A3B8",
+			glow: "rgba(253, 224, 71, 0.62)",
+			textColor: "#FFFFFF",
+			crownColor: "#FDE047"
+		}
+	];
+	return palettes[Math.min(palettes.length - 1, decade)];
+}
+var SIZE_DIMENSIONS = {
+	xs: {
+		width: 32,
+		height: 28
+	},
+	sm: {
+		width: 46,
+		height: 40
+	},
+	md: {
+		width: 58,
+		height: 50
+	},
+	lg: {
+		width: 74,
+		height: 64
+	},
+	hero: {
+		width: 96,
+		height: 84
+	},
+	showcase: {
+		width: 128,
+		height: 112
+	}
+};
+/**
+* Renders an individually evolving, vector-crisp metallic & crystal shield emblem
+* for every single level from 0 through 100 (101 unique levels).
+*/
+var LevelEmblemBadge = ({ level, size = "md", locked = false, onClick, className = "", showSubLabel = false }) => {
+	const safeLevel = Math.max(0, Math.min(100, Math.floor(Number.isFinite(level) ? level : 0)));
+	const isGrand100 = safeLevel === 100;
+	const step = isGrand100 ? 10 : safeLevel % 10;
+	const palette = getLevelEmblemPalette(safeLevel);
+	const uid = (0, import_react.useId)().replace(/[^a-zA-Z0-9_-]/g, "");
+	const dims = SIZE_DIMENSIONS[size];
+	const fontSize = safeLevel >= 100 ? 27 : safeLevel >= 10 ? 31 : 34;
+	const svgMarkup = /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+		width: dims.width,
+		height: dims.height,
+		viewBox: "0 0 140 120",
+		fill: "none",
+		xmlns: "http://www.w3.org/2000/svg",
+		className: "block overflow-visible select-none",
+		style: { filter: locked ? "grayscale(0.35) opacity(0.72)" : `drop-shadow(0 4px ${size === "hero" || size === "showcase" ? "14px" : "7px"} ${palette.glow})` },
+		"aria-label": `Level ${safeLevel} Emblem`,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `frame-${uid}`,
+					x1: "70",
+					y1: "12",
+					x2: "70",
+					y2: "108",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: palette.frameLight
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "48%",
+							stopColor: palette.frameMid
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: palette.frameDark
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `inner-${uid}`,
+					x1: "70",
+					y1: "22",
+					x2: "70",
+					y2: "98",
+					gradientUnits: "userSpaceOnUse",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: palette.innerTop
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: palette.innerBottom
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `wing-${uid}`,
+					x1: "10",
+					y1: "30",
+					x2: "130",
+					y2: "95",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: palette.wingLight
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "50%",
+							stopColor: palette.wingMid
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: palette.wingDark
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `gem-${uid}`,
+					x1: "70",
+					y1: "6",
+					x2: "70",
+					y2: "28",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: palette.gemLight
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "55%",
+							stopColor: palette.gemMid
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: palette.gemDark
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `gemBot-${uid}`,
+					x1: "70",
+					y1: "90",
+					x2: "70",
+					y2: "112",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: palette.gemLight
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "50%",
+							stopColor: palette.gemMid
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: palette.gemDark
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+					id: `aura-${uid}`,
+					cx: "50%",
+					cy: "52%",
+					r: "48%",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: palette.gemMid,
+						stopOpacity: isGrand100 ? "0.6" : "0.38"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: palette.gemMid,
+						stopOpacity: "0"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `num-${uid}`,
+					x1: "70",
+					y1: "42",
+					x2: "70",
+					y2: "78",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#FFFFFF"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "72%",
+							stopColor: palette.textColor
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: palette.frameLight
+						})
+					]
+				})
+			] }),
+			(step >= 5 || isGrand100 || safeLevel >= 90) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+				cx: "70",
+				cy: "62",
+				rx: isGrand100 ? 64 : 50 + step,
+				ry: isGrand100 ? 48 : 38,
+				fill: `url(#aura-${uid})`
 			}),
-			showVipBadge && frameDef && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: "absolute -bottom-1 -right-1 z-20 bg-gradient-to-r from-amber-400 to-yellow-500 text-black p-1 rounded-full shadow-lg flex items-center justify-center ring-2 ring-[#090611]",
-				title: `VIP ${frameDef.tier} (${frameDef.name})`,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: `${sizeDimensions.badgeSize} fill-black` })
+			isGrand100 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M12 72 L40 60 L16 86 L46 72 M128 72 L100 60 L124 86 L94 72",
+					stroke: "#C084FC",
+					strokeWidth: "2.5",
+					strokeLinecap: "round",
+					opacity: "0.85"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M38 42 C18 30 6 20 2 34 C12 42 22 48 34 52 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.2"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M36 52 C14 48 4 46 6 58 C18 62 28 62 36 62 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.2"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M37 64 C18 64 10 68 15 79 C25 79 34 75 40 73 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.1"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M42 76 C26 80 22 87 29 94 C38 92 46 86 52 84 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M102 42 C122 30 134 20 138 34 C128 42 118 48 106 52 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.2"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M104 52 C126 48 136 46 134 58 C122 62 112 62 104 62 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.2"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M103 64 C122 64 130 68 125 79 C115 79 106 75 100 73 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1.1"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M98 76 C114 80 118 87 111 94 C102 92 94 86 88 84 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FEF9C3",
+					strokeWidth: "1"
+				})
+			] }),
+			!isGrand100 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [
+				(step >= 1 || palette.decade >= 1) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M40 76 L26 83 L38 87 Z",
+					fill: `url(#wing-${uid})`,
+					opacity: "0.92"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M100 76 L114 83 L102 87 Z",
+					fill: `url(#wing-${uid})`,
+					opacity: "0.92"
+				})] }),
+				(step >= 2 || palette.decade >= 2) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M36 42 L20 35 L28 50 L36 52 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M104 42 L120 35 L112 50 L104 52 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				})] }),
+				(step >= 3 || palette.decade >= 3) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M35 55 C20 53 15 58 20 68 C27 69 33 67 37 66 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M105 55 C120 53 125 58 120 68 C113 69 107 67 103 66 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				})] }),
+				step >= 4 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M36 46 C22 36 12 32 10 42 C18 48 26 51 35 53 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M104 46 C118 36 128 32 130 42 C122 48 114 51 105 53 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.9"
+				})] }),
+				step >= 5 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M42 78 C28 82 22 90 30 96 C40 94 48 88 54 85 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.85"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M98 78 C112 82 118 90 110 96 C100 94 92 88 86 85 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: palette.frameLight,
+					strokeWidth: "0.85"
+				})] }),
+				(step >= 7 || palette.decade >= 9) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M35 39 C18 28 8 22 6 33 C14 40 24 44 35 47 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FFFFFF",
+					strokeOpacity: "0.65",
+					strokeWidth: "1"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M105 39 C122 28 132 22 134 33 C126 40 116 44 105 47 Z",
+					fill: `url(#wing-${uid})`,
+					stroke: "#FFFFFF",
+					strokeOpacity: "0.65",
+					strokeWidth: "1"
+				})] }),
+				step >= 8 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+					points: "22,60 27,56 32,60 27,64",
+					fill: `url(#gem-${uid})`,
+					stroke: "#FFFFFF",
+					strokeWidth: "0.7"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+					points: "118,60 113,56 108,60 113,64",
+					fill: `url(#gem-${uid})`,
+					stroke: "#FFFFFF",
+					strokeWidth: "0.7"
+				})] }),
+				step === 9 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+						d: "M16 48 L4 44 L14 55 Z",
+						fill: palette.gemLight,
+						opacity: "0.9"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+						d: "M124 48 L136 44 L126 55 Z",
+						fill: palette.gemLight,
+						opacity: "0.9"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+						cx: "14",
+						cy: "30",
+						r: "2.2",
+						fill: palette.gemLight
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+						cx: "126",
+						cy: "30",
+						r: "2.2",
+						fill: palette.gemLight
+					})
+				] })
+			] }),
+			isGrand100 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M46 29 L42 12 L55 21 L62 8 L70 19 L78 8 L85 21 L98 12 L94 29 Z",
+					fill: palette.crownColor,
+					stroke: "#FFFBEB",
+					strokeWidth: "1.4",
+					strokeLinejoin: "round"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "42",
+					cy: "11",
+					r: "2.6",
+					fill: "#FEF08A"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "62",
+					cy: "7",
+					r: "2.8",
+					fill: "#FFFBEB"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "78",
+					cy: "7",
+					r: "2.8",
+					fill: "#FFFBEB"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "98",
+					cy: "11",
+					r: "2.6",
+					fill: "#FEF08A"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+					points: "70,13 75,20 70,27 65,20",
+					fill: `url(#gem-${uid})`,
+					stroke: "#FFFFFF",
+					strokeWidth: "0.9"
+				})
+			] }) : palette.decade >= 9 || step >= 6 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+					d: "M52 28 L49 14 L61 22 L70 10 L79 22 L91 14 L88 28 Z",
+					fill: palette.crownColor,
+					stroke: "#FFFFFF",
+					strokeOpacity: "0.8",
+					strokeWidth: "1.1",
+					strokeLinejoin: "round"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "49",
+					cy: "13",
+					r: "2",
+					fill: palette.frameLight
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "70",
+					cy: "9",
+					r: "2.4",
+					fill: "#FFFFFF"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+					cx: "91",
+					cy: "13",
+					r: "2",
+					fill: palette.frameLight
+				})
+			] }) : step >= 3 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M56 26 L52 16 L63 23 Z",
+				fill: palette.frameLight,
+				opacity: "0.95"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M84 26 L88 16 L77 23 Z",
+				fill: palette.frameLight,
+				opacity: "0.95"
+			})] }) : null,
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M70 18 L104 30 C106 31 107 33 107 35 L103 73 C102 82 95 90 70 104 C45 90 38 82 37 73 L33 35 C33 33 34 31 36 30 Z",
+				fill: `url(#frame-${uid})`,
+				stroke: palette.frameLight,
+				strokeWidth: "1.8",
+				strokeLinejoin: "round"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M70 24 L98 34 L95 71 C94 78 88 85 70 96 C52 85 46 78 45 71 L42 34 Z",
+				fill: `url(#inner-${uid})`,
+				stroke: palette.frameDark,
+				strokeWidth: "2.2",
+				strokeLinejoin: "round"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M44 36 L70 27 L96 36",
+				stroke: palette.frameLight,
+				strokeOpacity: "0.55",
+				strokeWidth: "1.4",
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				fill: "none"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M44 36 L70 27 L96 36 L94 54 C80 48 60 48 46 54 Z",
+				fill: "#FFFFFF",
+				opacity: "0.07"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+				points: "70,12 78,21 70,29 62,21",
+				fill: `url(#gem-${uid})`,
+				stroke: "#FFFFFF",
+				strokeOpacity: "0.9",
+				strokeWidth: "1.1",
+				strokeLinejoin: "round"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+				points: "70,14 74,21 70,22 66,21",
+				fill: "#FFFFFF",
+				opacity: "0.55"
+			})] }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+				points: "70,91 77,100 70,111 63,100",
+				fill: `url(#gemBot-${uid})`,
+				stroke: "#FFFFFF",
+				strokeOpacity: "0.88",
+				strokeWidth: "1.1",
+				strokeLinejoin: "round"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+				points: "70,93 74,100 70,101 66,100",
+				fill: "#FFFFFF",
+				opacity: "0.5"
+			})] }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", {
+				x: "70",
+				y: safeLevel >= 100 ? "69" : "70",
+				textAnchor: "middle",
+				fill: "#000000",
+				fillOpacity: "0.55",
+				fontSize,
+				fontWeight: "900",
+				fontFamily: "Georgia, 'Times New Roman', serif",
+				letterSpacing: safeLevel >= 100 ? "-1.2" : "-0.4",
+				transform: "translate(0, 1.8)",
+				children: safeLevel
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", {
+				x: "70",
+				y: safeLevel >= 100 ? "69" : "70",
+				textAnchor: "middle",
+				fill: `url(#num-${uid})`,
+				stroke: palette.frameDark,
+				strokeWidth: "0.6",
+				fontSize,
+				fontWeight: "900",
+				fontFamily: "Georgia, 'Times New Roman', serif",
+				letterSpacing: safeLevel >= 100 ? "-1.2" : "-0.4",
+				children: safeLevel
 			})
 		]
+	});
+	if (onClick) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		type: "button",
+		onClick,
+		className: `group relative inline-flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0] rounded-2xl transition-transform duration-200 hover:scale-105 active:scale-95 ${className}`,
+		title: `Level ${safeLevel} · ${palette.label} — Tap to view all levels (0–100)`,
+		children: [svgMarkup, showSubLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: "mt-1 text-[10px] font-black uppercase tracking-wider leading-none",
+			style: { color: palette.frameLight },
+			children: [
+				"LV.",
+				safeLevel,
+				" · ",
+				palette.label
+			]
+		})]
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+		className: `inline-flex flex-col items-center justify-center ${className}`,
+		title: `Level ${safeLevel} · ${palette.label}`,
+		children: [svgMarkup, showSubLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: "mt-1 text-[10px] font-black uppercase tracking-wider leading-none",
+			style: { color: palette.frameLight },
+			children: [
+				"LV.",
+				safeLevel,
+				" · ",
+				palette.label
+			]
+		})]
 	});
 };
 // src/components/common/LevelBadge.tsx
-var LevelBadge = ({ level, size = "md", showTierName = false, className = "", onClick, interactive = true }) => {
-	const def = getLevelDefinition(level);
-	const theme = def.badgeTheme;
-	const renderShapeIcon = () => {
-		const iconClass = {
-			xs: "w-2.5 h-2.5",
-			sm: "w-3 h-3",
-			md: "w-3.5 h-3.5",
-			lg: "w-4 h-4",
-			xl: "w-6 h-6",
-			"2xl": "w-8 h-8"
-		}[size];
-		switch (theme.shape) {
-			case "crown": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-			case "gem":
-			case "diamond": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-			case "flame": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-			case "star": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Star, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-			case "crest": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-			default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: `${iconClass} fill-current text-white/95 shrink-0` });
-		}
-	};
-	const getBadgeStyle = () => {
-		switch (theme.metallicFinish) {
-			case "diamond": return "border-[#38bdf8] bg-gradient-to-r from-[#0369a1] via-[#0284c7] to-[#ec4899] shadow-[0_0_15px_rgba(56,189,248,0.7)] text-white";
-			case "platinum": return "border-[#c084fc] bg-gradient-to-r from-[#6b21a8] via-[#8b5cf6] to-[#d946ef] shadow-[0_0_14px_rgba(192,132,252,0.6)] text-white";
-			case "gold": return "border-[#fbbf24] bg-gradient-to-r from-[#b45309] via-[#f59e0b] to-[#d97706] shadow-[0_0_12px_rgba(251,191,36,0.6)] text-[#1a0f02] font-black";
-			case "silver": return "border-[#e2e8f0] bg-gradient-to-r from-[#475569] via-[#94a3b8] to-[#64748b] shadow-[0_0_10px_rgba(226,232,240,0.5)] text-white";
-			default: return "border-[#cd7f32] bg-gradient-to-r from-[#78350f] via-[#b45309] to-[#92400e] shadow-[0_0_8px_rgba(205,127,50,0.4)] text-white";
-		}
-	};
-	if (size === "xl" || size === "2xl") return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+function renderTierInsignia(insignia, className = "w-3.5 h-3.5") {
+	switch (insignia) {
+		case "shield": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className });
+		case "chevron": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronUp, { className });
+		case "star": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Star, { className: `${className} fill-current` });
+		case "prism": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Hexagon, { className });
+		case "diamond": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className });
+		case "flame": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: `${className} fill-current` });
+		case "leaf": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Compass, { className });
+		case "gem": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className });
+		case "crown": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: `${className} fill-current` });
+		case "imperial": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className });
+		default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className });
+	}
+}
+var LevelBadge = ({ level, size = "sm", showTierName = false, progressPercent, onClick, className = "" }) => {
+	const safeLevel = Math.max(0, Math.min(100, Number.isFinite(level) ? Math.floor(level) : 0));
+	const def = getLevelDefinition(safeLevel);
+	const tierCfg = getTierConfigForLevel(safeLevel);
+	const isHighPrestige = safeLevel >= 50;
+	const isRoyal = safeLevel >= 90;
+	if (size === "profile") return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		type: "button",
 		onClick,
-		className: `relative inline-flex flex-col items-center justify-center p-3 sm:p-4 rounded-3xl border-2 ${getBadgeStyle()} ${theme.glowEffect} select-none transition-all ${interactive ? "cursor-pointer hover:scale-105 active:scale-95 group" : ""} ${className}`,
-		title: `${def.tierRank} • ${def.name} (Level ${level})`,
+		className: `group relative inline-flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] select-none overflow-hidden ${className}`,
+		style: {
+			background: tierCfg.gradientCss,
+			borderColor: tierCfg.borderHex,
+			boxShadow: `0 4px 16px ${tierCfg.glowRgba}`
+		},
+		title: `Level ${safeLevel} · ${tierCfg.name} Tier — Tap to view Levels 0–100`,
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-tr from-white/0 via-white/15 to-white/0 rounded-3xl pointer-events-none group-hover:via-white/30 transition-opacity" }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex items-center gap-2 relative z-10",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "p-2 rounded-2xl bg-black/30 backdrop-blur-sm border border-white/20",
-					children: renderShapeIcon()
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "text-left",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[10px] font-black tracking-widest uppercase opacity-90 block",
-						children: def.tierRank
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-baseline gap-1 font-mono",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-xl sm:text-2xl font-black tracking-tight leading-none",
-							children: ["Lv.", level]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-xs font-extrabold opacity-75",
-							children: "/ 50"
-						})]
-					})]
-				})]
+			isHighPrestige && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+				level: safeLevel,
+				size: "xs",
+				className: "shrink-0"
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "mt-2 pt-1.5 border-t border-white/20 w-full flex items-center justify-between text-[10px] font-bold",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "truncate max-w-[120px]",
-					children: def.name
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "px-1.5 py-0.2 rounded-md bg-black/40 text-[9px] font-mono",
-					children: theme.romanNumeral
+				className: "flex flex-col items-start leading-none text-left",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-1.5",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: "text-xs font-black tracking-tight text-white drop-shadow-sm tabular-nums",
+						children: ["Lv.", safeLevel]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[10px] font-extrabold tracking-wider uppercase text-white/95 bg-black/30 px-1.5 py-0.5 rounded-md",
+						children: tierCfg.name
+					})]
+				}), typeof progressPercent === "number" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mt-1 flex items-center gap-1.5 w-full",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "w-16 h-1 rounded-full bg-black/45 overflow-hidden",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "h-full rounded-full bg-white transition-all duration-500",
+							style: { width: `${Math.max(4, Math.min(100, progressPercent))}%` }
+						})
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: "text-[9px] font-mono font-bold text-white/90 tabular-nums",
+						children: [progressPercent, "%"]
+					})]
 				})]
 			})
 		]
 	});
-	const sizeClasses = {
-		xs: "text-[9px] px-1.5 py-0.5 gap-1 border",
-		sm: "text-[10px] px-2 py-0.5 gap-1.5 border",
-		md: "text-xs px-2.5 py-1 gap-1.5 border-1.5",
-		lg: "text-sm px-3.5 py-1.5 gap-2 border-2"
+	const sizeStyles = {
+		xs: "px-1.5 py-0.5 text-[9px] gap-1 rounded-md",
+		sm: "px-2 py-0.5 text-[10px] gap-1 rounded-lg",
+		md: "px-2.5 py-1 text-xs gap-1.5 rounded-lg",
+		lg: "px-3.5 py-1.5 text-sm gap-2 rounded-xl"
 	}[size];
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+	const iconSizes = {
+		xs: "w-2.5 h-2.5",
+		sm: "w-3 h-3",
+		md: "w-3.5 h-3.5",
+		lg: "w-4 h-4"
+	}[size];
+	const content = /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "shrink-0 flex items-center justify-center text-white drop-shadow-sm",
+			children: renderTierInsignia(tierCfg.insignia, iconSizes)
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: "font-black tracking-tight leading-none text-white drop-shadow-sm tabular-nums",
+			children: ["Lv.", safeLevel]
+		}),
+		showTierName && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: "opacity-95 font-extrabold uppercase tracking-wider text-[0.82em] border-l border-white/30 pl-1.5 text-white",
+			children: [
+				tierCfg.name,
+				" ",
+				def.subRank
+			]
+		})
+	] });
+	const sharedStyle = {
+		background: tierCfg.gradientCss,
+		borderColor: tierCfg.borderHex,
+		boxShadow: isRoyal ? `0 0 18px ${tierCfg.glowRgba}, inset 0 1px 0 rgba(255,255,255,0.4)` : isHighPrestige ? `0 2px 12px ${tierCfg.glowRgba}` : `0 1px 6px ${tierCfg.glowRgba}`
+	};
+	if (onClick) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		type: "button",
 		onClick,
-		className: `inline-flex items-center rounded-full ${getBadgeStyle()} ${sizeClasses} select-none transition-all ${interactive ? "cursor-pointer hover:scale-105 active:scale-95" : ""} ${className}`,
-		title: `${def.tierRank} • ${def.name} (Level ${level})`,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: "shrink-0",
-				children: renderShapeIcon()
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: "font-mono font-black tracking-tight whitespace-nowrap",
-				children: ["Lv.", level]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: "font-mono text-[9px] font-bold opacity-80 border-l border-white/30 pl-1",
-				children: theme.romanNumeral
-			}),
-			showTierName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: "opacity-95 font-sans font-bold tracking-normal border-l border-white/25 pl-1.5 truncate",
-				children: def.tierRank
-			})
-		]
+		className: `inline-flex items-center justify-center border select-none transition-transform hover:scale-105 active:scale-95 ${sizeStyles} ${className}`,
+		style: sharedStyle,
+		title: `${def.title} (${tierCfg.name} Tier · Level ${safeLevel}/100)`,
+		children: content
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		className: `inline-flex items-center justify-center border select-none ${sizeStyles} ${className}`,
+		style: sharedStyle,
+		title: `${def.title} (${tierCfg.name} Tier · Level ${safeLevel}/100)`,
+		children: content
 	});
 };
 // src/utils/coinConfig.ts
@@ -117333,6 +118935,418 @@ var StoreScreen = ({ currentUser, onNavigate, onOpenWallet, onOpenVIP, onUpdateU
 		]
 	});
 };
+// src/components/common/AchievementBadgeArt.tsx
+function renderAchievementIcon(iconKey, className = "w-4 h-4") {
+	switch (iconKey) {
+		case "gift": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className });
+		case "gem": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className });
+		case "flame": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className });
+		case "zap": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className });
+		case "crown": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className });
+		case "heart": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className });
+		case "sparkles": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className });
+		case "shield": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className });
+		case "trophy": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className });
+		default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className });
+	}
+}
+var SHAPE_CLIP_PATHS = {
+	hex: "polygon(25% 4%, 75% 4%, 98% 50%, 75% 96%, 25% 96%, 2% 50%)",
+	diamond: "polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%)",
+	shield: "polygon(12% 6%, 88% 6%, 94% 55%, 50% 98%, 6% 55%)",
+	bolt: "polygon(18% 4%, 82% 4%, 96% 32%, 82% 96%, 18% 96%, 4% 32%)",
+	crown: "polygon(8% 22%, 30% 6%, 50% 18%, 70% 6%, 92% 22%, 88% 92%, 12% 92%)",
+	heart: "polygon(50% 14%, 82% 4%, 98% 34%, 50% 96%, 2% 34%, 18% 4%)",
+	star: "polygon(50% 2%, 66% 32%, 98% 38%, 74% 62%, 80% 96%, 50% 80%, 20% 96%, 26% 62%, 2% 38%, 34% 32%)",
+	crest: "polygon(15% 4%, 85% 4%, 96% 24%, 90% 76%, 50% 98%, 10% 76%, 4% 24%)",
+	trophy: "polygon(14% 6%, 86% 6%, 96% 42%, 78% 94%, 22% 94%, 4% 42%)",
+	sunburst: "polygon(50% 0%, 63% 14%, 84% 10%, 86% 30%, 100% 50%, 86% 70%, 84% 90%, 63% 86%, 50% 100%, 37% 86%, 16% 90%, 14% 70%, 0% 50%, 14% 30%, 16% 10%, 37% 14%)"
+};
+var AchievementBadgeEmblem = ({ shape, iconKey, accentFrom, accentTo, borderHex, isEarned, size = "md" }) => {
+	const dims = {
+		xs: {
+			outer: "w-6 h-6",
+			icon: "w-3 h-3",
+			lock: "w-2.5 h-2.5"
+		},
+		sm: {
+			outer: "w-8 h-8",
+			icon: "w-3.5 h-3.5",
+			lock: "w-3 h-3"
+		},
+		md: {
+			outer: "w-12 h-12",
+			icon: "w-5 h-5",
+			lock: "w-3.5 h-3.5"
+		},
+		lg: {
+			outer: "w-14 h-14",
+			icon: "w-6 h-6",
+			lock: "w-4 h-4"
+		}
+	}[size];
+	const clip = SHAPE_CLIP_PATHS[shape] || SHAPE_CLIP_PATHS.hex;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: `relative inline-flex items-center justify-center shrink-0 ${dims.outer}`,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "w-full h-full flex items-center justify-center transition-transform",
+			style: {
+				clipPath: clip,
+				background: isEarned ? `linear-gradient(135deg, ${accentFrom}, ${accentTo})` : "linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))",
+				boxShadow: isEarned ? `0 4px 14px ${borderHex}55` : "none"
+			},
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "w-[86%] h-[86%] flex items-center justify-center text-white",
+				style: {
+					clipPath: clip,
+					background: isEarned ? `linear-gradient(155deg, ${accentFrom}e8, ${accentTo}f5)` : "rgba(14, 7, 27, 0.9)"
+				},
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isEarned ? "text-white drop-shadow" : "text-white/35",
+					children: renderAchievementIcon(iconKey, dims.icon)
+				})
+			})
+		}), !isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#090611] border border-white/20 flex items-center justify-center text-[#B9AECF]",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-2.5 h-2.5" })
+		})]
+	});
+};
+// src/services/levelAndVipService.ts
+async function getAuthHeaders() {
+	const headers = {};
+	try {
+		const token = await auth.currentUser?.getIdToken();
+		if (token) headers.Authorization = `Bearer ${token}`;
+	} catch {}
+	return headers;
+}
+/**
+* 1. SUBSCRIBE TO USER LEVEL PROGRESSION (Realtime Firestore + Authoritative Backend Hydration)
+*/
+function subscribeUserLevelProgression(userId, initialCoinsSpent = 0, onUpdate) {
+	const docRef = doc(db, "user_levels", userId);
+	fetchAuthoritativeProgression(userId).then((res) => {
+		if (res?.progression) onUpdate(res.progression);
+	}).catch(() => {});
+	return onSnapshot(docRef, (snap) => {
+		if (snap.exists()) {
+			const data = snap.data();
+			const totalCoins = typeof data.totalQualifyingCoinsSpent === "number" ? data.totalQualifyingCoinsSpent : initialCoinsSpent;
+			const equippedVipFrame = typeof data.equippedVipFrame === "number" ? data.equippedVipFrame : 0;
+			const equippedSuperVipFrame = typeof data.equippedSuperVipFrame === "number" ? data.equippedSuperVipFrame : 0;
+			onUpdate(calculateLevelProgression(totalCoins, userId, equippedVipFrame, {
+				activeFrameType: data.activeFrameType === "vip" || data.activeFrameType === "super_vip" || data.activeFrameType === "none" ? data.activeFrameType : equippedSuperVipFrame > 0 ? "super_vip" : equippedVipFrame > 0 ? "vip" : "none",
+				equippedSuperVipFrame,
+				earnedAchievements: Array.isArray(data.earnedAchievements) ? data.earnedAchievements : [],
+				equippedAchievementBadges: Array.isArray(data.equippedAchievementBadges) ? data.equippedAchievementBadges.slice(0, 3) : []
+			}));
+		} else {
+			const initialProg = calculateLevelProgression(initialCoinsSpent, userId, 0);
+			setDoc(docRef, {
+				userId,
+				currentLevel: initialProg.currentLevel,
+				currentTier: initialProg.currentTier,
+				totalQualifyingCoinsSpent: initialCoinsSpent,
+				activeFrameType: initialProg.activeFrameType,
+				equippedVipFrame: initialProg.equippedVipFrame,
+				equippedSuperVipFrame: initialProg.equippedSuperVipFrame,
+				unlockedVipTiers: initialProg.unlockedVipTiers,
+				unlockedSuperVipTiers: initialProg.unlockedSuperVipTiers,
+				earnedAchievements: [],
+				equippedAchievementBadges: [],
+				updatedAt: serverTimestamp()
+			}, { merge: true }).catch(() => {});
+			onUpdate(initialProg);
+		}
+	}, (err) => {
+		console.warn("Level progression listener notice:", err);
+		onUpdate(calculateLevelProgression(initialCoinsSpent, userId, 0));
+	});
+}
+/**
+* Fetch authoritative progression, evaluated achievements, and unlock history from backend.
+*/
+async function fetchAuthoritativeProgression(userId) {
+	try {
+		const headers = await getAuthHeaders();
+		const res = await apiFetch(`/api/progression/user/${encodeURIComponent(userId)}`, { headers });
+		if (res.ok && res.headers.get("content-type")?.includes("application/json")) return await res.json();
+	} catch {}
+	return null;
+}
+/**
+* 2. RECORD QUALIFYING GIFT COINS & AUTHORITATIVE LEVEL UP
+* Processes atomic backend coin progression with transactionId idempotency + Firestore sync.
+*/
+async function addQualifyingGiftingCoins(userId, coinsSpent, options) {
+	const txId = options?.transactionId || `tx_prog_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+	try {
+		const res = await apiFetch("/api/progression/spend", {
+			method: "POST",
+			headers: await getAuthHeaders(),
+			body: JSON.stringify({
+				userId,
+				coinsSpent,
+				transactionId: txId,
+				reason: options?.reason || "gift_sent",
+				userSnapshot: options?.userSnapshot
+			})
+		});
+		if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+			const data = await res.json();
+			const prog = data.progression;
+			try {
+				await setDoc(doc(db, "user_levels", userId), {
+					userId,
+					currentLevel: prog.currentLevel,
+					currentTier: prog.currentTier,
+					totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+					activeFrameType: prog.activeFrameType,
+					equippedVipFrame: prog.equippedVipFrame,
+					equippedSuperVipFrame: prog.equippedSuperVipFrame,
+					unlockedVipTiers: prog.unlockedVipTiers,
+					unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+					earnedAchievements: prog.earnedAchievements || [],
+					equippedAchievementBadges: prog.equippedAchievementBadges || [],
+					updatedAt: serverTimestamp()
+				}, { merge: true });
+				await setDoc(doc(db, "users", userId), {
+					level: prog.currentLevel,
+					totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+					vipLevel: prog.highestUnlockedVipTier,
+					isVIP: prog.highestUnlockedVipTier > 0,
+					superVipLevel: prog.highestUnlockedSuperVipTier,
+					isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
+					activeFrameType: prog.activeFrameType,
+					equippedVipFrame: prog.equippedVipFrame,
+					equippedSuperVipFrame: prog.equippedSuperVipFrame
+				}, { merge: true });
+			} catch {}
+			return {
+				progression: prog,
+				levelUpEvent: data.levelUpEvent,
+				duplicate: Boolean(data.duplicate)
+			};
+		}
+	} catch (err) {
+		console.warn("[Progression] Backend spend route fallback to Firestore tx:", err);
+	}
+	const docRef = doc(db, "user_levels", userId);
+	const userRef = doc(db, "users", userId);
+	let resultProgression = calculateLevelProgression(coinsSpent, userId, 0);
+	let levelUpEvent;
+	try {
+		await runTransaction(db, async (tx) => {
+			const snap = await tx.get(docRef);
+			const data = snap.exists() ? snap.data() : {};
+			const currentCoins = data.totalQualifyingCoinsSpent || 0;
+			const equippedVip = data.equippedVipFrame || 0;
+			const equippedSuperVip = data.equippedSuperVipFrame || 0;
+			const activeFrameType = data.activeFrameType || "none";
+			const earnedAchievements = Array.isArray(data.earnedAchievements) ? data.earnedAchievements : [];
+			const equippedAchievementBadges = Array.isArray(data.equippedAchievementBadges) ? data.equippedAchievementBadges : [];
+			const newTotalCoins = currentCoins + Math.max(0, Math.floor(coinsSpent));
+			const diff = detectMilestoneUnlocks(currentCoins, newTotalCoins);
+			const newProg = calculateLevelProgression(newTotalCoins, userId, equippedVip, {
+				activeFrameType,
+				equippedSuperVipFrame: equippedSuperVip,
+				earnedAchievements,
+				equippedAchievementBadges
+			});
+			resultProgression = newProg;
+			if (diff.leveledUp) {
+				const latestVip = diff.newlyUnlockedVipTiers[diff.newlyUnlockedVipTiers.length - 1];
+				const latestSuperVip = diff.newlyUnlockedSuperVipFrames[diff.newlyUnlockedSuperVipFrames.length - 1];
+				levelUpEvent = {
+					oldLevel: diff.oldLevel,
+					newLevel: diff.newLevel,
+					oldTier: diff.oldTierId,
+					newTier: diff.newTierId,
+					tierChanged: diff.tierChanged,
+					coinsSpent,
+					badge: getLevelDefinition(diff.newLevel),
+					unlockedVipFrame: latestVip ? getVipFrameDefinition(latestVip) : void 0,
+					unlockedVipFrames: diff.newlyUnlockedVipFrames,
+					unlockedSuperVipFrame: latestSuperVip,
+					unlockedSuperVipFrames: diff.newlyUnlockedSuperVipFrames
+				};
+			}
+			tx.set(docRef, {
+				userId,
+				currentLevel: newProg.currentLevel,
+				currentTier: newProg.currentTier,
+				totalQualifyingCoinsSpent: newTotalCoins,
+				activeFrameType: newProg.activeFrameType,
+				equippedVipFrame: newProg.equippedVipFrame,
+				equippedSuperVipFrame: newProg.equippedSuperVipFrame,
+				unlockedVipTiers: newProg.unlockedVipTiers,
+				unlockedSuperVipTiers: newProg.unlockedSuperVipTiers,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+			tx.set(userRef, {
+				level: newProg.currentLevel,
+				totalQualifyingCoinsSpent: newTotalCoins,
+				vipLevel: newProg.highestUnlockedVipTier,
+				isVIP: newProg.highestUnlockedVipTier > 0,
+				superVipLevel: newProg.highestUnlockedSuperVipTier,
+				isSuperVIP: newProg.highestUnlockedSuperVipTier > 0,
+				activeFrameType: newProg.activeFrameType,
+				equippedVipFrame: newProg.equippedVipFrame,
+				equippedSuperVipFrame: newProg.equippedSuperVipFrame
+			}, { merge: true });
+		});
+	} catch (err) {
+		console.warn("Level progression Firestore tx error:", err);
+	}
+	return {
+		progression: resultProgression,
+		levelUpEvent
+	};
+}
+/**
+* 3. EQUIP ACTIVE PROFILE FRAME (VIP 1..12 OR SUPER VIP 1..6 OR NONE)
+* Strictly validated server-side so locked frames cannot be equipped and frames never overlap!
+*/
+async function equipActiveFrame(userId, frameType, tier = 0) {
+	try {
+		const res = await apiFetch("/api/progression/equip-frame", {
+			method: "POST",
+			headers: await getAuthHeaders(),
+			body: JSON.stringify({
+				userId,
+				frameType,
+				tier
+			})
+		});
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) return {
+			success: false,
+			error: data.error || "Frame is locked or invalid.",
+			message: data.error || "Frame is locked or invalid."
+		};
+		const prog = data.progression;
+		try {
+			const nextVip = frameType === "vip" ? tier : 0;
+			const nextSuperVip = frameType === "super_vip" ? tier : 0;
+			await setDoc(doc(db, "user_levels", userId), {
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+			await setDoc(doc(db, "users", userId), {
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip
+			}, { merge: true });
+		} catch {}
+		return {
+			success: true,
+			progression: prog,
+			message: data.message || "Profile frame updated"
+		};
+	} catch (err) {
+		try {
+			const docRef = doc(db, "user_levels", userId);
+			const snap = await getDoc(docRef);
+			const data = snap.exists() ? snap.data() : {};
+			const unlockedVip = Array.isArray(data.unlockedVipTiers) ? data.unlockedVipTiers : [];
+			const unlockedSuperVip = Array.isArray(data.unlockedSuperVipTiers) ? data.unlockedSuperVipTiers : [];
+			if (frameType === "vip" && tier > 0 && !unlockedVip.includes(tier)) {
+				const msg = `VIP ${tier} frame is locked. Reach Level ${tier * 8} to unlock it.`;
+				return {
+					success: false,
+					error: msg,
+					message: msg
+				};
+			}
+			if (frameType === "super_vip" && tier > 0 && !unlockedSuperVip.includes(tier)) {
+				const msg = `Super VIP ${tier} frame is locked. Reach Level ${tier * 12} to unlock it.`;
+				return {
+					success: false,
+					error: msg,
+					message: msg
+				};
+			}
+			const nextVip = frameType === "vip" ? tier : 0;
+			const nextSuperVip = frameType === "super_vip" ? tier : 0;
+			await setDoc(docRef, {
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+			await setDoc(doc(db, "users", userId), {
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip
+			}, { merge: true });
+			return {
+				success: true,
+				message: "Frame equipped successfully"
+			};
+		} catch (innerErr) {
+			const msg = innerErr?.message || err?.message || "Failed to equip frame";
+			return {
+				success: false,
+				error: msg,
+				message: msg
+			};
+		}
+	}
+}
+/**
+* Legacy helper alias for VIP frame equipping
+*/
+async function equipVipFrame(userId, vipTier) {
+	const tierNum = vipTier ?? 0;
+	return equipActiveFrame(userId, tierNum > 0 ? "vip" : "none", tierNum);
+}
+/**
+* Helper for Super VIP frame equipping
+*/
+async function equipSuperVipFrame(userId, superVipTier) {
+	const tierNum = superVipTier ?? 0;
+	return equipActiveFrame(userId, tierNum > 0 ? "super_vip" : "none", tierNum);
+}
+async function equipAchievementBadges(userId, badgeIds) {
+	if (badgeIds.length > 3) return {
+		success: false,
+		error: `You can equip at most 3 achievement badges on your profile.`
+	};
+	try {
+		const res = await apiFetch("/api/progression/achievements/equip", {
+			method: "POST",
+			headers: await getAuthHeaders(),
+			body: JSON.stringify({
+				userId,
+				badgeIds
+			})
+		});
+		const data = await res.json().catch(() => ({}));
+		if (!res.ok) return {
+			success: false,
+			error: data.error || "Could not equip achievement badges."
+		};
+		try {
+			await setDoc(doc(db, "user_levels", userId), {
+				equippedAchievementBadges: data.equippedAchievementBadges || badgeIds,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+			await setDoc(doc(db, "users", userId), { equippedBadges: data.equippedAchievementBadges || badgeIds }, { merge: true });
+		} catch {}
+		return {
+			success: true,
+			equippedAchievementBadges: data.equippedAchievementBadges || badgeIds
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to equip badges."
+		};
+	}
+}
 // src/services/storageService.ts
 async function compressImageToDataUrl(file, maxDimension, quality = .82) {
 	return new Promise((resolve, reject) => {
@@ -117371,7 +119385,7 @@ async function compressImageToDataUrl(file, maxDimension, quality = .82) {
 */
 async function uploadUserImage(file, folder, onProgress) {
 	const user = auth.currentUser;
-	const maxDim = folder === "covers" ? 1400 : 640;
+	const maxDim = folder === "covers" ? 1200 : 512;
 	if (user) try {
 		const fileType = file.type || "image/jpeg";
 		const ext = fileType.includes("png") ? "png" : fileType.includes("webp") ? "webp" : "jpg";
@@ -117406,7 +119420,7 @@ async function uploadUserImage(file, folder, onProgress) {
 		console.warn("[Firebase Storage] Falling back to backend media upload:", storageErr);
 	}
 	onProgress?.(45, {});
-	const dataUrl = await compressImageToDataUrl(file, maxDim, .82);
+	const dataUrl = await compressImageToDataUrl(file, maxDim, .78);
 	try {
 		const res = await apiFetch("/api/media/upload", {
 			method: "POST",
@@ -117559,137 +119573,6 @@ function calculateAgeFromBirthday(birthday) {
 	if (monthDiff < 0 || monthDiff === 0 && today.getDate() < parsed.getDate()) age -= 1;
 	if (age < 13 || age > 120) return null;
 	return age;
-}
-/**
-* Computes real Profile Badges strictly from actual authenticated user data & metrics.
-* Never fabricates earned badges.
-*/
-function computeProfileBadges(input) {
-	const { user, publicVideosCount, totalLikesCount, followersCount } = input;
-	const equippedSet = new Set(user.equippedBadges || []);
-	const profileCompleteSteps = (user.name && user.name.trim().length >= 2 ? 1 : 0) + (user.bio && user.bio.trim().length >= 5 ? 1 : 0) + (user.country && user.country.trim().length > 0 ? 1 : 0);
-	const giftingCoins = Math.max(user.totalGiftsValue || 0, (user.level - 1) * 500);
-	const earningsDiamonds = user.diamonds || 0;
-	const streakDays = user.loginStreakDays || 1;
-	const sessionsCount = (user.liveSessionsHosted || 0) + publicVideosCount;
-	const hasAgency = Boolean(user.agencyId && user.agencyStatus === "active");
-	return [
-		{
-			id: "profile_pioneer",
-			name: "Profile Pioneer",
-			category: "milestone",
-			tier: "bronze",
-			description: "Complete your Lenzo Party identity with display name, bio, and country.",
-			requirementText: "Complete Display Name, Bio & Country (3/3)",
-			iconKey: "sparkles",
-			accentFrom: "#8B20FF",
-			accentTo: "#FA26A0",
-			isEarned: profileCompleteSteps >= 3,
-			progressCurrent: profileCompleteSteps,
-			progressTarget: 3
-		},
-		{
-			id: "contributor",
-			name: "Contributor",
-			category: "gifting",
-			tier: "silver",
-			description: "Active supporter who contributes gifts and reaches Level 5 or higher.",
-			requirementText: "Reach Level 5 or send 2,000 gifting coins",
-			iconKey: "award",
-			accentFrom: "#38BDF8",
-			accentTo: "#6366F1",
-			isEarned: user.level >= 5 || giftingCoins >= 2e3,
-			progressCurrent: Math.min(5, user.level),
-			progressTarget: 5
-		},
-		{
-			id: "diamond_host",
-			name: "Diamond Host",
-			category: "creator",
-			tier: "diamond",
-			description: "Awarded to hosts who earn 1,000+ Diamonds from live viewers and party rooms.",
-			requirementText: "Earn 1,000 Diamonds from live & party gifts",
-			iconKey: "gem",
-			accentFrom: "#06B6D4",
-			accentTo: "#3B82F6",
-			isEarned: earningsDiamonds >= 1e3,
-			progressCurrent: Math.min(1e3, earningsDiamonds),
-			progressTarget: 1e3
-		},
-		{
-			id: "marathoner",
-			name: "Marathoner",
-			category: "creator",
-			tier: "gold",
-			description: "Dedicated creator publishing moments or hosting multiple live sessions.",
-			requirementText: "Publish 5 public videos/posts or host 5 sessions",
-			iconKey: "flame",
-			accentFrom: "#F59E0B",
-			accentTo: "#EF4444",
-			isEarned: sessionsCount >= 5,
-			progressCurrent: Math.min(5, sessionsCount),
-			progressTarget: 5
-		},
-		{
-			id: "streak_pro",
-			name: "Streak Pro",
-			category: "milestone",
-			tier: "silver",
-			description: "Consistent community presence across consecutive days or Level 10 milestone.",
-			requirementText: "7-day login streak or reach Level 10",
-			iconKey: "zap",
-			accentFrom: "#10B981",
-			accentTo: "#06B6D4",
-			isEarned: streakDays >= 7 || user.level >= 10,
-			progressCurrent: Math.min(7, streakDays),
-			progressTarget: 7
-		},
-		{
-			id: "top_gifter",
-			name: "Top Gifter",
-			category: "gifting",
-			tier: "platinum",
-			description: "VIP supporter badge unlocked by activating VIP Tier 1+ or 5,000 gifting coins.",
-			requirementText: "Unlock VIP Tier 1+ or 5,000 gifting coins",
-			iconKey: "crown",
-			accentFrom: "#FFC84A",
-			accentTo: "#FA26A0",
-			isEarned: (user.vipLevel || 0) >= 1 || user.isVIP || giftingCoins >= 5e3,
-			progressCurrent: user.isVIP || (user.vipLevel || 0) >= 1 ? 5e3 : Math.min(5e3, giftingCoins),
-			progressTarget: 5e3
-		},
-		{
-			id: "popular_host",
-			name: "Popular Host",
-			category: "social",
-			tier: "gold",
-			description: "Loved by the community with growing fans and video engagement.",
-			requirementText: "Reach 50 Followers or 100 Total Likes",
-			iconKey: "heart",
-			accentFrom: "#EC4899",
-			accentTo: "#F43F5E",
-			isEarned: followersCount >= 50 || totalLikesCount >= 100,
-			progressCurrent: Math.min(50, followersCount),
-			progressTarget: 50
-		},
-		{
-			id: "agency_star",
-			name: "Agency Star",
-			category: "agency",
-			tier: "platinum",
-			description: "Official member of a Lenzo Party Agency & Creator Crew.",
-			requirementText: "Join or create an Agency in Agency Center",
-			iconKey: "shield",
-			accentFrom: "#A855F7",
-			accentTo: "#EC4899",
-			isEarned: hasAgency,
-			progressCurrent: hasAgency ? 1 : 0,
-			progressTarget: 1
-		}
-	].map((b) => ({
-		...b,
-		isEquipped: b.isEarned && equippedSet.has(b.id)
-	}));
 }
 /**
 * Computes real Top Achievements progress strictly from user's live data.
@@ -119284,19 +121167,21 @@ function renderBadgeIcon(iconKey, className = "w-5 h-5") {
 		default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className });
 	}
 }
-var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge }) => {
+var BadgeVaultModal = ({ isOpen, onClose, badges = [], achievementBadges, isOwner, onToggleEquipBadge }) => {
 	const [filter, setFilter] = (0, import_react.useState)("all");
 	const [busyId, setBusyId] = (0, import_react.useState)(null);
 	if (!isOpen) return null;
-	const earnedBadges = badges.filter((b) => b.isEarned);
-	const equippedBadges = badges.filter((b) => b.isEquipped);
-	const lockedBadges = badges.filter((b) => !b.isEarned);
-	const visibleBadges = filter === "earned" ? earnedBadges : filter === "locked" ? lockedBadges : badges;
-	const handleToggle = async (badge) => {
-		if (!isOwner || !badge.isEarned || busyId) return;
-		setBusyId(badge.id);
+	const usingUnified = Boolean(achievementBadges && achievementBadges.length > 0);
+	const list = usingUnified ? achievementBadges : badges;
+	const earnedList = list.filter((b) => b.isEarned);
+	const equippedList = list.filter((b) => b.isEquipped);
+	const lockedList = list.filter((b) => !b.isEarned);
+	const visibleList = filter === "earned" ? earnedList : filter === "locked" ? lockedList : list;
+	const handleToggle = async (badgeId, isEarned) => {
+		if (!isOwner || !isEarned || busyId) return;
+		setBusyId(badgeId);
 		try {
-			await onToggleEquipBadge(badge.id);
+			await onToggleEquipBadge(badgeId);
 		} finally {
 			setBusyId(null);
 		}
@@ -119313,15 +121198,15 @@ var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge })
 					className: "px-5 py-4 border-b border-white/[0.08] flex items-center justify-between",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
 						className: "text-base font-extrabold text-white tracking-tight flex items-center gap-2",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-5 h-5 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Badge Vault" })]
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-5 h-5 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Achievement Badge Vault" })]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 						className: "text-xs text-[#B9AECF] mt-0.5 tabular-nums",
 						children: [
-							earnedBadges.length,
+							earnedList.length,
 							" of ",
-							badges.length,
+							list.length,
 							" earned · ",
-							equippedBadges.length,
+							equippedList.length,
 							"/3 equipped on profile"
 						]
 					})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -119336,15 +121221,15 @@ var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge })
 					children: [
 						{
 							id: "all",
-							label: `All (${badges.length})`
+							label: `All (${list.length})`
 						},
 						{
 							id: "earned",
-							label: `Earned (${earnedBadges.length})`
+							label: `Earned (${earnedList.length})`
 						},
 						{
 							id: "locked",
-							label: `Locked (${lockedBadges.length})`
+							label: `Locked (${lockedList.length})`
 						}
 					].map((tab) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						onClick: () => setFilter(tab.id),
@@ -119354,7 +121239,7 @@ var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge })
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "flex-1 overflow-y-auto px-5 py-3 space-y-3",
-					children: visibleBadges.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					children: visibleList.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "py-12 text-center rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-8 h-8 text-[#B9AECF]/60 mx-auto mb-2" }),
@@ -119364,10 +121249,80 @@ var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge })
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 								className: "text-xs text-[#B9AECF] mt-1",
-								children: "Host live sessions, publish moments, or join an Agency to unlock milestone badges."
+								children: "Host live sessions, send gifts, win PK battles, or grow your fanbase to earn independent achievements."
 							})
 						]
-					}) : visibleBadges.map((badge) => {
+					}) : usingUnified ? visibleList.map((badge) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `p-3.5 rounded-2xl border transition-all ${badge.isEquipped ? "bg-[#21123B] border-[#FA26A0]/55 shadow-lg shadow-[#8B20FF]/15" : badge.isEarned ? "bg-white/[0.04] border-white/10" : "bg-white/[0.02] border-white/[0.06] opacity-85"}`,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-start gap-3.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+								shape: badge.shape,
+								iconKey: badge.iconKey,
+								accentFrom: badge.accentFrom,
+								accentTo: badge.accentTo,
+								borderHex: badge.borderHex,
+								isEarned: badge.isEarned,
+								size: "md"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex-1 min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2 min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+												className: "text-sm font-bold text-white truncate",
+												children: badge.name
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/[0.08] text-[#D7CEEB]",
+												children: badge.rarity
+											})]
+										}), isOwner && badge.isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleToggle(badge.id, badge.isEarned),
+											disabled: busyId === badge.id,
+											className: `px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${badge.isEquipped ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30" : "bg-white/10 hover:bg-white/20 text-white"}`,
+											children: badge.isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equip" })
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs text-[#B9AECF] mt-1 leading-relaxed",
+										children: badge.description
+									}),
+									badge.isEarned ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "mt-2 flex items-center gap-1.5 text-[10px] text-emerald-300 font-semibold",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Calendar, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+											"Earned",
+											" ",
+											badge.earnedAt ? new Date(badge.earnedAt).toLocaleDateString() : "Verified"
+										] })]
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "mt-2.5 space-y-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between text-[11px] text-[#B9AECF]",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "truncate",
+												children: badge.unlockConditionText
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "font-mono tabular-nums text-white/80 shrink-0",
+												children: [
+													badge.progressCurrent.toLocaleString(),
+													"/",
+													badge.progressTarget.toLocaleString()
+												]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "h-1.5 rounded-full bg-white/[0.08] overflow-hidden",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]",
+												style: { width: `${Math.max(4, badge.progressPercent)}%` }
+											})
+										})]
+									})
+								]
+							})]
+						})
+					}, badge.id)) : visibleList.map((badge) => {
 						const pct = Math.min(100, Math.round(badge.progressCurrent / Math.max(1, badge.progressTarget) * 100));
 						return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: `p-3.5 rounded-2xl border transition-all ${badge.isEquipped ? "bg-[#21123B] border-[#FA26A0]/50 shadow-lg shadow-[#8B20FF]/10" : badge.isEarned ? "bg-white/[0.04] border-white/10" : "bg-white/[0.02] border-white/[0.06] opacity-80"}`,
@@ -119385,45 +121340,26 @@ var BadgeVaultModal = ({ isOpen, onClose, badges, isOwner, onToggleEquipBadge })
 									children: [
 										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 											className: "flex items-center justify-between gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-2 min-w-0",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-													className: "text-sm font-bold text-white truncate",
-													children: badge.name
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/[0.08] text-[#D7CEEB]",
-													children: badge.tier
-												})]
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+												className: "text-sm font-bold text-white truncate",
+												children: badge.name
 											}), isOwner && badge.isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-												onClick: () => handleToggle(badge),
+												onClick: () => handleToggle(badge.id, badge.isEarned),
 												disabled: busyId === badge.id,
-												className: `px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 ${badge.isEquipped ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30" : "bg-white/10 hover:bg-white/20 text-white"}`,
-												children: badge.isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equip" })
+												className: `px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 ${badge.isEquipped ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-white/10 text-white"}`,
+												children: badge.isEquipped ? "Equipped" : "Equip"
 											})]
 										}),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-xs text-[#B9AECF] mt-1 leading-relaxed",
+											className: "text-xs text-[#B9AECF] mt-1",
 											children: badge.description
 										}),
-										!badge.isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "mt-2.5 space-y-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center justify-between text-[11px] text-[#B9AECF]",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: badge.requirementText }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "font-mono tabular-nums text-white/80",
-													children: [
-														badge.progressCurrent.toLocaleString(),
-														"/",
-														badge.progressTarget.toLocaleString()
-													]
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "h-1.5 rounded-full bg-white/[0.08] overflow-hidden",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]",
-													style: { width: `${Math.max(4, pct)}%` }
-												})
-											})]
+										!badge.isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "mt-2 h-1.5 rounded-full bg-white/[0.08] overflow-hidden",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]",
+												style: { width: `${Math.max(4, pct)}%` }
+											})
 										})
 									]
 								})]
@@ -120147,7 +122083,7 @@ var AgencyCenterModal = ({ isOpen, onClose, currentUser, initialMode = "center",
 	});
 };
 // src/components/screens/ProfileScreen.tsx
-var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift }) => {
+var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, onOpenAdminPanel, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift }) => {
 	const isOwner = !viewingUser || viewingUser.id === currentUser.id;
 	const activeUser = isOwner ? currentUser : viewingUser;
 	const [activeTab, setActiveTab] = (0, import_react.useState)("public");
@@ -120217,14 +122153,32 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 		userVideos.length
 	]);
 	const levelProgress = (0, import_react.useMemo)(() => getUserLevelProgress(activeUser), [activeUser]);
-	const badges = (0, import_react.useMemo)(() => computeProfileBadges({
-		user: activeUser,
-		publicVideosCount: publicVideos.length,
-		totalLikesCount,
-		followersCount,
-		followingCount
-	}), [
+	const fullProgression = (0, import_react.useMemo)(() => calculateLevelProgression(levelProgress.totalQualifyingCoinsSpent, activeUser.id, activeUser.equippedVipFrame ?? 0, {
+		activeFrameType: activeUser.activeFrameType,
+		equippedSuperVipFrame: activeUser.equippedSuperVipFrame ?? 0,
+		earnedAchievements: activeUser.earnedAchievements ?? [],
+		equippedAchievementBadges: activeUser.equippedBadges ?? []
+	}), [levelProgress.totalQualifyingCoinsSpent, activeUser]);
+	const achievementBadges = (0, import_react.useMemo)(() => {
+		const profileCompletedSteps = (activeUser.name && activeUser.name.trim().length >= 2 ? 1 : 0) + (activeUser.bio && activeUser.bio.trim().length >= 5 ? 1 : 0) + (activeUser.country && activeUser.country.trim().length > 0 ? 1 : 0);
+		return evaluateAchievementBadges({
+			totalQualifyingCoinsSpent: fullProgression.totalQualifyingCoinsSpent,
+			diamondsEarned: activeUser.diamonds || 0,
+			publicVideosCount: publicVideos.length,
+			liveSessionsHosted: activeUser.liveSessionsHosted || 0,
+			loginStreakDays: activeUser.loginStreakDays || 1,
+			giftsSentCount: activeUser.giftsSentCount || 0,
+			followersCount,
+			followingCount,
+			totalLikesCount,
+			hasAgency: Boolean(activeUser.agencyId && activeUser.agencyStatus === "active"),
+			pkWinsCount: activeUser.pkWinsCount || 0,
+			eventsWonCount: activeUser.eventsWonCount || 0,
+			profileCompletedSteps
+		}, activeUser.earnedAchievements || [], activeUser.equippedBadges || [], ACHIEVEMENT_BADGE_DEFINITIONS);
+	}, [
 		activeUser,
+		fullProgression.totalQualifyingCoinsSpent,
 		publicVideos.length,
 		totalLikesCount,
 		followersCount,
@@ -120243,9 +122197,13 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 		followersCount,
 		followingCount
 	]);
-	const earnedBadges = (0, import_react.useMemo)(() => badges.filter((b) => b.isEarned), [badges]);
-	const equippedBadges = (0, import_react.useMemo)(() => badges.filter((b) => b.isEquipped), [badges]);
+	const earnedBadges = (0, import_react.useMemo)(() => achievementBadges.filter((b) => b.isEarned), [achievementBadges]);
+	const equippedBadges = (0, import_react.useMemo)(() => achievementBadges.filter((b) => b.isEquipped).slice(0, 3), [achievementBadges]);
 	const unlockedAchievementsCount = (0, import_react.useMemo)(() => achievements.filter((a) => a.isUnlocked).length, [achievements]);
+	const openProgressionHub = (tab) => {
+		if (onOpenLevelVIP) onOpenLevelVIP(tab);
+		else onOpenVIP();
+	};
 	const handleCopyId = () => {
 		if (navigator.clipboard) {
 			navigator.clipboard.writeText(activeUser.displayId);
@@ -120300,14 +122258,15 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 		if (current.has(badgeId)) current.delete(badgeId);
 		else {
 			if (current.size >= 3) {
-				const first = Array.from(current)[0];
-				if (first) current.delete(first);
+				showToast("Max 3 achievement badges equipped. Unequip one first.");
+				return;
 			}
 			current.add(badgeId);
 		}
-		const nextBadges = Array.from(current);
+		const nextBadges = Array.from(current).slice(0, 3);
+		await equipAchievementBadges(currentUser.id, nextBadges).catch(() => {});
 		onUpdateProfile(await profileService.updateProfile(currentUser.id, { equippedBadges: nextBadges }));
-		showToast(current.has(badgeId) ? "Badge equipped to your profile" : "Badge unequipped");
+		showToast(current.has(badgeId) ? "Achievement badge equipped to profile" : "Badge unequipped");
 	};
 	const handleDeleteVideo = async (videoId) => {
 		if (!isOwner) return;
@@ -120369,8 +122328,11 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 	const showOnline = activeUser.showOnlineStatus !== false;
 	const isOnlineNow = isOwner ? true : activeUser.isOnline ?? true;
 	const hasAgency = Boolean(activeUser.agencyId && activeUser.agencyStatus === "active");
-	const vipTier = activeUser.equippedVipFrame || activeUser.vipLevel || 0;
+	const vipTier = Math.max(fullProgression.highestUnlockedVipTier, activeUser.vipLevel || 0);
+	const superVipTier = Math.max(fullProgression.highestUnlockedSuperVipTier, activeUser.superVipLevel || 0);
 	const isVipMember = Boolean(activeUser.isVIP || vipTier > 0);
+	const nextVipDef = VIP_FRAME_DEFINITIONS.find((v) => v.unlockLevel > fullProgression.currentLevel);
+	const nextSuperVipDef = SUPER_VIP_TIER_DEFINITIONS.find((sv) => sv.unlockLevel > fullProgression.currentLevel);
 	const openStatsModal = (tab) => {
 		setFollowersModalTab(tab);
 		setIsFollowersModalOpen(true);
@@ -120471,7 +122433,7 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(BadgeVaultModal, {
 				isOpen: isBadgeVaultOpen,
 				onClose: () => setIsBadgeVaultOpen(false),
-				badges,
+				achievementBadges,
 				isOwner,
 				onToggleEquipBadge: handleToggleEquipBadge
 			}),
@@ -120694,8 +122656,10 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
 										src: activeUser.avatar,
 										name: activeUser.name,
-										level: activeUser.level,
-										vipLevel: vipTier,
+										level: fullProgression.currentLevel,
+										vipLevel: fullProgression.equippedVipFrame,
+										superVipLevel: fullProgression.equippedSuperVipFrame,
+										activeFrameType: fullProgression.activeFrameType,
 										isVIP: isVipMember,
 										size: "xl",
 										showFrame: true,
@@ -120762,72 +122726,122 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3.5",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2 flex-wrap",
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-start justify-between gap-2.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0 flex-1",
 											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
-													className: "text-xl sm:text-2xl font-black text-white tracking-tight",
-													children: activeUser.name
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "flex items-center gap-2 flex-wrap",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+														className: "text-xl sm:text-2xl font-black text-white tracking-tight truncate",
+														children: activeUser.name
+													})
 												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-													level: activeUser.level,
-													size: "sm"
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-													onClick: onOpenLevelVIP || onOpenVIP,
-													className: `px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition-transform active:scale-95 ${isVipMember ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-black" : "bg-white/[0.08] text-[#D7CEEB] hover:bg-white/[0.14]"}`,
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isVipMember ? `VIP ${vipTier || 1}` : "VIP 0" })]
-												})
-											]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2.5 mt-1.5 flex-wrap text-xs",
-											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-[#FA26A0] font-mono font-bold",
-													children: activeUser.username || `@${activeUser.displayId.toLowerCase()}`
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-white/25",
-													children: "·"
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-													onClick: handleCopyId,
-													className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["ID: ", activeUser.displayId] }), copiedId ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3 text-emerald-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3 h-3 text-[#B9AECF]" })]
-												})
-											]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]",
-											children: [
-												activeUser.country && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: getCountryFlag(activeUser.country) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.country })]
-												}),
-												(displayGender || displayAge !== null) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2 mt-2 flex-wrap",
 													children: [
-														displayGender && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: displayGender }),
-														displayGender && displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "·" }),
-														displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "tabular-nums",
-															children: [displayAge, " yrs"]
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+															level: fullProgression.currentLevel,
+															size: "profile",
+															progressPercent: fullProgression.percentage,
+															onClick: () => openProgressionHub("roadmap")
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+															tier: vipTier,
+															size: "md",
+															onClick: () => openProgressionHub("vip")
+														}),
+														superVipTier > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+															tier: superVipTier,
+															size: "md",
+															onClick: () => openProgressionHub("super_vip")
 														})
 													]
 												}),
-												showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `w-2 h-2 rounded-full ${isOnlineNow ? "bg-emerald-400" : "bg-slate-400"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isOnlineNow ? "Online" : "Offline" })]
+												equippedBadges.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "flex items-center gap-1.5 mt-2 flex-wrap",
+													children: equippedBadges.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+														type: "button",
+														onClick: () => setIsBadgeVaultOpen(true),
+														className: "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors",
+														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+															shape: b.shape,
+															iconKey: b.iconKey,
+															accentFrom: b.accentFrom,
+															accentTo: b.accentTo,
+															borderHex: b.borderHex,
+															isEarned: true,
+															size: "xs"
+														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: b.name })]
+													}, b.id))
 												}),
-												activeUser.crewBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3 h-3 text-[#C084FC]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.crewBadge })]
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2 mt-1.5 flex-wrap text-xs",
+													children: [
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-[#FA26A0] font-mono font-bold truncate max-w-[160px]",
+															children: activeUser.username || `@${activeUser.displayId.toLowerCase()}`
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-white/25",
+															children: "·"
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+															onClick: handleCopyId,
+															className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["ID: ", activeUser.displayId] }), copiedId ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3 text-emerald-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3 h-3 text-[#B9AECF]" })]
+														})
+													]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]",
+													children: [
+														activeUser.country && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: getCountryFlag(activeUser.country) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.country })]
+														}),
+														(displayGender || displayAge !== null) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
+															children: [
+																displayGender && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: displayGender }),
+																displayGender && displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "·" }),
+																displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+																	className: "tabular-nums",
+																	children: [displayAge, " yrs"]
+																})
+															]
+														}),
+														showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `w-2 h-2 rounded-full ${isOnlineNow ? "bg-emerald-400" : "bg-slate-400"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isOnlineNow ? "Online" : "Offline" })]
+														}),
+														activeUser.crewBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3 h-3 text-[#C084FC]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.crewBadge })]
+														})
+													]
 												})
 											]
-										})
-									] }),
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => openProgressionHub("roadmap"),
+											"aria-label": `Level ${fullProgression.currentLevel} Emblem — Tap to view all levels 0 to 100`,
+											className: "group shrink-0 self-center flex flex-col items-center justify-center pl-1 py-1 rounded-2xl transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+												level: fullProgression.currentLevel,
+												size: "hero"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "mt-1 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums",
+												children: [
+													"LV.",
+													fullProgression.currentLevel,
+													" · ",
+													fullProgression.currentTierName
+												]
+											})]
+										})]
+									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 										className: "text-xs text-[#D7CEEB] leading-relaxed pt-2 border-t border-white/[0.07]",
 										children: activeUser.bio ? activeUser.bio : isOwner ? "No bio yet. Tap Edit Profile to introduce yourself to your audience." : "Member of Lenzo Party Live."
@@ -120873,66 +122887,174 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 								]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1C0E34] via-[#140B24] to-[#110820] border border-white/10 space-y-3.5",
+								className: "space-y-3",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center justify-between gap-2",
+										onClick: () => openProgressionHub("roadmap"),
+										className: "p-4 rounded-3xl bg-gradient-to-br from-[#1E0F3A] via-[#140B24] to-[#110820] border border-white/12 hover:border-[#FA26A0]/50 transition-all cursor-pointer space-y-3 group",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2.5 min-w-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "w-10 h-10 rounded-2xl bg-gradient-to-br from-[#8B20FF] to-[#FA26A0] flex items-center justify-center text-white shrink-0 shadow-md",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-5 h-5" })
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "min-w-0",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-														className: "text-sm font-extrabold text-white",
-														children: ["Level ", levelProgress.currentLevel]
-													}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-														className: "text-[11px] font-bold text-[#FFC84A]",
-														children: [levelProgress.tierDetails.badgeLabel, " Tier"]
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-2.5 min-w-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+													level: fullProgression.currentLevel,
+													size: "sm",
+													className: "shrink-0"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "min-w-0",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+														className: "text-sm font-black text-white truncate",
+														children: [
+															fullProgression.currentTierName,
+															" Tier · Lv.",
+															fullProgression.currentLevel,
+															"/100"
+														]
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+														className: "text-[11px] text-[#B9AECF] truncate font-mono tabular-nums",
+														children: fullProgression.isMaxMastery ? "2B Coin Royal Mastery Complete" : `${formatCoinsCompact(fullProgression.remainingCoinsNeeded)} coins to Lv.${Math.min(100, fullProgression.currentLevel + 1)}`
 													})]
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-													className: "text-[11px] text-[#B9AECF] truncate",
-													children: isVipMember ? `VIP Tier ${vipTier || 1} Active · Exclusive Frame Unlocked` : "Unlock VIP frames & perks as you level up"
 												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 shrink-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-xs font-mono font-black text-[#FFC84A] tabular-nums",
+													children: [fullProgression.percentage, "%"]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF] group-hover:translate-x-0.5 transition-transform" })]
 											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "text-xs font-mono font-bold text-white tabular-nums shrink-0",
-											children: [levelProgress.progressPercent, "%"]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "h-2 rounded-full bg-black/55 border border-white/[0.08] overflow-hidden",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500",
+												style: { width: `${Math.max(4, fullProgression.percentage)}%` }
+											})
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "space-y-1.5",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "h-2.5 rounded-full bg-black/50 border border-white/[0.08] overflow-hidden",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500",
-												style: { width: `${Math.max(4, levelProgress.progressPercent)}%` }
-											})
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between text-[11px] text-[#B9AECF] tabular-nums",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: levelProgress.remainingExp > 0 ? `${levelProgress.remainingExp.toLocaleString()} EXP to Level ${levelProgress.currentLevel + 1}` : "Maximum Level Reached" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "font-mono text-[#D7CEEB]",
-												children: [
-													levelProgress.expInCurrentLevel.toLocaleString(),
-													" /",
-													" ",
-													Math.max(1, levelProgress.expNeededForNextLevel).toLocaleString()
-												]
-											})]
+										className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => openProgressionHub("vip"),
+											className: "p-4 rounded-3xl bg-gradient-to-br from-[#2A1809] via-[#170C27] to-[#120820] border border-[#FFC84A]/35 hover:border-[#FFC84A]/70 text-left transition-all active:scale-[0.98] space-y-2.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center justify-between gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "w-9 h-9 rounded-xl bg-[#FFC84A]/15 border border-[#FFC84A]/40 text-[#FFC84A] flex items-center justify-center",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4" })
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+													tier: vipTier,
+													size: "xs"
+												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-xs font-black text-white",
+													children: "VIP Membership"
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-[11px] text-[#D7CEEB] mt-0.5",
+													children: [fullProgression.unlockedVipTiers.length, "/12 Frames Unlocked"]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-[10px] text-[#FFC84A] font-semibold mt-1",
+													children: nextVipDef ? `Next: ${nextVipDef.code} at Lv.${nextVipDef.unlockLevel}` : "All 12 VIP Unlocked"
+												})
+											] })]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => openProgressionHub("super_vip"),
+											className: "p-4 rounded-3xl bg-gradient-to-br from-[#2B0C4E] via-[#190A31] to-[#120722] border border-fuchsia-400/35 hover:border-fuchsia-400/75 text-left transition-all active:scale-[0.98] space-y-2.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center justify-between gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "w-9 h-9 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/45 text-fuchsia-300 flex items-center justify-center",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4" })
+												}), superVipTier > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+													tier: superVipTier,
+													size: "xs"
+												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-[10px] font-black px-2 py-0.5 rounded-md bg-white/10 text-fuchsia-200",
+													children: "SVIP 0/6"
+												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-xs font-black text-white",
+													children: "Super VIP Collection"
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-[11px] text-[#D7CEEB] mt-0.5",
+													children: [fullProgression.unlockedSuperVipTiers.length, "/6 Animated Frames"]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-[10px] text-fuchsia-300 font-semibold mt-1",
+													children: nextSuperVipDef ? `Next: ${nextSuperVipDef.code} at Lv.${nextSuperVipDef.unlockLevel}` : "Max Cosmic Gold Unlocked"
+												})
+											] })]
 										})]
 									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										onClick: onOpenLevelVIP || onOpenVIP,
-										className: "w-full py-2.5 px-4 rounded-xl bg-white/[0.07] hover:bg-white/[0.13] border border-white/10 text-white text-xs font-bold flex items-center justify-between transition-colors",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "flex items-center gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "View Level Roadmap & VIP Perks" })]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "p-4 rounded-3xl bg-[#140B24] border border-white/[0.1] space-y-3",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
+												className: "text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Achievement Badges" })]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+												className: "text-[11px] text-[#B9AECF] mt-0.5 tabular-nums",
+												children: [
+													earnedBadges.length,
+													"/",
+													achievementBadges.length,
+													" earned · ",
+													equippedBadges.length,
+													"/3 equipped"
+												]
+											})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => openProgressionHub("achievements"),
+												className: "px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 text-white text-xs font-bold flex items-center gap-1 transition-colors",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Badge Vault" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "grid grid-cols-4 gap-2",
+											children: (equippedBadges.length > 0 ? equippedBadges : achievementBadges.slice(0, 4)).slice(0, 4).map((badge) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => setIsBadgeVaultOpen(true),
+												className: `p-2.5 rounded-2xl border flex flex-col items-center text-center gap-1.5 transition-all ${badge.isEarned ? "bg-[#1D1036] border-white/15 hover:border-[#FA26A0]/55" : "bg-white/[0.02] border-white/[0.06] opacity-70"}`,
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+													shape: badge.shape,
+													iconKey: badge.iconKey,
+													accentFrom: badge.accentFrom,
+													accentTo: badge.accentTo,
+													borderHex: badge.borderHex,
+													isEarned: badge.isEarned,
+													size: "sm"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-[10px] font-bold text-white line-clamp-1",
+													children: badge.name
+												})]
+											}, badge.id))
+										})]
 									})
 								]
+							}),
+							isOwner && currentUser.isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								onClick: onOpenAdminPanel,
+								className: "w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#24103F] to-fuchsia-500/15 border border-[#FFC84A]/50 hover:border-[#FFC84A] flex items-center justify-between gap-3 text-left transition-all",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-3 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "w-9 h-9 rounded-xl bg-[#FFC84A]/20 text-[#FFC84A] flex items-center justify-center shrink-0",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5" })
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs font-black text-white",
+											children: "Admin Progression Panel"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[10px] text-[#C5B9DE] truncate",
+											children: "Manage 100 levels, 12 VIP, 6 Super VIP, achievements & audit logs"
+										})]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#FFC84A] shrink-0" })]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3",
@@ -120992,42 +123114,6 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 										className: "px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-xs font-extrabold shrink-0 active:scale-95 transition-transform",
 										children: "Join Agency"
 									})]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between gap-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-										className: "text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Profile Badges" })]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-										className: "text-[11px] text-[#B9AECF] mt-0.5 tabular-nums",
-										children: [
-											earnedBadges.length,
-											" earned · ",
-											equippedBadges.length,
-											"/3 equipped"
-										]
-									})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										onClick: () => setIsBadgeVaultOpen(true),
-										className: "px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.13] border border-white/10 text-white text-xs font-bold flex items-center gap-1 transition-colors",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Badge Vault" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "grid grid-cols-4 gap-2",
-									children: (equippedBadges.length > 0 ? equippedBadges : badges.slice(0, 4)).slice(0, 4).map((badge) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										onClick: () => setIsBadgeVaultOpen(true),
-										className: `p-2.5 rounded-2xl border flex flex-col items-center text-center gap-1.5 transition-all ${badge.isEarned ? "bg-[#1D1036] border-white/15 hover:border-[#FA26A0]/50" : "bg-white/[0.02] border-white/[0.06] opacity-65"}`,
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "w-9 h-9 rounded-xl flex items-center justify-center text-white relative",
-											style: { background: badge.isEarned ? `linear-gradient(135deg, ${badge.accentFrom}, ${badge.accentTo})` : "rgba(255,255,255,0.06)" },
-											children: [renderBadgeIcon(badge.iconKey, "w-4 h-4"), !badge.isEarned && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-2.5 h-2.5 text-[#B9AECF] absolute -bottom-0.5 -right-0.5" })]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] font-bold text-white line-clamp-1",
-											children: badge.name
-										})]
-									}, badge.id))
 								})]
 							})
 						]
@@ -121274,7 +123360,7 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 	});
 };
 // src/components/screens/SettingsScreen.tsx
-var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet }) => {
+var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onOpenAdminProgression }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
 	const [darkMode, setDarkMode] = (0, import_react.useState)(true);
 	const [cacheSize, setCacheSize] = (0, import_react.useState)("12.5MB");
@@ -121365,6 +123451,26 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet }) => {
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-[10px] text-[#B9AECF] block",
 									children: "Recharge coins, convert earnings, and request bank payouts"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" })]
+						}),
+						isAdmin && onOpenAdminProgression && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							onClick: onOpenAdminProgression,
+							className: "flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-[#2D1154] via-[#1C0B36] to-[#2B1707] hover:opacity-95 border border-[#FFC84A]/50 transition-all cursor-pointer group shadow-md",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-8 h-8 rounded-xl bg-[#FFC84A]/20 border border-[#FFC84A]/50 text-[#FFC84A] flex items-center justify-center font-black",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-4 h-4" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-sm font-black text-white flex items-center gap-1.5",
+									children: ["ADMIN PROGRESSION PANEL", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[9px] px-1.5 py-0.5 rounded bg-[#FFC84A]/20 text-[#FFC84A] font-mono",
+										children: "100 LV · VIP · SVIP"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#C5B9DE] block",
+									children: "Inspect 100 levels, edit VIP/Super VIP/badges & audit logs"
 								})] })]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" })]
 						}),
@@ -125520,584 +127626,963 @@ var VIPModal = ({ isOpen, onClose, currentUser, onUpgradeVIP }) => {
 		})
 	});
 };
-// src/services/levelAndVipService.ts
-/**
-* 1. SUBSCRIBE TO USER LEVEL PROGRESSION
-*/
-function subscribeUserLevelProgression(userId, initialCoinsSpent = 0, onUpdate) {
-	const docRef = doc(db, "user_levels", userId);
-	return onSnapshot(docRef, (snap) => {
-		if (snap.exists()) {
-			const data = snap.data();
-			onUpdate(calculateLevelProgression(data.totalQualifyingCoinsSpent ?? initialCoinsSpent, userId, data.equippedVipFrame ?? 0));
-		} else {
-			const initialProg = calculateLevelProgression(initialCoinsSpent, userId, 0);
-			setDoc(docRef, {
-				userId,
-				currentLevel: initialProg.currentLevel,
-				currentTier: initialProg.currentTier,
-				totalQualifyingCoinsSpent: initialCoinsSpent,
-				equippedVipFrame: initialProg.equippedVipFrame,
-				unlockedVipTiers: initialProg.unlockedVipTiers,
-				updatedAt: serverTimestamp()
-			}, { merge: true }).catch(console.warn);
-			onUpdate(initialProg);
-		}
-	}, (err) => {
-		console.warn("Level progression listener notice:", err);
-		onUpdate(calculateLevelProgression(initialCoinsSpent, userId, 0));
-	});
-}
-/**
-* 2. RECORD QUALIFYING GIFT COINS AND CHECK LEVEL UP
-* Only eligible purchased coins spent on gifts contribute to progression!
-*/
-async function addQualifyingGiftingCoins(userId, coinsSpent) {
-	const docRef = doc(db, "user_levels", userId);
-	const userRef = doc(db, "users", userId);
-	let resultProgression;
-	let levelUpEvent = void 0;
-	try {
-		await runTransaction(db, async (tx) => {
-			const snap = await tx.get(docRef);
-			const currentCoins = snap.exists() ? snap.data().totalQualifyingCoinsSpent || 0 : 0;
-			const equippedFrame = snap.exists() ? snap.data().equippedVipFrame || 0 : 0;
-			const oldProg = calculateLevelProgression(currentCoins, userId, equippedFrame);
-			const newTotalCoins = currentCoins + coinsSpent;
-			const newProg = calculateLevelProgression(newTotalCoins, userId, equippedFrame);
-			resultProgression = newProg;
-			if (newProg.currentLevel > oldProg.currentLevel) {
-				const badge = getLevelDefinition(newProg.currentLevel);
-				const unlockedVip = newProg.unlockedVipTiers.filter((t) => !oldProg.unlockedVipTiers.includes(t));
-				const newlyUnlockedFrame = unlockedVip.length > 0 ? getVipFrameDefinition(unlockedVip[unlockedVip.length - 1]) : void 0;
-				levelUpEvent = {
-					newLevel: newProg.currentLevel,
-					oldLevel: oldProg.currentLevel,
-					newTier: newProg.currentTier,
-					badge,
-					unlockedVipFrame: newlyUnlockedFrame
-				};
-			}
-			tx.set(docRef, {
-				userId,
-				currentLevel: newProg.currentLevel,
-				currentTier: newProg.currentTier,
-				totalQualifyingCoinsSpent: newTotalCoins,
-				equippedVipFrame: newProg.equippedVipFrame,
-				unlockedVipTiers: newProg.unlockedVipTiers,
-				updatedAt: serverTimestamp()
-			}, { merge: true });
-			tx.set(userRef, {
-				level: newProg.currentLevel,
-				vipLevel: newProg.equippedVipFrame,
-				isVIP: newProg.equippedVipFrame > 0
-			}, { merge: true });
-		});
-		return {
-			progression: resultProgression,
-			levelUpEvent
-		};
-	} catch (err) {
-		console.warn("Level progression update error:", err);
-		return { progression: calculateLevelProgression(2e6 + coinsSpent, userId, 7) };
-	}
-}
-/**
-* 3. EQUIP UNLOCKED VIP FRAME
-*/
-async function equipVipFrame(userId, vipTier) {
-	const tierNumber = vipTier ?? 0;
-	try {
-		const docRef = doc(db, "user_levels", userId);
-		const userRef = doc(db, "users", userId);
-		const snap = await getDoc(docRef);
-		if (snap.exists()) {
-			const unlocked = snap.data().unlockedVipTiers || [];
-			if (tierNumber !== 0 && !unlocked.includes(tierNumber)) {
-				const errorMsg = `VIP ${tierNumber} frame is locked. Reach Level ${tierNumber * 6} to unlock it.`;
-				return {
-					success: false,
-					message: errorMsg,
-					error: errorMsg
-				};
-			}
-		}
-		await setDoc(docRef, {
-			equippedVipFrame: tierNumber,
-			updatedAt: serverTimestamp()
-		}, { merge: true });
-		await setDoc(userRef, {
-			vipLevel: tierNumber,
-			isVIP: tierNumber > 0
-		}, { merge: true });
-		return {
-			success: true,
-			message: "VIP Frame equipped successfully"
-		};
-	} catch (err) {
-		const errorMsg = err?.message || "Failed to equip VIP frame";
-		return {
-			success: false,
-			message: errorMsg,
-			error: errorMsg
-		};
-	}
-}
 // src/components/screens/LevelAndVIPModal.tsx
-var LevelAndVIPModal = ({ isOpen, onClose, currentUser, onUpdateUser }) => {
-	const [activeTab, setActiveTab] = (0, import_react.useState)("vip");
+var LevelAndVIPModal = ({ isOpen, onClose, currentUser, initialTab = "roadmap", onUpdateUser, onOpenAdminPanel }) => {
+	const [activeTab, setActiveTab] = (0, import_react.useState)(initialTab);
+	const [roadmapStatusFilter, setRoadmapStatusFilter] = (0, import_react.useState)("all");
 	const [selectedTierFilter, setSelectedTierFilter] = (0, import_react.useState)("all");
-	const [selectedLevelDetail, setSelectedLevelDetail] = (0, import_react.useState)(null);
-	const [progression, setProgression] = (0, import_react.useState)(() => calculateLevelProgression(currentUser.level ? currentUser.level * 1500 : 0, currentUser.id, currentUser.equippedVipFrame || void 0));
-	const [equippingTier, setEquippingTier] = (0, import_react.useState)(null);
-	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
+	const [badgeFilter, setBadgeFilter] = (0, import_react.useState)("all");
+	const [inspectedLevel, setInspectedLevel] = (0, import_react.useState)(null);
+	const initialBaselineCoins = typeof currentUser.totalQualifyingCoinsSpent === "number" ? currentUser.totalQualifyingCoinsSpent : getLevelDefinition(Math.max(0, currentUser.level ?? 0)).cumulativeCoins;
+	const [progression, setProgression] = (0, import_react.useState)(() => calculateLevelProgression(initialBaselineCoins, currentUser.id, currentUser.equippedVipFrame || 0, {
+		activeFrameType: currentUser.activeFrameType,
+		equippedSuperVipFrame: currentUser.equippedSuperVipFrame || 0,
+		earnedAchievements: currentUser.earnedAchievements || [],
+		equippedAchievementBadges: currentUser.equippedBadges || []
+	}));
+	const [serverAchievements, setServerAchievements] = (0, import_react.useState)(null);
+	const [previewFrame, setPreviewFrame] = (0, import_react.useState)(null);
+	const [busyKey, setBusyKey] = (0, import_react.useState)(null);
+	const [toast, setToast] = (0, import_react.useState)(null);
+	(0, import_react.useEffect)(() => {
+		if (isOpen) {
+			setActiveTab(initialTab);
+			setPreviewFrame(null);
+		}
+	}, [isOpen, initialTab]);
 	(0, import_react.useEffect)(() => {
 		if (!isOpen || !currentUser.id) return;
-		const initialCoins = currentUser.level ? currentUser.level * 1500 : 0;
-		const unsubscribe = subscribeUserLevelProgression(currentUser.id, initialCoins, (updated) => {
-			setProgression(updated);
+		const unsub = subscribeUserLevelProgression(currentUser.id, initialBaselineCoins, (prog) => {
+			setProgression(prog);
 		});
-		return () => unsubscribe();
-	}, [isOpen, currentUser.id]);
-	if (!isOpen) return null;
-	const showToast = (msg) => {
-		setToastMessage(msg);
-		setTimeout(() => setToastMessage(null), 3e3);
+		fetchAuthoritativeProgression(currentUser.id).then((res) => {
+			if (res?.progression) setProgression(res.progression);
+			if (Array.isArray(res?.achievements)) setServerAchievements(res.achievements);
+		}).catch(() => {});
+		return () => unsub();
+	}, [
+		isOpen,
+		currentUser.id,
+		initialBaselineCoins
+	]);
+	const showToast = (msg, type = "success") => {
+		setToast({
+			msg,
+			type
+		});
+		setTimeout(() => setToast(null), 3200);
 	};
-	const currentLevelDef = getLevelDefinition(progression.currentLevel);
-	const handleEquipFrame = async (tier) => {
-		setEquippingTier(tier);
-		try {
-			const res = await equipVipFrame(currentUser.id, tier);
-			if (res.success) {
-				setProgression((prev) => ({
-					...prev,
-					equippedVipFrame: tier || 0
-				}));
-				if (onUpdateUser) onUpdateUser({
-					equippedVipFrame: tier || void 0,
-					vipLevel: tier || currentUser.vipLevel,
-					isVIP: tier !== null && tier > 0
-				});
-				showToast(tier ? `Equipped VIP ${tier} Frame! ✨` : "Default avatar frame restored");
-			} else showToast(res.message || res.error || "Failed to equip frame");
-		} catch (err) {
-			console.error("Error equipping frame:", err);
-			showToast("Failed to equip frame. Please try again.");
-		} finally {
-			setEquippingTier(null);
+	const achievementBadges = (0, import_react.useMemo)(() => {
+		if (serverAchievements && serverAchievements.length > 0) {
+			const equippedSet = new Set(progression.equippedAchievementBadges || currentUser.equippedBadges || []);
+			return serverAchievements.map((b) => ({
+				...b,
+				isEquipped: b.isEarned && equippedSet.has(b.id)
+			}));
 		}
+		const profileCompletedSteps = (currentUser.name && currentUser.name.trim().length >= 2 ? 1 : 0) + (currentUser.bio && currentUser.bio.trim().length >= 5 ? 1 : 0) + (currentUser.country && currentUser.country.trim().length > 0 ? 1 : 0);
+		return evaluateAchievementBadges({
+			totalQualifyingCoinsSpent: progression.totalQualifyingCoinsSpent,
+			diamondsEarned: currentUser.diamonds || 0,
+			publicVideosCount: 0,
+			liveSessionsHosted: currentUser.liveSessionsHosted || 0,
+			loginStreakDays: currentUser.loginStreakDays || 1,
+			giftsSentCount: currentUser.giftsSentCount || 0,
+			followersCount: currentUser.followersCount || 0,
+			followingCount: currentUser.followingCount || 0,
+			totalLikesCount: currentUser.totalLikes || 0,
+			hasAgency: Boolean(currentUser.agencyId && currentUser.agencyStatus === "active"),
+			pkWinsCount: currentUser.pkWinsCount || 0,
+			eventsWonCount: currentUser.eventsWonCount || 0,
+			profileCompletedSteps
+		}, progression.earnedAchievements || currentUser.earnedAchievements || [], progression.equippedAchievementBadges || currentUser.equippedBadges || [], ACHIEVEMENT_BADGE_DEFINITIONS);
+	}, [
+		serverAchievements,
+		progression,
+		currentUser
+	]);
+	const filteredLevels = (0, import_react.useMemo)(() => {
+		return ALL_100_LEVELS.filter((lvl) => {
+			const isCompleted = lvl.level < progression.currentLevel || progression.isMaxMastery && lvl.level === 100;
+			const isCurrent = lvl.level === progression.currentLevel && !isCompleted;
+			const isLocked = lvl.level > progression.currentLevel;
+			if (roadmapStatusFilter === "completed" && !isCompleted) return false;
+			if (roadmapStatusFilter === "current" && !isCurrent) return false;
+			if (roadmapStatusFilter === "locked" && !isLocked) return false;
+			if (selectedTierFilter !== "all" && lvl.tierId !== selectedTierFilter) return false;
+			return true;
+		});
+	}, [
+		progression.currentLevel,
+		progression.isMaxMastery,
+		roadmapStatusFilter,
+		selectedTierFilter
+	]);
+	if (!isOpen) return null;
+	const handleEquipFrame = async (frameType, tier) => {
+		const key = `${frameType}_${tier}`;
+		if (busyKey) return;
+		setBusyKey(key);
+		const res = await equipActiveFrame(currentUser.id, frameType, tier);
+		setBusyKey(null);
+		if (res.success) {
+			const nextVip = frameType === "vip" ? tier : 0;
+			const nextSuperVip = frameType === "super_vip" ? tier : 0;
+			setProgression((prev) => ({
+				...prev,
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip
+			}));
+			setPreviewFrame(null);
+			if (onUpdateUser) onUpdateUser({
+				activeFrameType: frameType,
+				equippedVipFrame: nextVip,
+				equippedSuperVipFrame: nextSuperVip,
+				vipLevel: Math.max(progression.highestUnlockedVipTier, nextVip),
+				isVIP: progression.highestUnlockedVipTier > 0 || nextVip > 0,
+				superVipLevel: Math.max(progression.highestUnlockedSuperVipTier, nextSuperVip),
+				isSuperVIP: progression.highestUnlockedSuperVipTier > 0 || nextSuperVip > 0
+			});
+			showToast(res.message || "Active frame updated!", "success");
+		} else showToast(res.error || "Could not equip frame.", "error");
 	};
-	const filteredLevels = selectedTierFilter === "all" ? LEVEL_DEFINITIONS : LEVEL_DEFINITIONS.filter((l) => l.tier === selectedTierFilter);
+	const handleToggleAchievementEquip = async (badge) => {
+		if (!badge.isEarned || busyKey) return;
+		const currentEquipped = new Set(progression.equippedAchievementBadges || currentUser.equippedBadges || []);
+		if (currentEquipped.has(badge.id)) currentEquipped.delete(badge.id);
+		else {
+			if (currentEquipped.size >= 3) {
+				showToast("Maximum 3 achievement badges can be equipped. Unequip one first.", "error");
+				return;
+			}
+			currentEquipped.add(badge.id);
+		}
+		const nextIds = Array.from(currentEquipped);
+		setBusyKey(`ach_${badge.id}`);
+		const res = await equipAchievementBadges(currentUser.id, nextIds);
+		setBusyKey(null);
+		if (res.success) {
+			const finalIds = res.equippedAchievementBadges || nextIds;
+			setProgression((prev) => ({
+				...prev,
+				equippedAchievementBadges: finalIds
+			}));
+			if (onUpdateUser) onUpdateUser({ equippedBadges: finalIds });
+			showToast(finalIds.includes(badge.id) ? `${badge.name} equipped to Profile` : `${badge.name} removed from Profile`, "success");
+		} else showToast(res.error || "Could not update equipped badges.", "error");
+	};
+	const displayFrameType = previewFrame ? previewFrame.type : progression.activeFrameType;
+	const displayVipTier = previewFrame?.type === "vip" ? previewFrame.tier : displayFrameType === "vip" ? progression.equippedVipFrame : 0;
+	const displaySuperVipTier = previewFrame?.type === "super_vip" ? previewFrame.tier : displayFrameType === "super_vip" ? progression.equippedSuperVipFrame : 0;
+	const earnedAchievementsCount = achievementBadges.filter((b) => b.isEarned).length;
+	const equippedAchievementsCount = achievementBadges.filter((b) => b.isEquipped).length;
+	const visibleAchievements = badgeFilter === "earned" ? achievementBadges.filter((b) => b.isEarned) : badgeFilter === "locked" ? achievementBadges.filter((b) => !b.isEarned) : achievementBadges;
+	const nextVipUnlock = VIP_FRAME_DEFINITIONS.find((v) => v.unlockLevel > progression.currentLevel);
+	const nextSuperVipUnlock = SUPER_VIP_TIER_DEFINITIONS.find((sv) => sv.unlockLevel > progression.currentLevel);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none",
+		className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in",
+		onClick: onClose,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "w-full max-w-2xl max-h-[92vh] bg-[#12081f] border border-[#FFC84A]/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden relative",
+			className: "w-full max-w-2xl bg-[#110820] border border-white/15 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]",
 			onClick: (e) => e.stopPropagation(),
 			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 right-1/4 w-80 h-36 bg-gradient-to-r from-[#F328D5]/20 via-[#8B20FF]/25 to-[#FFC84A]/15 rounded-full blur-3xl pointer-events-none" }),
-				toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-[#160C25] border border-[#FFC84A] text-white px-4 py-2 rounded-full text-xs font-bold shadow-2xl animate-bounce flex items-center gap-2",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: toastMessage })]
+				toast && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `fixed top-14 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 border ${toast.type === "error" ? "bg-rose-950/95 border-rose-400/50 text-rose-100" : "bg-[#1F0F3E]/95 border-[#FFC84A]/60 text-white"}`,
+					children: [toast.type === "error" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-4 h-4 text-rose-400 shrink-0" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 text-[#FFC84A] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: toast.msg })]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-between px-5 pt-4 pb-3 border-b border-white/10 shrink-0",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2.5",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FFC84A] via-[#F328D5] to-[#8B20FF] p-[2px] shadow-lg shadow-[#FFC84A]/20",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-full h-full rounded-[14px] bg-[#160C25] flex items-center justify-center",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-5 h-5 text-[#FFC84A]" })
-							})
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h2", {
-							className: "text-lg font-black text-white font-display tracking-tight flex items-center gap-2",
-							children: ["LEVEL & VIP", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-[#FFC84A]/20 to-[#FA26A0]/20 text-[#FFC84A] border border-[#FFC84A]/40 uppercase tracking-widest",
-								children: "Progression"
-							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-[11px] text-[#B9AECF]",
-							children: "Gift to level up and unlock prestigious VIP frames"
-						})] })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: onClose,
-						className: "w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white/80 hover:text-white transition-colors",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-5 h-5" })
-					})]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "px-5 pt-4 pb-2 shrink-0",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "p-4 rounded-2xl bg-gradient-to-r from-[#1c0f2e] via-[#160C25] to-[#25103a] border border-white/10 shadow-lg relative overflow-hidden",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-4",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "shrink-0",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
-									src: currentUser.avatar,
-									name: currentUser.name,
-									level: progression.currentLevel,
-									vipLevel: progression.equippedVipFrame || void 0,
-									isVIP: !!progression.equippedVipFrame,
-									size: "lg",
-									showFrame: true,
-									showVipBadge: false
-								})
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex-1 min-w-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-2 flex-wrap mb-1",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-											level: progression.currentLevel,
-											size: "md"
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-xs font-extrabold text-white",
-											children: currentLevelDef.name
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "text-[10px] uppercase font-black px-2 py-0.5 rounded-md bg-white/10 text-[#FFC84A] border border-white/10",
-											children: [progression.currentTier, " Tier"]
-										})
-									]
+					className: "px-4 sm:px-6 pt-4 pb-3 bg-gradient-to-r from-[#1D0C38] via-[#27104A] to-[#17092C] border-b border-white/10",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-10 h-1 bg-white/20 rounded-full mx-auto mb-3 sm:hidden" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FFC84A] via-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shadow-lg shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-5 h-5" })
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "w-full mt-2",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between text-[11px] mb-1 font-mono",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[#B9AECF]",
-												children: ["Level Progress: ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("strong", {
-													className: "text-white",
-													children: [progression.progressPercent, "%"]
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[#FFC84A] font-bold",
-												children: [
-													progression.coinsInCurrentLevel.toLocaleString(),
-													" / ",
-													progression.coinsNeededForNextLevel.toLocaleString(),
-													" Coins"
-												]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-full h-2.5 rounded-full bg-black/50 border border-white/10 overflow-hidden relative",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] transition-all duration-700 shadow-[0_0_12px_rgba(255,200,74,0.7)]",
-												style: { width: `${Math.min(100, Math.max(3, progression.progressPercent))}%` }
-											})
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between text-[10px] text-[#B9AECF] mt-1.5",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Total Qualifying: ", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("strong", {
-												className: "text-white font-mono",
-												children: [progression.totalQualifyingCoinsSpent.toLocaleString(), " Coins"]
-											})] }), progression.currentLevel < 50 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[#FFC84A] font-medium",
-												children: [
-													progression.remainingCoins.toLocaleString(),
-													" coins to Level ",
-													progression.currentLevel + 1
-												]
-											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-[#00FFCC] font-bold",
-												children: "Max Level Achieved 🏆"
-											})]
-										})
-									]
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+										className: "text-base sm:text-lg font-black text-white tracking-tight truncate",
+										children: "Lenzo Progression & Royalty"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE] truncate",
+										children: "Levels 0–100 (101) · 12 VIP Tiers · 6 Super VIP · 10 Badges"
+									})]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2 shrink-0",
+								children: [currentUser.isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									onClick: () => {
+										onClose();
+										onOpenAdminPanel();
+									},
+									className: "px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-[#FFC84A] text-[11px] font-black flex items-center gap-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: onClose,
+									"aria-label": "Close Progression Center",
+									className: "w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
 								})]
 							})]
-						})
-					})
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "px-5 pt-3 pb-2 flex gap-2 border-b border-white/10 shrink-0",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						onClick: () => setActiveTab("vip"),
-						className: `flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${activeTab === "vip" ? "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-pink-900/30" : "bg-white/5 hover:bg-white/10 text-white/70"}`,
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "VIP FRAMES (8 Tiers)" })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						onClick: () => setActiveTab("levels"),
-						className: `flex-1 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${activeTab === "levels" ? "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-pink-900/30" : "bg-white/5 hover:bg-white/10 text-white/70"}`,
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "50 LEVEL TIER LIST" })]
-					})]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex-1 overflow-y-auto p-5 space-y-4",
-					children: [activeTab === "vip" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "space-y-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-								className: "text-sm font-black text-white font-display",
-								children: "8 Exclusive VIP Frames"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-[11px] text-[#B9AECF]",
-								children: "Permanently unlocked at every 6 level milestones. Equip anywhere across the app."
-							})] }), progression.equippedVipFrame ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => handleEquipFrame(null),
-								disabled: equippingTier !== null,
-								className: "text-[11px] text-white/60 hover:text-white underline font-medium px-2 py-1",
-								children: "Remove Frame"
-							}) : null]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "grid grid-cols-1 sm:grid-cols-2 gap-3.5",
-							children: VIP_FRAME_DEFINITIONS.map((frame) => {
-								const isUnlocked = progression.unlockedVipTiers.includes(frame.tier);
-								const isEquipped = progression.equippedVipFrame === frame.tier;
-								const levelsNeeded = Math.max(0, frame.unlockLevel - progression.currentLevel);
-								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: `relative p-4 rounded-2xl border transition-all flex flex-col justify-between ${isEquipped ? "bg-gradient-to-b from-[#2a1347] to-[#1a0a2e] border-[#FFC84A] shadow-[0_0_20px_rgba(255,200,74,0.25)]" : isUnlocked ? "bg-[#180C2A] border-white/15 hover:border-white/30" : "bg-[#130720]/80 border-white/5 opacity-75"}`,
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between mb-3",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 text-white border border-white/10",
-												children: frame.name
-											}), isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3" }), " EQUIPPED"]
-											}) : isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-												children: "UNLOCKED"
-											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1",
-												children: [
-													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-2.5 h-2.5" }),
-													" Lv.",
-													frame.unlockLevel
-												]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-4 my-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "shrink-0 relative",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
-													src: currentUser.avatar,
-													name: currentUser.name,
-													level: frame.unlockLevel,
-													vipLevel: frame.tier,
-													isVIP: true,
-													size: "lg",
-													showFrame: true,
-													showVipBadge: false
-												})
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex-1 min-w-0",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-													className: "text-sm font-extrabold text-white truncate",
-													children: frame.name
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-amber-300 font-mono mt-1 block",
-													children: ["Unlocks at Level ", frame.unlockLevel]
-												})]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "my-2.5 p-2 rounded-xl bg-black/30 border border-white/5 space-y-1",
-											children: frame.perks.slice(0, 2).map((perk, idx) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 text-[10px] text-[#D8CFEB]",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-2.5 h-2.5 text-[#FFC84A] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "truncate",
-													children: perk
-												})]
-											}, idx))
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "pt-2",
-											children: isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												onClick: () => handleEquipFrame(null),
-												disabled: equippingTier === frame.tier,
-												className: "w-full py-2 rounded-xl bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-emerald-600/40",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped (Tap to Unequip)" })]
-											}) : isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-												onClick: () => handleEquipFrame(frame.tier),
-												disabled: equippingTier === frame.tier,
-												className: "w-full py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] hover:opacity-95 text-white font-extrabold text-xs shadow-md shadow-pink-900/30 flex items-center justify-center gap-1.5 active:scale-95 transition-all",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: equippingTier === frame.tier ? "Equipping..." : "Equip Frame" })]
-											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "w-full py-2 rounded-xl bg-white/5 border border-white/10 text-[#B9AECF] font-bold text-xs text-center flex items-center justify-center gap-1.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3 text-amber-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-													levelsNeeded,
-													" ",
-													levelsNeeded === 1 ? "level" : "levels",
-													" needed to unlock"
-												] })]
-											})
-										})
-									]
-								}, frame.tier);
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "grid grid-cols-4 gap-1.5 mt-3.5 bg-[#090414]/80 p-1 rounded-2xl border border-white/[0.08]",
+							children: [
+								{
+									id: "roadmap",
+									label: "Lv 0–100",
+									icon: TrendingUp
+								},
+								{
+									id: "vip",
+									label: "VIP (12)",
+									icon: Crown
+								},
+								{
+									id: "super_vip",
+									label: "Super VIP (6)",
+									icon: Sparkles
+								},
+								{
+									id: "achievements",
+									label: "Badges (10)",
+									icon: Award
+								}
+							].map((tab) => {
+								const Icon = tab.icon;
+								const active = activeTab === tab.id;
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									onClick: () => {
+										setActiveTab(tab.id);
+										setPreviewFrame(null);
+									},
+									className: `py-2 px-1.5 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all whitespace-nowrap ${active ? tab.id === "super_vip" ? "bg-gradient-to-r from-[#7C3AED] via-[#FA26A0] to-[#FFC84A] text-white shadow-md" : tab.id === "vip" ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md" : "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-md" : "text-[#B9AECF] hover:text-white hover:bg-white/[0.05]"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "truncate",
+										children: tab.label
+									})]
+								}, tab.id);
 							})
-						})]
-					}), activeTab === "levels" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "space-y-4",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex gap-1.5 overflow-x-auto pb-1 scrollbar-none",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setSelectedTierFilter("all"),
-								className: `px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${selectedTierFilter === "all" ? "bg-white text-black font-black" : "bg-white/5 text-white/70 hover:bg-white/10"}`,
-								children: "All (50 Levels)"
-							}), MAJOR_TIERS.map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setSelectedTierFilter(t.tier),
-								className: `px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${selectedTierFilter === t.tier ? "bg-gradient-to-r from-[#FFC84A] to-[#FA26A0] text-black font-black shadow-md" : "bg-white/5 text-white/70 hover:bg-white/10"}`,
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: t.name }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-[10px] opacity-75",
-									children: [
-										"(",
-										t.range,
-										")"
-									]
-								})]
-							}, t.tier))]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5",
-							children: filteredLevels.map((lvl) => {
-								const isCompleted = progression.currentLevel > lvl.level;
-								const isCurrent = progression.currentLevel === lvl.level;
-								const isNext = progression.currentLevel + 1 === lvl.level;
-								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									onClick: () => setSelectedLevelDetail(lvl),
-									className: `p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isCurrent ? "bg-gradient-to-r from-[#2c134d] via-[#1d0e33] to-[#25103a] border-[#FFC84A] shadow-[0_0_15px_rgba(255,200,74,0.3)] ring-1 ring-[#FFC84A]/60" : isNext ? "bg-[#1b0e30] border-[#FA26A0]/60 shadow-md" : isCompleted ? "bg-[#150a24] border-emerald-500/20 hover:border-emerald-500/40" : "bg-[#11061c]/80 border-white/5 opacity-70 hover:opacity-100 hover:border-white/20"}`,
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-3 min-w-0",
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex-1 overflow-y-auto p-4 sm:p-5 space-y-4",
+					children: [
+						activeTab === "roadmap" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-4 rounded-2xl bg-gradient-to-br from-[#231042] via-[#170B2D] to-[#110820] border border-white/15 space-y-3.5 shadow-xl",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-3",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-3 min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+												level: progression.currentLevel,
+												size: "lg",
+												className: "shrink-0"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "min-w-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2 flex-wrap",
+													children: [
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+															level: progression.currentLevel,
+															size: "md",
+															showTierName: true
+														}),
+														progression.highestUnlockedVipTier > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+															tier: progression.highestUnlockedVipTier,
+															size: "xs"
+														}),
+														progression.highestUnlockedSuperVipTier > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+															tier: progression.highestUnlockedSuperVipTier,
+															size: "xs"
+														})
+													]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-[11px] text-[#C5B9DE] mt-1 font-mono tabular-nums",
+													children: [
+														"Total Spent:",
+														" ",
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-white font-bold",
+															children: progression.totalQualifyingCoinsSpent.toLocaleString()
+														}),
+														" ",
+														"/ 2,000,000,000 Coins"
+													]
+												})]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "text-right shrink-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-2xl font-black font-mono text-[#FFC84A] tabular-nums",
+												children: [progression.percentage, "%"]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "block text-[10px] uppercase tracking-wider text-[#B9AECF] font-bold",
+												children: progression.isMaxMastery ? "ROYAL MASTERY" : `LV.${progression.currentLevel} PROGRESS`
+											})]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-1.5",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "shrink-0",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-												level: lvl.level,
-												size: "md"
+											className: "h-3 rounded-full bg-black/55 border border-white/10 overflow-hidden p-0.5",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500",
+												style: { width: `${Math.max(3, progression.percentage)}%` }
 											})
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "min-w-0",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-black text-white truncate",
-													children: lvl.name
-												}), isCompleted && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] shrink-0 font-bold",
-													children: "✓"
-												})]
+											className: "flex items-center justify-between text-[11px] tabular-nums gap-2 flex-wrap",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[#C5B9DE]",
+												children: progression.isMaxMastery ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-[#FFC84A] font-bold",
+													children: "All 100 Levels & 2,000,000,000 Coin Mastery Complete!"
+												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+													"Need",
+													" ",
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-white font-mono font-bold",
+														children: progression.remainingCoinsNeeded.toLocaleString()
+													}),
+													" ",
+													"more coins for",
+													" ",
+													progression.currentLevel < 100 ? `Level ${progression.currentLevel + 1}` : "Level 100 Mastery"
+												] })
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-[10px] text-[#B9AECF] flex items-center gap-1 mt-0.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-2.5 h-2.5 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "font-mono",
-													children: [lvl.requiredCoins.toLocaleString(), " Coins"]
-												})]
+												className: "font-mono text-[#FFC84A] font-bold",
+												children: [
+													formatCoinsCompact(progression.coinsInCurrentLevel),
+													" /",
+													" ",
+													formatCoinsCompact(progression.coinsNeededForNextLevel)
+												]
 											})]
 										})]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "shrink-0 text-right",
-										children: isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-[#FFC84A] text-black",
-											children: "Current"
-										}) : isNext ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#FA26A0]/20 text-[#FA26A0] border border-[#FA26A0]/40",
-											children: "Next"
-										}) : isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] font-bold text-emerald-400",
-											children: "Completed"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1 text-[10px] text-white/40",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Locked" })]
-										})
-									})]
-								}, lvl.level);
-							})
-						})]
-					})]
-				}),
-				selectedLevelDetail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "absolute inset-0 z-30 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-3 animate-fade-in",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "w-full max-w-sm bg-[#160C25] border border-[#FFC84A]/40 rounded-3xl p-5 shadow-2xl relative flex flex-col items-center text-center space-y-3",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setSelectedLevelDetail(null),
-								className: "absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "pt-2",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-									level: selectedLevelDetail.level,
-									size: "xl"
-								})
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-								className: "text-[10px] font-black uppercase tracking-widest text-[#FFC84A] bg-[#FFC84A]/10 px-2.5 py-0.5 rounded-full border border-[#FFC84A]/30",
-								children: [
-									selectedLevelDetail.tier,
-									" Tier • ",
-									selectedLevelDetail.tierRank
-								]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-								className: "text-xl font-black text-white font-display mt-1",
-								children: [
-									"Level ",
-									selectedLevelDetail.level,
-									" — ",
-									selectedLevelDetail.name
-								]
-							})] }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "w-full p-3 rounded-2xl bg-[#211333] border border-white/10 text-xs space-y-2 text-left",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex justify-between",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[#B9AECF]",
-											children: "Required Qualifying Coins:"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-mono font-bold text-[#FFC84A]",
-											children: selectedLevelDetail.requiredCoins.toLocaleString()
-										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex justify-between",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[#B9AECF]",
-											children: "Your Qualifying Coins:"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-mono font-bold text-white",
-											children: progression.totalQualifyingCoinsSpent.toLocaleString()
-										})]
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex justify-between border-t border-white/10 pt-1.5",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[#B9AECF]",
-											children: "Status:"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-bold",
-											children: progression.currentLevel >= selectedLevelDetail.level ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-emerald-400",
-												children: "Unlocked & Claimed ✓"
-											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-amber-400",
-												children: [Math.max(0, selectedLevelDetail.requiredCoins - progression.totalQualifyingCoinsSpent).toLocaleString(), " coins needed"]
-											})
+										className: "grid grid-cols-2 gap-2 pt-1 border-t border-white/[0.08]",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "px-3 py-2 rounded-xl bg-black/35 border border-white/[0.06] flex items-center justify-between",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] uppercase tracking-wider text-[#B9AECF] block",
+												children: "Next VIP Unlock"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-extrabold text-[#FFC84A]",
+												children: nextVipUnlock ? `${nextVipUnlock.code} at Lv.${nextVipUnlock.unlockLevel}` : "All 12 VIP Unlocked"
+											})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4 text-[#FFC84A]/80 shrink-0" })]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "px-3 py-2 rounded-xl bg-black/35 border border-white/[0.06] flex items-center justify-between",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] uppercase tracking-wider text-[#B9AECF] block",
+												children: "Next Super VIP"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-extrabold text-[#E879F9]",
+												children: nextSuperVipUnlock ? `${nextSuperVipUnlock.code} at Lv.${nextSuperVipUnlock.unlockLevel}` : "All 6 Super VIP Unlocked"
+											})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[#E879F9]/80 shrink-0" })]
 										})]
 									})
 								]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "w-full text-left space-y-1",
+								className: "space-y-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-2 flex-wrap",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "flex items-center gap-1.5 flex-wrap",
+										children: [
+											{
+												id: "all",
+												label: "All Levels (0–100)"
+											},
+											{
+												id: "completed",
+												label: "Completed"
+											},
+											{
+												id: "current",
+												label: "Current"
+											},
+											{
+												id: "locked",
+												label: "Locked"
+											}
+										].map((f) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setRoadmapStatusFilter(f.id),
+											className: `px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${roadmapStatusFilter === f.id ? "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow" : "bg-white/[0.05] text-[#B9AECF] hover:text-white"}`,
+											children: f.label
+										}, f.id))
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] font-mono text-[#B9AECF] flex items-center gap-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-3 h-3 text-[#FFC84A]" }), "Lv 0–50: 600M · Lv 51–100: 1.4B"]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										onClick: () => setSelectedTierFilter("all"),
+										className: `px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider shrink-0 border transition-all flex items-center gap-1 ${selectedTierFilter === "all" ? "bg-white text-[#090611] border-white" : "bg-white/[0.04] text-[#B9AECF] border-white/10 hover:text-white"}`,
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Funnel, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "All 10 Tiers" })]
+									}), LEVEL_TIER_CONFIGS.map((tier) => {
+										const active = selectedTierFilter === tier.id;
+										return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => setSelectedTierFilter(tier.id),
+											style: active ? {
+												background: tier.gradientCss,
+												borderColor: tier.borderHex
+											} : void 0,
+											className: `px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider shrink-0 border transition-all ${active ? "text-white shadow-md" : "bg-white/[0.04] text-[#C5B9DE] border-white/10 hover:bg-white/[0.08]"}`,
+											children: [
+												tier.name,
+												" (",
+												tier.minLevel,
+												"–",
+												tier.maxLevel,
+												")"
+											]
+										}, tier.id);
+									})]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "space-y-2",
+								children: filteredLevels.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "py-10 text-center rounded-2xl bg-white/[0.03] border border-white/[0.08]",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Layers, { className: "w-8 h-8 text-[#B9AECF]/50 mx-auto mb-2" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs font-bold text-white",
+											children: "No levels match this filter"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#B9AECF] mt-1",
+											children: "Switch back to All Levels (0–100) to explore all 101 level badges."
+										})
+									]
+								}) : filteredLevels.map((lvl) => {
+									const isCompleted = lvl.level < progression.currentLevel || progression.isMaxMastery && lvl.level === 100;
+									const isCurrent = lvl.level === progression.currentLevel && !isCompleted;
+									const isLocked = lvl.level > progression.currentLevel;
+									const coinsToReach = Math.max(0, lvl.cumulativeCoins - progression.totalQualifyingCoinsSpent);
+									const vipReward = lvl.vipUnlockTier ? VIP_FRAME_DEFINITIONS.find((v) => v.tier === lvl.vipUnlockTier) : void 0;
+									const superVipReward = lvl.superVipUnlockTier ? SUPER_VIP_TIER_DEFINITIONS.find((sv) => sv.tier === lvl.superVipUnlockTier) : void 0;
+									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setInspectedLevel(lvl),
+										className: `w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${isCurrent ? "bg-gradient-to-r from-[#2A114E] via-[#210E3E] to-[#170A2C] border-[#FA26A0] shadow-lg shadow-[#8B20FF]/20" : isCompleted ? "bg-emerald-950/20 border-emerald-500/30 hover:border-emerald-400/50" : "bg-white/[0.025] border-white/[0.07] hover:bg-white/[0.05]"}`,
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-3 min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+												level: lvl.level,
+												size: "md",
+												locked: isLocked,
+												className: "shrink-0"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "min-w-0",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "flex items-center gap-1.5 flex-wrap",
+														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "text-xs font-black text-white",
+															children: [
+																"Level ",
+																lvl.level,
+																" · ",
+																lvl.title
+															]
+														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: `text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md ${isCurrent ? "bg-[#FA26A0] text-white" : isCompleted ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-white/10 text-[#B9AECF]"}`,
+															children: isCurrent ? "Current" : isCompleted ? "Completed" : "Locked"
+														})]
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "flex items-center gap-2 mt-1 text-[10px] font-mono text-[#C5B9DE] flex-wrap tabular-nums",
+														children: [
+															/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Cost: ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
+																className: "text-white",
+																children: lvl.coinsForThisLevel.toLocaleString()
+															})] }),
+															/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+																className: "text-white/25",
+																children: "·"
+															}),
+															/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Total: ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", {
+																className: "text-[#FFC84A]",
+																children: lvl.cumulativeCoins.toLocaleString()
+															})] })
+														]
+													}),
+													(vipReward || superVipReward) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+														className: "flex items-center gap-1.5 mt-1.5 flex-wrap",
+														children: [vipReward && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-[#FFC84A]/15 border border-[#FFC84A]/40 text-[#FFC84A]",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+																vipReward.code,
+																": ",
+																vipReward.frameName
+															] })]
+														}), superVipReward && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-fuchsia-500/20 border border-fuchsia-400/50 text-fuchsia-200",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+																superVipReward.code,
+																": ",
+																superVipReward.name
+															] })]
+														})]
+													})
+												]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "text-right shrink-0",
+											children: isCompleted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 flex items-center justify-center",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4" })
+											}) : isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-xs font-mono font-black text-[#FFC84A] tabular-nums",
+												children: [progression.percentage, "%"]
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex flex-col items-end",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3.5 h-3.5 text-[#B9AECF]/70 mb-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-[9px] font-mono text-[#B9AECF] tabular-nums",
+													children: ["+", formatCoinsCompact(coinsToReach)]
+												})]
+											})
+										})]
+									}, lvl.level);
+								})
+							})
+						] }),
+						activeTab === "vip" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl bg-gradient-to-br from-[#2B1707] via-[#1B0D2E] to-[#110820] border border-[#FFC84A]/35 flex flex-col sm:flex-row items-center gap-4",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+								src: currentUser.avatar,
+								name: currentUser.name,
+								level: progression.currentLevel,
+								vipLevel: displayVipTier,
+								superVipLevel: displaySuperVipTier,
+								activeFrameType: displayFrameType,
+								size: "xl",
+								showFrame: true,
+								showVipBadge: true
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex-1 text-center sm:text-left space-y-1.5 min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center sm:justify-start gap-2 flex-wrap",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+											tier: progression.highestUnlockedVipTier,
+											size: "sm"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-[11px] font-bold text-[#C5B9DE]",
+											children: [progression.unlockedVipTiers.length, " / 12 VIP Tiers Unlocked"]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "text-base font-black text-white",
+										children: previewFrame?.type === "vip" ? `Previewing VIP ${previewFrame.tier} Frame` : progression.activeFrameType === "vip" && progression.equippedVipFrame > 0 ? `Equipped: VIP ${progression.equippedVipFrame} Frame` : progression.activeFrameType === "super_vip" && progression.equippedSuperVipFrame > 0 ? `Super VIP ${progression.equippedSuperVipFrame} Frame Currently Active` : "VIP 1–12 Exclusive Frame Collection"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE]",
+										children: "VIP unlocks every 8 user levels (Lv 8 → Lv 96). Equipping a VIP frame cleanly replaces any active Super VIP frame with zero overlap."
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center sm:justify-start gap-2 pt-1 flex-wrap",
+										children: [previewFrame && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setPreviewFrame(null),
+											className: "px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold",
+											children: "Exit Preview"
+										}), progression.activeFrameType !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleEquipFrame("none", 0),
+											disabled: busyKey !== null,
+											className: "px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[11px] font-bold",
+											children: "Remove Active Frame"
+										})]
+									})
+								]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
+							children: VIP_FRAME_DEFINITIONS.map((vip) => {
+								const isUnlocked = progression.unlockedVipTiers.includes(vip.tier);
+								const isEquipped = progression.activeFrameType === "vip" && progression.equippedVipFrame === vip.tier;
+								const isPreviewing = previewFrame?.type === "vip" && previewFrame.tier === vip.tier;
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: `p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isEquipped ? "bg-[#26143E] border-[#FFC84A] shadow-lg shadow-[#FFC84A]/15" : isPreviewing ? "bg-[#201038] border-[#FA26A0]" : isUnlocked ? "bg-white/[0.04] border-white/15" : "bg-white/[0.02] border-white/[0.07] opacity-85"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-3",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+											src: currentUser.avatar,
+											name: currentUser.name,
+											vipLevel: vip.tier,
+											activeFrameType: "vip",
+											size: "md",
+											showFrame: true,
+											showVipBadge: false
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0 flex-1",
+											children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center justify-between gap-1.5",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+														tier: vip.tier,
+														size: "xs"
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: `text-[10px] font-bold flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-[#B9AECF]"}`,
+														children: isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Unlocked" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Lv.", vip.unlockLevel] })] })
+													})]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+													className: "text-xs font-extrabold text-white mt-1 truncate",
+													children: vip.frameName
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-[10px] text-[#B9AECF] truncate mt-0.5",
+													children: vip.perks[0]
+												})
+											]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => setPreviewFrame({
+												type: "vip",
+												tier: vip.tier
+											}),
+											className: "flex-1 py-2 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] text-white text-[11px] font-bold flex items-center justify-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Preview" })]
+										}), isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => handleEquipFrame("none", 0),
+											disabled: busyKey !== null,
+											className: "flex-1 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped" })]
+										}) : isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleEquipFrame("vip", vip.tier),
+											disabled: busyKey !== null,
+											className: "flex-1 py-2 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-[11px] font-black hover:opacity-95 active:scale-95 transition-all",
+											children: busyKey === `vip_${vip.tier}` ? "Equipping..." : "Equip"
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											disabled: true,
+											className: "flex-1 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-[#B9AECF] text-[11px] font-bold flex items-center justify-center gap-1 cursor-not-allowed",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Reach Lv.", vip.unlockLevel] })]
+										})]
+									})]
+								}, vip.tier);
+							})
+						})] }),
+						activeTab === "super_vip" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl bg-gradient-to-br from-[#2B0C4E] via-[#1B0936] to-[#110622] border border-fuchsia-400/40 flex flex-col sm:flex-row items-center gap-4 shadow-xl",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+								src: currentUser.avatar,
+								name: currentUser.name,
+								level: progression.currentLevel,
+								vipLevel: displayVipTier,
+								superVipLevel: displaySuperVipTier,
+								activeFrameType: displayFrameType,
+								size: "xl",
+								showFrame: true,
+								showVipBadge: true
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex-1 text-center sm:text-left space-y-1.5 min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center sm:justify-start gap-2 flex-wrap",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-[#7C3AED] via-[#FA26A0] to-[#FFC84A] text-white text-[10px] font-black uppercase tracking-wider",
+											children: "SUPER VIP COLLECTION"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-[11px] font-bold text-fuchsia-200",
+											children: [progression.unlockedSuperVipTiers.length, " / 6 Unlocked"]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "text-base font-black text-white",
+										children: previewFrame?.type === "super_vip" ? `Previewing Super VIP ${previewFrame.tier}` : progression.activeFrameType === "super_vip" && progression.equippedSuperVipFrame > 0 ? `Active: Super VIP ${progression.equippedSuperVipFrame} Frame` : "Ultra-Premium Animated Super VIP Frames"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#D7CEEB]",
+										children: "Separate from normal VIP. Unlocks every 12 levels (Lv 12, 24, 36, 48, 60, 72) — Super VIP 6 remains the pinnacle through Level 100."
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center sm:justify-start gap-2 pt-1 flex-wrap",
+										children: [previewFrame && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setPreviewFrame(null),
+											className: "px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold",
+											children: "Exit Preview"
+										}), progression.activeFrameType !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleEquipFrame("none", 0),
+											disabled: busyKey !== null,
+											className: "px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-[11px] font-bold",
+											children: "Unequip Frame"
+										})]
+									})
+								]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "grid grid-cols-1 sm:grid-cols-2 gap-3.5",
+							children: SUPER_VIP_TIER_DEFINITIONS.map((sv) => {
+								const isUnlocked = progression.unlockedSuperVipTiers.includes(sv.tier);
+								const isEquipped = progression.activeFrameType === "super_vip" && progression.equippedSuperVipFrame === sv.tier;
+								const isPreviewing = previewFrame?.type === "super_vip" && previewFrame.tier === sv.tier;
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: `p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isEquipped ? "bg-gradient-to-br from-[#2B124C] to-[#17092B] border-[#FFC84A] shadow-xl shadow-fuchsia-500/20" : isPreviewing ? "bg-[#210D3F] border-fuchsia-400" : isUnlocked ? "bg-white/[0.04] border-white/15" : "bg-white/[0.02] border-white/[0.08] opacity-85"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-3.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+											src: currentUser.avatar,
+											name: currentUser.name,
+											superVipLevel: sv.tier,
+											activeFrameType: "super_vip",
+											size: "lg",
+											showFrame: true,
+											showVipBadge: false
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0 flex-1 space-y-1",
+											children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center justify-between gap-1.5",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+														tier: sv.tier,
+														size: "xs"
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: `text-[10px] font-bold flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-[#B9AECF]"}`,
+														children: isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Unlocked" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Lv.", sv.unlockLevel] })] })
+													})]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+													className: "text-sm font-black text-white truncate",
+													children: sv.name
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-[10px] text-[#C5B9DE] leading-snug",
+													children: sv.perks[0]
+												}),
+												sv.tier === 6 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FFC84A]/20 text-[#FFC84A]",
+													children: "Supreme Tier · Lv 72–100"
+												})
+											]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => setPreviewFrame({
+												type: "super_vip",
+												tier: sv.tier
+											}),
+											className: "flex-1 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white text-[11px] font-bold flex items-center justify-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Preview" })]
+										}), isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											onClick: () => handleEquipFrame("none", 0),
+											disabled: busyKey !== null,
+											className: "flex-1 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped" })]
+										}) : isUnlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleEquipFrame("super_vip", sv.tier),
+											disabled: busyKey !== null,
+											style: { background: sv.gradientCss },
+											className: "flex-1 py-2 rounded-xl text-white text-[11px] font-black shadow-md hover:opacity-95 active:scale-95 transition-all",
+											children: busyKey === `super_vip_${sv.tier}` ? "Equipping..." : "Equip Frame"
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											disabled: true,
+											className: "flex-1 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-[#B9AECF] text-[11px] font-bold flex items-center justify-center gap-1 cursor-not-allowed",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Unlock at Lv.", sv.unlockLevel] })]
+										})]
+									})]
+								}, sv.tier);
+							})
+						})] }),
+						activeTab === "achievements" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-4 rounded-2xl bg-[#180C2F] border border-white/10 flex items-center justify-between gap-3 flex-wrap",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-sm font-black text-white flex items-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Achievement Badge Vault" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "text-[11px] text-[#C5B9DE] mt-0.5 tabular-nums",
+								children: [
+									"Independent from Level & VIP · ",
+									earnedAchievementsCount,
+									"/",
+									achievementBadges.length,
+									" earned ·",
+									" ",
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[#FFC84A] font-bold",
+										children: [equippedAchievementsCount, "/3 equipped on profile"]
+									})
+								]
+							})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-center gap-1.5",
+								children: [
+									{
+										id: "all",
+										label: `All (${achievementBadges.length})`
+									},
+									{
+										id: "earned",
+										label: `Earned (${earnedAchievementsCount})`
+									},
+									{
+										id: "locked",
+										label: `Locked (${achievementBadges.length - earnedAchievementsCount})`
+									}
+								].map((tab) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => setBadgeFilter(tab.id),
+									className: `px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${badgeFilter === tab.id ? "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white" : "bg-white/[0.06] text-[#B9AECF] hover:text-white"}`,
+									children: tab.label
+								}, tab.id))
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-2.5",
+							children: visibleAchievements.map((badge) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: `p-3.5 rounded-2xl border transition-all ${badge.isEquipped ? "bg-[#241143] border-[#FA26A0]/60 shadow-lg shadow-[#8B20FF]/15" : badge.isEarned ? "bg-white/[0.04] border-white/15" : "bg-white/[0.02] border-white/[0.07] opacity-85"}`,
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-start gap-3.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+										shape: badge.shape,
+										iconKey: badge.iconKey,
+										accentFrom: badge.accentFrom,
+										accentTo: badge.accentTo,
+										borderHex: badge.borderHex,
+										isEarned: badge.isEarned,
+										size: "md"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex-1 min-w-0",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center justify-between gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2 min-w-0 flex-wrap",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+														className: "text-sm font-extrabold text-white",
+														children: badge.name
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-[#D7CEEB]",
+														children: badge.rarity
+													})]
+												}), badge.isEarned ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													onClick: () => handleToggleAchievementEquip(badge),
+													disabled: busyKey === `ach_${badge.id}`,
+													className: `px-3 py-1.5 rounded-xl text-[11px] font-extrabold shrink-0 flex items-center gap-1 transition-all ${badge.isEquipped ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 hover:bg-emerald-500/30" : "bg-white/10 hover:bg-white/20 text-white"}`,
+													children: badge.isEquipped ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equipped" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equip" })
+												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-[10px] font-bold text-[#B9AECF] flex items-center gap-1 shrink-0",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Locked" })]
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs text-[#C5B9DE] mt-1 leading-relaxed",
+												children: badge.description
+											}),
+											badge.isEarned ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 mt-2 text-[10px] text-emerald-300 font-semibold",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Calendar, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+													"Earned",
+													" ",
+													badge.earnedAt ? new Date(badge.earnedAt).toLocaleDateString() : "Verified on Lenzo Party"
+												] })]
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "mt-2.5 space-y-1",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center justify-between text-[10px] text-[#B9AECF] gap-2",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "truncate",
+														children: badge.unlockConditionText
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+														className: "font-mono text-white/85 shrink-0 tabular-nums",
+														children: [
+															badge.progressCurrent.toLocaleString(),
+															" / ",
+															badge.progressTarget.toLocaleString()
+														]
+													})]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "h-1.5 rounded-full bg-white/10 overflow-hidden",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+														className: "h-full rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]",
+														style: { width: `${Math.max(4, badge.progressPercent)}%` }
+													})
+												})]
+											})
+										]
+									})]
+								})
+							}, badge.id))
+						})] })
+					]
+				}),
+				inspectedLevel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+					onClick: () => setInspectedLevel(null),
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "w-full max-w-sm bg-[#160B2A] border border-white/15 rounded-3xl p-5 space-y-4 shadow-2xl",
+						onClick: (e) => e.stopPropagation(),
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+									level: inspectedLevel.level,
+									size: "lg",
+									showTierName: true
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => setInspectedLevel(null),
+									className: "w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex flex-col items-center justify-center py-2",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+									level: inspectedLevel.level,
+									size: "showcase",
+									showSubLabel: true
+								})
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "grid grid-cols-2 gap-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-black/40 border border-white/10",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] text-[#B9AECF] block",
+										children: [
+											"Level ",
+											inspectedLevel.level,
+											" Cost"
+										]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-sm font-black font-mono text-white tabular-nums",
+										children: inspectedLevel.coinsForThisLevel.toLocaleString()
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-black/40 border border-white/10",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[10px] text-[#B9AECF] block",
+										children: "Cumulative Total"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-sm font-black font-mono text-[#FFC84A] tabular-nums",
+										children: inspectedLevel.cumulativeCoins.toLocaleString()
+									})]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[11px] font-bold text-white uppercase tracking-wider block mb-1",
-									children: "Level Perks:"
-								}), selectedLevelDetail.perks.map((p, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-1.5 text-[11px] text-[#D8CFEB]",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3 text-[#FFC84A] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: p })]
-								}, i))]
+									className: "text-[10px] font-black uppercase tracking-wider text-[#B9AECF]",
+									children: "Unlocked Privileges & Milestones"
+								}), inspectedLevel.perks.map((perk, idx) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2 text-xs text-white/95 bg-white/[0.04] px-3 py-2 rounded-xl border border-white/[0.07]",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5 text-[#FFC84A] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: perk })]
+								}, idx))]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setSelectedLevelDetail(null),
-								className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs",
-								children: "Close Details"
+								onClick: () => setInspectedLevel(null),
+								className: "w-full py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-xs font-extrabold",
+								children: "Close Level Details"
 							})
 						]
 					})
@@ -126107,131 +128592,214 @@ var LevelAndVIPModal = ({ isOpen, onClose, currentUser, onUpdateUser }) => {
 	});
 };
 // src/components/screens/LevelUpCelebrationModal.tsx
-var LevelUpCelebrationModal = ({ isOpen, onClose, oldLevel, newLevel, coinsSpent = 0, userAvatar, userName, onEquipVipFrame }) => {
+var LevelUpCelebrationModal = ({ isOpen, onClose, oldLevel, newLevel, coinsSpent = 0, userAvatar, userName, unlockedVipFrames, unlockedSuperVipFrames, newlyEarnedAchievements = [], onEquipVipFrame, onEquipSuperVipFrame, onOpenRoadmap }) => {
 	if (!isOpen) return null;
 	const levelDef = getLevelDefinition(newLevel);
-	const unlockedVipFrame = VIP_FRAME_DEFINITIONS.find((f) => f.unlockLevel === newLevel);
+	const resolvedVipFrames = unlockedVipFrames && unlockedVipFrames.length > 0 ? unlockedVipFrames : VIP_FRAME_DEFINITIONS.filter((f) => f.unlockLevel > oldLevel && f.unlockLevel <= newLevel);
+	const resolvedSuperVipFrames = unlockedSuperVipFrames && unlockedSuperVipFrames.length > 0 ? unlockedSuperVipFrames : SUPER_VIP_TIER_DEFINITIONS.filter((f) => f.unlockLevel > oldLevel && f.unlockLevel <= newLevel);
+	const featuredVip = resolvedVipFrames[resolvedVipFrames.length - 1];
+	const featuredSuperVip = resolvedSuperVipFrames[resolvedSuperVipFrames.length - 1];
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none",
+		onClick: onClose,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "w-full max-w-sm bg-[#160C25] border border-[#FFC84A]/60 rounded-3xl p-6 shadow-2xl relative flex flex-col items-center text-center overflow-hidden",
+			className: "w-full max-w-md bg-[#140B24] border border-[#FFC84A]/60 rounded-3xl p-5 sm:p-6 shadow-2xl relative flex flex-col items-center text-center overflow-y-auto max-h-[90vh]",
 			onClick: (e) => e.stopPropagation(),
 			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 w-60 h-60 bg-gradient-to-b from-[#FFC84A]/30 via-[#F328D5]/25 to-transparent rounded-full blur-3xl pointer-events-none" }),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "absolute top-0 w-72 h-56 rounded-full blur-3xl pointer-events-none opacity-45",
+					style: { background: levelDef.gradientCss }
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "relative mb-2 mt-1",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "w-20 h-20 rounded-full bg-gradient-to-tr from-[#FFC84A] via-[#F328D5] to-[#8B20FF] p-[3px] shadow-[0_0_35px_rgba(255,200,74,0.7)] animate-bounce",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "w-18 h-18 rounded-full bg-gradient-to-tr from-[#FFC84A] via-[#FA26A0] to-[#8B20FF] p-[3px] shadow-[0_0_30px_rgba(255,200,74,0.6)]",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-full h-full rounded-full bg-[#160C25] flex items-center justify-center text-white",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-10 h-10 text-[#FFC84A] fill-[#FFC84A]/20" })
+							className: "w-full h-full rounded-full bg-[#140B24] flex items-center justify-center text-white p-3",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-9 h-9 text-[#FFC84A]" })
 						})
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "absolute -top-1 -right-1 text-2xl animate-spin",
-						children: "✨"
-					})]
+					})
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: "text-[11px] font-black tracking-widest uppercase text-[#FFC84A] mb-1 bg-[#FFC84A]/10 px-3 py-1 rounded-full border border-[#FFC84A]/40",
-					children: "NEW LEVEL UNLOCKED!"
+					className: "text-[10px] font-black tracking-widest uppercase text-[#FFC84A] mb-1 bg-[#FFC84A]/10 px-3 py-1 rounded-full border border-[#FFC84A]/40",
+					children: "LEVEL UP MILESTONE"
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-					className: "text-2xl font-black text-white font-display mb-1",
+					className: "text-2xl font-black text-white font-display",
 					children: [
 						"Level ",
 						newLevel,
 						" Reached!"
 					]
 				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-					className: "text-xs text-[#B9AECF] mb-3",
+				coinsSpent > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+					className: "text-xs text-[#C5B9DE] mt-1 mb-3",
 					children: [
-						"Gifting contribution: ",
+						"Qualifying spend:",
+						" ",
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-white font-bold font-mono",
+							className: "text-white font-bold font-mono tabular-nums",
 							children: [
 								"+",
 								coinsSpent.toLocaleString(),
 								" Coins"
 							]
-						}),
-						"!"
+						})
 					]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-center gap-3 w-full p-3 rounded-2xl bg-[#211333] border border-white/10 mb-3",
+					className: "flex items-center justify-center gap-4 w-full p-3.5 rounded-2xl bg-[#1E1036] border border-white/10 mb-3",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex flex-col items-center",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-[10px] text-[#B9AECF] mb-1",
-								children: "Previous"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-								level: oldLevel,
-								size: "sm"
-							})]
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#B9AECF] mb-1",
+									children: "Previous"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+									level: oldLevel,
+									size: "sm"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-[10px] font-bold text-[#C5B9DE] mt-0.5 tabular-nums",
+									children: ["Lv.", oldLevel]
+								})
+							]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRight, { className: "w-4 h-4 text-[#FFC84A] stroke-[3]" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRight, { className: "w-5 h-5 text-[#FFC84A] stroke-[3]" }),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex flex-col items-center",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-[10px] text-[#FFC84A] font-bold mb-1",
-								children: "New Rank"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-								level: newLevel,
-								size: "lg",
-								showTierName: true
-							})]
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#FFC84A] font-bold mb-1",
+									children: "New Level Emblem"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+									level: newLevel,
+									size: "lg"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+									level: newLevel,
+									size: "sm",
+									showTierName: true,
+									className: "mt-1"
+								})
+							]
 						})
 					]
 				}),
-				unlockedVipFrame && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "w-full p-3.5 rounded-2xl bg-gradient-to-r from-[#311153] to-[#1e0b36] border-2 border-[#FFC84A] mb-3 shadow-[0_0_20px_rgba(255,200,74,0.4)] flex flex-col items-center text-center",
+				featuredSuperVip && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full p-3.5 rounded-2xl bg-gradient-to-br from-[#2E0F54] to-[#17092B] border-2 border-fuchsia-400/70 mb-3 shadow-lg flex flex-col items-center",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-1.5 text-xs font-black text-[#FFC84A] uppercase tracking-wider mb-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "VIP FRAME UNLOCKED!" })]
+							className: "flex items-center gap-1.5 text-[11px] font-black text-fuchsia-200 uppercase tracking-wider mb-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: resolvedSuperVipFrames.length > 1 ? `${resolvedSuperVipFrames.length} SUPER VIP FRAMES UNLOCKED!` : "SUPER VIP FRAME UNLOCKED!" })]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "my-1",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
-								src: userAvatar,
-								name: userName || "VIP",
-								level: newLevel,
-								vipLevel: unlockedVipFrame.tier,
-								isVIP: true,
-								size: "md",
-								showFrame: true,
-								showVipBadge: false
-							})
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+							src: userAvatar,
+							name: userName || "Super VIP",
+							superVipLevel: featuredSuperVip.tier,
+							activeFrameType: "super_vip",
+							size: "lg",
+							showFrame: true,
+							showVipBadge: false
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-							className: "text-xs font-extrabold text-white mt-1",
-							children: unlockedVipFrame.name
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "mt-2 flex items-center gap-1.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+								tier: featuredSuperVip.tier,
+								size: "xs"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-xs font-extrabold text-white",
+								children: featuredSuperVip.frameName
+							})]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-[10px] text-[#D8CFEB] max-w-xs mt-0.5",
-							children: unlockedVipFrame.perks[0]
+						onEquipSuperVipFrame && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: () => {
+								onEquipSuperVipFrame(featuredSuperVip.tier);
+								onClose();
+							},
+							style: { background: featuredSuperVip.gradientCss },
+							className: "mt-2.5 px-4 py-1.5 rounded-xl text-white font-black text-xs shadow-md hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equip Super VIP Frame" })]
+						})
+					]
+				}),
+				featuredVip && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full p-3.5 rounded-2xl bg-gradient-to-r from-[#2D1708] to-[#1D0D35] border border-[#FFC84A]/70 mb-3 flex flex-col items-center",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 text-[11px] font-black text-[#FFC84A] uppercase tracking-wider mb-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: resolvedVipFrames.length > 1 ? `${resolvedVipFrames.length} VIP FRAMES UNLOCKED!` : "VIP FRAME UNLOCKED!" })]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+							src: userAvatar,
+							name: userName || "VIP",
+							vipLevel: featuredVip.tier,
+							activeFrameType: "vip",
+							size: "md",
+							showFrame: true,
+							showVipBadge: false
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "mt-2 flex items-center gap-1.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+								tier: featuredVip.tier,
+								size: "xs"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-xs font-extrabold text-white",
+								children: featuredVip.frameName
+							})]
 						}),
 						onEquipVipFrame && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => {
-								onEquipVipFrame(unlockedVipFrame.tier);
+								onEquipVipFrame(featuredVip.tier);
 								onClose();
 							},
-							className: "mt-2.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#FA26A0] text-black font-black text-xs shadow-md shadow-pink-900/30 hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "EQUIP NOW" })]
+							className: "mt-2.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black text-xs shadow-md hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className: "w-3.5 h-3.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Equip VIP Frame" })]
 						})
 					]
+				}),
+				newlyEarnedAchievements.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full p-3 rounded-2xl bg-white/[0.04] border border-white/10 mb-3 text-left space-y-2",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: "text-[10px] font-black uppercase tracking-wider text-[#FFC84A] flex items-center gap-1",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Award, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Achievements Unlocked" })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "flex items-center gap-2 flex-wrap",
+						children: newlyEarnedAchievements.map((ach) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+								shape: ach.shape,
+								iconKey: ach.iconKey,
+								accentFrom: ach.accentFrom,
+								accentTo: ach.accentTo,
+								borderHex: ach.borderHex,
+								isEarned: true,
+								size: "xs"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-xs font-bold text-white",
+								children: ach.name
+							})]
+						}, ach.id))
+					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "w-full text-left mb-4",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 						className: "text-[10px] font-bold uppercase tracking-wider text-[#B9AECF] block mb-1 px-1",
-						children: [levelDef.name, " Privileges:"]
+						children: [
+							levelDef.title,
+							" (",
+							levelDef.tierName,
+							") Privileges:"
+						]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "space-y-1",
 						children: levelDef.perks.slice(0, 2).map((perk, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-2 text-xs text-white/90 bg-[#090611] p-2 rounded-xl border border-white/5",
+							className: "flex items-center gap-2 text-xs text-white/90 bg-[#090611] px-2.5 py-2 rounded-xl border border-white/5",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5 text-[#FFC84A] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								className: "truncate",
 								children: perk
@@ -126239,10 +128807,734 @@ var LevelUpCelebrationModal = ({ isOpen, onClose, oldLevel, newLevel, coinsSpent
 						}, i))
 					})]
 				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					onClick: onClose,
-					className: "w-full py-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F328D5] text-[#090611] font-black text-xs shadow-xl shadow-[#FFC84A]/30 active:scale-95 transition-all",
-					children: "Claim & Continue"
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full flex gap-2",
+					children: [onOpenRoadmap && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: () => {
+							onClose();
+							onOpenRoadmap();
+						},
+						className: "flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors",
+						children: "View Roadmap"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: onClose,
+						className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#FA26A0] text-[#090611] font-black text-xs shadow-xl shadow-[#FFC84A]/25 active:scale-95 transition-all",
+						children: "Claim & Continue"
+					})]
+				})
+			]
+		})
+	});
+};
+// src/components/screens/AdminProgressionModal.tsx
+var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
+	const [activeTab, setActiveTab] = (0, import_react.useState)("levels");
+	const [loading, setLoading] = (0, import_react.useState)(false);
+	const [error, setError] = (0, import_react.useState)(null);
+	const [statusMsg, setStatusMsg] = (0, import_react.useState)(null);
+	const [overview, setOverview] = (0, import_react.useState)(null);
+	const [editingVip, setEditingVip] = (0, import_react.useState)(null);
+	const [editingSuperVip, setEditingSuperVip] = (0, import_react.useState)(null);
+	const [editingAch, setEditingAch] = (0, import_react.useState)(null);
+	const [adjustTargetUid, setAdjustTargetUid] = (0, import_react.useState)("");
+	const [adjustCoins, setAdjustCoins] = (0, import_react.useState)("1000000");
+	const [adjustAchId, setAdjustAchId] = (0, import_react.useState)("");
+	const [adjustReason, setAdjustReason] = (0, import_react.useState)("Admin QA / Support Verification");
+	const getTokenHeaders = async () => {
+		const token = await auth.currentUser?.getIdToken(true);
+		return token ? { Authorization: `Bearer ${token}` } : {};
+	};
+	const fetchOverview = async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			const res = await apiFetch("/api/admin/progression/overview", { headers: await getTokenHeaders() });
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				setError(data.error || `Access denied (HTTP ${res.status})`);
+				setOverview(null);
+			} else setOverview(data);
+		} catch (err) {
+			setError(err?.message || "Failed to load admin progression overview.");
+		} finally {
+			setLoading(false);
+		}
+	};
+	(0, import_react.useEffect)(() => {
+		if (isOpen) fetchOverview();
+	}, [isOpen]);
+	if (!isOpen) return null;
+	const notify = (msg) => {
+		setStatusMsg(msg);
+		setTimeout(() => setStatusMsg(null), 3e3);
+	};
+	const handleSaveConfig = async (section, id, patch) => {
+		try {
+			const res = await apiFetch("/api/admin/progression/config", {
+				method: "PUT",
+				headers: await getTokenHeaders(),
+				body: JSON.stringify({
+					section,
+					id,
+					patch
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				setError(data.error || "Failed to save configuration");
+				return;
+			}
+			setEditingVip(null);
+			setEditingSuperVip(null);
+			setEditingAch(null);
+			notify("Configuration saved & logged in audit trail");
+			await fetchOverview();
+		} catch (err) {
+			setError(err?.message || "Save failed");
+		}
+	};
+	const handleAdjustUser = async (e) => {
+		e.preventDefault();
+		if (!adjustTargetUid.trim()) {
+			setError("Target User ID is required.");
+			return;
+		}
+		try {
+			const res = await apiFetch("/api/admin/progression/adjust-user", {
+				method: "POST",
+				headers: await getTokenHeaders(),
+				body: JSON.stringify({
+					targetUserId: adjustTargetUid.trim(),
+					addCoins: Number(adjustCoins || 0),
+					awardAchievementId: adjustAchId || void 0,
+					reason: adjustReason.trim() || "Admin adjustment"
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				setError(data.error || "Adjustment failed");
+				return;
+			}
+			notify(`Updated user ${adjustTargetUid} → Level ${data.progression?.currentLevel}`);
+			await fetchOverview();
+		} catch (err) {
+			setError(err?.message || "Adjustment failed");
+		}
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 bg-black/85 backdrop-blur-md",
+		onClick: onClose,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "w-full max-w-4xl bg-[#0F071C] border border-[#FFC84A]/35 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]",
+			onClick: (e) => e.stopPropagation(),
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-5 py-4 bg-gradient-to-r from-[#24103F] via-[#1B0C31] to-[#140924] border-b border-white/10 flex items-center justify-between gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-3 min-w-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-2xl bg-[#FFC84A]/20 border border-[#FFC84A]/50 text-[#FFC84A] flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-5 h-5" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+								className: "text-base sm:text-lg font-black text-white truncate",
+								children: "Lenzo Admin — Progression Management Console"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "text-[11px] text-[#C5B9DE] truncate",
+								children: [
+									"Authorized Admin: ",
+									currentUserEmail || auth.currentUser?.email || "Not Verified",
+									" · Audited RBAC Protected"
+								]
+							})]
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2 shrink-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: fetchOverview,
+							className: "w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center",
+							title: "Refresh",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-4 h-4 ${loading ? "animate-spin" : ""}` })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: onClose,
+							className: "w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+						})]
+					})]
+				}),
+				statusMsg && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mx-5 mt-3 px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold flex items-center gap-2",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: statusMsg })]
+				}),
+				error && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mx-5 mt-3 px-4 py-2.5 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs font-bold flex items-center gap-2",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: error })]
+				}),
+				overview?.audit && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mx-5 mt-3 p-3 rounded-2xl bg-[#180C2F] border border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] text-[#B9AECF] block",
+							children: "Total Levels"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-sm font-black font-mono text-white",
+							children: overview.audit.totalLevels
+						})] }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] text-[#B9AECF] block",
+							children: "Lv 1–50 Exact Sum"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-sm font-black font-mono text-emerald-400",
+							children: overview.audit.sumLevels1To50.toLocaleString()
+						})] }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] text-[#B9AECF] block",
+							children: "Lv 51–100 Exact Sum"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-sm font-black font-mono text-fuchsia-300",
+							children: overview.audit.sumLevels51To100.toLocaleString()
+						})] }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] text-[#B9AECF] block",
+							children: "Grand Total (Exact)"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-sm font-black font-mono text-[#FFC84A]",
+							children: overview.audit.grandTotalCoins.toLocaleString()
+						})] })
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "px-5 pt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar",
+					children: [
+						{
+							id: "levels",
+							label: "Levels 0–100",
+							icon: Layers
+						},
+						{
+							id: "vip",
+							label: "VIP & Super VIP",
+							icon: Crown
+						},
+						{
+							id: "achievements",
+							label: "Achievements",
+							icon: Award
+						},
+						{
+							id: "users",
+							label: "Users & Adjust",
+							icon: Users
+						},
+						{
+							id: "audit",
+							label: "Audit Logs",
+							icon: FileClock
+						}
+					].map((tab) => {
+						const Icon = tab.icon;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: () => setActiveTab(tab.id),
+							className: `px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition-all ${activeTab === tab.id ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611]" : "bg-white/[0.06] text-[#C5B9DE] hover:text-white"}`,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: tab.label })]
+						}, tab.id);
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex-1 overflow-y-auto p-5 space-y-4",
+					children: loading && !overview ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-16 flex flex-col items-center gap-2 text-[#B9AECF] text-xs",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-8 h-8 border-2 border-[#FFC84A] border-t-transparent rounded-full animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Verifying Admin Token & Loading Progression Registry..." })]
+					}) : !overview ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-14 text-center space-y-2 rounded-2xl bg-white/[0.03] border border-white/10 px-4",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-10 h-10 text-rose-400 mx-auto" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-sm font-bold text-white",
+								children: "Administrator Authorization Required"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] max-w-md mx-auto",
+								children: "Only the verified administrator account (yaquoobe@gmail.com) can access or modify Lenzo Party progression tables and audit logs."
+							})
+						]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						activeTab === "levels" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "overflow-x-auto rounded-2xl border border-white/10",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", {
+								className: "w-full text-left text-xs",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", {
+									className: "bg-white/[0.06] text-[10px] uppercase tracking-wider text-[#C5B9DE]",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+											className: "py-2.5 px-3",
+											children: "Level"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+											className: "py-2.5 px-3",
+											children: "Tier"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+											className: "py-2.5 px-3",
+											children: "Level Cost"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+											className: "py-2.5 px-3",
+											children: "Cumulative"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+											className: "py-2.5 px-3",
+											children: "Milestones"
+										})
+									] })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", {
+									className: "divide-y divide-white/[0.06]",
+									children: overview.levels.map((lvl) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", {
+										className: "hover:bg-white/[0.03]",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+												className: "py-2 px-3",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-2",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
+														level: lvl.level,
+														size: "xs"
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+														level: lvl.level,
+														size: "xs"
+													})]
+												})
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
+												className: "py-2 px-3 font-bold text-white",
+												children: [
+													lvl.tierName,
+													" ",
+													lvl.subRank
+												]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+												className: "py-2 px-3 font-mono text-white tabular-nums",
+												children: lvl.coinsForThisLevel.toLocaleString()
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+												className: "py-2 px-3 font-mono text-[#FFC84A] tabular-nums",
+												children: lvl.cumulativeCoins.toLocaleString()
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+												className: "py-2 px-3",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex items-center gap-1 flex-wrap",
+													children: [
+														lvl.vipUnlockTier && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+															tier: lvl.vipUnlockTier,
+															size: "xs"
+														}),
+														lvl.superVipUnlockTier && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+															tier: lvl.superVipUnlockTier,
+															size: "xs"
+														}),
+														!lvl.vipUnlockTier && !lvl.superVipUnlockTier && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-[#B9AECF]/60",
+															children: "—"
+														})
+													]
+												})
+											})
+										]
+									}, lvl.level))
+								})]
+							})
+						}),
+						activeTab === "vip" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-xs font-black uppercase tracking-wider text-[#FFC84A] mb-2.5 flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "12 VIP Tiers (Unlocks Every 8 Levels)" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5",
+								children: overview.vipTiers.map((vip) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+											tier: vip.tier,
+											size: "xs"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-[11px] font-mono text-[#C5B9DE]",
+											children: ["Unlock: Lv.", vip.unlockLevel]
+										})]
+									}), editingVip?.tier === vip.tier ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-2",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: editingVip.frameName,
+												onChange: (e) => setEditingVip({
+													...editingVip,
+													frameName: e.target.value
+												}),
+												className: "w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white",
+												placeholder: "Frame Name"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: editingVip.perk0,
+												onChange: (e) => setEditingVip({
+													...editingVip,
+													perk0: e.target.value
+												}),
+												className: "w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white",
+												placeholder: "Primary Perk"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+													onClick: () => handleSaveConfig("vip", vip.tier, {
+														frameName: editingVip.frameName,
+														perks: [editingVip.perk0, ...vip.perks.slice(1)]
+													}),
+													className: "px-3 py-1.5 rounded-lg bg-[#FFC84A] text-black text-xs font-black flex items-center gap-1",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Save, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Save" })]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													onClick: () => setEditingVip(null),
+													className: "px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-bold",
+													children: "Cancel"
+												})]
+											})
+										]
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs font-bold text-white truncate",
+												children: vip.frameName
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[10px] text-[#B9AECF] truncate",
+												children: vip.perks[0]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setEditingVip({
+												tier: vip.tier,
+												frameName: vip.frameName,
+												perk0: vip.perks[0] || ""
+											}),
+											className: "px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold shrink-0",
+											children: "Edit"
+										})]
+									})]
+								}, vip.tier))
+							})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-xs font-black uppercase tracking-wider text-fuchsia-300 mb-2.5 flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "6 Super VIP Tiers (Unlocks Every 12 Levels)" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5",
+								children: overview.superVipTiers.map((sv) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-fuchsia-950/20 border border-fuchsia-500/25 space-y-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+											tier: sv.tier,
+											size: "xs"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-[11px] font-mono text-fuchsia-200",
+											children: ["Unlock: Lv.", sv.unlockLevel]
+										})]
+									}), editingSuperVip?.tier === sv.tier ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-2",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: editingSuperVip.name,
+												onChange: (e) => setEditingSuperVip({
+													...editingSuperVip,
+													name: e.target.value
+												}),
+												className: "w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: editingSuperVip.frameName,
+												onChange: (e) => setEditingSuperVip({
+													...editingSuperVip,
+													frameName: e.target.value
+												}),
+												className: "w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													onClick: () => handleSaveConfig("super_vip", sv.tier, {
+														name: editingSuperVip.name,
+														frameName: editingSuperVip.frameName
+													}),
+													className: "px-3 py-1.5 rounded-lg bg-fuchsia-500 text-white text-xs font-black",
+													children: "Save"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													onClick: () => setEditingSuperVip(null),
+													className: "px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-bold",
+													children: "Cancel"
+												})]
+											})
+										]
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs font-bold text-white truncate",
+												children: sv.name
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[10px] text-[#C5B9DE] truncate",
+												children: sv.frameName
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setEditingSuperVip({
+												tier: sv.tier,
+												name: sv.name,
+												frameName: sv.frameName
+											}),
+											className: "px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold shrink-0",
+											children: "Edit"
+										})]
+									})]
+								}, sv.tier))
+							})] })]
+						}),
+						activeTab === "achievements" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-2.5",
+							children: overview.achievements.map((ach) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2",
+								children: editingAch?.id === ach.id ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "space-y-2",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "grid grid-cols-1 sm:grid-cols-2 gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: editingAch.name,
+												onChange: (e) => setEditingAch({
+													...editingAch,
+													name: e.target.value
+												}),
+												className: "px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												type: "number",
+												value: editingAch.targetValue,
+												onChange: (e) => setEditingAch({
+													...editingAch,
+													targetValue: Number(e.target.value)
+												}),
+												className: "px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white font-mono"
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											value: editingAch.description,
+											onChange: (e) => setEditingAch({
+												...editingAch,
+												description: e.target.value
+											}),
+											className: "w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-white/15 text-xs text-white"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => handleSaveConfig("achievement", ach.id, {
+													name: editingAch.name,
+													description: editingAch.description,
+													targetValue: editingAch.targetValue
+												}),
+												className: "px-3 py-1.5 rounded-lg bg-[#FFC84A] text-black text-xs font-black",
+												children: "Save Changes"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => setEditingAch(null),
+												className: "px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs font-bold",
+												children: "Cancel"
+											})]
+										})
+									]
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-3",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-extrabold text-white",
+												children: ach.name
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 text-[#FFC84A]",
+												children: ["Target: ", ach.targetValue.toLocaleString()]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#C5B9DE] mt-0.5",
+											children: ach.description
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => setEditingAch({
+											id: ach.id,
+											name: ach.name,
+											description: ach.description,
+											targetValue: ach.targetValue
+										}),
+										className: "px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold shrink-0",
+										children: "Edit"
+									})]
+								})
+							}, ach.id))
+						}),
+						activeTab === "users" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-4",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+								onSubmit: handleAdjustUser,
+								className: "p-4 rounded-2xl bg-[#180C2F] border border-[#FFC84A]/30 space-y-3",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "text-xs font-black uppercase tracking-wider text-[#FFC84A]",
+										children: "Audited User Progression Adjustment"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: adjustTargetUid,
+												onChange: (e) => setAdjustTargetUid(e.target.value),
+												placeholder: "Target User UID",
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white font-mono"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												type: "number",
+												value: adjustCoins,
+												onChange: (e) => setAdjustCoins(e.target.value),
+												placeholder: "Qualifying Coins Delta (+ or -)",
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white font-mono"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+												value: adjustAchId,
+												onChange: (e) => setAdjustAchId(e.target.value),
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+													value: "",
+													children: "Optional: Award Achievement Badge..."
+												}), overview.achievements.map((a) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("option", {
+													value: a.id,
+													children: [
+														a.name,
+														" (",
+														a.id,
+														")"
+													]
+												}, a.id))]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: adjustReason,
+												onChange: (e) => setAdjustReason(e.target.value),
+												placeholder: "Audit Reason (Required)",
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+											})
+										]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "submit",
+										className: "px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-black text-xs font-black",
+										children: "Apply Audited Adjustment"
+									})
+								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+									className: "text-xs font-bold uppercase tracking-wider text-[#B9AECF]",
+									children: [
+										"Tracked Users (",
+										overview.users.length,
+										")"
+									]
+								}), overview.users.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-[#B9AECF] py-6 text-center rounded-2xl bg-white/[0.03]",
+									children: "No users recorded in backend progression store yet."
+								}) : overview.users.map((u) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3 flex-wrap",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2 flex-wrap",
+											children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-xs font-bold text-white",
+													children: u.userName || u.userId
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+													level: u.progression.currentLevel,
+													size: "xs"
+												}),
+												u.progression.highestUnlockedVipTier > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+													tier: u.progression.highestUnlockedVipTier,
+													size: "xs"
+												}),
+												u.progression.highestUnlockedSuperVipTier > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+													tier: u.progression.highestUnlockedSuperVipTier,
+													size: "xs"
+												})
+											]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+											className: "text-[10px] font-mono text-[#B9AECF] mt-1",
+											children: [
+												"UID: ",
+												u.userId,
+												" · Spent: ",
+												u.progression.totalQualifyingCoinsSpent.toLocaleString(),
+												" coins ·",
+												" ",
+												u.earnedAchievementsCount,
+												"/10 badges"
+											]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => setAdjustTargetUid(u.userId),
+										className: "px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold",
+										children: "Select UID"
+									})]
+								}, u.userId))]
+							})]
+						}),
+						activeTab === "audit" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-xs font-black uppercase tracking-wider text-[#FFC84A]",
+								children: [
+									"Chronological Audit & Coin Deduction Trail (",
+									overview.auditLogs.length,
+									")"
+								]
+							}), overview.auditLogs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] py-8 text-center rounded-2xl bg-white/[0.03]",
+								children: "No audit events logged yet."
+							}) : overview.auditLogs.map((log) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-1",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2 text-[10px]",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-black uppercase tracking-wider text-[#FFC84A]",
+											children: log.action
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-mono text-[#B9AECF]",
+											children: new Date(log.timestamp).toLocaleString()
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs font-semibold text-white",
+										children: log.summary
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+										className: "text-[10px] font-mono text-[#B9AECF]",
+										children: [
+											"Actor: ",
+											log.actorEmail || log.actorId,
+											log.targetUserId ? ` · Target: ${log.targetUserId}` : ""
+										]
+									})
+								]
+							}, log.id))]
+						})
+					] })
 				})
 			]
 		})
@@ -126668,6 +129960,8 @@ function App() {
 	const [isWalletOpen, setIsWalletOpen] = (0, import_react.useState)(false);
 	const [isVIPOpen, setIsVIPOpen] = (0, import_react.useState)(false);
 	const [isLevelVIPOpen, setIsLevelVIPOpen] = (0, import_react.useState)(false);
+	const [levelVIPInitialTab, setLevelVIPInitialTab] = (0, import_react.useState)("roadmap");
+	const [isAdminProgressionOpen, setIsAdminProgressionOpen] = (0, import_react.useState)(false);
 	const [levelUpData, setLevelUpData] = (0, import_react.useState)(null);
 	const [isSearchOpen, setIsSearchOpen] = (0, import_react.useState)(false);
 	const [isNotificationsOpen, setIsNotificationsOpen] = (0, import_react.useState)(false);
@@ -127130,9 +130424,18 @@ function App() {
 				const next = {
 					...prev,
 					level: prog.currentLevel,
-					vipLevel: prog.equippedVipFrame || prev.vipLevel,
+					totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+					vipLevel: Math.max(prog.highestUnlockedVipTier, prog.equippedVipFrame),
 					equippedVipFrame: prog.equippedVipFrame,
-					isVIP: prog.equippedVipFrame > 0
+					isVIP: prog.highestUnlockedVipTier > 0 || prog.equippedVipFrame > 0,
+					superVipLevel: Math.max(prog.highestUnlockedSuperVipTier, prog.equippedSuperVipFrame),
+					equippedSuperVipFrame: prog.equippedSuperVipFrame,
+					isSuperVIP: prog.highestUnlockedSuperVipTier > 0 || prog.equippedSuperVipFrame > 0,
+					activeFrameType: prog.activeFrameType,
+					unlockedVipTiers: prog.unlockedVipTiers,
+					unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+					earnedAchievements: prog.earnedAchievements,
+					equippedBadges: prog.equippedAchievementBadges.length > 0 ? prog.equippedAchievementBadges : prev.equippedBadges
 				};
 				saveStoredUserProfile(next);
 				return next;
@@ -127379,23 +130682,55 @@ function App() {
 				console.warn("Gift transaction backend error:", e);
 			}
 			try {
-				const levelRes = await addQualifyingGiftingCoins(currentUser.id, cost);
-				if (levelRes.levelUpEvent) {
+				const txId = `gift_prog_${currentUser.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+				const levelRes = await addQualifyingGiftingCoins(currentUser.id, cost, {
+					transactionId: txId,
+					reason: `gift:${gift.name}x${quantity}`,
+					userSnapshot: {
+						name: currentUser.name,
+						avatar: currentUser.avatar,
+						email: currentUser.email,
+						metrics: {
+							diamondsEarned: currentUser.diamonds || 0,
+							followersCount: currentUser.followersCount || 0,
+							followingCount: currentUser.followingCount || 0,
+							totalLikesCount: currentUser.totalLikes || 0,
+							liveSessionsHosted: currentUser.liveSessionsHosted || 0,
+							loginStreakDays: currentUser.loginStreakDays || 1,
+							hasAgency: Boolean(currentUser.agencyId && currentUser.agencyStatus === "active")
+						}
+					}
+				});
+				const prog = levelRes.progression;
+				setCurrentUser((prev) => {
+					const next = {
+						...prev,
+						level: prog.currentLevel,
+						totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+						vipLevel: prog.highestUnlockedVipTier,
+						isVIP: prog.highestUnlockedVipTier > 0,
+						superVipLevel: prog.highestUnlockedSuperVipTier,
+						isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
+						activeFrameType: prog.activeFrameType,
+						equippedVipFrame: prog.equippedVipFrame,
+						equippedSuperVipFrame: prog.equippedSuperVipFrame,
+						unlockedVipTiers: prog.unlockedVipTiers,
+						unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+						earnedAchievements: prog.earnedAchievements,
+						giftsSentCount: (prev.giftsSentCount || 0) + 1
+					};
+					saveStoredUserProfile(next);
+					return next;
+				});
+				if (levelRes.levelUpEvent && levelRes.levelUpEvent.newLevel > levelRes.levelUpEvent.oldLevel) {
 					const event = levelRes.levelUpEvent;
 					setLevelUpData({
 						oldLevel: event.oldLevel,
 						newLevel: event.newLevel,
-						coinsSpent: cost
-					});
-					setCurrentUser((prev) => {
-						const next = {
-							...prev,
-							level: event.newLevel,
-							vipLevel: event.unlockedVipFrame?.tier || prev.vipLevel,
-							equippedVipFrame: event.unlockedVipFrame?.tier || prev.equippedVipFrame
-						};
-						saveStoredUserProfile(next);
-						return next;
+						coinsSpent: cost,
+						unlockedVipFrames: event.unlockedVipFrames,
+						unlockedSuperVipFrames: event.unlockedSuperVipFrames,
+						newlyEarnedAchievements: event.newlyEarnedAchievements
 					});
 				}
 			} catch (levelErr) {
@@ -127814,8 +131149,15 @@ function App() {
 								setCurrentScreen(s);
 							},
 							onOpenWallet: () => setIsWalletOpen(true),
-							onOpenVIP: () => setIsLevelVIPOpen(true),
-							onOpenLevelVIP: () => setIsLevelVIPOpen(true),
+							onOpenVIP: () => {
+								setLevelVIPInitialTab("vip");
+								setIsLevelVIPOpen(true);
+							},
+							onOpenLevelVIP: (tab) => {
+								setLevelVIPInitialTab(tab || "roadmap");
+								setIsLevelVIPOpen(true);
+							},
+							onOpenAdminPanel: () => setIsAdminProgressionOpen(true),
 							userVideos: videos,
 							onSelectVideo: (_v) => setCurrentScreen("videos"),
 							onOpenUploadVideo: handleOpenPlusUpload,
@@ -127824,7 +131166,9 @@ function App() {
 						currentScreen === "settings" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SettingsScreen, {
 							onNavigate: (s) => setCurrentScreen(s),
 							onLogout: handleLogout,
-							onOpenWallet: () => setIsWalletOpen(true)
+							onOpenWallet: () => setIsWalletOpen(true),
+							isAdmin: Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === "yaquoobe@gmail.com"),
+							onOpenAdminProgression: () => setIsAdminProgressionOpen(true)
 						})
 					]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BottomNav, {
@@ -127895,6 +131239,8 @@ function App() {
 				isOpen: isLevelVIPOpen,
 				onClose: () => setIsLevelVIPOpen(false),
 				currentUser,
+				initialTab: levelVIPInitialTab,
+				onOpenAdminPanel: () => setIsAdminProgressionOpen(true),
 				onUpdateUser: (updated) => {
 					setCurrentUser((prev) => {
 						const next = {
@@ -127914,19 +131260,46 @@ function App() {
 				coinsSpent: levelUpData?.coinsSpent || 0,
 				userAvatar: currentUser.avatar,
 				userName: currentUser.name,
+				unlockedVipFrames: levelUpData?.unlockedVipFrames,
+				unlockedSuperVipFrames: levelUpData?.unlockedSuperVipFrames,
+				newlyEarnedAchievements: levelUpData?.newlyEarnedAchievements,
+				onOpenRoadmap: () => {
+					setLevelVIPInitialTab("roadmap");
+					setIsLevelVIPOpen(true);
+				},
 				onEquipVipFrame: async (tier) => {
-					await equipVipFrame(currentUser.id, tier);
-					setCurrentUser((prev) => {
+					if ((await equipVipFrame(currentUser.id, tier)).success) setCurrentUser((prev) => {
 						const next = {
 							...prev,
+							activeFrameType: "vip",
 							equippedVipFrame: tier,
-							vipLevel: tier,
+							equippedSuperVipFrame: 0,
+							vipLevel: Math.max(prev.vipLevel || 0, tier),
 							isVIP: true
 						};
 						saveStoredUserProfile(next);
 						return next;
 					});
+				},
+				onEquipSuperVipFrame: async (tier) => {
+					if ((await equipSuperVipFrame(currentUser.id, tier)).success) setCurrentUser((prev) => {
+						const next = {
+							...prev,
+							activeFrameType: "super_vip",
+							equippedSuperVipFrame: tier,
+							equippedVipFrame: 0,
+							superVipLevel: Math.max(prev.superVipLevel || 0, tier),
+							isSuperVIP: true
+						};
+						saveStoredUserProfile(next);
+						return next;
+					});
 				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AdminProgressionModal, {
+				isOpen: isAdminProgressionOpen,
+				onClose: () => setIsAdminProgressionOpen(false),
+				currentUserEmail: currentUser.email
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VIPModal, {
 				isOpen: isVIPOpen,

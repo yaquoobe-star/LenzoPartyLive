@@ -161,3 +161,52 @@ html, body {
   background-size: 200% 200%;
   animation: neonShimmer 4s ease infinite;
 }
+
+/* VIP & Super VIP Controlled Frame Animations */
+@keyframes lenzoFrameOrbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lenzoFrameGlow {
+  0%, 100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes lenzoParticleFloat {
+  0%, 100% {
+    opacity: 0.45;
+    transform: translateY(0px) scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2.5px) scale(1.15);
+  }
+}
+
+.animate-lenzo-orbit {
+  animation: lenzoFrameOrbit 9s linear infinite;
+}
+
+.animate-lenzo-orbit-fast {
+  animation: lenzoFrameOrbit 5.5s linear infinite;
+}
+
+.animate-lenzo-glow {
+  animation: lenzoFrameGlow 2.8s ease-in-out infinite;
+}
+
+.animate-lenzo-particle {
+  animation: lenzoParticleFloat 2.4s ease-in-out infinite;
+}
+

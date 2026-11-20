@@ -1,0 +1,675 @@
+{
+  "users": [
+    {
+      "userId": "e2e_verify_user_999",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 100000000,
+      "activeFrameType": "none",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 0,
+      "earnedAchievements": [
+        {
+          "badgeId": "contributor",
+          "earnedAt": "2026-11-20T07:45:12.182Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "top_gifter",
+          "earnedAt": "2026-11-20T07:45:12.182Z",
+          "source": "system_verified"
+        }
+      ],
+      "equippedAchievementBadges": [],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 100000000,
+        "diamondsEarned": 0,
+        "publicVideosCount": 0,
+        "liveSessionsHosted": 0,
+        "loginStreakDays": 1,
+        "giftsSentCount": 1,
+        "followersCount": 0,
+        "followingCount": 0,
+        "totalLikesCount": 0,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 0
+      },
+      "updatedAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "userId": "e2e_verify_user_fresh_1001",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 100000000,
+      "activeFrameType": "super_vip",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 1,
+      "earnedAchievements": [
+        {
+          "badgeId": "contributor",
+          "earnedAt": "2026-11-20T07:45:52.891Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "top_gifter",
+          "earnedAt": "2026-11-20T07:45:52.891Z",
+          "source": "system_verified"
+        }
+      ],
+      "equippedAchievementBadges": [],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 100000000,
+        "diamondsEarned": 0,
+        "publicVideosCount": 0,
+        "liveSessionsHosted": 0,
+        "loginStreakDays": 1,
+        "giftsSentCount": 1,
+        "followersCount": 0,
+        "followingCount": 0,
+        "totalLikesCount": 0,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 0
+      },
+      "updatedAt": "2026-11-20T07:45:52.923Z"
+    },
+    {
+      "userId": "e2e_verify_user_clean_2002",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 100000000,
+      "activeFrameType": "super_vip",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 1,
+      "earnedAchievements": [
+        {
+          "badgeId": "contributor",
+          "earnedAt": "2026-11-20T07:46:48.964Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "top_gifter",
+          "earnedAt": "2026-11-20T07:46:48.964Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "diamond_host",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "marathoner",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "streak_pro",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "popular_host",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "rising_star",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "community_champion",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "legendary_creator",
+          "earnedAt": "2026-11-20T07:46:48.990Z",
+          "source": "system_verified"
+        }
+      ],
+      "equippedAchievementBadges": [
+        "contributor",
+        "top_gifter",
+        "diamond_host"
+      ],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 100000000,
+        "diamondsEarned": 500000,
+        "publicVideosCount": 10,
+        "liveSessionsHosted": 30,
+        "loginStreakDays": 35,
+        "giftsSentCount": 1,
+        "followersCount": 1500,
+        "followingCount": 50,
+        "totalLikesCount": 10000,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 3
+      },
+      "updatedAt": "2026-11-20T07:46:49.007Z"
+    },
+    {
+      "userId": "kuamP5n0IzZFiyDVa7hNOAJFMut2",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 0,
+      "activeFrameType": "none",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 0,
+      "earnedAchievements": [],
+      "equippedAchievementBadges": [],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 0,
+        "diamondsEarned": 0,
+        "publicVideosCount": 0,
+        "liveSessionsHosted": 0,
+        "loginStreakDays": 1,
+        "giftsSentCount": 0,
+        "followersCount": 0,
+        "followingCount": 0,
+        "totalLikesCount": 0,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 0
+      },
+      "updatedAt": "2026-11-20T07:47:03.861Z"
+    },
+    {
+      "userId": "e2e_verify_user_final_3003",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 100000000,
+      "activeFrameType": "super_vip",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 1,
+      "earnedAchievements": [
+        {
+          "badgeId": "contributor",
+          "earnedAt": "2026-11-20T07:47:41.015Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "top_gifter",
+          "earnedAt": "2026-11-20T07:47:41.015Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "diamond_host",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "marathoner",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "streak_pro",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "popular_host",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "rising_star",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "community_champion",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        },
+        {
+          "badgeId": "legendary_creator",
+          "earnedAt": "2026-11-20T07:47:41.033Z",
+          "source": "system_verified"
+        }
+      ],
+      "equippedAchievementBadges": [
+        "contributor",
+        "top_gifter",
+        "diamond_host"
+      ],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 100000000,
+        "diamondsEarned": 500000,
+        "publicVideosCount": 10,
+        "liveSessionsHosted": 30,
+        "loginStreakDays": 35,
+        "giftsSentCount": 1,
+        "followersCount": 1500,
+        "followingCount": 50,
+        "totalLikesCount": 10000,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 3
+      },
+      "updatedAt": "2026-11-20T07:47:41.047Z"
+    },
+    {
+      "userId": "e2e_lv0_verify_user",
+      "userName": "",
+      "userAvatar": "",
+      "userEmail": "",
+      "totalQualifyingCoinsSpent": 1000000,
+      "activeFrameType": "none",
+      "equippedVipFrame": 0,
+      "equippedSuperVipFrame": 0,
+      "earnedAchievements": [
+        {
+          "badgeId": "contributor",
+          "earnedAt": "2026-11-20T08:06:31.474Z",
+          "source": "system_verified"
+        }
+      ],
+      "equippedAchievementBadges": [],
+      "metrics": {
+        "totalQualifyingCoinsSpent": 1000000,
+        "diamondsEarned": 0,
+        "publicVideosCount": 0,
+        "liveSessionsHosted": 0,
+        "loginStreakDays": 1,
+        "giftsSentCount": 1,
+        "followersCount": 0,
+        "followingCount": 0,
+        "totalLikesCount": 0,
+        "hasAgency": false,
+        "pkWinsCount": 0,
+        "eventsWonCount": 0,
+        "profileCompletedSteps": 0
+      },
+      "updatedAt": "2026-11-20T08:06:31.474Z"
+    }
+  ],
+  "unlockHistory": [
+    {
+      "id": "uh_1795161991474_1ha6o",
+      "userId": "e2e_lv0_verify_user",
+      "type": "level_up",
+      "title": "Leveled Up: Lv 0 → Lv 1",
+      "detail": "Spent 1,000,000 coins (gift_sent)",
+      "oldLevel": 0,
+      "newLevel": 1,
+      "coinsDelta": 1000000,
+      "transactionId": "e2e_lv0_to_lv1",
+      "createdAt": "2026-11-20T08:06:31.474Z"
+    },
+    {
+      "id": "uh_1795161991474_pdmf5",
+      "userId": "e2e_lv0_verify_user",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Contributor",
+      "detail": "Spend 1,000,000 qualifying coins on gifts",
+      "createdAt": "2026-11-20T08:06:31.474Z"
+    },
+    {
+      "id": "uh_1795160861033_n9tpw",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Legendary Creator",
+      "detail": "Achieve 5,000+ Diamonds & 200+ Followers/Likes combined score",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_mmkat",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Community Champion",
+      "detail": "Join an Agency or follow 10 creators",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_4pdzz",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Rising Star",
+      "detail": "Complete display name, bio & country (3/3)",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_68sxs",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Popular Host",
+      "detail": "Reach 50 followers or 100 total likes",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_wiujc",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Streak Pro",
+      "detail": "Reach a 7-day active login streak",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_8c22g",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Marathoner",
+      "detail": "Host 5 live sessions or publish 5 public videos",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861033_nim7z",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Diamond Host",
+      "detail": "Earn 1,000 Diamonds from live & party gifts",
+      "createdAt": "2026-11-20T07:47:41.033Z"
+    },
+    {
+      "id": "uh_1795160861015_ecyip",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "super_vip_unlock",
+      "title": "Unlocked SUPER VIP 1 — Royal Purple Energy Frame",
+      "detail": "Super VIP milestone reached at Level 12",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_final",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160861015_b77fs",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 2 — Silver Metallic Frame",
+      "detail": "Milestone reached at Level 16",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_final",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160861015_ewvxf",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 1 — Bronze Premium Frame",
+      "detail": "Milestone reached at Level 8",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_final",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160861015_6dxm2",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "tier_up",
+      "title": "Reached Level 20 (SILVER Tier)",
+      "detail": "Spent 100,000,000 coins (gift_sent)",
+      "oldLevel": 1,
+      "newLevel": 20,
+      "coinsDelta": 100000000,
+      "transactionId": "e2e_tx_spend_100m_final",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160861015_hgxgf",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Top Gifter",
+      "detail": "Send 25+ gifts or 25,000,000 qualifying coins",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160861015_jltji",
+      "userId": "e2e_verify_user_final_3003",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Contributor",
+      "detail": "Spend 1,000,000 qualifying coins on gifts",
+      "createdAt": "2026-11-20T07:47:41.015Z"
+    },
+    {
+      "id": "uh_1795160808990_g42fg",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Legendary Creator",
+      "detail": "Achieve 5,000+ Diamonds & 200+ Followers/Likes combined score",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_l9e6f",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Community Champion",
+      "detail": "Join an Agency or follow 10 creators",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_clu6s",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Rising Star",
+      "detail": "Complete display name, bio & country (3/3)",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_zq346",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Popular Host",
+      "detail": "Reach 50 followers or 100 total likes",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_n1ech",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Streak Pro",
+      "detail": "Reach a 7-day active login streak",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_1l5jx",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Marathoner",
+      "detail": "Host 5 live sessions or publish 5 public videos",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808990_6t76j",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Diamond Host",
+      "detail": "Earn 1,000 Diamonds from live & party gifts",
+      "createdAt": "2026-11-20T07:46:48.990Z"
+    },
+    {
+      "id": "uh_1795160808965_0ixxh",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "super_vip_unlock",
+      "title": "Unlocked SUPER VIP 1 — Royal Purple Energy Frame",
+      "detail": "Super VIP milestone reached at Level 12",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_clean",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160808965_j94j5",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 2 — Silver Metallic Frame",
+      "detail": "Milestone reached at Level 16",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_clean",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160808965_iitct",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 1 — Bronze Premium Frame",
+      "detail": "Milestone reached at Level 8",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_clean",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160808964_z9i07",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "tier_up",
+      "title": "Reached Level 20 (SILVER Tier)",
+      "detail": "Spent 100,000,000 coins (gift_sent)",
+      "oldLevel": 1,
+      "newLevel": 20,
+      "coinsDelta": 100000000,
+      "transactionId": "e2e_tx_spend_100m_clean",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160808964_woyu4",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Top Gifter",
+      "detail": "Send 25+ gifts or 25,000,000 qualifying coins",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160808964_tvd24",
+      "userId": "e2e_verify_user_clean_2002",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Contributor",
+      "detail": "Spend 1,000,000 qualifying coins on gifts",
+      "createdAt": "2026-11-20T07:46:48.964Z"
+    },
+    {
+      "id": "uh_1795160752891_jq1m8",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "super_vip_unlock",
+      "title": "Unlocked SUPER VIP 1 — Royal Purple Energy Frame",
+      "detail": "Super VIP milestone reached at Level 12",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_fresh",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160752891_zs0jw",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 2 — Silver Metallic Frame",
+      "detail": "Milestone reached at Level 16",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_fresh",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160752891_pmn75",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 1 — Bronze Premium Frame",
+      "detail": "Milestone reached at Level 8",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m_fresh",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160752891_neicc",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "tier_up",
+      "title": "Reached Level 20 (SILVER Tier)",
+      "detail": "Spent 100,000,000 coins (gift_sent)",
+      "oldLevel": 1,
+      "newLevel": 20,
+      "coinsDelta": 100000000,
+      "transactionId": "e2e_tx_spend_100m_fresh",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160752891_evd4s",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Top Gifter",
+      "detail": "Send 25+ gifts or 25,000,000 qualifying coins",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160752891_tavn5",
+      "userId": "e2e_verify_user_fresh_1001",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Contributor",
+      "detail": "Spend 1,000,000 qualifying coins on gifts",
+      "createdAt": "2026-11-20T07:45:52.891Z"
+    },
+    {
+      "id": "uh_1795160712206_qa32r",
+      "userId": "e2e_verify_user_999",
+      "type": "super_vip_unlock",
+      "title": "Unlocked SUPER VIP 1 — Royal Purple Energy Frame",
+      "detail": "Super VIP milestone reached at Level 12",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "id": "uh_1795160712206_yf9g7",
+      "userId": "e2e_verify_user_999",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 2 — Silver Metallic Frame",
+      "detail": "Milestone reached at Level 16",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "id": "uh_1795160712206_fy018",
+      "userId": "e2e_verify_user_999",
+      "type": "vip_unlock",
+      "title": "Unlocked VIP 1 — Bronze Premium Frame",
+      "detail": "Milestone reached at Level 8",
+      "newLevel": 20,
+      "transactionId": "e2e_tx_spend_100m",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "id": "uh_1795160712182_7iy8u",
+      "userId": "e2e_verify_user_999",
+      "type": "tier_up",
+      "title": "Reached Level 20 (SILVER Tier)",
+      "detail": "Spent 100,000,000 coins (gift_sent)",
+      "oldLevel": 1,
+      "newLevel": 20,
+      "coinsDelta": 100000000,
+      "transactionId": "e2e_tx_spend_100m",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "id": "uh_1795160712182_9wshf",
+      "userId": "e2e_verify_user_999",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Top Gifter",
+      "detail": "Send 25+ gifts or 25,000,000 qualifying coins",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    },
+    {
+      "id": "uh_1795160712182_lvu6d",
+      "userId": "e2e_verify_user_999",
+      "type": "achievement_earned",
+      "title": "Achievement Earned: Contributor",
+      "detail": "Spend 1,000,000 qualifying coins on gifts",
+      "createdAt": "2026-11-20T07:45:12.182Z"
+    }
+  ],
+  "auditLogs": [],
+  "overrides": {
+    "levelPerksOverrides": {},
+    "vipOverrides": {},
+    "superVipOverrides": {},
+    "achievementOverrides": {},
+    "updatedAt": "2026-11-20T07:41:39.178Z",
+    "updatedBy": "system"
+  }
+}

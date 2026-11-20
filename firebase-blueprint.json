@@ -64,7 +64,7 @@
         },
         "level": {
           "type": "number",
-          "description": "User's gamified streaming level"
+          "description": "User's gamified streaming level (0 to 100, 101 total levels)"
         },
         "coins": {
           "type": "number",
@@ -74,9 +74,43 @@
           "type": "number",
           "description": "Total diamonds earned from gifts"
         },
+        "totalQualifyingCoinsSpent": {
+          "type": "number",
+          "description": "Cumulative qualifying coins spent toward 100-level progression (up to 2,000,000,000)"
+        },
         "vipLevel": {
           "type": "number",
-          "description": "VIP tier level (1 to 5)"
+          "description": "Unlocked VIP tier level (0 to 12)"
+        },
+        "superVipLevel": {
+          "type": "number",
+          "description": "Unlocked Super VIP tier level (0 to 6)"
+        },
+        "equippedVipFrame": {
+          "type": "number",
+          "description": "Active VIP avatar frame tier (0 to 12)"
+        },
+        "equippedSuperVipFrame": {
+          "type": "number",
+          "description": "Active Super VIP avatar frame tier (0 to 6)"
+        },
+        "activeFrameType": {
+          "type": "string",
+          "description": "Mutually exclusive active avatar frame mode",
+          "enum": ["none", "vip", "super_vip"]
+        },
+        "equippedBadges": {
+          "type": "array",
+          "description": "Up to 3 equipped independent achievement badge IDs",
+          "items": { "type": "string" }
+        },
+        "isVIP": {
+          "type": "boolean",
+          "description": "Whether user has unlocked VIP status (Lv 8+)"
+        },
+        "isSuperVIP": {
+          "type": "boolean",
+          "description": "Whether user has unlocked Super VIP status (Lv 12+)"
         },
         "accountStatus": {
           "type": "string",
@@ -322,21 +356,71 @@
     },
     "UserLevelProgression": {
       "title": "UserLevelProgression",
-      "description": "50-Level and 8-tier VIP progression state based on qualifying coins spent on gifting",
+      "description": "100-Level (10-tier, 2B coin), 12-VIP, 6-Super-VIP, and 10-Achievement progression state",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "currentLevel": { "type": "number", "minimum": 1, "maximum": 50 },
-        "currentTier": { "type": "string", "enum": ["Bronze", "Silver", "Gold", "Platinum", "Diamond"] },
+        "currentLevel": { "type": "number", "minimum": 0, "maximum": 100 },
+        "currentTier": {
+          "type": "string",
+          "enum": ["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND", "RUBY", "EMERALD", "SAPPHIRE", "CROWN", "ROYAL"]
+        },
         "totalQualifyingCoinsSpent": { "type": "number" },
         "coinsInCurrentLevel": { "type": "number" },
         "coinsNeededForNextLevel": { "type": "number" },
         "remainingCoinsNeeded": { "type": "number" },
         "percentage": { "type": "number" },
-        "unlockedVipFrames": { "type": "array", "items": { "type": "number" } },
-        "equippedVipFrame": { "type": "number" }
+        "vipLevel": { "type": "number", "minimum": 0, "maximum": 12 },
+        "superVipLevel": { "type": "number", "minimum": 0, "maximum": 6 },
+        "unlockedVipTiers": { "type": "array", "items": { "type": "number" } },
+        "unlockedSuperVipTiers": { "type": "array", "items": { "type": "number" } },
+        "equippedVipFrame": { "type": "number", "minimum": 0, "maximum": 12 },
+        "equippedSuperVipFrame": { "type": "number", "minimum": 0, "maximum": 6 },
+        "activeFrameType": { "type": "string", "enum": ["none", "vip", "super_vip"] },
+        "earnedAchievements": { "type": "array", "items": { "type": "object" } },
+        "equippedAchievementBadges": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["userId", "currentLevel", "currentTier", "totalQualifyingCoinsSpent"]
+    },
+    "SuperVipFrame": {
+      "title": "SuperVipFrame",
+      "description": "Super VIP frame tier definition (6 tiers every 12 levels: 12, 24, 36, 48, 60, 72)",
+      "type": "object",
+      "properties": {
+        "tier": { "type": "number", "minimum": 1, "maximum": 6 },
+        "unlockLevel": { "type": "number" },
+        "name": { "type": "string", "maxLength": 80 },
+        "themeName": { "type": "string", "maxLength": 80 },
+        "perks": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["tier", "unlockLevel", "name"]
+    },
+    "AchievementDefinition": {
+      "title": "AchievementDefinition",
+      "description": "Independent achievement badge definition and unlock condition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 240 },
+        "targetValue": { "type": "number" },
+        "metric": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "targetValue", "metric"]
+    },
+    "ProgressionAuditLog": {
+      "title": "ProgressionAuditLog",
+      "description": "Immutable admin audit log entry for progression config and manual user adjustments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "format": "email", "maxLength": 120 },
+        "action": { "type": "string", "maxLength": 80 },
+        "targetUserId": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["adminEmail", "action", "reason"]
     },
     "AdminUser": {
       "title": "AdminUser",
@@ -494,15 +578,27 @@
     },
     "/user_levels/{uid}": {
       "schema": "UserLevelProgression",
-      "description": "Stores 50-Level and 8-tier VIP progression documents"
+      "description": "Stores 100-Level, 12-VIP, 6-Super-VIP, and Achievement progression documents"
     },
     "/level_configurations/{docId}": {
       "schema": "UserLevelProgression",
-      "description": "Stores admin level milestone configuration"
+      "description": "Stores admin 100-level milestone configuration"
     },
     "/vip_frames/{docId}": {
       "schema": "UserLevelProgression",
-      "description": "Stores admin VIP frame definitions"
+      "description": "Stores admin 12-tier VIP frame definitions"
+    },
+    "/super_vip_frames/{docId}": {
+      "schema": "SuperVipFrame",
+      "description": "Stores admin 6-tier Super VIP frame definitions"
+    },
+    "/achievement_definitions/{docId}": {
+      "schema": "AchievementDefinition",
+      "description": "Stores independent achievement badge definitions"
+    },
+    "/progression_audit_logs/{logId}": {
+      "schema": "ProgressionAuditLog",
+      "description": "Immutable admin audit log for progression configuration and user adjustments"
     },
     "/posts/{postId}": {
       "schema": "Post",

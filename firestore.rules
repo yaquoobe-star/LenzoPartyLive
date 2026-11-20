@@ -66,12 +66,18 @@ service cloud.firestore {
         && (!('birthday' in data) || (data.birthday is string && data.birthday.size() <= 32))
         && (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0))
         && (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0))
-        && (!('level' in data) || (data.level is number && data.level >= 1 && data.level <= 50))
+        && (!('level' in data) || (data.level is number && data.level >= 0 && data.level <= 100))
         && (!('coins' in data) || (data.coins is number && data.coins >= 0))
         && (!('diamonds' in data) || (data.diamonds is number && data.diamonds >= 0))
-        && (!('vipLevel' in data) || (data.vipLevel is number && data.vipLevel >= 0 && data.vipLevel <= 10))
-        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 10))
+        && (!('totalQualifyingCoinsSpent' in data) || (data.totalQualifyingCoinsSpent is number && data.totalQualifyingCoinsSpent >= 0 && data.totalQualifyingCoinsSpent <= 2000000000))
+        && (!('vipLevel' in data) || (data.vipLevel is number && data.vipLevel >= 0 && data.vipLevel <= 12))
+        && (!('superVipLevel' in data) || (data.superVipLevel is number && data.superVipLevel >= 0 && data.superVipLevel <= 6))
+        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 12))
+        && (!('equippedSuperVipFrame' in data) || (data.equippedSuperVipFrame is number && data.equippedSuperVipFrame >= 0 && data.equippedSuperVipFrame <= 6))
+        && (!('activeFrameType' in data) || data.activeFrameType in ['none', 'vip', 'super_vip'])
+        && (!('equippedBadges' in data) || (data.equippedBadges is list && data.equippedBadges.size() <= 3))
         && (!('isVIP' in data) || data.isVIP is bool)
+        && (!('isSuperVIP' in data) || data.isSuperVIP is bool)
         && (!('isOnline' in data) || data.isOnline is bool);
     }
 
@@ -514,14 +520,21 @@ service cloud.firestore {
     }
 
     // ========================================================
-    // 12. LEVEL & VIP PROGRESSION SYSTEM
+    // 12. 100-LEVEL, 12-VIP, 6-SUPER-VIP & ACHIEVEMENT PROGRESSION SYSTEM
     // ========================================================
     function isValidUserLevel(data) {
       return data.keys().hasAll(['userId', 'currentLevel', 'totalQualifyingCoinsSpent'])
         && data.userId is string && data.userId.size() <= 128
-        && data.currentLevel is number && data.currentLevel >= 1 && data.currentLevel <= 50
-        && data.totalQualifyingCoinsSpent is number && data.totalQualifyingCoinsSpent >= 0
-        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 10));
+        && data.currentLevel is number && data.currentLevel >= 0 && data.currentLevel <= 100
+        && data.totalQualifyingCoinsSpent is number && data.totalQualifyingCoinsSpent >= 0 && data.totalQualifyingCoinsSpent <= 2000000000
+        && (!('vipLevel' in data) || (data.vipLevel is number && data.vipLevel >= 0 && data.vipLevel <= 12))
+        && (!('superVipLevel' in data) || (data.superVipLevel is number && data.superVipLevel >= 0 && data.superVipLevel <= 6))
+        && (!('equippedVipFrame' in data) || (data.equippedVipFrame is number && data.equippedVipFrame >= 0 && data.equippedVipFrame <= 12))
+        && (!('equippedSuperVipFrame' in data) || (data.equippedSuperVipFrame is number && data.equippedSuperVipFrame >= 0 && data.equippedSuperVipFrame <= 6))
+        && (!('activeFrameType' in data) || data.activeFrameType in ['none', 'vip', 'super_vip'])
+        && (!('unlockedVipTiers' in data) || (data.unlockedVipTiers is list && data.unlockedVipTiers.size() <= 12))
+        && (!('unlockedSuperVipTiers' in data) || (data.unlockedSuperVipTiers is list && data.unlockedSuperVipTiers.size() <= 6))
+        && (!('equippedAchievementBadges' in data) || (data.equippedAchievementBadges is list && data.equippedAchievementBadges.size() <= 3));
     }
 
     match /user_levels/{uid} {
@@ -546,6 +559,28 @@ service cloud.firestore {
       allow get, list: if isSignedIn();
       allow create, update: if isAdmin() && isValidId(docId);
       allow delete: if false;
+    }
+
+    match /super_vip_frames/{docId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(docId);
+      allow delete: if false;
+    }
+
+    match /achievement_definitions/{docId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(docId);
+      allow delete: if false;
+    }
+
+    match /progression_audit_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+                    && isValidId(logId)
+                    && incoming().adminEmail is string
+                    && incoming().action is string
+                    && incoming().reason is string;
+      allow update, delete: if false;
     }
 
     // ========================================================

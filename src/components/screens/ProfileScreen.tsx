@@ -37,20 +37,31 @@ import {
 } from 'lucide-react';
 
 import { UserProfile, ScreenType, VideoItem, Conversation } from '../../types';
-import { AvatarWithFrame } from '../common/AvatarWithFrame';
+import { AvatarWithFrame, SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
+import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
+import { AchievementBadgeEmblem } from '../common/AchievementBadgeArt';
 import { getUserLevelProgress } from '../../utils/levelSystem';
+import {
+  ACHIEVEMENT_BADGE_DEFINITIONS,
+  SUPER_VIP_TIER_DEFINITIONS,
+  VIP_FRAME_DEFINITIONS,
+  calculateLevelProgression,
+  evaluateAchievementBadges,
+  formatCoinsCompact,
+} from '../../utils/levelAndVipConfig';
+import { equipAchievementBadges } from '../../services/levelAndVipService';
+import { ProgressionModalTab } from './LevelAndVIPModal';
 import { EditProfileModal } from './EditProfileModal';
 import { ShareProfileModal } from '../profile/ShareProfileModal';
 import { FollowersListModal } from '../profile/FollowersListModal';
-import { BadgeVaultModal, renderBadgeIcon } from '../profile/BadgeVaultModal';
+import { BadgeVaultModal } from '../profile/BadgeVaultModal';
 import { AchievementsModal } from '../profile/AchievementsModal';
 import { AgencyCenterModal } from '../profile/AgencyCenterModal';
 import { profileService } from '../../utils/profileService';
 import { uploadUserImage } from '../../services/storageService';
 import {
   calculateAgeFromBirthday,
-  computeProfileBadges,
   computeUserAchievements,
   fetchUserLiveRank,
   getCountryFlag,
@@ -64,7 +75,8 @@ interface ProfileScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onOpenWallet: () => void;
   onOpenVIP: () => void;
-  onOpenLevelVIP?: () => void;
+  onOpenLevelVIP?: (tab?: ProgressionModalTab) => void;
+  onOpenAdminPanel?: () => void;
   userVideos?: VideoItem[];
   onSelectVideo?: (video: VideoItem) => void;
   onOpenUploadVideo?: () => void;
@@ -86,6 +98,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenWallet,
   onOpenVIP,
   onOpenLevelVIP,
+  onOpenAdminPanel,
   userVideos = [],
   onOpenUploadVideo,
   onDeleteVideo,
@@ -197,20 +210,52 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [activeUser.id, currentUser.id, userVideos.length]);
 
-  // Real Level, Badges & Achievements Computations
+  // Unified 100-Level, 12-VIP, 6-Super-VIP & 10-Achievement Progression Computations
   const levelProgress = useMemo(() => getUserLevelProgress(activeUser), [activeUser]);
 
-  const badges = useMemo(
+  const fullProgression = useMemo(
     () =>
-      computeProfileBadges({
-        user: activeUser,
+      calculateLevelProgression(
+        levelProgress.totalQualifyingCoinsSpent,
+        activeUser.id,
+        activeUser.equippedVipFrame ?? 0,
+        {
+          activeFrameType: activeUser.activeFrameType,
+          equippedSuperVipFrame: activeUser.equippedSuperVipFrame ?? 0,
+          earnedAchievements: activeUser.earnedAchievements ?? [],
+          equippedAchievementBadges: activeUser.equippedBadges ?? [],
+        }
+      ),
+    [levelProgress.totalQualifyingCoinsSpent, activeUser]
+  );
+
+  const achievementBadges = useMemo(() => {
+    const profileCompletedSteps =
+      (activeUser.name && activeUser.name.trim().length >= 2 ? 1 : 0) +
+      (activeUser.bio && activeUser.bio.trim().length >= 5 ? 1 : 0) +
+      (activeUser.country && activeUser.country.trim().length > 0 ? 1 : 0);
+
+    return evaluateAchievementBadges(
+      {
+        totalQualifyingCoinsSpent: fullProgression.totalQualifyingCoinsSpent,
+        diamondsEarned: activeUser.diamonds || 0,
         publicVideosCount: publicVideos.length,
-        totalLikesCount,
+        liveSessionsHosted: activeUser.liveSessionsHosted || 0,
+        loginStreakDays: activeUser.loginStreakDays || 1,
+        giftsSentCount: activeUser.giftsSentCount || 0,
         followersCount,
         followingCount,
-      }),
-    [activeUser, publicVideos.length, totalLikesCount, followersCount, followingCount]
-  );
+        totalLikesCount,
+        hasAgency: Boolean(activeUser.agencyId && activeUser.agencyStatus === 'active'),
+        pkWinsCount: activeUser.pkWinsCount || 0,
+        eventsWonCount: activeUser.eventsWonCount || 0,
+        profileCompletedSteps,
+      },
+      activeUser.earnedAchievements || [],
+      activeUser.equippedBadges || [],
+      ACHIEVEMENT_BADGE_DEFINITIONS
+    );
+  }, [activeUser, fullProgression.totalQualifyingCoinsSpent, publicVideos.length, totalLikesCount, followersCount, followingCount]);
 
   const achievements = useMemo(
     () =>
@@ -224,12 +269,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     [activeUser, publicVideos.length, totalLikesCount, followersCount, followingCount]
   );
 
-  const earnedBadges = useMemo(() => badges.filter((b) => b.isEarned), [badges]);
-  const equippedBadges = useMemo(() => badges.filter((b) => b.isEquipped), [badges]);
+  const earnedBadges = useMemo(() => achievementBadges.filter((b) => b.isEarned), [achievementBadges]);
+  const equippedBadges = useMemo(() => achievementBadges.filter((b) => b.isEquipped).slice(0, 3), [achievementBadges]);
   const unlockedAchievementsCount = useMemo(
     () => achievements.filter((a) => a.isUnlocked).length,
     [achievements]
   );
+
+  const openProgressionHub = (tab: ProgressionModalTab) => {
+    if (onOpenLevelVIP) {
+      onOpenLevelVIP(tab);
+    } else {
+      onOpenVIP();
+    }
+  };
 
   // Handlers
   const handleCopyId = () => {
@@ -302,17 +355,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       current.delete(badgeId);
     } else {
       if (current.size >= 3) {
-        const first = Array.from(current)[0];
-        if (first) current.delete(first);
+        showToast('Max 3 achievement badges equipped. Unequip one first.');
+        return;
       }
       current.add(badgeId);
     }
-    const nextBadges = Array.from(current);
+    const nextBadges = Array.from(current).slice(0, 3);
+    await equipAchievementBadges(currentUser.id, nextBadges).catch(() => {});
     const updated = await profileService.updateProfile(currentUser.id, {
       equippedBadges: nextBadges,
     });
     onUpdateProfile(updated);
-    showToast(current.has(badgeId) ? 'Badge equipped to your profile' : 'Badge unequipped');
+    showToast(current.has(badgeId) ? 'Achievement badge equipped to profile' : 'Badge unequipped');
   };
 
   const handleDeleteVideo = async (videoId: string) => {
@@ -381,8 +435,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const showOnline = activeUser.showOnlineStatus !== false;
   const isOnlineNow = isOwner ? true : activeUser.isOnline ?? true;
   const hasAgency = Boolean(activeUser.agencyId && activeUser.agencyStatus === 'active');
-  const vipTier = activeUser.equippedVipFrame || activeUser.vipLevel || 0;
+  const vipTier = Math.max(fullProgression.highestUnlockedVipTier, activeUser.vipLevel || 0);
+  const superVipTier = Math.max(fullProgression.highestUnlockedSuperVipTier, activeUser.superVipLevel || 0);
   const isVipMember = Boolean(activeUser.isVIP || vipTier > 0);
+  const nextVipDef = VIP_FRAME_DEFINITIONS.find((v) => v.unlockLevel > fullProgression.currentLevel);
+  const nextSuperVipDef = SUPER_VIP_TIER_DEFINITIONS.find((sv) => sv.unlockLevel > fullProgression.currentLevel);
 
   const openStatsModal = (tab: 'following' | 'followers' | 'likes') => {
     setFollowersModalTab(tab);
@@ -516,7 +573,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <BadgeVaultModal
         isOpen={isBadgeVaultOpen}
         onClose={() => setIsBadgeVaultOpen(false)}
-        badges={badges}
+        achievementBadges={achievementBadges}
         isOwner={isOwner}
         onToggleEquipBadge={handleToggleEquipBadge}
       />
@@ -792,8 +849,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <AvatarWithFrame
                   src={activeUser.avatar}
                   name={activeUser.name}
-                  level={activeUser.level}
-                  vipLevel={vipTier}
+                  level={fullProgression.currentLevel}
+                  vipLevel={fullProgression.equippedVipFrame}
+                  superVipLevel={fullProgression.equippedSuperVipFrame}
+                  activeFrameType={fullProgression.activeFrameType}
                   isVIP={isVipMember}
                   size="xl"
                   showFrame={true}
@@ -910,79 +969,132 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <div className="lg:col-span-5 space-y-4">
             {/* 2. USER INFORMATION SECTION */}
             <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3.5">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                    {activeUser.name}
-                  </h1>
-                  <LevelBadge level={activeUser.level} size="sm" />
-                  <button
-                    onClick={onOpenLevelVIP || onOpenVIP}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition-transform active:scale-95 ${
-                      isVipMember
-                        ? 'bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-black'
-                        : 'bg-white/[0.08] text-[#D7CEEB] hover:bg-white/[0.14]'
-                    }`}
-                  >
-                    <Crown className="w-3 h-3" />
-                    <span>{isVipMember ? `VIP ${vipTier || 1}` : 'VIP 0'}</span>
-                  </button>
-                </div>
+              <div className="flex items-start justify-between gap-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+                      {activeUser.name}
+                    </h1>
+                  </div>
 
-                {/* @username + Lenzo Party ID Copy */}
-                <div className="flex items-center gap-2.5 mt-1.5 flex-wrap text-xs">
-                  <span className="text-[#FA26A0] font-mono font-bold">
-                    {activeUser.username || `@${activeUser.displayId.toLowerCase()}`}
-                  </span>
-                  <span className="text-white/25">·</span>
-                  <button
-                    onClick={handleCopyId}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors"
-                  >
-                    <span>ID: {activeUser.displayId}</span>
-                    {copiedId ? (
-                      <Check className="w-3 h-3 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-3 h-3 text-[#B9AECF]" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Metadata row: Country, Gender/Age (privacy-aware), Online status */}
-                <div className="flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]">
-                  {activeUser.country && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                      <span>{getCountryFlag(activeUser.country)}</span>
-                      <span>{activeUser.country}</span>
-                    </span>
-                  )}
-
-                  {(displayGender || displayAge !== null) && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                      {displayGender && <span>{displayGender}</span>}
-                      {displayGender && displayAge !== null && <span>·</span>}
-                      {displayAge !== null && <span className="tabular-nums">{displayAge} yrs</span>}
-                    </span>
-                  )}
-
-                  {showOnline && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          isOnlineNow ? 'bg-emerald-400' : 'bg-slate-400'
-                        }`}
+                  {/* Prominent Clickable Level Badge + VIP Badge + Super VIP Badge */}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <LevelBadge
+                      level={fullProgression.currentLevel}
+                      size="profile"
+                      progressPercent={fullProgression.percentage}
+                      onClick={() => openProgressionHub('roadmap')}
+                    />
+                    <VipTierBadge
+                      tier={vipTier}
+                      size="md"
+                      onClick={() => openProgressionHub('vip')}
+                    />
+                    {superVipTier > 0 && (
+                      <SuperVipTierBadge
+                        tier={superVipTier}
+                        size="md"
+                        onClick={() => openProgressionHub('super_vip')}
                       />
-                      <span>{isOnlineNow ? 'Online' : 'Offline'}</span>
-                    </span>
+                    )}
+                  </div>
+
+                  {/* Equipped Independent Achievement Badges (up to 3) */}
+                  {equippedBadges.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {equippedBadges.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setIsBadgeVaultOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors"
+                        >
+                          <AchievementBadgeEmblem
+                            shape={b.shape}
+                            iconKey={b.iconKey}
+                            accentFrom={b.accentFrom}
+                            accentTo={b.accentTo}
+                            borderHex={b.borderHex}
+                            isEarned={true}
+                            size="xs"
+                          />
+                          <span>{b.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
 
-                  {activeUser.crewBadge && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold">
-                      <ShieldCheck className="w-3 h-3 text-[#C084FC]" />
-                      <span>{activeUser.crewBadge}</span>
+                  {/* @username + Lenzo Party ID Copy */}
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs">
+                    <span className="text-[#FA26A0] font-mono font-bold truncate max-w-[160px]">
+                      {activeUser.username || `@${activeUser.displayId.toLowerCase()}`}
                     </span>
-                  )}
+                    <span className="text-white/25">·</span>
+                    <button
+                      onClick={handleCopyId}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors"
+                    >
+                      <span>ID: {activeUser.displayId}</span>
+                      {copiedId ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-[#B9AECF]" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Metadata row: Country, Gender/Age (privacy-aware), Online status */}
+                  <div className="flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]">
+                    {activeUser.country && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
+                        <span>{getCountryFlag(activeUser.country)}</span>
+                        <span>{activeUser.country}</span>
+                      </span>
+                    )}
+
+                    {(displayGender || displayAge !== null) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
+                        {displayGender && <span>{displayGender}</span>}
+                        {displayGender && displayAge !== null && <span>·</span>}
+                        {displayAge !== null && <span className="tabular-nums">{displayAge} yrs</span>}
+                      </span>
+                    )}
+
+                    {showOnline && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            isOnlineNow ? 'bg-emerald-400' : 'bg-slate-400'
+                          }`}
+                        />
+                        <span>{isOnlineNow ? 'Online' : 'Offline'}</span>
+                      </span>
+                    )}
+
+                    {activeUser.crewBadge && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold">
+                        <ShieldCheck className="w-3 h-3 text-[#C084FC]" />
+                        <span>{activeUser.crewBadge}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Prominent Clickable Level Emblem Shield (0–100) in Right Open Space */}
+                <button
+                  type="button"
+                  onClick={() => openProgressionHub('roadmap')}
+                  aria-label={`Level ${fullProgression.currentLevel} Emblem — Tap to view all levels 0 to 100`}
+                  className="group shrink-0 self-center flex flex-col items-center justify-center pl-1 py-1 rounded-2xl transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]"
+                >
+                  <LevelEmblemBadge
+                    level={fullProgression.currentLevel}
+                    size="hero"
+                  />
+                  <span className="mt-1 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums">
+                    LV.{fullProgression.currentLevel} · {fullProgression.currentTierName}
+                  </span>
+                </button>
               </div>
 
               {/* Bio */}
@@ -1028,73 +1140,181 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </div>
             </div>
 
-            {/* 4. LEVEL & VIP SYSTEM CARD */}
-            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#1C0E34] via-[#140B24] to-[#110820] border border-white/10 space-y-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#8B20FF] to-[#FA26A0] flex items-center justify-center text-white shrink-0 shadow-md">
-                    <Crown className="w-5 h-5" />
+            {/* 4. FOUR SEPARATE INTERACTIVE PROGRESSION CARDS */}
+            <div className="space-y-3">
+              {/* Card 1: 100-Level Progress Card -> Opens Full 100-Level Roadmap */}
+              <div
+                onClick={() => openProgressionHub('roadmap')}
+                className="p-4 rounded-3xl bg-gradient-to-br from-[#1E0F3A] via-[#140B24] to-[#110820] border border-white/12 hover:border-[#FA26A0]/50 transition-all cursor-pointer space-y-3 group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <LevelEmblemBadge level={fullProgression.currentLevel} size="sm" className="shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-white truncate">
+                        {fullProgression.currentTierName} Tier · Lv.{fullProgression.currentLevel}/100
+                      </p>
+                      <p className="text-[11px] text-[#B9AECF] truncate font-mono tabular-nums">
+                        {fullProgression.isMaxMastery
+                          ? '2B Coin Royal Mastery Complete'
+                          : `${formatCoinsCompact(fullProgression.remainingCoinsNeeded)} coins to Lv.${Math.min(100, fullProgression.currentLevel + 1)}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs font-mono font-black text-[#FFC84A] tabular-nums">
+                      {fullProgression.percentage}%
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-[#B9AECF] group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                <div className="h-2 rounded-full bg-black/55 border border-white/[0.08] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500"
+                    style={{ width: `${Math.max(4, fullProgression.percentage)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Card 2 & Card 3: Separate VIP Membership Card & Super VIP Membership Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Card 2: VIP Membership Card (12 Tiers) */}
+                <button
+                  type="button"
+                  onClick={() => openProgressionHub('vip')}
+                  className="p-4 rounded-3xl bg-gradient-to-br from-[#2A1809] via-[#170C27] to-[#120820] border border-[#FFC84A]/35 hover:border-[#FFC84A]/70 text-left transition-all active:scale-[0.98] space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-[#FFC84A]/15 border border-[#FFC84A]/40 text-[#FFC84A] flex items-center justify-center">
+                      <Crown className="w-4 h-4" />
+                    </div>
+                    <VipTierBadge tier={vipTier} size="xs" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white">VIP Membership</p>
+                    <p className="text-[11px] text-[#D7CEEB] mt-0.5">
+                      {fullProgression.unlockedVipTiers.length}/12 Frames Unlocked
+                    </p>
+                    <p className="text-[10px] text-[#FFC84A] font-semibold mt-1">
+                      {nextVipDef ? `Next: ${nextVipDef.code} at Lv.${nextVipDef.unlockLevel}` : 'All 12 VIP Unlocked'}
+                    </p>
+                  </div>
+                </button>
+
+                {/* Card 3: Super VIP Membership Card (6 Ultra-Premium Tiers) */}
+                <button
+                  type="button"
+                  onClick={() => openProgressionHub('super_vip')}
+                  className="p-4 rounded-3xl bg-gradient-to-br from-[#2B0C4E] via-[#190A31] to-[#120722] border border-fuchsia-400/35 hover:border-fuchsia-400/75 text-left transition-all active:scale-[0.98] space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="w-9 h-9 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/45 text-fuchsia-300 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    {superVipTier > 0 ? (
+                      <SuperVipTierBadge tier={superVipTier} size="xs" />
+                    ) : (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-white/10 text-fuchsia-200">
+                        SVIP 0/6
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white">Super VIP Collection</p>
+                    <p className="text-[11px] text-[#D7CEEB] mt-0.5">
+                      {fullProgression.unlockedSuperVipTiers.length}/6 Animated Frames
+                    </p>
+                    <p className="text-[10px] text-fuchsia-300 font-semibold mt-1">
+                      {nextSuperVipDef
+                        ? `Next: ${nextSuperVipDef.code} at Lv.${nextSuperVipDef.unlockLevel}`
+                        : 'Max Cosmic Gold Unlocked'}
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Card 4: Independent Achievement Badges Card -> Opens Badge Vault */}
+              <div className="p-4 rounded-3xl bg-[#140B24] border border-white/[0.1] space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-[#FFC84A]" />
+                      <span>Achievement Badges</span>
+                    </h2>
+                    <p className="text-[11px] text-[#B9AECF] mt-0.5 tabular-nums">
+                      {earnedBadges.length}/{achievementBadges.length} earned · {equippedBadges.length}/3 equipped
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => openProgressionHub('achievements')}
+                    className="px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border border-white/10 text-white text-xs font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <span>Badge Vault</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {(equippedBadges.length > 0 ? equippedBadges : achievementBadges.slice(0, 4))
+                    .slice(0, 4)
+                    .map((badge) => (
+                      <button
+                        key={badge.id}
+                        onClick={() => setIsBadgeVaultOpen(true)}
+                        className={`p-2.5 rounded-2xl border flex flex-col items-center text-center gap-1.5 transition-all ${
+                          badge.isEarned
+                            ? 'bg-[#1D1036] border-white/15 hover:border-[#FA26A0]/55'
+                            : 'bg-white/[0.02] border-white/[0.06] opacity-70'
+                        }`}
+                      >
+                        <AchievementBadgeEmblem
+                          shape={badge.shape}
+                          iconKey={badge.iconKey}
+                          accentFrom={badge.accentFrom}
+                          accentTo={badge.accentTo}
+                          borderHex={badge.borderHex}
+                          isEarned={badge.isEarned}
+                          size="sm"
+                        />
+                        <span className="text-[10px] font-bold text-white line-clamp-1">
+                          {badge.name}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Admin-Only Progression Console Card (Strictly Visible Only to Authorized Admin) */}
+            {isOwner && currentUser.isAdmin && onOpenAdminPanel && (
+              <button
+                type="button"
+                onClick={onOpenAdminPanel}
+                className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#24103F] to-fuchsia-500/15 border border-[#FFC84A]/50 hover:border-[#FFC84A] flex items-center justify-between gap-3 text-left transition-all"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#FFC84A]/20 text-[#FFC84A] flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-extrabold text-white">
-                        Level {levelProgress.currentLevel}
-                      </span>
-                      <span className="text-[11px] font-bold text-[#FFC84A]">
-                        {levelProgress.tierDetails.badgeLabel} Tier
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#B9AECF] truncate">
-                      {isVipMember
-                        ? `VIP Tier ${vipTier || 1} Active · Exclusive Frame Unlocked`
-                        : 'Unlock VIP frames & perks as you level up'}
+                    <p className="text-xs font-black text-white">Admin Progression Panel</p>
+                    <p className="text-[10px] text-[#C5B9DE] truncate">
+                      Manage 100 levels, 12 VIP, 6 Super VIP, achievements &amp; audit logs
                     </p>
                   </div>
                 </div>
-
-                <span className="text-xs font-mono font-bold text-white tabular-nums shrink-0">
-                  {levelProgress.progressPercent}%
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="h-2.5 rounded-full bg-black/50 border border-white/[0.08] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500"
-                    style={{ width: `${Math.max(4, levelProgress.progressPercent)}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[#B9AECF] tabular-nums">
-                  <span>
-                    {levelProgress.remainingExp > 0
-                      ? `${levelProgress.remainingExp.toLocaleString()} EXP to Level ${levelProgress.currentLevel + 1}`
-                      : 'Maximum Level Reached'}
-                  </span>
-                  <span className="font-mono text-[#D7CEEB]">
-                    {levelProgress.expInCurrentLevel.toLocaleString()} /{' '}
-                    {Math.max(1, levelProgress.expNeededForNextLevel).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                onClick={onOpenLevelVIP || onOpenVIP}
-                className="w-full py-2.5 px-4 rounded-xl bg-white/[0.07] hover:bg-white/[0.13] border border-white/10 text-white text-xs font-bold flex items-center justify-between transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#FFC84A]" />
-                  <span>View Level Roadmap & VIP Perks</span>
-                </span>
-                <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
+                <ChevronRight className="w-4 h-4 text-[#FFC84A] shrink-0" />
               </button>
-            </div>
+            )}
 
             {/* 5. AGENCY & CREW SECTION */}
             <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5">
                   <Building2 className="w-4 h-4 text-[#A855F7]" />
-                  <span>Agency & Crew</span>
+                  <span>Agency &amp; Crew</span>
                 </h2>
                 {isOwner && (
                   <button
@@ -1156,62 +1376,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   )}
                 </div>
               )}
-            </div>
-
-            {/* 6. PROFILE BADGES & BADGE VAULT */}
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5">
-                    <Award className="w-4 h-4 text-[#FFC84A]" />
-                    <span>Profile Badges</span>
-                  </h2>
-                  <p className="text-[11px] text-[#B9AECF] mt-0.5 tabular-nums">
-                    {earnedBadges.length} earned · {equippedBadges.length}/3 equipped
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setIsBadgeVaultOpen(true)}
-                  className="px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.13] border border-white/10 text-white text-xs font-bold flex items-center gap-1 transition-colors"
-                >
-                  <span>Badge Vault</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2">
-                {(equippedBadges.length > 0 ? equippedBadges : badges.slice(0, 4))
-                  .slice(0, 4)
-                  .map((badge) => (
-                    <button
-                      key={badge.id}
-                      onClick={() => setIsBadgeVaultOpen(true)}
-                      className={`p-2.5 rounded-2xl border flex flex-col items-center text-center gap-1.5 transition-all ${
-                        badge.isEarned
-                          ? 'bg-[#1D1036] border-white/15 hover:border-[#FA26A0]/50'
-                          : 'bg-white/[0.02] border-white/[0.06] opacity-65'
-                      }`}
-                    >
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white relative"
-                        style={{
-                          background: badge.isEarned
-                            ? `linear-gradient(135deg, ${badge.accentFrom}, ${badge.accentTo})`
-                            : 'rgba(255,255,255,0.06)',
-                        }}
-                      >
-                        {renderBadgeIcon(badge.iconKey, 'w-4 h-4')}
-                        {!badge.isEarned && (
-                          <Lock className="w-2.5 h-2.5 text-[#B9AECF] absolute -bottom-0.5 -right-0.5" />
-                        )}
-                      </div>
-                      <span className="text-[10px] font-bold text-white line-clamp-1">
-                        {badge.name}
-                      </span>
-                    </button>
-                  ))}
-              </div>
             </div>
           </div>
 

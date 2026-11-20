@@ -58,7 +58,18 @@ export interface FirestoreUserData {
   diamonds?: number;
   vipLevel?: number;
   isVIP?: boolean;
+  superVipLevel?: number;
+  isSuperVIP?: boolean;
+  activeFrameType?: 'none' | 'vip' | 'super_vip';
   equippedVipFrame?: number;
+  equippedSuperVipFrame?: number;
+  totalQualifyingCoinsSpent?: number;
+  unlockedVipTiers?: number[];
+  unlockedSuperVipTiers?: number[];
+  earnedAchievements?: Array<{ badgeId: string; earnedAt: string; source?: string }>;
+  giftsSentCount?: number;
+  pkWinsCount?: number;
+  eventsWonCount?: number;
   gender?: 'female' | 'male' | 'other' | 'unspecified';
   country?: string;
   birthday?: string;
@@ -99,22 +110,40 @@ export function mapFirestoreUserToProfile(
   const displayId = data.displayId || data.uid.substring(0, 6).toUpperCase();
   const rawEmailName = data.email ? data.email.split('@')[0] : 'user';
   const username = data.username || `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()}`;
-  const vipTier = data.equippedVipFrame ?? data.vipLevel ?? 0;
+  const vipTier = data.vipLevel ?? data.equippedVipFrame ?? 0;
+  const superVipTier = data.superVipLevel ?? data.equippedSuperVipFrame ?? 0;
+  const userEmail = data.email || fallbackUser?.email || '';
 
   return {
     id: data.uid,
     displayId: displayId,
     name: data.fullName || fallbackUser?.displayName || 'User',
     username: username,
+    email: userEmail,
     avatar: data.profileImage || fallbackUser?.photoURL || DEFAULT_AVATARS[0],
     coverImage: data.coverImage || '',
     bio: data.bio || '',
-    level: data.level || 1,
+    level:
+      typeof data.level === 'number'
+        ? Math.max(0, Math.min(100, Math.floor(data.level)))
+        : 0,
     currentExp: 0,
-    nextLevelExp: 500,
+    nextLevelExp: 1000000,
+    totalQualifyingCoinsSpent: data.totalQualifyingCoinsSpent ?? 0,
     vipLevel: vipTier || 0,
     isVIP: data.isVIP ?? vipTier > 0,
-    equippedVipFrame: data.equippedVipFrame,
+    superVipLevel: superVipTier || 0,
+    isSuperVIP: data.isSuperVIP ?? superVipTier > 0,
+    activeFrameType: data.activeFrameType || (data.equippedSuperVipFrame ? 'super_vip' : data.equippedVipFrame ? 'vip' : 'none'),
+    equippedVipFrame: data.equippedVipFrame ?? 0,
+    equippedSuperVipFrame: data.equippedSuperVipFrame ?? 0,
+    unlockedVipTiers: Array.isArray(data.unlockedVipTiers) ? data.unlockedVipTiers : [],
+    unlockedSuperVipTiers: Array.isArray(data.unlockedSuperVipTiers) ? data.unlockedSuperVipTiers : [],
+    earnedAchievements: Array.isArray(data.earnedAchievements) ? data.earnedAchievements : [],
+    giftsSentCount: data.giftsSentCount ?? 0,
+    pkWinsCount: data.pkWinsCount ?? 0,
+    eventsWonCount: data.eventsWonCount ?? 0,
+    isAdmin: userEmail.toLowerCase() === 'yaquoobe@gmail.com',
     fansCount: (data.followersCount || 0).toLocaleString(),
     followersCount: data.followersCount || 0,
     followingCount: data.followingCount || 0,
@@ -129,7 +158,7 @@ export function mapFirestoreUserToProfile(
     showGender: data.showGender ?? true,
     showAge: data.showAge ?? true,
     showOnlineStatus: data.showOnlineStatus ?? true,
-    equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges : [],
+    equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges.slice(0, 3) : [],
     agencyId: data.agencyId || '',
     agencyName: data.agencyName || '',
     agencyCode: data.agencyCode || '',
@@ -204,7 +233,7 @@ export async function syncUserInFirestore(
         isOnline: true,
         followersCount: 0,
         followingCount: 0,
-        level: 1,
+        level: 0,
         coins: 0,
         diamonds: 0,
         vipLevel: 0,

@@ -37,23 +37,43 @@ export type ScreenType =
 
 export type PlatformViewMode = 'responsive' | 'mobile_ios' | 'mobile_android' | 'desktop';
 
-export type LevelTier = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'emperor';
+export type LevelTier =
+  | 'bronze'
+  | 'silver'
+  | 'gold'
+  | 'platinum'
+  | 'diamond'
+  | 'ruby'
+  | 'emerald'
+  | 'sapphire'
+  | 'crown'
+  | 'royal';
 
 export interface UserProfile {
   id: string;
   displayId: string;
   name: string;
   username?: string; // e.g. @username
+  email?: string;
   avatar: string;
   coverImage?: string;
   bio: string;
   level: number;
   currentExp?: number;
   nextLevelExp?: number;
+  totalQualifyingCoinsSpent?: number;
   totalGiftsReceived?: number;
   totalGiftsValue?: number; // in coins
-  vipLevel: number;
+  giftsSentCount?: number;
+  vipLevel: number; // 0..12
   isVIP: boolean;
+  superVipLevel?: number; // 0..6
+  isSuperVIP?: boolean;
+  activeFrameType?: 'none' | 'vip' | 'super_vip';
+  equippedVipFrame?: number; // 0..12
+  equippedSuperVipFrame?: number; // 0..6
+  unlockedVipTiers?: number[];
+  unlockedSuperVipTiers?: number[];
   fansCount: string;
   followersCount?: number;
   followingCount: number;
@@ -69,8 +89,8 @@ export interface UserProfile {
   showAge?: boolean;
   showOnlineStatus?: boolean;
   isFollowing?: boolean;
-  equippedVipFrame?: number;
-  equippedBadges?: string[];
+  equippedBadges?: string[]; // max 3 achievement badge IDs
+  earnedAchievements?: Array<{ badgeId: string; earnedAt: string; source?: string }>;
   agencyId?: string;
   agencyName?: string;
   agencyCode?: string;
@@ -83,6 +103,9 @@ export interface UserProfile {
   likedVideoIds?: string[];
   liveSessionsHosted?: number;
   loginStreakDays?: number;
+  pkWinsCount?: number;
+  eventsWonCount?: number;
+  isAdmin?: boolean;
   createdAt?: string;
 }
 

@@ -6,6 +6,27 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import agoraTokenPkg from 'agora-token';
+import {
+  ALL_100_LEVELS,
+  ACHIEVEMENT_BADGE_DEFINITIONS,
+  ActiveFrameType,
+  AchievementBadgeDefinition,
+  EarnedAchievementRecord,
+  LEVEL_TIER_CONFIGS,
+  MAX_EQUIPPED_ACHIEVEMENT_BADGES,
+  SUPER_VIP_TIER_DEFINITIONS,
+  SuperVipTierDefinition,
+  UserActivityMetrics,
+  VIP_TIER_DEFINITIONS,
+  VipTierDefinition,
+  calculateProgressionState,
+  detectMilestoneUnlocks,
+  evaluateAchievementBadges,
+  getLevelDefinition,
+  getProgressionMathAudit,
+  getSuperVipTierDefinition,
+  getVipTierDefinition,
+} from './src/shared/progressionEngine';
 
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
 
@@ -30,7 +51,18 @@ server.on('error', (err) => {
   console.error('HTTP server error:', err);
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Graceful JSON handler for oversized payloads
+app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({
+      error: 'Uploaded file or request payload is too large. Please choose an image under 5MB.',
+    });
+  }
+  next(err);
+});
 
 // CORS Middleware supporting Cloudflare frontend (lenzoparty.com / FRONTEND_URL), Railway API (api.lenzoparty.com),
 // Capacitor Android WebView (https://localhost / capacitor://localhost), local dev, and Cloud Run
@@ -3196,6 +3228,908 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
     console.error('Error generating Agora RTC token:', err);
     res.status(500).json({ error: 'Failed to generate RTC token', details: err.message });
   }
+});
+
+// ============================================================================
+// AUTHORITATIVE 100-LEVEL, 12-VIP, 6-SUPER-VIP, ACHIEVEMENT & ADMIN ENGINE
+// ============================================================================
+
+interface ServerUserProgressionRecord {
+  userId: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
+  totalQualifyingCoinsSpent: number;
+  activeFrameType: ActiveFrameType;
+  equippedVipFrame: number;
+  equippedSuperVipFrame: number;
+  earnedAchievements: EarnedAchievementRecord[];
+  equippedAchievementBadges: string[];
+  metrics: UserActivityMetrics;
+  updatedAt: string;
+}
+
+interface ProgressionAuditLogEntry {
+  id: string;
+  timestamp: string;
+  actorId: string;
+  actorEmail?: string;
+  targetUserId?: string;
+  action:
+    | 'coin_spend_progression'
+    | 'frame_equipped'
+    | 'achievement_awarded'
+    | 'achievement_equipped'
+    | 'admin_config_updated'
+    | 'admin_user_adjusted';
+  summary: string;
+  details: Record<string, any>;
+}
+
+interface ProgressionUnlockHistoryRecord {
+  id: string;
+  userId: string;
+  type:
+    | 'level_up'
+    | 'tier_up'
+    | 'vip_unlock'
+    | 'super_vip_unlock'
+    | 'achievement_earned'
+    | 'frame_equipped'
+    | 'admin_adjustment';
+  title: string;
+  detail: string;
+  oldLevel?: number;
+  newLevel?: number;
+  coinsDelta?: number;
+  transactionId?: string;
+  createdAt: string;
+}
+
+interface ProgressionDynamicOverrides {
+  levelPerksOverrides: Record<number, string[]>;
+  vipOverrides: Record<number, Partial<Pick<VipTierDefinition, 'name' | 'frameName' | 'perks'>>>;
+  superVipOverrides: Record<number, Partial<Pick<SuperVipTierDefinition, 'name' | 'frameName' | 'perks'>>>;
+  achievementOverrides: Record<string, Partial<Pick<AchievementBadgeDefinition, 'name' | 'description' | 'unlockConditionText' | 'targetValue'>>>;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+const PROGRESSION_STORE_PATH = path.resolve(__dirname, '.lenzo_progression_store.json');
+const userProgressionStore = new Map<string, ServerUserProgressionRecord>();
+const progressionProcessedTxIds = new Map<string, { userId: string; response: any; processedAt: number }>();
+const progressionUnlockHistory: ProgressionUnlockHistoryRecord[] = [];
+const progressionAuditLogs: ProgressionAuditLogEntry[] = [];
+
+let progressionOverrides: ProgressionDynamicOverrides = {
+  levelPerksOverrides: {},
+  vipOverrides: {},
+  superVipOverrides: {},
+  achievementOverrides: {},
+  updatedAt: new Date().toISOString(),
+  updatedBy: 'system',
+};
+
+function loadProgressionStoreFromDisk() {
+  try {
+    if (!fs.existsSync(PROGRESSION_STORE_PATH)) return;
+    const raw = JSON.parse(fs.readFileSync(PROGRESSION_STORE_PATH, 'utf8'));
+    if (Array.isArray(raw.users)) {
+      for (const rec of raw.users) {
+        if (rec && rec.userId) userProgressionStore.set(rec.userId, rec);
+      }
+    }
+    if (Array.isArray(raw.unlockHistory)) {
+      progressionUnlockHistory.push(...raw.unlockHistory.slice(0, 500));
+    }
+    if (Array.isArray(raw.auditLogs)) {
+      progressionAuditLogs.push(...raw.auditLogs.slice(0, 500));
+    }
+    if (raw.overrides && typeof raw.overrides === 'object') {
+      progressionOverrides = {
+        ...progressionOverrides,
+        ...raw.overrides,
+      };
+    }
+  } catch (err) {
+    console.warn('[Progression] Could not hydrate disk cache:', err);
+  }
+}
+
+function persistProgressionStoreToDisk() {
+  try {
+    const payload = {
+      users: Array.from(userProgressionStore.values()),
+      unlockHistory: progressionUnlockHistory.slice(0, 500),
+      auditLogs: progressionAuditLogs.slice(0, 500),
+      overrides: progressionOverrides,
+    };
+    fs.writeFileSync(PROGRESSION_STORE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+  } catch {
+    // non-fatal on ephemeral filesystems
+  }
+}
+
+loadProgressionStoreFromDisk();
+
+function getEffectiveLevels() {
+  return ALL_100_LEVELS.map((lvl) => ({
+    ...lvl,
+    perks: progressionOverrides.levelPerksOverrides[lvl.level] || lvl.perks,
+  }));
+}
+
+function getEffectiveVipTiers(): VipTierDefinition[] {
+  return VIP_TIER_DEFINITIONS.map((v) => ({
+    ...v,
+    ...(progressionOverrides.vipOverrides[v.tier] || {}),
+  }));
+}
+
+function getEffectiveSuperVipTiers(): SuperVipTierDefinition[] {
+  return SUPER_VIP_TIER_DEFINITIONS.map((sv) => ({
+    ...sv,
+    ...(progressionOverrides.superVipOverrides[sv.tier] || {}),
+  }));
+}
+
+function getEffectiveAchievements(): AchievementBadgeDefinition[] {
+  return ACHIEVEMENT_BADGE_DEFINITIONS.map((a) => ({
+    ...a,
+    ...(progressionOverrides.achievementOverrides[a.id] || {}),
+  }));
+}
+
+function getOrCreateUserProgressionRecord(
+  userId: string,
+  meta?: { name?: string; avatar?: string; email?: string }
+): ServerUserProgressionRecord {
+  let rec = userProgressionStore.get(userId);
+  if (!rec) {
+    rec = {
+      userId,
+      userName: meta?.name || '',
+      userAvatar: meta?.avatar || '',
+      userEmail: meta?.email || '',
+      totalQualifyingCoinsSpent: 0,
+      activeFrameType: 'none',
+      equippedVipFrame: 0,
+      equippedSuperVipFrame: 0,
+      earnedAchievements: [],
+      equippedAchievementBadges: [],
+      metrics: {
+        totalQualifyingCoinsSpent: 0,
+        diamondsEarned: 0,
+        publicVideosCount: 0,
+        liveSessionsHosted: 0,
+        loginStreakDays: 1,
+        giftsSentCount: 0,
+        followersCount: 0,
+        followingCount: 0,
+        totalLikesCount: 0,
+        hasAgency: false,
+        pkWinsCount: 0,
+        eventsWonCount: 0,
+        profileCompletedSteps: 0,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    userProgressionStore.set(userId, rec);
+  } else {
+    if (meta?.name) rec.userName = meta.name;
+    if (meta?.avatar) rec.userAvatar = meta.avatar;
+    if (meta?.email) rec.userEmail = meta.email;
+  }
+  return rec;
+}
+
+function buildUserProgressionPayload(rec: ServerUserProgressionRecord) {
+  const computed = calculateProgressionState(rec.totalQualifyingCoinsSpent, {
+    userId: rec.userId,
+    activeFrameType: rec.activeFrameType,
+    equippedVipFrame: rec.equippedVipFrame,
+    equippedSuperVipFrame: rec.equippedSuperVipFrame,
+    equippedAchievementBadges: rec.equippedAchievementBadges,
+  });
+
+  const effectiveAchievements = getEffectiveAchievements();
+  const evaluated = evaluateAchievementBadges(
+    { ...rec.metrics, totalQualifyingCoinsSpent: rec.totalQualifyingCoinsSpent },
+    rec.earnedAchievements,
+    rec.equippedAchievementBadges,
+    effectiveAchievements
+  );
+
+  // Sync newly earned achievements deterministically (exact once with timestamp)
+  const existingEarnedIds = new Set(rec.earnedAchievements.map((e) => e.badgeId));
+  const newlyEarnedDefs: AchievementBadgeDefinition[] = [];
+  const nowIso = new Date().toISOString();
+
+  for (const item of evaluated) {
+    if (item.isEarned && !existingEarnedIds.has(item.id)) {
+      rec.earnedAchievements.push({
+        badgeId: item.id,
+        earnedAt: nowIso,
+        source: 'system_verified',
+      });
+      item.earnedAt = nowIso;
+      existingEarnedIds.add(item.id);
+      newlyEarnedDefs.push(item);
+
+      progressionUnlockHistory.unshift({
+        id: `uh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId: rec.userId,
+        type: 'achievement_earned',
+        title: `Achievement Earned: ${item.name}`,
+        detail: item.unlockConditionText,
+        createdAt: nowIso,
+      });
+    }
+  }
+
+  return {
+    progression: {
+      userId: rec.userId,
+      currentLevel: computed.currentLevel,
+      currentTier: computed.currentTierId,
+      currentTierName: computed.currentTierName,
+      totalQualifyingCoinsSpent: computed.totalQualifyingCoinsSpent,
+      coinsInCurrentLevel: computed.coinsInCurrentLevel,
+      coinsNeededForNextLevel: computed.coinsForCurrentLevel,
+      remainingCoinsNeeded: computed.remainingCoinsNeeded,
+      percentage: computed.percentage,
+      isMaxLevel: computed.isMaxLevel,
+      isMaxMastery: computed.isMaxMastery,
+      highestUnlockedVipTier: computed.highestUnlockedVipTier,
+      unlockedVipTiers: computed.unlockedVipTiers,
+      highestUnlockedSuperVipTier: computed.highestUnlockedSuperVipTier,
+      unlockedSuperVipTiers: computed.unlockedSuperVipTiers,
+      activeFrameType: computed.activeFrameType,
+      equippedVipFrame: computed.equippedVipFrame,
+      equippedSuperVipFrame: computed.equippedSuperVipFrame,
+      earnedAchievements: rec.earnedAchievements,
+      equippedAchievementBadges: computed.equippedAchievementBadges,
+      updatedAt: rec.updatedAt,
+    },
+    achievements: evaluated,
+    newlyEarnedDefs,
+  };
+}
+
+function appendAuditLog(entry: Omit<ProgressionAuditLogEntry, 'id' | 'timestamp'>) {
+  progressionAuditLogs.unshift({
+    id: `aud_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    ...entry,
+  });
+  if (progressionAuditLogs.length > 500) progressionAuditLogs.length = 500;
+}
+
+function requireAdminMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({
+      error: 'Forbidden: Administrator privileges (verified admin account) are required.',
+    });
+  }
+  return next();
+}
+
+// 1. Public Progression Configuration & Mathematical Audit
+app.get('/api/progression/config', (_req: Request, res: Response) => {
+  res.json({
+    audit: getProgressionMathAudit(),
+    tiers: LEVEL_TIER_CONFIGS,
+    levels: getEffectiveLevels(),
+    vipTiers: getEffectiveVipTiers(),
+    superVipTiers: getEffectiveSuperVipTiers(),
+    achievements: getEffectiveAchievements(),
+    maxEquippedAchievements: MAX_EQUIPPED_ACHIEVEMENT_BADGES,
+    updatedAt: progressionOverrides.updatedAt,
+  });
+});
+
+// 2. Get Authoritative User Progression, Verified Achievements & Unlock History
+app.get('/api/progression/user/:userId', (req: AuthenticatedRequest, res: Response) => {
+  const userId = sanitizeText(req.params.userId, 128);
+  if (!userId) {
+    return res.status(400).json({ error: 'Valid userId is required.' });
+  }
+  const rec = getOrCreateUserProgressionRecord(userId);
+  const { progression, achievements } = buildUserProgressionPayload(rec);
+  const unlockHistory = progressionUnlockHistory.filter((h) => h.userId === userId).slice(0, 50);
+
+  return res.json({
+    progression,
+    achievements,
+    unlockHistory,
+  });
+});
+
+// 3. Atomic Qualifying Coin Spend -> Automatic Multi-Level, VIP, Super VIP & Achievement Progression
+app.post('/api/progression/spend', (req: AuthenticatedRequest, res: Response) => {
+  const bodyUserId = sanitizeText(req.body?.userId, 128);
+  const userId = req.firebaseUser?.uid || bodyUserId;
+  const coinsSpent = Math.floor(Number(req.body?.coinsSpent || 0));
+  const transactionId = sanitizeText(req.body?.transactionId, 128);
+  const reason = sanitizeText(req.body?.reason || 'gift_sent', 80);
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+  if (!Number.isFinite(coinsSpent) || coinsSpent <= 0 || coinsSpent > 2_000_000_000) {
+    return res.status(400).json({ error: 'coinsSpent must be a positive integer.' });
+  }
+
+  // Idempotency guard: duplicate transactionId returns cached response without double-counting
+  if (transactionId && progressionProcessedTxIds.has(transactionId)) {
+    const cached = progressionProcessedTxIds.get(transactionId)!;
+    return res.status(200).json({
+      ...cached.response,
+      duplicate: true,
+    });
+  }
+
+  const snap = req.body?.userSnapshot || {};
+  const rec = getOrCreateUserProgressionRecord(userId, {
+    name: sanitizeText(snap.name || req.firebaseUser?.name || '', 80),
+    avatar: sanitizeText(snap.avatar || req.firebaseUser?.picture || '', 1200),
+    email: sanitizeText(snap.email || req.firebaseUser?.email || '', 120),
+  });
+
+  const oldTotalCoins = rec.totalQualifyingCoinsSpent;
+  const newTotalCoins = oldTotalCoins + coinsSpent;
+  const diff = detectMilestoneUnlocks(oldTotalCoins, newTotalCoins);
+
+  rec.totalQualifyingCoinsSpent = newTotalCoins;
+  rec.metrics.totalQualifyingCoinsSpent = newTotalCoins;
+  rec.metrics.giftsSentCount = (rec.metrics.giftsSentCount || 0) + 1;
+  if (snap.metrics && typeof snap.metrics === 'object') {
+    if (typeof snap.metrics.diamondsEarned === 'number') rec.metrics.diamondsEarned = Math.max(rec.metrics.diamondsEarned, snap.metrics.diamondsEarned);
+    if (typeof snap.metrics.publicVideosCount === 'number') rec.metrics.publicVideosCount = Math.max(rec.metrics.publicVideosCount, snap.metrics.publicVideosCount);
+    if (typeof snap.metrics.liveSessionsHosted === 'number') rec.metrics.liveSessionsHosted = Math.max(rec.metrics.liveSessionsHosted, snap.metrics.liveSessionsHosted);
+    if (typeof snap.metrics.loginStreakDays === 'number') rec.metrics.loginStreakDays = Math.max(rec.metrics.loginStreakDays, snap.metrics.loginStreakDays);
+    if (typeof snap.metrics.followersCount === 'number') rec.metrics.followersCount = Math.max(rec.metrics.followersCount, snap.metrics.followersCount);
+    if (typeof snap.metrics.followingCount === 'number') rec.metrics.followingCount = Math.max(rec.metrics.followingCount, snap.metrics.followingCount);
+    if (typeof snap.metrics.totalLikesCount === 'number') rec.metrics.totalLikesCount = Math.max(rec.metrics.totalLikesCount, snap.metrics.totalLikesCount);
+    if (typeof snap.metrics.hasAgency === 'boolean') rec.metrics.hasAgency = rec.metrics.hasAgency || snap.metrics.hasAgency;
+    if (typeof snap.metrics.profileCompletedSteps === 'number') rec.metrics.profileCompletedSteps = Math.max(rec.metrics.profileCompletedSteps, snap.metrics.profileCompletedSteps);
+  }
+  rec.updatedAt = new Date().toISOString();
+
+  const { progression, achievements, newlyEarnedDefs } = buildUserProgressionPayload(rec);
+  const nowIso = new Date().toISOString();
+
+  // Record exact-once unlock history entries for every crossed milestone
+  if (diff.leveledUp) {
+    progressionUnlockHistory.unshift({
+      id: `uh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userId,
+      type: diff.tierChanged ? 'tier_up' : 'level_up',
+      title: diff.tierChanged
+        ? `Reached Level ${diff.newLevel} (${progression.currentTierName} Tier)`
+        : `Leveled Up: Lv ${diff.oldLevel} → Lv ${diff.newLevel}`,
+      detail: `Spent ${coinsSpent.toLocaleString()} coins (${reason})`,
+      oldLevel: diff.oldLevel,
+      newLevel: diff.newLevel,
+      coinsDelta: coinsSpent,
+      transactionId: transactionId || undefined,
+      createdAt: nowIso,
+    });
+  }
+
+  for (const vipDef of diff.newlyUnlockedVipFrames) {
+    progressionUnlockHistory.unshift({
+      id: `uh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userId,
+      type: 'vip_unlock',
+      title: `Unlocked ${vipDef.code} — ${vipDef.frameName}`,
+      detail: `Milestone reached at Level ${vipDef.unlockLevel}`,
+      newLevel: diff.newLevel,
+      transactionId: transactionId || undefined,
+      createdAt: nowIso,
+    });
+  }
+
+  for (const svDef of diff.newlyUnlockedSuperVipFrames) {
+    progressionUnlockHistory.unshift({
+      id: `uh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      userId,
+      type: 'super_vip_unlock',
+      title: `Unlocked ${svDef.code} — ${svDef.frameName}`,
+      detail: `Super VIP milestone reached at Level ${svDef.unlockLevel}`,
+      newLevel: diff.newLevel,
+      transactionId: transactionId || undefined,
+      createdAt: nowIso,
+    });
+  }
+
+  appendAuditLog({
+    actorId: userId,
+    actorEmail: req.firebaseUser?.email,
+    targetUserId: userId,
+    action: 'coin_spend_progression',
+    summary: `Qualifying spend +${coinsSpent.toLocaleString()} coins (${oldTotalCoins.toLocaleString()} → ${newTotalCoins.toLocaleString()}) · Lv ${diff.oldLevel} → Lv ${diff.newLevel}`,
+    details: {
+      coinsSpent,
+      oldTotalCoins,
+      newTotalCoins,
+      oldLevel: diff.oldLevel,
+      newLevel: diff.newLevel,
+      newlyUnlockedVipTiers: diff.newlyUnlockedVipTiers,
+      newlyUnlockedSuperVipTiers: diff.newlyUnlockedSuperVipTiers,
+      newlyEarnedAchievements: newlyEarnedDefs.map((d) => d.id),
+      transactionId: transactionId || null,
+      reason,
+    },
+  });
+
+  const latestVip = diff.newlyUnlockedVipFrames[diff.newlyUnlockedVipFrames.length - 1];
+  const latestSuperVip = diff.newlyUnlockedSuperVipFrames[diff.newlyUnlockedSuperVipFrames.length - 1];
+
+  const levelUpEvent =
+    diff.leveledUp || newlyEarnedDefs.length > 0
+      ? {
+          oldLevel: diff.oldLevel,
+          newLevel: diff.newLevel,
+          oldTier: diff.oldTierId,
+          newTier: diff.newTierId,
+          tierChanged: diff.tierChanged,
+          coinsSpent,
+          badge: getLevelDefinition(diff.newLevel),
+          unlockedVipFrame: latestVip
+            ? {
+                ...latestVip,
+                borderColor: latestVip.primaryColor,
+                glowColor: latestVip.glowColor,
+                gradientBg: latestVip.gradientCss,
+                badgeIcon: latestVip.code,
+              }
+            : undefined,
+          unlockedVipFrames: diff.newlyUnlockedVipFrames,
+          unlockedSuperVipFrame: latestSuperVip,
+          unlockedSuperVipFrames: diff.newlyUnlockedSuperVipFrames,
+          newlyEarnedAchievements: newlyEarnedDefs,
+        }
+      : undefined;
+
+  const responsePayload = {
+    success: true,
+    duplicate: false,
+    progression,
+    achievements,
+    levelUpEvent,
+  };
+
+  if (transactionId) {
+    progressionProcessedTxIds.set(transactionId, {
+      userId,
+      response: responsePayload,
+      processedAt: Date.now(),
+    });
+  }
+
+  persistProgressionStoreToDisk();
+  broadcastToUser(userId, 'progression:updated', responsePayload);
+
+  return res.json(responsePayload);
+});
+
+// 4. Equip Active Profile Frame (VIP 1..12 OR Super VIP 1..6 OR None) — Server-Validated!
+app.post('/api/progression/equip-frame', (req: AuthenticatedRequest, res: Response) => {
+  const bodyUserId = sanitizeText(req.body?.userId, 128);
+  const userId = req.firebaseUser?.uid || bodyUserId;
+  const frameType = req.body?.frameType as ActiveFrameType;
+  const tier = Math.floor(Number(req.body?.tier || 0));
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+  if (!['none', 'vip', 'super_vip'].includes(frameType)) {
+    return res.status(400).json({ error: 'frameType must be "none", "vip", or "super_vip".' });
+  }
+
+  const rec = getOrCreateUserProgressionRecord(userId);
+  const current = calculateProgressionState(rec.totalQualifyingCoinsSpent, {
+    userId,
+    activeFrameType: rec.activeFrameType,
+    equippedVipFrame: rec.equippedVipFrame,
+    equippedSuperVipFrame: rec.equippedSuperVipFrame,
+  });
+
+  if (frameType === 'none' || tier <= 0) {
+    rec.activeFrameType = 'none';
+    rec.equippedVipFrame = 0;
+    rec.equippedSuperVipFrame = 0;
+  } else if (frameType === 'vip') {
+    const def = getVipTierDefinition(tier);
+    if (!def) {
+      return res.status(400).json({ error: 'Invalid VIP tier (must be 1–12).' });
+    }
+    if (!current.unlockedVipTiers.includes(tier)) {
+      return res.status(403).json({
+        error: `${def.code} (${def.frameName}) is locked. Reach Level ${def.unlockLevel} to unlock it.`,
+        requiredLevel: def.unlockLevel,
+        currentLevel: current.currentLevel,
+      });
+    }
+    rec.activeFrameType = 'vip';
+    rec.equippedVipFrame = tier;
+    rec.equippedSuperVipFrame = 0; // Mutually exclusive: prevents overlap
+  } else if (frameType === 'super_vip') {
+    const def = getSuperVipTierDefinition(tier);
+    if (!def) {
+      return res.status(400).json({ error: 'Invalid Super VIP tier (must be 1–6).' });
+    }
+    if (!current.unlockedSuperVipTiers.includes(tier)) {
+      return res.status(403).json({
+        error: `${def.code} (${def.frameName}) is locked. Reach Level ${def.unlockLevel} to unlock it.`,
+        requiredLevel: def.unlockLevel,
+        currentLevel: current.currentLevel,
+      });
+    }
+    rec.activeFrameType = 'super_vip';
+    rec.equippedSuperVipFrame = tier;
+    rec.equippedVipFrame = 0; // Mutually exclusive: prevents overlap
+  }
+
+  rec.updatedAt = new Date().toISOString();
+  const { progression } = buildUserProgressionPayload(rec);
+
+  appendAuditLog({
+    actorId: userId,
+    actorEmail: req.firebaseUser?.email,
+    targetUserId: userId,
+    action: 'frame_equipped',
+    summary:
+      rec.activeFrameType === 'none'
+        ? 'Unequipped profile frame'
+        : `Equipped ${rec.activeFrameType === 'super_vip' ? `SUPER VIP ${rec.equippedSuperVipFrame}` : `VIP ${rec.equippedVipFrame}`} frame`,
+    details: {
+      activeFrameType: rec.activeFrameType,
+      equippedVipFrame: rec.equippedVipFrame,
+      equippedSuperVipFrame: rec.equippedSuperVipFrame,
+    },
+  });
+
+  persistProgressionStoreToDisk();
+
+  return res.json({
+    success: true,
+    message:
+      rec.activeFrameType === 'none'
+        ? 'Profile frame removed.'
+        : rec.activeFrameType === 'super_vip'
+        ? `Super VIP ${rec.equippedSuperVipFrame} frame equipped.`
+        : `VIP ${rec.equippedVipFrame} frame equipped.`,
+    progression,
+  });
+});
+
+// 5. Evaluate Independent Achievement Badges from Verified Activity Metrics
+app.post('/api/progression/achievements/evaluate', (req: AuthenticatedRequest, res: Response) => {
+  const bodyUserId = sanitizeText(req.body?.userId, 128);
+  const userId = req.firebaseUser?.uid || bodyUserId;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+
+  const rec = getOrCreateUserProgressionRecord(userId);
+  const m = req.body?.metrics || {};
+  if (typeof m.diamondsEarned === 'number' && m.diamondsEarned >= 0) {
+    rec.metrics.diamondsEarned = Math.max(rec.metrics.diamondsEarned, Math.floor(m.diamondsEarned));
+  }
+  if (typeof m.publicVideosCount === 'number' && m.publicVideosCount >= 0) {
+    rec.metrics.publicVideosCount = Math.max(rec.metrics.publicVideosCount, Math.floor(m.publicVideosCount));
+  }
+  if (typeof m.liveSessionsHosted === 'number' && m.liveSessionsHosted >= 0) {
+    rec.metrics.liveSessionsHosted = Math.max(rec.metrics.liveSessionsHosted, Math.floor(m.liveSessionsHosted));
+  }
+  if (typeof m.loginStreakDays === 'number' && m.loginStreakDays >= 1) {
+    rec.metrics.loginStreakDays = Math.max(rec.metrics.loginStreakDays, Math.floor(m.loginStreakDays));
+  }
+  if (typeof m.followersCount === 'number' && m.followersCount >= 0) {
+    rec.metrics.followersCount = Math.max(rec.metrics.followersCount, Math.floor(m.followersCount));
+  }
+  if (typeof m.followingCount === 'number' && m.followingCount >= 0) {
+    rec.metrics.followingCount = Math.max(rec.metrics.followingCount, Math.floor(m.followingCount));
+  }
+  if (typeof m.totalLikesCount === 'number' && m.totalLikesCount >= 0) {
+    rec.metrics.totalLikesCount = Math.max(rec.metrics.totalLikesCount, Math.floor(m.totalLikesCount));
+  }
+  if (typeof m.hasAgency === 'boolean') {
+    rec.metrics.hasAgency = rec.metrics.hasAgency || m.hasAgency;
+  }
+  if (typeof m.pkWinsCount === 'number' && m.pkWinsCount >= 0) {
+    rec.metrics.pkWinsCount = Math.max(rec.metrics.pkWinsCount, Math.floor(m.pkWinsCount));
+  }
+  if (typeof m.eventsWonCount === 'number' && m.eventsWonCount >= 0) {
+    rec.metrics.eventsWonCount = Math.max(rec.metrics.eventsWonCount, Math.floor(m.eventsWonCount));
+  }
+  if (typeof m.profileCompletedSteps === 'number' && m.profileCompletedSteps >= 0) {
+    rec.metrics.profileCompletedSteps = Math.max(
+      rec.metrics.profileCompletedSteps,
+      Math.min(3, Math.floor(m.profileCompletedSteps))
+    );
+  }
+  rec.updatedAt = new Date().toISOString();
+
+  const { progression, achievements, newlyEarnedDefs } = buildUserProgressionPayload(rec);
+  if (newlyEarnedDefs.length > 0) {
+    appendAuditLog({
+      actorId: userId,
+      targetUserId: userId,
+      action: 'achievement_awarded',
+      summary: `Awarded ${newlyEarnedDefs.map((d) => d.name).join(', ')}`,
+      details: { awardedIds: newlyEarnedDefs.map((d) => d.id) },
+    });
+    persistProgressionStoreToDisk();
+  }
+
+  return res.json({
+    success: true,
+    progression,
+    achievements,
+    newlyEarned: achievements.filter((a) => newlyEarnedDefs.some((d) => d.id === a.id)),
+    equippedAchievementBadges: rec.equippedAchievementBadges,
+  });
+});
+
+// 6. Equip Achievement Badges in Badge Vault (Strictly Max 3 & Must Be Earned!)
+app.post('/api/progression/achievements/equip', (req: AuthenticatedRequest, res: Response) => {
+  const bodyUserId = sanitizeText(req.body?.userId, 128);
+  const userId = req.firebaseUser?.uid || bodyUserId;
+  const rawBadgeIds = req.body?.badgeIds;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+  if (!Array.isArray(rawBadgeIds)) {
+    return res.status(400).json({ error: 'badgeIds array is required.' });
+  }
+
+  const uniqueIds = Array.from(new Set(rawBadgeIds.map((id) => sanitizeText(id, 64)).filter(Boolean)));
+  if (uniqueIds.length > MAX_EQUIPPED_ACHIEVEMENT_BADGES) {
+    return res.status(400).json({
+      error: `Maximum ${MAX_EQUIPPED_ACHIEVEMENT_BADGES} achievement badges can be equipped on your profile.`,
+    });
+  }
+
+  const rec = getOrCreateUserProgressionRecord(userId);
+  const { achievements } = buildUserProgressionPayload(rec);
+  const earnedSet = new Set(achievements.filter((a) => a.isEarned).map((a) => a.id));
+
+  for (const id of uniqueIds) {
+    if (!earnedSet.has(id)) {
+      return res.status(403).json({
+        error: `Achievement badge "${id}" has not been earned yet and cannot be equipped.`,
+      });
+    }
+  }
+
+  rec.equippedAchievementBadges = uniqueIds;
+  rec.updatedAt = new Date().toISOString();
+
+  appendAuditLog({
+    actorId: userId,
+    actorEmail: req.firebaseUser?.email,
+    targetUserId: userId,
+    action: 'achievement_equipped',
+    summary: `Updated equipped achievement badges (${uniqueIds.length}/${MAX_EQUIPPED_ACHIEVEMENT_BADGES})`,
+    details: { equippedAchievementBadges: uniqueIds },
+  });
+  persistProgressionStoreToDisk();
+
+  return res.json({
+    success: true,
+    equippedAchievementBadges: rec.equippedAchievementBadges,
+  });
+});
+
+// 7. ADMIN-ONLY PROGRESSION MANAGEMENT ENDPOINTS (Strict HTTP 403 for Non-Admins!)
+app.get('/api/admin/progression/overview', requireAdminMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  const users = Array.from(userProgressionStore.values()).map((rec) => {
+    const { progression, achievements } = buildUserProgressionPayload(rec);
+    return {
+      userId: rec.userId,
+      userName: rec.userName || rec.userId,
+      userAvatar: rec.userAvatar || '',
+      userEmail: rec.userEmail || '',
+      progression,
+      earnedAchievementsCount: achievements.filter((a) => a.isEarned).length,
+      equippedAchievementBadges: rec.equippedAchievementBadges,
+    };
+  });
+
+  res.json({
+    audit: getProgressionMathAudit(),
+    tiers: LEVEL_TIER_CONFIGS,
+    levels: getEffectiveLevels(),
+    vipTiers: getEffectiveVipTiers(),
+    superVipTiers: getEffectiveSuperVipTiers(),
+    achievements: getEffectiveAchievements(),
+    users,
+    unlockHistory: progressionUnlockHistory.slice(0, 100),
+    auditLogs: progressionAuditLogs.slice(0, 100),
+    overridesUpdatedAt: progressionOverrides.updatedAt,
+    overridesUpdatedBy: progressionOverrides.updatedBy,
+  });
+});
+
+app.put('/api/admin/progression/config', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const { section, id, patch } = req.body || {};
+  if (!section || !patch || typeof patch !== 'object') {
+    return res.status(400).json({ error: 'section and patch object are required.' });
+  }
+
+  const adminEmail = req.firebaseUser?.email || 'admin';
+  const adminUid = req.firebaseUser?.uid || 'admin';
+
+  if (section === 'level') {
+    const levelNum = Number(id);
+    if (!Number.isInteger(levelNum) || levelNum < 1 || levelNum > 100) {
+      return res.status(400).json({ error: 'Level number must be an integer between 1 and 100.' });
+    }
+    if (Array.isArray(patch.perks)) {
+      const cleanedPerks = patch.perks
+        .map((p: unknown) => sanitizeText(p, 160))
+        .filter(Boolean)
+        .slice(0, 6);
+      progressionOverrides.levelPerksOverrides[levelNum] = cleanedPerks;
+    }
+  } else if (section === 'vip') {
+    const tierNum = Number(id);
+    if (!Number.isInteger(tierNum) || tierNum < 1 || tierNum > 12) {
+      return res.status(400).json({ error: 'VIP tier must be an integer between 1 and 12.' });
+    }
+    const existing = progressionOverrides.vipOverrides[tierNum] || {};
+    progressionOverrides.vipOverrides[tierNum] = {
+      ...existing,
+      ...(typeof patch.name === 'string' && patch.name.trim() ? { name: sanitizeText(patch.name, 60) } : {}),
+      ...(typeof patch.frameName === 'string' && patch.frameName.trim()
+        ? { frameName: sanitizeText(patch.frameName, 80) }
+        : {}),
+      ...(Array.isArray(patch.perks)
+        ? { perks: patch.perks.map((p: unknown) => sanitizeText(p, 140)).filter(Boolean).slice(0, 6) }
+        : {}),
+    };
+  } else if (section === 'super_vip') {
+    const tierNum = Number(id);
+    if (!Number.isInteger(tierNum) || tierNum < 1 || tierNum > 6) {
+      return res.status(400).json({ error: 'Super VIP tier must be an integer between 1 and 6.' });
+    }
+    const existing = progressionOverrides.superVipOverrides[tierNum] || {};
+    progressionOverrides.superVipOverrides[tierNum] = {
+      ...existing,
+      ...(typeof patch.name === 'string' && patch.name.trim() ? { name: sanitizeText(patch.name, 60) } : {}),
+      ...(typeof patch.frameName === 'string' && patch.frameName.trim()
+        ? { frameName: sanitizeText(patch.frameName, 80) }
+        : {}),
+      ...(Array.isArray(patch.perks)
+        ? { perks: patch.perks.map((p: unknown) => sanitizeText(p, 140)).filter(Boolean).slice(0, 6) }
+        : {}),
+    };
+  } else if (section === 'achievement') {
+    const achId = sanitizeText(id, 64);
+    const existsDef = ACHIEVEMENT_BADGE_DEFINITIONS.find((a) => a.id === achId);
+    if (!existsDef) {
+      return res.status(404).json({ error: 'Achievement badge not found.' });
+    }
+    const existing = progressionOverrides.achievementOverrides[achId] || {};
+    progressionOverrides.achievementOverrides[achId] = {
+      ...existing,
+      ...(typeof patch.name === 'string' && patch.name.trim() ? { name: sanitizeText(patch.name, 60) } : {}),
+      ...(typeof patch.description === 'string' && patch.description.trim()
+        ? { description: sanitizeText(patch.description, 240) }
+        : {}),
+      ...(typeof patch.unlockConditionText === 'string' && patch.unlockConditionText.trim()
+        ? { unlockConditionText: sanitizeText(patch.unlockConditionText, 180) }
+        : {}),
+      ...(typeof patch.targetValue === 'number' && patch.targetValue > 0
+        ? { targetValue: Math.floor(patch.targetValue) }
+        : {}),
+    };
+  } else {
+    return res.status(400).json({ error: 'Invalid section. Use level, vip, super_vip, or achievement.' });
+  }
+
+  progressionOverrides.updatedAt = new Date().toISOString();
+  progressionOverrides.updatedBy = adminEmail;
+
+  appendAuditLog({
+    actorId: adminUid,
+    actorEmail: adminEmail,
+    action: 'admin_config_updated',
+    summary: `Admin updated ${section} configuration (${String(id)})`,
+    details: { section, id, patch },
+  });
+  persistProgressionStoreToDisk();
+
+  return res.json({
+    success: true,
+    updatedAt: progressionOverrides.updatedAt,
+    audit: getProgressionMathAudit(),
+  });
+});
+
+app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const targetUserId = sanitizeText(req.body?.targetUserId, 128);
+  const addCoins = Math.floor(Number(req.body?.addCoins || 0));
+  const awardAchievementId = sanitizeText(req.body?.awardAchievementId || '', 64);
+  const reason = sanitizeText(req.body?.reason || 'Admin audited adjustment', 200);
+
+  if (!targetUserId) {
+    return res.status(400).json({ error: 'targetUserId is required.' });
+  }
+
+  const adminEmail = req.firebaseUser?.email || 'admin';
+  const adminUid = req.firebaseUser?.uid || 'admin';
+  const rec = getOrCreateUserProgressionRecord(targetUserId);
+  const oldCoins = rec.totalQualifyingCoinsSpent;
+  const oldState = calculateProgressionState(oldCoins);
+
+  if (Number.isFinite(addCoins) && addCoins !== 0) {
+    rec.totalQualifyingCoinsSpent = Math.max(0, Math.min(2_000_000_000, rec.totalQualifyingCoinsSpent + addCoins));
+    rec.metrics.totalQualifyingCoinsSpent = rec.totalQualifyingCoinsSpent;
+  }
+
+  if (awardAchievementId) {
+    const def = ACHIEVEMENT_BADGE_DEFINITIONS.find((a) => a.id === awardAchievementId);
+    if (!def) {
+      return res.status(404).json({ error: 'Achievement badge ID not found.' });
+    }
+    if (!rec.earnedAchievements.some((e) => e.badgeId === awardAchievementId)) {
+      rec.earnedAchievements.push({
+        badgeId: awardAchievementId,
+        earnedAt: new Date().toISOString(),
+        source: `admin:${adminEmail}`,
+      });
+    }
+  }
+
+  rec.updatedAt = new Date().toISOString();
+  const { progression, achievements } = buildUserProgressionPayload(rec);
+
+  progressionUnlockHistory.unshift({
+    id: `uh_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    userId: targetUserId,
+    type: 'admin_adjustment',
+    title: `Admin Progression Adjustment`,
+    detail: `${reason} (Lv ${oldState.currentLevel} → Lv ${progression.currentLevel})`,
+    oldLevel: oldState.currentLevel,
+    newLevel: progression.currentLevel,
+    coinsDelta: addCoins,
+    createdAt: new Date().toISOString(),
+  });
+
+  appendAuditLog({
+    actorId: adminUid,
+    actorEmail: adminEmail,
+    targetUserId,
+    action: 'admin_user_adjusted',
+    summary: `Adjusted ${targetUserId}: coins ${oldCoins.toLocaleString()} → ${rec.totalQualifyingCoinsSpent.toLocaleString()} (${reason})`,
+    details: {
+      oldCoins,
+      newCoins: rec.totalQualifyingCoinsSpent,
+      oldLevel: oldState.currentLevel,
+      newLevel: progression.currentLevel,
+      awardAchievementId: awardAchievementId || null,
+      reason,
+    },
+  });
+  persistProgressionStoreToDisk();
+
+  return res.json({
+    success: true,
+    progression,
+    achievements,
+  });
+});
+
+app.get('/api/admin/progression/audit-logs', requireAdminMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  res.json({
+    auditLogs: progressionAuditLogs.slice(0, 200),
+    unlockHistory: progressionUnlockHistory.slice(0, 200),
+  });
 });
 
 // Vite Integration & Production Static Serving (Cloudflare / Railway / Local Dev)
