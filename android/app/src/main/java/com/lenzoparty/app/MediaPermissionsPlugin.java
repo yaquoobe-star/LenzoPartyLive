@@ -5,8 +5,12 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
+import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -29,6 +33,7 @@ import java.util.List;
     }
 )
 public class MediaPermissionsPlugin extends Plugin {
+    private AudioFocusRequest activeFocusRequest = null;
 
     private JSObject buildStatusObject(boolean requestedBefore) {
         Activity activity = getActivity();
@@ -121,6 +126,32 @@ public class MediaPermissionsPlugin extends Plugin {
         }
     }
 
+    private boolean isExternalHeadsetConnected(AudioManager audioManager) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                AudioDeviceInfo[] outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                for (AudioDeviceInfo dev : outputs) {
+                    int type = dev.getType();
+                    if (
+                        type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                        type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET)
+                    ) {
+                        return true;
+                    }
+                }
+            } else {
+                return audioManager.isWiredHeadsetOn() || audioManager.isBluetoothScoOn() || audioManager.isBluetoothA2dpOn();
+            }
+        } catch (Exception ignored) {
+            // Fallback to default speaker routing
+        }
+        return false;
+    }
+
     @PluginMethod
     public void setCommunicationAudioMode(PluginCall call) {
         boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", true));
@@ -133,11 +164,28 @@ public class MediaPermissionsPlugin extends Plugin {
             AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 if (enabled) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        AudioAttributes attrs = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build();
+                        activeFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                            .setAudioAttributes(attrs)
+                            .setAcceptsDelayedFocusGain(true)
+                            .build();
+                        audioManager.requestAudioFocus(activeFocusRequest);
+                    }
                     audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-                    audioManager.setSpeakerphoneOn(true);
+                    // Only enable speakerphone if no wired or Bluetooth headset is connected
+                    boolean hasHeadset = isExternalHeadsetConnected(audioManager);
+                    audioManager.setSpeakerphoneOn(!hasHeadset);
                 } else {
                     audioManager.setSpeakerphoneOn(false);
                     audioManager.setMode(AudioManager.MODE_NORMAL);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activeFocusRequest != null) {
+                        audioManager.abandonAudioFocusRequest(activeFocusRequest);
+                        activeFocusRequest = null;
+                    }
                 }
             }
         } catch (Exception ignored) {

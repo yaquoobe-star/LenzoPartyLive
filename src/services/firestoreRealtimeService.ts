@@ -967,4 +967,89 @@ export async function vacateFirestoreSeat(
   }
 }
 
+/**
+ * Atomically cancel a viewer's own pending seat request in Firestore.
+ */
+export async function cancelFirestoreSeatRequest(
+  roomId: string,
+  userId: string
+): Promise<{ success: boolean; seatRequests?: FirestoreSeatRequestEntry[] }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const nextRequests = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) return null;
+      const data = snap.data() as Record<string, any>;
+      const existing: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
+        ? data.seatRequests
+        : [];
+      const filtered = existing.filter((r) => r?.user?.id !== userId);
+      tx.update(roomRef, { seatRequests: filtered });
+      return filtered;
+    });
+    return nextRequests ? { success: true, seatRequests: nextRequests } : { success: false };
+  } catch {
+    return { success: false };
+  }
+}
+
+export interface FirestoreRoomHeartEvent {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  count: number;
+  x?: number;
+  y?: number;
+  timestamp: number;
+}
+
+/**
+ * Broadcast & persist a batched party-room heart reaction via Firestore so all participants
+ * across Web and Android see double-tap hearts in real time without flooding the server.
+ */
+export async function sendFirestoreRoomHeart(
+  roomId: string,
+  senderId: string,
+  senderName: string,
+  count: number,
+  x?: number,
+  y?: number
+): Promise<{ likesCount?: number }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return {};
+  const roomRef = doc(db, 'party_rooms', roomId);
+  const safeCount = Math.min(Math.max(1, Math.round(count || 1)), 20);
+  const now = Date.now();
+  const event: FirestoreRoomHeartEvent = {
+    id: `ht_${now}_${Math.random().toString(36).slice(2, 6)}`,
+    senderId,
+    senderName: (senderName || 'Guest').slice(0, 60),
+    count: safeCount,
+    timestamp: now,
+  };
+  if (typeof x === 'number' && Number.isFinite(x)) {
+    event.x = Math.max(5, Math.min(95, Math.round(x * 10) / 10));
+  }
+  if (typeof y === 'number' && Number.isFinite(y)) {
+    event.y = Math.max(10, Math.min(90, Math.round(y * 10) / 10));
+  }
+  try {
+    const likesCount = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) return undefined;
+      const data = snap.data() as Record<string, any>;
+      const currentLikes = typeof data.likesCount === 'number' ? data.likesCount : 0;
+      const nextLikes = currentLikes + safeCount;
+      tx.update(roomRef, {
+        likesCount: nextLikes,
+        lastHeartEvent: event,
+      });
+      return nextLikes;
+    });
+    return { likesCount };
+  } catch {
+    return {};
+  }
+}
+
 

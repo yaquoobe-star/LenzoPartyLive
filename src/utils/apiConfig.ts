@@ -49,10 +49,17 @@ export function apiUrl(path: string): string {
  * Perform an authenticated API request to the shared Express backend (Railway / local server),
  * automatically attaching the current Firebase User's ID Token as a Bearer token when available.
  */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers || {});
-  if (init.body && !headers.has('Content-Type')) {
+export async function apiFetch(
+  path: string,
+  init: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = 12000, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers || {});
+  if (fetchInit.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+  if (Capacitor.isNativePlatform() && !headers.has('X-Platform')) {
+    headers.set('X-Platform', 'android');
   }
 
   try {
@@ -67,10 +74,36 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     console.warn('[API] Could not attach Firebase ID token:', e);
   }
 
-  return fetch(apiUrl(path), {
-    ...init,
-    headers,
-  });
+  const targetUrl = apiUrl(path);
+  let controller: AbortController | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let signal = fetchInit.signal;
+
+  if (!signal && timeoutMs > 0 && typeof AbortController !== 'undefined') {
+    controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller?.abort(), timeoutMs);
+  }
+
+  try {
+    return await fetch(targetUrl, {
+      ...fetchInit,
+      headers,
+      signal,
+    });
+  } catch (err: any) {
+    const isAbort = err?.name === 'AbortError';
+    const detail = isAbort
+      ? `Request timed out after ${timeoutMs}ms (${path})`
+      : `Unable to reach backend (${targetUrl}): ${err?.message || 'Network unavailable'}`;
+    console.warn('[API]', detail);
+    const wrapped = new Error(detail);
+    (wrapped as any).cause = err;
+    (wrapped as any).isNetworkError = true;
+    throw wrapped;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 /**

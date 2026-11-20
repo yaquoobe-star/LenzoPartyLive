@@ -48,9 +48,12 @@ import { agoraRtcService } from '../../utils/agoraRtcService';
 import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import {
+  cancelFirestoreSeatRequest,
+  FirestoreRoomHeartEvent,
   joinFirestoreRoomParticipant,
   leaveFirestoreRoomParticipant,
   respondFirestoreSeatRequest,
+  sendFirestoreRoomHeart,
   sendFirestoreRoomMessage,
   submitFirestoreSeatRequest,
   subscribeFirestorePartyRoomDoc,
@@ -96,8 +99,10 @@ interface ActivityItem {
 interface FloatingHeart {
   id: number;
   x: number;
+  y?: number;
   size: number;
   color: string;
+  isBurst?: boolean;
 }
 
 export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
@@ -207,10 +212,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const realMicAnalyserRef = useRef<AudioAnalyserController | null>(null);
   const realMicRafRef = useRef<number | null>(null);
   const hasExplicitlyLeftRef = useRef<boolean>(false);
+  const voiceJoinedRef = useRef<boolean>(false);
+  const activePublishedRoleRef = useRef<'host' | 'audience' | null>(null);
+  const pendingPromotedAgoraTokenRef = useRef<string | null>(null);
+  const hadPendingSeatReqRef = useRef<boolean>(false);
+  const cancelledOwnReqRef = useRef<boolean>(false);
+  const seenHeartEventIdsRef = useRef<Set<string>>(new Set());
+  const lastStageTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const pendingHeartBatchRef = useRef<{ count: number; x?: number; y?: number }>({ count: 0 });
+  const heartBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partyEntryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenPartyEntriesRef = useRef<Map<string, number>>(new Map());
   const voiceTransportRef = useRef<'agora' | 'webrtc' | 'connecting'>('connecting');
   voiceTransportRef.current = voiceTransport;
+  const isMicMutedRef = useRef<boolean>(isMicMuted);
+  isMicMutedRef.current = isMicMuted;
+  const mutedSeatIndicesRef = useRef<number[]>(mutedSeatIndices);
+  mutedSeatIndicesRef.current = mutedSeatIndices;
   const seatsRef = useRef<(UserProfile | null)[]>(seats);
   seatsRef.current = seats;
 
@@ -219,6 +237,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showEditAnnouncementModal, setShowEditAnnouncementModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [roomLikesCount, setRoomLikesCount] = useState<number>(room.likesCount || 0);
   const [roomAnnouncement, setRoomAnnouncement] = useState(
     room.announcement || 'Welcome! Hop on a seat, respect everyone & enjoy the party.'
   );
@@ -236,6 +255,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2600);
   };
+
+  const spawnHeartVisual = (xPercent: number, yPercent?: number, isBurst = false) => {
+    const colors = ['#FF2A85', '#FF6090', '#FA26A0', '#FFB703', '#C77DFF', '#FF4D8D'];
+    const newHeart: FloatingHeart = {
+      id: Date.now() + Math.random(),
+      x: Math.max(6, Math.min(94, xPercent)),
+      y: typeof yPercent === 'number' ? Math.max(12, Math.min(86, yPercent)) : undefined,
+      size: isBurst ? 34 + Math.random() * 14 : 24 + Math.random() * 14,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      isBurst,
+    };
+    setFloatingHearts((prev) => [...prev.slice(-28), newHeart]);
+    setTimeout(() => {
+      setFloatingHearts((prev) => prev.filter((h) => h.id !== newHeart.id));
+    }, isBurst ? 1150 : 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (heartBatchTimerRef.current) {
+        clearTimeout(heartBatchTimerRef.current);
+        heartBatchTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const prevSeatedRef = useRef<boolean>(isCurrentlySeated);
   const seenSeatReqIdsRef = useRef<Set<string>>(new Set((room.seatRequests || []).map((r) => r.id)));
@@ -495,7 +539,47 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const filteredFsRequests = (data.seatRequests as SeatRequest[]).filter(
             (r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))
           );
+          // Notify viewer if their pending seat request was rejected by host cross-device
+          if (!isRoomHost) {
+            const wasPending = hadPendingSeatReqRef.current;
+            const stillPending = filteredFsRequests.some((r) => r.user.id === currentUser.id);
+            const nowSeated = Array.isArray(data.seats) && data.seats.some((s: any) => s?.id === currentUser.id);
+            hadPendingSeatReqRef.current = stillPending;
+            if (wasPending && !stillPending && !nowSeated && !cancelledOwnReqRef.current) {
+              showToast('Host declined your seat request');
+            }
+            if (wasPending && nowSeated) {
+              const myIdx = (data.seats as any[]).findIndex((s) => s?.id === currentUser.id);
+              showToast(`Approved! You are now on Seat #${myIdx + 1}`);
+            }
+            cancelledOwnReqRef.current = false;
+          }
           setSeatRequests(filteredFsRequests);
+        }
+        if (typeof data.likesCount === 'number') {
+          setRoomLikesCount((prev) => Math.max(prev, data.likesCount));
+        }
+        if (data.lastHeartEvent && typeof data.lastHeartEvent === 'object') {
+          const ev = data.lastHeartEvent as FirestoreRoomHeartEvent;
+          if (
+            ev.id &&
+            ev.senderId &&
+            ev.senderId !== currentUser.id &&
+            !seenHeartEventIdsRef.current.has(ev.id) &&
+            Date.now() - (ev.timestamp || 0) < 12000
+          ) {
+            seenHeartEventIdsRef.current.add(ev.id);
+            const burstCount = Math.min(Math.max(1, ev.count || 1), 5);
+            for (let i = 0; i < burstCount; i++) {
+              setTimeout(() => {
+                spawnHeartVisual(
+                  typeof ev.x === 'number' ? ev.x + (Math.random() * 10 - 5) : 65 + Math.random() * 25,
+                  typeof ev.y === 'number' ? ev.y + (Math.random() * 8 - 4) : undefined,
+                  typeof ev.y === 'number'
+                );
+              }, i * 95);
+            }
+          }
         }
         if (typeof data.isLocked === 'boolean') setIsSeatLocked(data.isLocked);
         if (typeof data.allowJoin === 'boolean') setIsAllowJoin(data.allowJoin);
@@ -654,17 +738,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           refreshRealTimeParticipants();
         }
       } else if (event === 'room:heart') {
+        if (typeof payload.likesCount === 'number') {
+          setRoomLikesCount((prev) => Math.max(prev, payload.likesCount));
+        }
         if (payload.userId && payload.userId !== currentUser.id) {
-          const remoteHeart: FloatingHeart = {
-            id: Date.now() + Math.random(),
-            x: 72 + Math.random() * 18,
-            size: 24 + Math.random() * 14,
-            color: ['#FF2A85', '#FF6090', '#FA26A0', '#FFB703', '#9D4EDD'][Math.floor(Math.random() * 5)],
-          };
-          setFloatingHearts((prev) => [...prev, remoteHeart]);
-          setTimeout(() => {
-            setFloatingHearts((prev) => prev.filter((h) => h.id !== remoteHeart.id));
-          }, 2000);
+          const eventKey = `ws_${payload.userId}_${payload.timestamp || Date.now()}`;
+          if (!seenHeartEventIdsRef.current.has(eventKey)) {
+            seenHeartEventIdsRef.current.add(eventKey);
+            const burstCount = Math.min(Math.max(1, Number(payload.delta || payload.count || 1)), 5);
+            for (let i = 0; i < burstCount; i++) {
+              setTimeout(() => {
+                spawnHeartVisual(
+                  typeof payload.x === 'number' ? payload.x + (Math.random() * 10 - 5) : 70 + Math.random() * 20,
+                  typeof payload.y === 'number' ? payload.y + (Math.random() * 8 - 4) : undefined,
+                  typeof payload.y === 'number'
+                );
+              }, i * 90);
+            }
+          }
         }
       } else if (event === 'room:seat_muted' && Array.isArray(payload.mutedSeatIndices)) {
         setMutedSeatIndices(payload.mutedSeatIndices);
@@ -684,8 +775,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:seat_request_cancelled' && payload.userId) {
         setSeatRequests((prev) => prev.filter((r) => r.user.id !== payload.userId));
       } else if (event === 'room:seat_request_accepted') {
+        if (payload.agoraToken) {
+          pendingPromotedAgoraTokenRef.current = payload.agoraToken;
+        }
+        hadPendingSeatReqRef.current = false;
         showToast(`Approved! You are now on Seat #${(payload.seatIndex ?? 1) + 1}`);
       } else if (event === 'room:seat_request_rejected') {
+        hadPendingSeatReqRef.current = false;
         showToast('Host declined your seat request');
       } else if (event === 'room:chat' && payload.message) {
         const m = payload.message;
@@ -736,8 +832,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   // Unified Real-Time Party Voice Engine (Agora RTC + WebRTC Audio Mesh Fallback)
   useEffect(() => {
     let isMounted = true;
+    voiceJoinedRef.current = false;
+    activePublishedRoleRef.current = null;
     const initiallySeated = seatsRef.current.some((s) => s?.id === currentUser.id);
-    const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
+    const effectiveMuted = isMicMutedRef.current || mutedSeatIndicesRef.current.includes(
+      seatsRef.current.findIndex((s) => s?.id === currentUser.id)
+    );
     const initialRole: 'host' | 'audience' = initiallySeated ? 'host' : 'audience';
 
     const joinPartyVoice = async () => {
@@ -778,8 +878,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             );
             if (!isMounted) return;
 
-            if (tokenData.token) {
-              setVoiceTransport('agora');
+            const canJoinAgora = Boolean(tokenData.token) || (tokenData.configured && tokenData.tokenRequired === false);
+            if (canJoinAgora) {
               await agoraRtcService.joinChannel({
                 appId: config.appId,
                 channelName: `party_${room.id}`,
@@ -791,9 +891,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 mediaStream: initiallySeated ? localMicStream : null,
               });
               if (!isMounted) return;
-              if (effectiveMuted) {
+              if (initiallySeated && effectiveMuted) {
                 await agoraRtcService.setMicrophoneMuted(true);
               }
+              voiceJoinedRef.current = true;
+              activePublishedRoleRef.current = initialRole;
+              setVoiceTransport('agora');
               setAgoraVoiceState('connected');
               return;
             }
@@ -806,7 +909,6 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (!isMounted) return;
 
         // WebRTC Real-Time Party Voice Mesh fallback
-        setVoiceTransport('webrtc');
         webrtcMediaService.startPartyVoice(
           room.id,
           currentUser.id,
@@ -822,14 +924,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               setAutoplayBlocked(true);
             },
             onRemoteVolume: (peerId, level) => {
-              if (!isMounted || level <= 8) return;
-              const remoteSeatIdx = seatsRef.current.findIndex((s) => s && s.id === peerId);
-              if (remoteSeatIdx !== -1) {
+              if (!isMounted || level <= 12) return;
+              const remoteSeatIdx = seatsRef.current.findIndex((s) => s && String(s.id) === String(peerId));
+              if (remoteSeatIdx !== -1 && !mutedSeatIndicesRef.current.includes(remoteSeatIdx)) {
                 setSpeakingSeats((prev) => ({ ...prev, [remoteSeatIdx]: Date.now() }));
               }
             },
           }
         );
+        voiceJoinedRef.current = true;
+        activePublishedRoleRef.current = initialRole;
+        setVoiceTransport('webrtc');
         if (isMounted) setAgoraVoiceState('connected');
       } catch (err) {
         console.warn('[Party Voice] Join warning:', err);
@@ -843,22 +948,34 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (isMounted) setAutoplayBlocked(true);
     });
 
+    const unsubStatus = agoraRtcService.onStatusChange((status) => {
+      if (!isMounted || voiceTransportRef.current !== 'agora') return;
+      if (status.state === 'CONNECTED') {
+        setAgoraVoiceState('connected');
+      } else if (status.state === 'CONNECTING' || status.state === 'RECONNECTING') {
+        setAgoraVoiceState('connecting');
+      } else {
+        setAgoraVoiceState('disconnected');
+      }
+    });
+
     const unsubVolumes = agoraRtcService.onVolumeIndicator((volumes) => {
       if (!isMounted) return;
       const now = Date.now();
       for (const v of volumes) {
-        if (v.level > 10) {
-          if (v.uid === 0 || v.uid === currentUser.id) {
+        if (v.level <= 12) continue;
+        const uidStr = String(v.uid);
+        if (v.uid === 0 || uidStr === String(currentUser.id)) {
+          const mySeatIdx = seatsRef.current.findIndex((s) => s && String(s.id) === String(currentUser.id));
+          const locallyMuted = isMicMutedRef.current || (mySeatIdx !== -1 && mutedSeatIndicesRef.current.includes(mySeatIdx));
+          if (mySeatIdx !== -1 && !locallyMuted) {
             setRealMicVolume(v.level);
-            const mySeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
-            if (mySeatIdx !== -1) {
-              setSpeakingSeats((prev) => ({ ...prev, [mySeatIdx]: now }));
-            }
-          } else {
-            const remoteSeatIdx = seatsRef.current.findIndex((s) => s && s.id === v.uid);
-            if (remoteSeatIdx !== -1) {
-              setSpeakingSeats((prev) => ({ ...prev, [remoteSeatIdx]: now }));
-            }
+            setSpeakingSeats((prev) => ({ ...prev, [mySeatIdx]: now }));
+          }
+        } else {
+          const remoteSeatIdx = seatsRef.current.findIndex((s) => s && String(s.id) === uidStr);
+          if (remoteSeatIdx !== -1 && !mutedSeatIndicesRef.current.includes(remoteSeatIdx)) {
+            setSpeakingSeats((prev) => ({ ...prev, [remoteSeatIdx]: now }));
           }
         }
       }
@@ -866,7 +983,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     return () => {
       isMounted = false;
+      voiceJoinedRef.current = false;
+      activePublishedRoleRef.current = null;
       unsubAutoplay();
+      unsubStatus();
       unsubVolumes();
       webrtcMediaService.stopPartyVoice();
       agoraRtcService.leaveChannel().catch(() => {});
@@ -897,11 +1017,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           enableVideo: false,
           enableAudio: true,
           mediaStream: micStream,
+          forceRepublish: true,
         });
         await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+        activePublishedRoleRef.current = 'host';
       } else {
         webrtcMediaService.updatePartySpeakerRole(true, micStream);
         webrtcMediaService.setPartyMicMuted(effectiveMuted);
+        activePublishedRoleRef.current = 'host';
       }
       showToast('Microphone access granted — voice is live');
     } catch {
@@ -910,22 +1033,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  // Synchronize seat join / seat leave role changes (NEVER triggered by mute toggles!)
+  // Synchronize seat join / seat leave role changes ONLY when role actually transitions!
   useEffect(() => {
     let active = true;
     const syncSeatRole = async () => {
-      if (voiceTransport === 'connecting') return;
+      if (!voiceJoinedRef.current || voiceTransport === 'connecting') return;
+      const targetRole: 'host' | 'audience' = isCurrentlySeated ? 'host' : 'audience';
+      if (activePublishedRoleRef.current === targetRole) {
+        return;
+      }
 
       if (isCurrentlySeated) {
         let micStream = realMicStreamRef.current;
-        if (!micStream) {
+        const hasLiveAudio = micStream?.getAudioTracks().some((t) => t.readyState === 'live');
+        if (!micStream || !hasLiveAudio) {
           try {
+            if (micStream) stopMediaStream(micStream);
             micStream = await acquireRealMicrophone();
             if (!active) {
               stopMediaStream(micStream);
               return;
             }
             realMicStreamRef.current = micStream;
+            if (realMicAnalyserRef.current) {
+              realMicAnalyserRef.current.cleanup();
+            }
             realMicAnalyserRef.current = createAudioAnalyser(micStream);
             setMicPermissionDenied(false);
           } catch (err) {
@@ -933,22 +1065,29 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             if (active) setMicPermissionDenied(true);
           }
         }
-        const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
+        const effectiveMuted = isMicMutedRef.current || isHostMutedOnMySeat;
         if (micStream) {
           micStream.getAudioTracks().forEach((t) => {
             t.enabled = !effectiveMuted;
           });
         }
         if (voiceTransport === 'agora') {
-          await agoraRtcService.switchRole('host', {
+          const promotedToken = pendingPromotedAgoraTokenRef.current;
+          pendingPromotedAgoraTokenRef.current = null;
+          const switched = await agoraRtcService.switchRole('host', {
             enableVideo: false,
             enableAudio: true,
             mediaStream: micStream,
+            token: promotedToken,
           });
-          await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+          if (switched) {
+            activePublishedRoleRef.current = 'host';
+            await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+          }
         } else if (voiceTransport === 'webrtc') {
           webrtcMediaService.updatePartySpeakerRole(true, micStream);
           webrtcMediaService.setPartyMicMuted(effectiveMuted);
+          activePublishedRoleRef.current = 'host';
         }
       } else {
         // Stepped down from seat -> switch cleanly to listener and release mic
@@ -958,6 +1097,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         } else if (voiceTransport === 'webrtc') {
           webrtcMediaService.updatePartySpeakerRole(false, null);
         }
+        activePublishedRoleRef.current = 'audience';
         if (realMicAnalyserRef.current) {
           realMicAnalyserRef.current.cleanup();
           realMicAnalyserRef.current = null;
@@ -971,7 +1111,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       void updateFirestoreRoomParticipantState(room.id, { isSpeaker: isCurrentlySeated });
     };
 
-    syncSeatRole();
+    void syncSeatRole();
     return () => {
       active = false;
     };
@@ -1194,6 +1334,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       .catch((err) => ({ __err: err }));
 
     if (fsRes.success) {
+      hadPendingSeatReqRef.current = true;
       const nextRequests: SeatRequest[] =
         Array.isArray(fsRes.seatRequests) && fsRes.seatRequests.length > 0
           ? fsRes.seatRequests
@@ -1208,6 +1349,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     // Fallback: if Firestore failed (e.g., transient network), use Express response
     const srvRes: any = await serverPromise;
     if (srvRes && !srvRes.__err) {
+      hadPendingSeatReqRef.current = true;
       const mappedReq: SeatRequest = {
         id: srvRes.id || newReq.id,
         user: srvRes.user || currentUser,
@@ -1225,10 +1367,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
 
     const rawErr = String(fsRes.error || srvRes?.__err?.message || '');
-    const friendlyErr = /failed to fetch|networkerror/i.test(rawErr)
-      ? 'Connection weak — please tap the seat again to send your request.'
+    console.warn('[Party Seat Request] Failed:', {
+      roomId: room.id,
+      userId: currentUser.id,
+      targetSeat,
+      firestoreError: fsRes.error,
+      backendError: srvRes?.__err?.message,
+    });
+    const friendlyErr = /failed to fetch|networkerror|unable to reach backend|timed out/i.test(rawErr)
+      ? 'Network connection unstable — please try tapping the seat again.'
       : rawErr || 'Could not send seat request. Please try again.';
     showToast(friendlyErr);
+  };
+
+  const handleCancelMySeatRequest = async () => {
+    cancelledOwnReqRef.current = true;
+    hadPendingSeatReqRef.current = false;
+    const fsRes = await cancelFirestoreSeatRequest(room.id, currentUser.id);
+    void roomService.cancelSeatRequest(room.id, currentUser.id).catch(() => {});
+    const nextRequests =
+      fsRes.success && Array.isArray(fsRes.seatRequests)
+        ? fsRes.seatRequests
+        : seatRequests.filter((r) => r.user.id !== currentUser.id);
+    setSeatRequests(nextRequests);
+    syncRoom(seats, nextRequests, undefined, undefined, undefined, fsRes.success);
+    showToast('Seat request cancelled');
   };
 
   const handleAcceptSeatRequest = async (req: SeatRequest) => {
@@ -1497,23 +1660,92 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
+  const flushHeartBatch = () => {
+    const batch = pendingHeartBatchRef.current;
+    if (batch.count <= 0) return;
+    const countToSend = Math.min(batch.count, 20);
+    const xToSend = batch.x;
+    const yToSend = batch.y;
+    pendingHeartBatchRef.current = { count: 0 };
+
+    void liveAndRoomService.sendRoomHeart(room.id, currentUser.id, countToSend, {
+      senderName: currentUser.name,
+      x: xToSend,
+      y: yToSend,
+      roomHostId: room.host.id,
+      roomMeta: { host: room.host, title: room.title, maxSeats },
+    });
+    void sendFirestoreRoomHeart(
+      room.id,
+      currentUser.id,
+      currentUser.name,
+      countToSend,
+      xToSend,
+      yToSend
+    );
+  };
+
+  const queuePartyHeartSync = (xPercent?: number, yPercent?: number) => {
+    setRoomLikesCount((prev) => prev + 1);
+    pendingHeartBatchRef.current = {
+      count: pendingHeartBatchRef.current.count + 1,
+      x: xPercent ?? pendingHeartBatchRef.current.x,
+      y: yPercent ?? pendingHeartBatchRef.current.y,
+    };
+    if (!heartBatchTimerRef.current) {
+      heartBatchTimerRef.current = setTimeout(() => {
+        heartBatchTimerRef.current = null;
+        flushHeartBatch();
+      }, 350);
+    }
+  };
+
   const handleTriggerHeart = () => {
     if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
       showToast('You cannot interact with this room.');
       return;
     }
-    const newHeart: FloatingHeart = {
-      id: Date.now() + Math.random(),
-      x: 75 + Math.random() * 15,
-      size: 24 + Math.random() * 14,
-      color: ['#FF2A85', '#FF6090', '#FA26A0', '#FFB703', '#9D4EDD'][Math.floor(Math.random() * 5)],
-    };
-    setFloatingHearts((prev) => [...prev, newHeart]);
-    setTimeout(() => {
-      setFloatingHearts((prev) => prev.filter((h) => h.id !== newHeart.id));
-    }, 2000);
-    liveAndRoomService.sendRoomHeart(room.id, currentUser.id, 1);
+    const x = 75 + Math.random() * 15;
+    spawnHeartVisual(x, undefined, false);
+    queuePartyHeartSync(x, undefined);
   };
+
+  // Real Double-Tap Hearts anywhere on the Party Room stage (never interferes with seats/buttons or audio!)
+  const handleStagePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        'button, input, textarea, a, [data-seat-interactive="true"], [data-no-doubletap="true"]'
+      )
+    ) {
+      return;
+    }
+    const now = Date.now();
+    const prev = lastStageTapRef.current;
+    const dx = prev ? Math.abs(e.clientX - prev.x) : 999;
+    const dy = prev ? Math.abs(e.clientY - prev.y) : 999;
+
+    if (prev && now - prev.time < 320 && dx < 65 && dy < 65) {
+      if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
+        showToast('You cannot interact with this room.');
+        return;
+      }
+      const xPercent = (e.clientX / Math.max(1, window.innerWidth)) * 100;
+      const yPercent = (e.clientY / Math.max(1, window.innerHeight)) * 100;
+      // Burst at tap point + trailing floating heart for lively feedback
+      spawnHeartVisual(xPercent, yPercent, true);
+      spawnHeartVisual(xPercent + (Math.random() * 10 - 5), undefined, false);
+      queuePartyHeartSync(xPercent, yPercent);
+      // Keep last tap timestamp fresh so rapid repeated taps keep firing hearts smoothly
+      lastStageTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+    } else {
+      lastStageTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+    }
+  };
+
+  const myPendingSeatRequest = !isRoomHost
+    ? seatRequests.find((r) => r.user.id === currentUser.id) || null
+    : null;
 
   const handleOpenGiftModal = () => {
     if (onOpenGiftShop) {
@@ -1542,22 +1774,39 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         />
       </div>
 
-      {/* Floating Hearts */}
-      {floatingHearts.map((heart) => (
-        <div
-          key={heart.id}
-          className="fixed pointer-events-none animate-float-heart z-50"
-          style={{
-            left: `${heart.x}%`,
-            bottom: '80px',
-            color: heart.color,
-            fontSize: `${heart.size}px`,
-            filter: 'drop-shadow(0 0 8px currentColor)',
-          }}
-        >
-          💖
-        </div>
-      ))}
+      {/* Floating & Double-Tap Burst Hearts */}
+      {floatingHearts.map((heart) =>
+        heart.isBurst && typeof heart.y === 'number' ? (
+          <div
+            key={heart.id}
+            className="fixed pointer-events-none animate-double-tap-heart z-50"
+            style={{
+              left: `${heart.x}%`,
+              top: `${heart.y}%`,
+              transform: 'translate(-50%, -50%)',
+              color: heart.color,
+              fontSize: `${heart.size}px`,
+              filter: 'drop-shadow(0 0 14px currentColor)',
+            }}
+          >
+            💖
+          </div>
+        ) : (
+          <div
+            key={heart.id}
+            className="fixed pointer-events-none animate-float-heart z-50"
+            style={{
+              left: `${heart.x}%`,
+              bottom: '80px',
+              color: heart.color,
+              fontSize: `${heart.size}px`,
+              filter: 'drop-shadow(0 0 8px currentColor)',
+            }}
+          >
+            💖
+          </div>
+        )
+      )}
 
       {/* Toast Alert */}
       {toastMessage && (
@@ -1753,9 +2002,42 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       </header>
 
-      {/* STAGE AREA */}
-      <main className="flex-1 relative z-10 flex flex-col justify-start px-3 sm:px-5 overflow-y-auto no-scrollbar space-y-3">
-        {/* Announcement Strip + Join Notice + Mic Permission / Autoplay Unlock Banners */}
+      {/* STAGE AREA (Double-tap anywhere on open stage to burst synced hearts!) */}
+      <main
+        onPointerDown={handleStagePointerDown}
+        className="flex-1 relative z-10 flex flex-col justify-start px-3 sm:px-5 overflow-y-auto no-scrollbar space-y-3 touch-manipulation"
+      >
+        {/* Announcement Strip + Live Likes & Voice Status + Join Notice */}
+        <div className="max-w-md mx-auto w-full flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#17092E]/85 border border-white/10 text-[10px] font-bold">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                agoraVoiceState === 'connected'
+                  ? 'bg-emerald-400'
+                  : agoraVoiceState === 'connecting'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-rose-400'
+              }`}
+            />
+            <span className="text-white/85">
+              {agoraVoiceState === 'connected'
+                ? isCurrentlySeated
+                  ? isMicMuted || isHostMutedOnMySeat
+                    ? 'Seated • Mic Muted'
+                    : 'Voice Live'
+                  : 'Listening Live'
+                : agoraVoiceState === 'connecting'
+                ? 'Connecting Voice...'
+                : 'Voice Reconnecting'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#240B3D]/85 border border-[#FA26A0]/35 text-[10px] font-black text-[#FFB3DE]">
+            <span>💖</span>
+            <span className="font-mono">{roomLikesCount.toLocaleString()}</span>
+          </div>
+        </div>
+
         {roomAnnouncement && (
           <div className="max-w-md mx-auto w-full px-3 py-1.5 rounded-full bg-[#17092E]/85 border border-white/10 text-[11px] text-[#E6DCF8] text-center truncate">
             {roomAnnouncement}
@@ -1767,6 +2049,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             <div className="px-4 py-1 rounded-full bg-gradient-to-r from-[#8B20FF]/90 to-[#FA26A0]/90 border border-white/25 text-white text-[11px] font-bold shadow-lg">
               {partyEntryNotice.name} joined the party room
             </div>
+          </div>
+        )}
+
+        {myPendingSeatRequest && !isCurrentlySeated && (
+          <div
+            data-no-doubletap="true"
+            className="max-w-md mx-auto w-full rounded-2xl bg-[#240D42]/95 border border-amber-400/50 px-3 py-2 flex items-center justify-between gap-2 shadow-lg"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="w-4 h-4 text-amber-300 shrink-0" />
+              <p className="text-[11px] font-bold text-amber-100 truncate">
+                Seat #{myPendingSeatRequest.seatIndex + 1} request pending Host approval...
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCancelMySeatRequest()}
+              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-rose-500/30 border border-white/15 text-[10px] font-black text-white shrink-0 active:scale-95"
+            >
+              Cancel
+            </button>
           </div>
         )}
 
@@ -1815,7 +2118,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const latestReq = seatRequests[seatRequests.length - 1];
           if (!latestReq?.user) return null;
           return (
-            <div className="max-w-md mx-auto w-full rounded-2xl bg-gradient-to-r from-[#281146]/95 via-[#3B135C]/95 to-[#281146]/95 border border-[#FA26A0]/60 shadow-[0_0_24px_rgba(250,38,160,0.3)] px-3 py-2 flex items-center justify-between gap-2">
+            <div
+              data-no-doubletap="true"
+              className="max-w-md mx-auto w-full rounded-2xl bg-gradient-to-r from-[#281146]/95 via-[#3B135C]/95 to-[#281146]/95 border border-[#FA26A0]/60 shadow-[0_0_24px_rgba(250,38,160,0.3)] px-3 py-2 flex items-center justify-between gap-2"
+            >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-[#FA26A0] bg-[#160A2B] shrink-0 flex items-center justify-center">
                   {latestReq.user.avatar ? (
@@ -1889,16 +2195,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
         {/* HERO THRONES (Seat 0: Host Throne, Seat 1: Co-Host / Seat #2) */}
         <div className="flex items-center justify-center gap-6 sm:gap-12 pt-2 pb-1">
-          {/* Seat 0: Host Seat (Renders actual occupant OR empty Host Seat if host stepped down) */}
+          {/* Seat 0: Host Seat */}
           <div
+            data-seat-interactive="true"
             onClick={() => handleSeatClick(0)}
             className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
           >
             <div className="relative flex flex-col items-center">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 text-lg">👑</div>
-              {Boolean(speakingSeats[0]) && seatZero && !mutedSeatIndices.includes(0) && (
-                <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
-              )}
+              {Boolean(speakingSeats[0]) &&
+                seatZero &&
+                !mutedSeatIndices.includes(0) &&
+                !(seatZero.id === currentUser.id && isMicMuted) && (
+                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
+                )}
               <div className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-tr from-[#9B7110] via-[#FFDF00] to-[#FFE770] shadow-[0_0_22px_rgba(255,223,0,0.5)]">
                 <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] border-2 border-[#FFDF00] flex items-center justify-center">
                   {seatZero ? (
@@ -1913,9 +2223,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     <Plus className="w-6 h-6 text-[#FFDF00]/80" />
                   )}
                 </div>
-                {seatZero && (mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted)) && (
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-rose-600 border border-white flex items-center justify-center">
-                    <MicOff className="w-3 h-3 text-white" />
+                {seatZero && (
+                  <div
+                    className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-white flex items-center justify-center ${
+                      mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted)
+                        ? 'bg-rose-600'
+                        : Boolean(speakingSeats[0])
+                        ? 'bg-emerald-500'
+                        : 'bg-[#160A2B]'
+                    }`}
+                  >
+                    {mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted) ? (
+                      <MicOff className="w-3 h-3 text-white" />
+                    ) : (
+                      <Mic className="w-3 h-3 text-emerald-300" />
+                    )}
                   </div>
                 )}
               </div>
@@ -1930,13 +2252,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
           {/* Seat 1: Co-Host / Seat #2 */}
           <div
+            data-seat-interactive="true"
             onClick={() => handleSeatClick(1)}
             className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
           >
             <div className="relative flex flex-col items-center">
-              {Boolean(speakingSeats[1]) && seatOne && !mutedSeatIndices.includes(1) && (
-                <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
-              )}
+              {Boolean(speakingSeats[1]) &&
+                seatOne &&
+                !mutedSeatIndices.includes(1) &&
+                !(seatOne.id === currentUser.id && isMicMuted) && (
+                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
+                )}
               <div className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF70A6] shadow-[0_0_22px_rgba(250,38,160,0.5)]">
                 <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] border-2 border-[#FA26A0] flex items-center justify-center">
                   {seatOne ? (
@@ -1958,6 +2284,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-white flex items-center justify-center ${
                       mutedSeatIndices.includes(1) || (seatOne.id === currentUser.id && isMicMuted)
                         ? 'bg-rose-600'
+                        : Boolean(speakingSeats[1])
+                        ? 'bg-emerald-500'
                         : 'bg-[#160A2B]'
                     }`}
                   >
@@ -1989,6 +2317,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             return (
               <div
                 key={idx}
+                data-seat-interactive="true"
                 onClick={() => handleSeatClick(idx)}
                 className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
               >

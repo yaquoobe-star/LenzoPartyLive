@@ -2042,10 +2042,15 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
   for (let i = 0; i < room.seats.length; i++) {
     if (room.seats[i]?.id === applicantId) {
       room.seats[i] = null;
+      room.mutedSeatIndices.delete(i);
     }
   }
   room.seats[seatIdx] = requestObj.user;
   requestObj.status = 'accepted';
+
+  // Issue fresh Agora broadcaster RTC token for the newly promoted speaker
+  const agoraChannel = `party_${roomId}`;
+  const promotedAgora = mintAgoraRtcToken(agoraChannel, String(applicantId), 'broadcaster');
 
   const serialized = serializePartyRoom(room);
   broadcastToRoom(roomId, 'room:seat_occupied', {
@@ -2054,17 +2059,33 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
     user: requestObj.user,
     room: serialized,
   });
-  broadcastToUser(applicantId, 'room:seat_request_accepted', { roomId, seatIndex: seatIdx });
+  broadcastToUser(applicantId, 'room:seat_request_accepted', {
+    roomId,
+    seatIndex: seatIdx,
+    agoraChannel,
+    agoraAppId: promotedAgora.appId || undefined,
+    agoraToken: promotedAgora.token || undefined,
+    agoraExpiresAt: promotedAgora.expiresAt || undefined,
+  });
   broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
 
-  res.json({ success: true, seatIndex: seatIdx, seats: room.seats, room: serialized });
+  res.json({
+    success: true,
+    seatIndex: seatIdx,
+    seats: room.seats,
+    room: serialized,
+    agoraChannel,
+    agoraToken: promotedAgora.token || null,
+    agoraAppId: promotedAgora.appId || '',
+    agoraExpiresAt: promotedAgora.expiresAt || null,
+  });
 });
 
 app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { seatIndex } = req.body;
-  const room = partyRoomsMap.get(roomId);
+  const { seatIndex, roomMeta } = req.body;
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, hostId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
@@ -2088,9 +2109,10 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
 app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const userId = req.firebaseUser?.uid || req.body?.userId;
-  const room = partyRoomsMap.get(roomId);
+  const { roomMeta, roomHostId } = req.body || {};
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, roomHostId);
   if (!room) {
-    return res.status(404).json({ error: 'Room not found.' });
+    return res.json({ success: true, seats: [] });
   }
   // Allow both Host (Seat 0 or any seat) and Audience speakers to step down cleanly
   const seatIdx = room.seats.findIndex((s) => s && s.id === userId);
@@ -2108,8 +2130,8 @@ app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Respo
 app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { seatIndex, user } = req.body;
-  const room = partyRoomsMap.get(roomId);
+  const { seatIndex, user, roomMeta } = req.body;
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, hostId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
@@ -2230,9 +2252,9 @@ app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
 
 app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { senderId, userId, count = 1 } = req.body;
+  const { senderId, userId, senderName, count = 1, x, y, roomHostId, roomMeta } = req.body || {};
   const heartSenderId = senderId || userId || '';
-  const room = partyRoomsMap.get(roomId);
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, roomHostId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
@@ -2241,12 +2263,12 @@ app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
   }
   const now = Date.now();
   const lastAt = lastHeartTimeMap.get(heartSenderId || 'anon') || 0;
-  if (now - lastAt < 200) {
-    return res.json({ success: true, likesCount: room.likesCount });
+  if (now - lastAt < 120) {
+    return res.json({ success: true, likesCount: room.likesCount, throttled: true });
   }
   lastHeartTimeMap.set(heartSenderId || 'anon', now);
 
-  const delta = Math.min(Math.max(1, Number(count) || 1), 10);
+  const delta = Math.min(Math.max(1, Math.round(Number(count) || 1)), 20);
   room.likesCount += delta;
   if (heartSenderId) {
     recordRankingEvent({
@@ -2259,14 +2281,22 @@ app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
     });
   }
 
+  const safeX = typeof x === 'number' && Number.isFinite(x) ? Math.max(5, Math.min(95, x)) : undefined;
+  const safeY = typeof y === 'number' && Number.isFinite(y) ? Math.max(10, Math.min(90, y)) : undefined;
+
   broadcastToRoom(roomId, 'room:heart', {
     roomId,
     userId: heartSenderId,
     senderId: heartSenderId,
+    senderName: typeof senderName === 'string' ? senderName.slice(0, 60) : undefined,
     likesCount: room.likesCount,
     delta,
+    count: delta,
+    x: safeX,
+    y: safeY,
+    timestamp: now,
   });
-  res.json({ success: true, likesCount: room.likesCount });
+  res.json({ success: true, likesCount: room.likesCount, delta });
 });
 
 app.post('/api/rooms/:roomId/gift', (req: Request, res: Response) => {
@@ -4069,71 +4099,155 @@ app.get('/api/rtc/ice-servers', (_req: Request, res: Response) => {
 });
 
 // --- AGORA RTC TOKEN GENERATION & CONFIG ENDPOINTS ---
+interface MintedAgoraToken {
+  configured: boolean;
+  tokenRequired: boolean;
+  token: string | null;
+  appId: string;
+  channelName: string;
+  uid: string;
+  role: 'broadcaster' | 'audience';
+  expiresAt: number | null;
+  serverTime: number;
+  message?: string;
+}
+
+function mintAgoraRtcToken(
+  channelName: string,
+  uid: string,
+  requestedRole: string = 'audience',
+  expirationTimeInSeconds: number = 3600
+): MintedAgoraToken {
+  const appId = (process.env.AGORA_APP_ID || '').trim();
+  const appCertificate = (process.env.AGORA_APP_CERTIFICATE || '').trim();
+  const normalizedRole: 'broadcaster' | 'audience' =
+    requestedRole === 'broadcaster' || requestedRole === 'host' ? 'broadcaster' : 'audience';
+  const normalizedUid = String(uid || '0').trim() || '0';
+  const serverTime = Math.floor(Date.now() / 1000);
+
+  if (!appId) {
+    return {
+      configured: false,
+      tokenRequired: true,
+      token: null,
+      appId: '',
+      channelName,
+      uid: normalizedUid,
+      role: normalizedRole,
+      expiresAt: null,
+      serverTime,
+      message: 'AGORA_APP_ID is not configured on the backend server.',
+    };
+  }
+
+  // Support App-ID-only testing mode when AGORA_APP_ID is set without certificate
+  if (!appCertificate) {
+    return {
+      configured: true,
+      tokenRequired: false,
+      token: null,
+      appId,
+      channelName,
+      uid: normalizedUid,
+      role: normalizedRole,
+      expiresAt: serverTime + expirationTimeInSeconds,
+      serverTime,
+      message: 'Agora App-ID-only mode active (set AGORA_APP_CERTIFICATE for production signed tokens).',
+    };
+  }
+
+  const rtcRole = normalizedRole === 'broadcaster' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+  const expiresAt = serverTime + expirationTimeInSeconds;
+
+  // agora-token v2 expects relative durations in seconds for BOTH tokenExpire and privilegeExpire
+  const token = RtcTokenBuilder.buildTokenWithUserAccount(
+    appId,
+    appCertificate,
+    channelName,
+    normalizedUid,
+    rtcRole,
+    expirationTimeInSeconds,
+    expirationTimeInSeconds
+  );
+
+  return {
+    configured: true,
+    tokenRequired: true,
+    token,
+    appId,
+    channelName,
+    uid: normalizedUid,
+    role: normalizedRole,
+    expiresAt,
+    serverTime,
+  };
+}
+
 app.get('/api/agora/config', (_req: Request, res: Response) => {
-  const appId = process.env.AGORA_APP_ID || '';
-  const hasCertificate = Boolean(process.env.AGORA_APP_CERTIFICATE);
+  const appId = (process.env.AGORA_APP_ID || '').trim();
+  const hasCertificate = Boolean((process.env.AGORA_APP_CERTIFICATE || '').trim());
+  const configured = Boolean(appId);
   res.json({
-    configured: Boolean(appId && hasCertificate),
-    appId: appId || '',
+    configured,
+    appId,
+    tokenRequired: hasCertificate,
     requiresCertificate: !hasCertificate,
+    mode: !appId ? 'unconfigured' : hasCertificate ? 'certificate' : 'appid-only',
   });
 });
 
-app.post('/api/agora/token', (req: Request, res: Response) => {
-  const { channelName, uid, role = 'audience' } = req.body;
+const handleAgoraTokenRequest = (req: AuthenticatedRequest, res: Response) => {
+  const { channelName, uid, role = 'audience' } = req.body || {};
+  const cleanChannel = typeof channelName === 'string' ? channelName.trim() : '';
 
-  const appId = process.env.AGORA_APP_ID;
-  const appCertificate = process.env.AGORA_APP_CERTIFICATE;
-
-  if (!channelName) {
-    return res.status(400).json({ error: 'channelName is required.' });
+  if (!cleanChannel || cleanChannel.length > 64) {
+    return res.status(400).json({ error: 'Valid channelName (1-64 chars) is required.' });
   }
 
-  // If credentials are not yet configured on the server
-  if (!appId || !appCertificate) {
-    return res.json({
-      configured: false,
-      token: null,
-      appId: appId || '',
-      channelName,
-      uid: String(uid || '0'),
-      role,
-      message: 'Agora App ID and Certificate are pending server configuration.',
-    });
+  const effectiveUid = String(req.firebaseUser?.uid || uid || '0').trim() || '0';
+  const normalizedRole: 'broadcaster' | 'audience' =
+    role === 'broadcaster' || role === 'host' ? 'broadcaster' : 'audience';
+
+  // Enforce block checks for hydrated party rooms & live streams
+  if (cleanChannel.startsWith('party_')) {
+    const roomId = cleanChannel.slice(6);
+    const room = partyRoomsMap.get(roomId);
+    if (room && effectiveUid !== room.host.id && isUserBlockedBy(room.host.id, effectiveUid)) {
+      return res.status(403).json({ error: 'Access denied: you are blocked by the room host.' });
+    }
+  } else {
+    const stream = liveStreamsMap.get(cleanChannel);
+    if (stream && effectiveUid !== stream.host.id && isUserBlockedBy(stream.host.id, effectiveUid)) {
+      return res.status(403).json({ error: 'Access denied: you are blocked by the host.' });
+    }
   }
 
   try {
-    const rtcRole = role === 'broadcaster' || role === 'host' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
-    const expirationTimeInSeconds = 3600; // 1 hour token & privilege duration
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const expiresAt = currentTimestamp + expirationTimeInSeconds;
-
-    // agora-token v2 expects relative durations in seconds for BOTH tokenExpire and privilegeExpire
-    const token = RtcTokenBuilder.buildTokenWithUserAccount(
-      appId,
-      appCertificate,
-      channelName,
-      String(uid || '0'),
-      rtcRole,
-      expirationTimeInSeconds,
-      expirationTimeInSeconds
-    );
+    const minted = mintAgoraRtcToken(cleanChannel, effectiveUid, normalizedRole, 3600);
+    if (!minted.configured) {
+      return res.json({
+        ...minted,
+        success: false,
+      });
+    }
 
     res.json({
-      configured: true,
+      ...minted,
       success: true,
-      token,
-      appId,
-      channelName,
-      uid: String(uid || '0'),
-      role,
-      expiresAt,
     });
   } catch (err: any) {
-    console.error('Error generating Agora RTC token:', err);
-    res.status(500).json({ error: 'Failed to generate RTC token', details: err.message });
+    console.error('[Agora] Error generating RTC token:', {
+      channelName: cleanChannel,
+      uid: effectiveUid,
+      role: normalizedRole,
+      error: err?.message || err,
+    });
+    res.status(500).json({ error: 'Failed to generate RTC token', details: err?.message || 'Unknown error' });
   }
-});
+};
+
+app.post('/api/agora/token', handleAgoraTokenRequest);
+app.post('/api/agora/refresh-token', handleAgoraTokenRequest);
 
 // ============================================================================
 // AUTHORITATIVE 100-LEVEL, 12-VIP, 6-SUPER-VIP, ACHIEVEMENT & ADMIN ENGINE

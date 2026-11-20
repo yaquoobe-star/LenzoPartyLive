@@ -437,11 +437,30 @@ class LiveAndRoomService {
     return data.message;
   }
 
-  public async sendRoomHeart(roomId: string, senderId: string, count = 1): Promise<number> {
+  public async sendRoomHeart(
+    roomId: string,
+    senderId: string,
+    count = 1,
+    options?: {
+      senderName?: string;
+      x?: number;
+      y?: number;
+      roomHostId?: string;
+      roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number };
+    }
+  ): Promise<number> {
     try {
       const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/heart`, {
         method: 'POST',
-        body: JSON.stringify({ senderId, count }),
+        body: JSON.stringify({
+          senderId,
+          count,
+          senderName: options?.senderName,
+          x: options?.x,
+          y: options?.y,
+          roomHostId: options?.roomHostId,
+          roomMeta: options?.roomMeta,
+        }),
       });
       if (res.ok) {
         const data = await res.json();

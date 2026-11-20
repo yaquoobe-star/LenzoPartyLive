@@ -50,7 +50,14 @@ class RoomService {
     approve: boolean,
     targetSeatIndex?: number,
     applicantUser?: UserProfile
-  ): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatIndex?: number }> {
+  ): Promise<{
+    success: boolean;
+    seats?: (UserProfile | null)[];
+    seatIndex?: number;
+    agoraToken?: string | null;
+    agoraAppId?: string;
+    agoraChannel?: string;
+  }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/respond_seat_request`, {
       method: 'POST',
       body: JSON.stringify({ hostId, applicantId, approve, targetSeatIndex, applicantUser }),
@@ -62,10 +69,15 @@ class RoomService {
     return await res.json();
   }
 
-  public async removeSeat(roomId: string, hostId: string, seatIndex: number): Promise<void> {
+  public async removeSeat(
+    roomId: string,
+    hostId: string,
+    seatIndex: number,
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number }
+  ): Promise<void> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/remove_seat`, {
       method: 'POST',
-      body: JSON.stringify({ hostId, seatIndex }),
+      body: JSON.stringify({ hostId, seatIndex, roomMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Action failed' }));
@@ -73,10 +85,15 @@ class RoomService {
     }
   }
 
-  public async leaveSeat(roomId: string, userId: string): Promise<{ seats?: (UserProfile | null)[] }> {
+  public async leaveSeat(
+    roomId: string,
+    userId: string,
+    roomHostId?: string,
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number }
+  ): Promise<{ seats?: (UserProfile | null)[] }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/leave_seat`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ userId, roomHostId, roomMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Action failed' }));

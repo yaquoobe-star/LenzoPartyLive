@@ -221,7 +221,7 @@ service cloud.firestore {
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
-                        && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount'])
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount', 'lastHeartEvent'])
                       )
                     );
       allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
@@ -293,7 +293,7 @@ service cloud.firestore {
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
-                        && incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount'])
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount', 'lastHeartEvent'])
                       )
                     );
       allow delete: if isSignedIn() && isValidId(streamId) && (existing().host.id == request.auth.uid || isAdmin());
