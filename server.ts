@@ -3013,9 +3013,57 @@ app.post('/api/users/:id/unfollow', (req: AuthenticatedRequest, res: Response) =
 
 // --- REAL-TIME LIVE STREAMING ENGINE ---
 
+function ensureLiveStreamHydrated(
+  streamId: string,
+  meta?: { host?: any; title?: string; category?: string } | null
+): ServerLiveStream | null {
+  const existing = liveStreamsMap.get(streamId);
+  if (existing && existing.isLive) return existing;
+  if (!meta?.host?.id) return null;
+  const hostObj = meta.host;
+  // Guarantee strictly ONE active Solo Live per host in liveStreamsMap even when hydrated from Firestore
+  for (const [oldId, oldStream] of liveStreamsMap.entries()) {
+    if (oldId !== streamId && oldStream.host?.id === hostObj.id) {
+      oldStream.isLive = false;
+      liveStreamsMap.delete(oldId);
+    }
+  }
+  const hydrated: ServerLiveStream = {
+    id: streamId,
+    title: sanitizeText(meta.title || `${hostObj.name || 'Host'}'s Live`, 100),
+    category: sanitizeText(meta.category || 'Live', 40) || 'Live',
+    host: hostObj,
+    coverImage: typeof hostObj.avatar === 'string' ? hostObj.avatar.slice(0, 1500) : '',
+    channelName: `live_${streamId}`,
+    isLive: true,
+    allowGuests: true,
+    isPrivate: false,
+    announcement: '',
+    tags: [sanitizeText(meta.category || 'Live', 24) || 'Live', 'Live'],
+    likesCount: 0,
+    commentsCount: 0,
+    giftsCoinValue: 0,
+    startTime: Date.now(),
+    viewers: new Map(),
+    uniqueViewerIds: new Set(),
+    recentJoinAnnouncements: new Map(),
+    comments: [],
+  };
+  serverUsers.set(hostObj.id, hostObj);
+  liveStreamsMap.set(streamId, hydrated);
+  return hydrated;
+}
+
 app.get('/api/live/active_streams', (_req: Request, res: Response) => {
-  const streams = Array.from(liveStreamsMap.values())
+  const activeSorted = Array.from(liveStreamsMap.values())
     .filter((s) => s.isLive)
+    .sort((a, b) => b.startTime - a.startTime);
+  const byHost = new Map<string, ServerLiveStream>();
+  for (const s of activeSorted) {
+    const key = s.host?.id || s.id;
+    if (!byHost.has(key)) byHost.set(key, s);
+  }
+  const streams = Array.from(byHost.values())
     .sort((a, b) => b.viewers.size - a.viewers.size || b.startTime - a.startTime)
     .map(serializeLiveStream);
   res.json({ streams });
@@ -3041,6 +3089,16 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
   const streamId = sanitizeText(id, 128) || `live_${Date.now()}`;
   const cleanTitle = sanitizeText(title, 100);
   const cleanCategory = sanitizeText(category, 40) || 'Music';
+
+  // Enforce strictly ONE active Solo Live stream per host: end & remove any previous stale stream by this host
+  for (const [oldId, oldStream] of Array.from(liveStreamsMap.entries())) {
+    if (oldId !== streamId && oldStream.host?.id === host.id) {
+      oldStream.isLive = false;
+      liveStreamsMap.delete(oldId);
+      broadcastToLive(oldId, 'live:ended', { streamId: oldId, reason: 'Host started a new live broadcast.' });
+      broadcastAll('live:directory_updated', { streamId: oldId, action: 'ended' });
+    }
+  }
 
   const newStream: ServerLiveStream = {
     id: streamId,
@@ -3087,8 +3145,8 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
 
 app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   const { streamId } = req.params;
-  const { user } = req.body;
-  const stream = liveStreamsMap.get(streamId);
+  const { user, streamMeta } = req.body;
+  const stream = ensureLiveStreamHydrated(streamId, streamMeta);
   if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Live broadcast has ended or does not exist.' });
   }
@@ -3262,8 +3320,8 @@ app.get('/api/live/:streamId/viewers', (req: Request, res: Response) => {
 
 app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
   const { streamId } = req.params;
-  const { sender, text } = req.body;
-  const stream = liveStreamsMap.get(streamId);
+  const { sender, text, customId, streamMeta } = req.body;
+  const stream = ensureLiveStreamHydrated(streamId, streamMeta);
   if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Stream has ended.' });
   }
@@ -3289,8 +3347,13 @@ app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
   const metric = ensureBroadcasterMetric(stream.host);
   if (metric) metric.totalComments += 1;
 
+  const safeId =
+    typeof customId === 'string' && /^[a-zA-Z0-9_\-]{3,128}$/.test(customId)
+      ? customId
+      : `lc_${now}_${Math.random().toString(36).substring(2, 6)}`;
+
   const msg = {
-    id: `lc_${now}_${Math.random().toString(36).substring(2, 6)}`,
+    id: safeId,
     senderId: sender.id,
     senderName: sender.name || 'Viewer',
     senderAvatar: sender.avatar || '',
@@ -3317,8 +3380,8 @@ app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
 
 app.post('/api/live/:streamId/heart', (req: Request, res: Response) => {
   const { streamId } = req.params;
-  const { senderId, count = 1 } = req.body;
-  const stream = liveStreamsMap.get(streamId);
+  const { senderId, count = 1, streamMeta } = req.body;
+  const stream = ensureLiveStreamHydrated(streamId, streamMeta);
   if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Stream has ended.' });
   }

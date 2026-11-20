@@ -16,8 +16,8 @@ import {
   VolumeX
 } from 'lucide-react';
 import { UserProfile, VideoItem } from '../../types';
-import { uploadPostVideo } from '../../services/storageService';
-import { createFirestoreVideo } from '../../services/firestoreService';
+import { uploadReelVideoAndThumbnail } from '../../services/storageService';
+import { createReelDocument, generateReelId } from '../../services/reelService';
 
 interface UploadVideoScreenProps {
   currentUser: UserProfile;
@@ -27,6 +27,8 @@ interface UploadVideoScreenProps {
   onUploadSuccess: (video: VideoItem) => void;
 }
 
+const MAX_REEL_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+
 export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
   currentUser,
   initialVideoUrl,
@@ -35,15 +37,14 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
   onUploadSuccess,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | Blob | null>(initialFile || null);
-  const [previewUrl, setPreviewUrl] = useState<string>(
-    initialVideoUrl || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80'
-  );
+  const [previewUrl, setPreviewUrl] = useState<string>(initialVideoUrl || '');
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState<string[]>(['#party', '#viral', '#lenzo']);
   const [newTagInput, setNewTagInput] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<string>('Preparing upload...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
@@ -59,8 +60,18 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
   }, [initialVideoUrl, initialFile]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMessage(null);
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      const mime = (file.type || '').toLowerCase();
+      if (mime && !mime.startsWith('video/')) {
+        setErrorMessage('Please select a valid video file (MP4, WebM, or MOV).');
+        return;
+      }
+      if (file.size > MAX_REEL_FILE_BYTES) {
+        setErrorMessage('Video is larger than 100 MB. Please select a smaller clip.');
+        return;
+      }
       setSelectedFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -83,80 +94,86 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+
+    if (!selectedFile) {
+      setErrorMessage('Please select a video file to upload to Lenzo Reels.');
+      fileInputRef.current?.click();
+      return;
+    }
     if (!caption.trim()) {
-      setErrorMessage('Please enter a caption for your video.');
+      setErrorMessage('Please enter a caption for your reel.');
       return;
     }
 
+    setIsUploading(true);
+    setUploadProgress(5);
+    setUploadStage('Uploading video & generating thumbnail...');
+
     try {
-      let finalVideoUrl = previewUrl;
+      const reelId = generateReelId();
 
-      // Real Firebase Storage upload if a real file/blob is selected
-      if (selectedFile) {
-        setUploadProgress(10);
-        finalVideoUrl = await uploadPostVideo(selectedFile, (pct) => {
-          setUploadProgress(Math.max(10, Math.round(pct)));
-        });
-      } else {
-        setUploadProgress(75);
-      }
+      // 1. Upload video & thumbnail to Firebase Storage: reels/{userUID}/{reelID}/video.{ext} & thumbnail.jpg
+      const uploaded = await uploadReelVideoAndThumbnail({
+        reelId,
+        videoFile: selectedFile,
+        onProgress: (pct) => {
+          setUploadProgress(Math.max(5, Math.min(92, Math.round(pct))));
+          if (pct >= 88) {
+            setUploadStage('Saving thumbnail & publishing to feed...');
+          }
+        },
+      });
 
-      const fullDescription = `${caption.trim()} ${hashtags.join(' ')}`;
-      const isPrivate = privacy === 'private';
+      setUploadProgress(96);
+      setUploadStage('Saving reel metadata to Firestore...');
 
-      // Persist real post in Cloud Firestore
-      let realDocId = `vid_${Date.now()}`;
-      try {
-        realDocId = await createFirestoreVideo({
-          videoUrl: finalVideoUrl,
-          thumbnailUrl: finalVideoUrl,
-          description: fullDescription,
-          musicTitle: `${currentUser.name} - Original Sound 🎵`,
-          isPrivate,
-        });
-      } catch (firestoreErr) {
-        console.warn('[Firestore] Post document fallback notice:', firestoreErr);
-      }
+      // 2. Persist Reel metadata in Cloud Firestore `reels/{reelID}`
+      const createdReel = await createReelDocument({
+        reelId,
+        creator: currentUser,
+        videoUrl: uploaded.videoUrl,
+        videoStoragePath: uploaded.videoStoragePath,
+        thumbnailUrl: uploaded.thumbnailUrl,
+        thumbnailStoragePath: uploaded.thumbnailStoragePath,
+        caption: caption.trim(),
+        hashtags,
+        visibility: privacy,
+        musicTitle: `${currentUser.name} - Original Sound`,
+      });
 
       setUploadProgress(100);
-
-      const newVideoObj: VideoItem = {
-        id: realDocId,
-        creator: currentUser,
-        videoUrl: finalVideoUrl,
-        thumbnailUrl: finalVideoUrl,
-        description: fullDescription,
-        musicTitle: `${currentUser.name} - Original Sound 🎵`,
-        hashtags,
-        likesCount: 0,
-        commentsCount: 0,
-        sharesCount: 0,
-        repostsCount: 0,
-        isLiked: false,
-        isReposted: false,
-        createdAt: 'Just now',
-        privacy,
-      };
+      setUploadStage('Published!');
 
       setTimeout(() => {
         setIsUploading(false);
-        onUploadSuccess(newVideoObj);
-      }, 350);
+        onUploadSuccess(createdReel);
+      }, 300);
     } catch (err: any) {
+      console.error('[Reel Upload Error]:', err);
       setIsUploading(false);
-      setErrorMessage(err.message || 'Failed to upload video');
+      setUploadProgress(0);
+      setErrorMessage(
+        err?.message || 'Failed to upload reel. Please check your connection and try again.'
+      );
     }
   };
 
-  const isBlobOrVideoUrl = previewUrl.startsWith('blob:') || previewUrl.endsWith('.mp4') || previewUrl.endsWith('.webm');
+  const isBlobOrVideoUrl =
+    Boolean(previewUrl) &&
+    (previewUrl.startsWith('blob:') ||
+      previewUrl.endsWith('.mp4') ||
+      previewUrl.endsWith('.webm') ||
+      previewUrl.endsWith('.mov') ||
+      previewUrl.includes('firebasestorage'));
 
   return (
     <div className="min-h-screen w-full bg-[#080413] text-white flex flex-col justify-between p-4 sm:p-6 select-none animate-fade-in font-sans">
-      {/* Hidden file input to change video */}
+      {/* Hidden file input to select video */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/*"
+        accept="video/mp4,video/webm,video/quicktime,video/*"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -222,18 +239,17 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
                 className="w-full h-full object-contain bg-black"
               />
             ) : (
-              <div className="relative w-full h-full">
-                <img
-                  src={previewUrl}
-                  alt="Video thumbnail"
-                  className="w-full h-full object-cover filter brightness-90"
-                />
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full bg-[#FA26A0]/80 backdrop-blur-md flex items-center justify-center text-white shadow-xl shadow-pink-900/40">
-                    <Play className="w-6 h-6 fill-white ml-0.5" />
-                  </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-full flex flex-col items-center justify-center gap-2.5 bg-[#140D20] hover:bg-[#1b122b] transition-colors px-6 text-center"
+              >
+                <div className="w-14 h-14 rounded-full bg-[#FA26A0]/20 border border-[#FA26A0]/40 flex items-center justify-center text-[#FA26A0]">
+                  <Video className="w-6 h-6" />
                 </div>
-              </div>
+                <span className="text-sm font-bold text-white">Tap to Select Reel Video</span>
+                <span className="text-[11px] text-[#9E97AA]">MP4, WebM, or MOV · Max 100 MB</span>
+              </button>
             )}
           </div>
         </div>
@@ -331,7 +347,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
             {isUploading && (
               <div className="space-y-1.5 animate-fade-in">
                 <div className="flex items-center justify-between text-xs text-[#FA26A0] font-bold">
-                  <span>Uploading video to Lenzo Party Live...</span>
+                  <span>{uploadStage}</span>
                   <span className="font-mono">{uploadProgress}%</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">

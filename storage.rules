@@ -1,0 +1,69 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'yaquoobe@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidImage() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
+    }
+
+    function isValidVideo() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 100 * 1024 * 1024
+        && request.resource.contentType.matches('video/(mp4|webm|quicktime|x-m4v|ogg)');
+    }
+
+    // 1. Reels Videos & Thumbnails: reels/{userUID}/{reelID}/{fileName}
+    match /reels/{userUID}/{reelID}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userUID)
+        && ((fileName.matches('^video\\.(mp4|webm|mov)$') && isValidVideo())
+          || (fileName.matches('^thumbnail\\.(jpg|jpeg|png|webp)$') && isValidImage()));
+      allow delete: if isOwner(userUID) || isAdmin();
+    }
+
+    // 2. Legacy Video Uploads: videos/{userUID}/{fileName}
+    match /videos/{userUID}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userUID) && isValidVideo();
+      allow delete: if isOwner(userUID) || isAdmin();
+    }
+
+    // 3. User Profile Avatars & Covers: users/{userUID}/{folder}/{fileName}
+    match /users/{userUID}/{folder}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userUID)
+        && folder in ['avatars', 'covers']
+        && isValidImage();
+      allow delete: if isOwner(userUID) || isAdmin();
+    }
+
+    // 4. Store Assets (Admin-only writes): store/{assetPath=**}
+    match /store/{assetPath=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && (isValidImage() || isValidVideo());
+    }
+
+    // Default deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

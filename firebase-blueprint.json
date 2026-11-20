@@ -660,6 +660,103 @@
         "createdAt": { "type": "string" }
       },
       "required": ["blockerId", "blockedUserId", "blockedUserName"]
+    },
+    "Reel": {
+      "title": "Reel",
+      "description": "Short-form vertical video stored in Firebase Storage and indexed in Firestore",
+      "type": "object",
+      "properties": {
+        "reelID": { "type": "string", "maxLength": 128 },
+        "creatorUID": { "type": "string", "maxLength": 128 },
+        "videoUrl": { "type": "string", "maxLength": 2048 },
+        "videoStoragePath": { "type": "string", "maxLength": 512 },
+        "thumbnailUrl": { "type": "string", "maxLength": 2048 },
+        "thumbnailStoragePath": { "type": "string", "maxLength": 512 },
+        "caption": { "type": "string", "maxLength": 500 },
+        "hashtags": { "type": "array", "items": { "type": "string" } },
+        "visibility": { "type": "string", "enum": ["public", "friends", "private"] },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "sharesCount": { "type": "number" },
+        "processingStatus": { "type": "string", "enum": ["uploading", "processing", "ready", "failed"] }
+      },
+      "required": ["reelID", "creatorUID", "videoUrl", "visibility"]
+    },
+    "ReelLike": {
+      "title": "ReelLike",
+      "description": "Deduplicated like edge keyed by reelId_userId",
+      "type": "object",
+      "properties": {
+        "reelId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["reelId", "userId"]
+    },
+    "ReelComment": {
+      "title": "ReelComment",
+      "description": "Persisted user comment on a reel",
+      "type": "object",
+      "properties": {
+        "reelId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 80 },
+        "text": { "type": "string", "maxLength": 400 }
+      },
+      "required": ["reelId", "userId", "text"]
+    },
+    "ReelView": {
+      "title": "ReelView",
+      "description": "Deduplicated reel view record keyed by reelId_userId",
+      "type": "object",
+      "properties": {
+        "reelId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["reelId", "userId"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Private user app preferences synced across Web and Android",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "notificationsEnabled": { "type": "boolean" },
+        "darkMode": { "type": "boolean" },
+        "language": { "type": "string", "maxLength": 40 },
+        "showOnlineStatus": { "type": "boolean" },
+        "allowDirectMessages": { "type": "string", "enum": ["everyone", "followers", "nobody"] },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "notificationsEnabled", "darkMode", "language"]
+    },
+    "ContentReport": {
+      "title": "ContentReport",
+      "description": "Moderation report submitted for a reel, user, room, or stream",
+      "type": "object",
+      "properties": {
+        "reporterUid": { "type": "string", "maxLength": 128 },
+        "targetType": { "type": "string", "enum": ["reel", "user", "room", "stream"] },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "targetOwnerUid": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 120 },
+        "details": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["open", "reviewing", "resolved", "dismissed"] }
+      },
+      "required": ["reporterUid", "targetType", "targetId", "reason", "status"]
+    },
+    "AccountDeletionRequest": {
+      "title": "AccountDeletionRequest",
+      "description": "Audit log for user-initiated permanent account deletion requests",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 120 },
+        "reason": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending", "completed", "cancelled"] },
+        "requestedAt": { "type": "string" }
+      },
+      "required": ["userId", "reason", "status"]
     }
   },
   "firestore": {
@@ -790,6 +887,34 @@
     "/blocked_users/{blockId}": {
       "schema": "BlockedUser",
       "description": "Persisted user blocking records keyed by blockerId_blockedUserId"
+    },
+    "/reels/{reelId}": {
+      "schema": "Reel",
+      "description": "Production Reels metadata pointing to Firebase Storage reels/{userUID}/{reelID}/ assets"
+    },
+    "/reel_likes/{likeId}": {
+      "schema": "ReelLike",
+      "description": "Deduplicated Reel likes keyed by reelId_userId"
+    },
+    "/reel_comments/{commentId}": {
+      "schema": "ReelComment",
+      "description": "Persisted Reel comments"
+    },
+    "/reel_views/{viewId}": {
+      "schema": "ReelView",
+      "description": "Deduplicated Reel views keyed by reelId_userId"
+    },
+    "/user_settings/{uid}": {
+      "schema": "UserSettings",
+      "description": "Private user settings synced across Web and Android"
+    },
+    "/reports/{reportId}": {
+      "schema": "ContentReport",
+      "description": "Content and user safety moderation reports"
+    },
+    "/deletion_requests/{uid}": {
+      "schema": "AccountDeletionRequest",
+      "description": "User-initiated account deletion audit requests"
     }
   }
 }

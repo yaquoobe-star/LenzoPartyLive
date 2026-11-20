@@ -36,6 +36,7 @@ import {
   Users,
   Ban,
   ShieldAlert,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 import { UserProfile, ScreenType, VideoItem, Conversation } from '../../types';
@@ -94,6 +95,7 @@ interface ProfileScreenProps {
   onSelectUser?: (user: UserProfile) => void;
   onSendMessage?: (user: UserProfile) => void;
   onSendGift?: (user: UserProfile) => void;
+  onOpenAccountSwitcher?: () => void;
 }
 
 export type ProfileContentTab = 'public' | 'private' | 'saved' | 'posts' | 'liked';
@@ -119,6 +121,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onSelectUser,
   onSendMessage,
   onSendGift,
+  onOpenAccountSwitcher,
 }) => {
   const isOwner = !viewingUser || viewingUser.id === currentUser.id;
   const activeUser = isOwner ? currentUser : viewingUser;
@@ -947,6 +950,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         {blockedUsers.length > 99 ? '99+' : blockedUsers.length}
                       </span>
                     )}
+                  </button>
+                )}
+
+                {isOwner && onOpenAccountSwitcher && (
+                  <button
+                    onClick={onOpenAccountSwitcher}
+                    aria-label="Switch Account"
+                    title="Switch Account"
+                    className="min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-[#fe2c55]/30 backdrop-blur-md border border-white/15 hover:border-[#fe2c55]/50 flex items-center justify-center text-white active:scale-95 transition-all"
+                  >
+                    <ArrowRightLeft className="w-4 h-4 text-[#25f4ee]" />
                   </button>
                 )}
 

@@ -4,6 +4,7 @@ import {
   signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
+  linkWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -25,6 +26,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { apiFetch } from '../utils/apiConfig';
 import { UserProfile } from '../types';
+import { rememberAuthenticatedAccount } from './accountSwitcherService';
 
 interface NativeGoogleAuthPlugin {
   signIn(): Promise<{
@@ -44,12 +46,15 @@ export interface FirestoreUserData {
   email: string;
   username?: string;
   displayId?: string;
+  phoneNumber?: string;
   profileImage?: string;
   coverImage?: string;
   bio?: string;
   authProvider: 'google' | 'password';
+  providerIds?: string[];
   createdAt: string;
   lastLogin: string;
+  lastActiveAt?: string;
   isOnline: boolean;
   followersCount: number;
   followingCount: number;
@@ -206,13 +211,28 @@ export async function syncUserInFirestore(
     const existingSnap = await getDoc(userRef);
 
     if (existingSnap.exists()) {
-      // User exists: update lastLogin and online status
+      // User exists: preserve permanent UID, coins, level, VIP, createdAt; only refresh session/missing identity fields
       const existingData = existingSnap.data() as FirestoreUserData;
+      const providerIds = Array.from(
+        new Set(user.providerData.map((p) => p.providerId).filter(Boolean))
+      );
       const updatePayload: Partial<FirestoreUserData> = {
         lastLogin: now,
+        lastActiveAt: now,
         isOnline: true,
+        ...(providerIds.length > 0 ? { providerIds } : {}),
       };
 
+      if (!existingData.displayId) {
+        updatePayload.displayId = `LP${user.uid.substring(0, 6).toUpperCase()}`;
+      }
+      if (!existingData.username) {
+        const rawEmailName = (existingData.email || user.email || 'user').split('@')[0];
+        updatePayload.username = `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'lenzouser'}`;
+      }
+      if (user.phoneNumber && !existingData.phoneNumber) {
+        updatePayload.phoneNumber = user.phoneNumber;
+      }
       if (!existingData.fullName || existingData.fullName.trim().length < 2) {
         updatePayload.fullName = normalizeDisplayName(extra?.fullName || user.displayName, 'Lenzo User');
       }
@@ -226,16 +246,26 @@ export async function syncUserInFirestore(
         ...updatePayload,
       };
     } else {
-      // New user: create comprehensive Firestore record
+      // New user: create permanent Firestore user record bound to Firebase UID
       const safeFullName = normalizeDisplayName(extra?.fullName || user.displayName, 'Lenzo User');
+      const rawEmailName = (user.email || 'user').split('@')[0];
+      const generatedUsername = `@${rawEmailName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() || 'lenzouser'}`;
+      const providerIds = Array.from(
+        new Set(user.providerData.map((p) => p.providerId).filter(Boolean))
+      );
       const newUserData: FirestoreUserData = {
         uid: user.uid,
+        displayId: `LP${user.uid.substring(0, 6).toUpperCase()}`,
+        username: generatedUsername,
         fullName: safeFullName,
         email: (user.email || '').slice(0, 120),
+        ...(user.phoneNumber ? { phoneNumber: user.phoneNumber } : {}),
         profileImage: (extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]).slice(0, 1500),
         authProvider: authProvider,
+        providerIds: providerIds.length > 0 ? providerIds : [authProvider === 'google' ? 'google.com' : 'password'],
         createdAt: now,
         lastLogin: now,
+        lastActiveAt: now,
         isOnline: true,
         followersCount: 0,
         followingCount: 0,
@@ -274,7 +304,9 @@ export async function checkRedirectAuthOutcome(): Promise<RedirectAuthOutcome> {
         profileImage: result.user.photoURL || undefined,
       });
       await syncBackendAuthSession(result.user);
-      return { profile: mapFirestoreUserToProfile(firestoreData, result.user) };
+      const profile = mapFirestoreUserToProfile(firestoreData, result.user);
+      rememberAuthenticatedAccount(profile, 'google');
+      return { profile };
     }
     return { profile: null };
   } catch (err: any) {
@@ -327,7 +359,10 @@ async function syncBackendAuthSession(user: FirebaseUser): Promise<void> {
  * REAL Google Sign-In via Native Android Credential/Play Services OR Firebase Web Popup/Redirect
  * Both platforms authenticate into the exact same Firebase project (`confident-drake-3bcxw`) and Firestore DB.
  */
-export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile: UserProfile } | null> {
+export async function signInWithGoogle(options?: {
+  loginHint?: string;
+  forceAccountPicker?: boolean;
+}): Promise<{ user: FirebaseUser; profile: UserProfile } | null> {
   try {
     await setPersistence(auth, browserLocalPersistence);
 
@@ -350,6 +385,7 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
 
         await syncBackendAuthSession(user);
         const profile = mapFirestoreUserToProfile(firestoreData, user);
+        rememberAuthenticatedAccount(profile, 'google');
         return { user, profile };
       } catch (nativeErr: any) {
         const rawMsg = String(nativeErr?.message || nativeErr || '');
@@ -367,7 +403,14 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
 
     // 2. Web Browser (lenzoparty.com & AI Studio preview): Firebase Google Popup + Redirect fallback
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const customParams: Record<string, string> = {
+      prompt: options?.forceAccountPicker === false ? 'none' : 'select_account',
+    };
+    if (options?.loginHint && options.loginHint.trim()) {
+      customParams.login_hint = options.loginHint.trim();
+      customParams.prompt = 'select_account';
+    }
+    provider.setCustomParameters(customParams);
 
     try {
       const result = await signInWithPopup(auth, provider);
@@ -380,6 +423,7 @@ export async function signInWithGoogle(): Promise<{ user: FirebaseUser; profile:
 
       await syncBackendAuthSession(user);
       const profile = mapFirestoreUserToProfile(firestoreData, user);
+      rememberAuthenticatedAccount(profile, 'google');
       return { user, profile };
     } catch (popupError: any) {
       if (
@@ -454,6 +498,7 @@ export async function registerWithEmail(params: {
 
     await syncBackendAuthSession(user);
     const profile = mapFirestoreUserToProfile(firestoreData, user);
+    rememberAuthenticatedAccount(profile, 'password');
     return { user, profile };
   } catch (error: any) {
     console.error('[Email Register Error]:', error);
@@ -493,6 +538,7 @@ export async function loginWithEmail(
     const firestoreData = await syncUserInFirestore(user, 'password');
     await syncBackendAuthSession(user);
     const profile = mapFirestoreUserToProfile(firestoreData, user);
+    rememberAuthenticatedAccount(profile, 'password');
     return { user, profile };
   } catch (error: any) {
     console.error('[Email Login Error]:', error);
@@ -576,6 +622,47 @@ export async function fetchCurrentFirestoreProfile(uid: string): Promise<UserPro
     console.warn('Could not fetch user document:', err);
     return null;
   }
+}
+
+/**
+ * Safe verified provider linking: links Google sign-in to the currently authenticated UID
+ * without ever merging unverified accounts.
+ */
+export async function linkGoogleAccount(): Promise<string[]> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Please sign in first before linking a Google account.');
+  }
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    const result = await linkWithPopup(user, provider);
+    const providerIds = Array.from(
+      new Set(result.user.providerData.map((p) => p.providerId).filter(Boolean))
+    );
+    await updateDoc(doc(db, 'users', user.uid), {
+      providerIds,
+      lastActiveAt: new Date().toISOString(),
+    }).catch(() => {});
+    return providerIds;
+  } catch (err: any) {
+    if (err.code === 'auth/credential-already-in-use') {
+      throw new Error('This Google account is already linked to another Lenzo Party account.');
+    }
+    if (err.code === 'auth/provider-already-linked') {
+      return getLinkedAuthProviders();
+    }
+    if (err.code === 'auth/popup-closed-by-user') {
+      throw new Error('Google account linking was cancelled.');
+    }
+    throw new Error(err?.message || 'Failed to link Google account.');
+  }
+}
+
+export function getLinkedAuthProviders(): string[] {
+  const user = auth.currentUser;
+  if (!user) return [];
+  return Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
 }
 
 export { DEFAULT_AVATARS };

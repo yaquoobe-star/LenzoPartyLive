@@ -9,9 +9,16 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  ReCaptchaV3Provider,
+  type AppCheck,
+} from 'firebase/app-check';
+import { getAnalytics, isSupported as isAnalyticsSupported, type Analytics } from 'firebase/analytics';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize or retrieve existing Firebase App
+// Initialize or retrieve existing Firebase App (Lenzo Party dedicated project: confident-drake-3bcxw)
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // CRITICAL: Initialize Firestore using the specific provisioned database ID from config.
@@ -38,8 +45,64 @@ export const db = createFirestoreInstance();
 // Firebase Authentication instance
 export const auth = getAuth(app);
 
-// Firebase Storage instance for real media and video uploads
+// Firebase Storage instance for real media and reel uploads
 export const storage = getStorage(app);
+
+// Firebase App Check (activated automatically when VITE_RECAPTCHA_SITE_KEY or recaptchaSiteKey is configured)
+let appCheckInstance: AppCheck | null = null;
+let appCheckProviderName: string = 'not_configured';
+
+if (typeof window !== 'undefined') {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
+  const debugToken = env.VITE_APP_CHECK_DEBUG_TOKEN;
+  if (debugToken) {
+    (self as unknown as Record<string, unknown>).FIREBASE_APPCHECK_DEBUG_TOKEN =
+      debugToken === 'true' ? true : debugToken;
+  }
+  const siteKey = (env.VITE_RECAPTCHA_SITE_KEY || firebaseConfig.recaptchaSiteKey || '').trim();
+  if (siteKey) {
+    try {
+      const useEnterprise = env.VITE_RECAPTCHA_ENTERPRISE !== 'false';
+      const provider = useEnterprise
+        ? new ReCaptchaEnterpriseProvider(siteKey)
+        : new ReCaptchaV3Provider(siteKey);
+      appCheckInstance = initializeAppCheck(app, {
+        provider,
+        isTokenAutoRefreshEnabled: true,
+      });
+      appCheckProviderName = useEnterprise ? 'recaptcha_enterprise' : 'recaptcha_v3';
+    } catch (err) {
+      console.warn('[Firebase App Check] Initialization notice:', err);
+      appCheckProviderName = 'init_error';
+    }
+  }
+}
+
+export const appCheck = appCheckInstance;
+
+// Firebase Analytics (safely initialized only in supported browser contexts with a measurementId)
+let analyticsInstance: Analytics | null = null;
+if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  void isAnalyticsSupported()
+    .then((supported) => {
+      if (supported) {
+        analyticsInstance = getAnalytics(app);
+      }
+    })
+    .catch(() => {});
+}
+
+export const getFirebaseAnalytics = (): Analytics | null => analyticsInstance;
+
+export const FIREBASE_RUNTIME_INFO = {
+  projectId: firebaseConfig.projectId,
+  firestoreDatabaseId: firebaseConfig.firestoreDatabaseId,
+  storageBucket: firebaseConfig.storageBucket,
+  authDomain: firebaseConfig.authDomain,
+  appCheckEnabled: Boolean(appCheckInstance),
+  appCheckProvider: appCheckProviderName,
+  analyticsConfigured: Boolean(firebaseConfig.measurementId),
+};
 
 // Automatically reconnect Firestore if browser/device connectivity recovers
 if (typeof window !== 'undefined') {

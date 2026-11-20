@@ -228,11 +228,12 @@ class LiveAndRoomService {
 
   public async joinLiveStream(
     streamId: string,
-    user: UserProfile
+    user: UserProfile,
+    streamMeta?: { host?: UserProfile; title?: string; category?: string }
   ): Promise<{ stream?: LiveStream; viewers?: LiveViewerInfo[]; comments?: ChatMessage[] }> {
     const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/join`, {
       method: 'POST',
-      body: JSON.stringify({ user }),
+      body: JSON.stringify({ user, streamMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Live broadcast ended or unavailable' }));
@@ -283,11 +284,13 @@ class LiveAndRoomService {
   public async sendLiveComment(
     streamId: string,
     sender: UserProfile,
-    text: string
+    text: string,
+    customId?: string,
+    streamMeta?: { host?: UserProfile; title?: string; category?: string }
   ): Promise<ChatMessage> {
     const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/comment`, {
       method: 'POST',
-      body: JSON.stringify({ sender, text }),
+      body: JSON.stringify({ sender, text, customId, streamMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to send comment' }));
@@ -297,11 +300,16 @@ class LiveAndRoomService {
     return data.message;
   }
 
-  public async sendLiveHeart(streamId: string, senderId: string, count = 1): Promise<number> {
+  public async sendLiveHeart(
+    streamId: string,
+    senderId: string,
+    count = 1,
+    streamMeta?: { host?: UserProfile; title?: string; category?: string }
+  ): Promise<number> {
     try {
       const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/heart`, {
         method: 'POST',
-        body: JSON.stringify({ senderId, count }),
+        body: JSON.stringify({ senderId, count, streamMeta }),
       });
       if (res.ok) {
         const data = await res.json();

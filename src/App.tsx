@@ -20,14 +20,25 @@ import { getInitialUserProfile, saveStoredUserProfile } from './utils/storage';
 import { pkService } from './utils/pkService';
 import { profileService } from './utils/profileService';
 import { auth, db } from './firebase';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   logoutUser,
+  signInWithGoogle,
   fetchCurrentFirestoreProfile,
   mapFirestoreUserToProfile,
   FirestoreUserData,
 } from './services/authService';
+import {
+  SavedDeviceAccount,
+  rememberAuthenticatedAccount,
+} from './services/accountSwitcherService';
+import {
+  REELS_PAGE_SIZE,
+  subscribeReelsFeed,
+  fetchMoreReels,
+  deleteOwnReel,
+} from './services/reelService';
 import { androidBridge } from './utils/androidBridge';
 import { ensureNativeMediaPermissions } from './utils/mediaDeviceHelper';
 import { 
@@ -103,6 +114,7 @@ import {
 } from './types/levelAndVip';
 import { SearchModal } from './components/screens/SearchModal';
 import { NotificationsModal } from './components/screens/NotificationsModal';
+import { AccountSwitcherModal } from './components/profile/AccountSwitcherModal';
 
 export default function App() {
   // Navigation & Screen State
@@ -153,9 +165,21 @@ export default function App() {
   } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState(false);
+  const [authScreenMode, setAuthScreenMode] = useState<'login' | 'add_account'>('login');
+  const [authPrefillEmail, setAuthPrefillEmail] = useState<string | undefined>(undefined);
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
   const [navigatingProfileUser, setNavigatingProfileUser] = useState<UserProfile | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<UserProfile | null>(null);
+
+  // Reels Pagination & Merged Feed State
+  const [firestoreReels, setFirestoreReels] = useState<VideoItem[]>([]);
+  const [legacyPostVideos, setLegacyPostVideos] = useState<VideoItem[]>([]);
+  const [extraPagedReels, setExtraPagedReels] = useState<VideoItem[]>([]);
+  const [reelsLastDoc, setReelsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMoreReels, setHasMoreReels] = useState(false);
+  const [isLoadingMoreReels, setIsLoadingMoreReels] = useState(false);
+  const previousAuthUidRef = useRef<string | null>(auth.currentUser?.uid || null);
 
   // User Blocking State (Real-time Firestore + Backend Sync)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
@@ -503,20 +527,49 @@ export default function App() {
     isVideoSourceModalOpen, isCameraRecorderOpen, viewingProfileUser, activeChatUser, currentScreen
   ]);
 
-  // Firebase Persistent Authentication Session Listener & Subscriptions
+  // Firebase Persistent Authentication Session Listener & Strict Multi-Account State Isolation
   const [authenticatedUid, setAuthenticatedUid] = useState<string | null>(auth.currentUser?.uid || null);
+
+  const resetUserScopedTransientState = () => {
+    setBlockedUsers([]);
+    setBlockedByUserIds([]);
+    setConversations([]);
+    setActiveLiveStream(null);
+    setActiveAudioRoom(null);
+    setActivePKSession(null);
+    setIncomingPKInvite(null);
+    setPkWinnerSession(null);
+    setViewingProfileUser(null);
+    setNavigatingProfileUser(null);
+    setActiveChatUser(null);
+    setLevelUpData(null);
+    setExtraPagedReels([]);
+    setReelsLastDoc(null);
+    setHasMoreReels(false);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setAuthenticatedUid(firebaseUser ? firebaseUser.uid : null);
+      const nextUid = firebaseUser ? firebaseUser.uid : null;
+      if (previousAuthUidRef.current !== nextUid) {
+        // Strict isolation: clear all transient state from the previous UID before attaching the next UID
+        resetUserScopedTransientState();
+        previousAuthUidRef.current = nextUid;
+      }
+
+      setAuthenticatedUid(nextUid);
       if (firebaseUser) {
         liveAndRoomService.setCurrentUser(firebaseUser.uid);
+        setAuthScreenMode('login');
+        setAuthPrefillEmail(undefined);
         setCurrentScreen((prev) => (prev === 'auth' ? 'home' : prev));
         try {
           const profile = await fetchCurrentFirestoreProfile(firebaseUser.uid);
           if (profile) {
             setCurrentUser(profile);
             saveStoredUserProfile(profile);
+            const isGoogleProvider = firebaseUser.providerData.some((p) => p.providerId === 'google.com');
+            rememberAuthenticatedAccount(profile, isGoogleProvider ? 'google' : 'password');
             liveAndRoomService.syncUser(profile);
           }
         } catch (e) {
@@ -533,15 +586,30 @@ export default function App() {
   // Real-Time Backend Discovery & WebSocket Broadcast Sync
   useEffect(() => {
     let active = true;
+    const dedupeLiveStreamsByHost = (items: LiveStream[]): LiveStream[] => {
+      const sorted = [...items]
+        .filter((s) => s?.id && !endedLiveIdsRef.current.has(s.id) && s.isLive !== false)
+        .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      const byHost = new Map<string, LiveStream>();
+      for (const s of sorted) {
+        const hostKey = s.host?.id || s.id;
+        if (!byHost.has(hostKey)) {
+          byHost.set(hostKey, s);
+        }
+      }
+      return Array.from(byHost.values()).sort(
+        (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
+      );
+    };
+
     const upsertStream = (incoming: LiveStream) => {
       if (!incoming?.id || endedLiveIdsRef.current.has(incoming.id)) return;
       backendLiveIdsRef.current.add(incoming.id);
       setLiveStreams((prev) => {
-        const exists = prev.some((s) => s.id === incoming.id);
-        if (exists) {
-          return prev.map((s) => (s.id === incoming.id ? { ...s, ...incoming } : s));
-        }
-        return [incoming, ...prev];
+        const merged = prev.some((s) => s.id === incoming.id)
+          ? prev.map((s) => (s.id === incoming.id ? { ...s, ...incoming } : s))
+          : [incoming, ...prev];
+        return dedupeLiveStreamsByHost(merged);
       });
       setActiveLiveStream((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
     };
@@ -578,9 +646,7 @@ export default function App() {
         streams.forEach((s) => {
           if (!endedLiveIdsRef.current.has(s.id)) mergedMap.set(s.id, s);
         });
-        return Array.from(mergedMap.values()).sort(
-          (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
-        );
+        return dedupeLiveStreamsByHost(Array.from(mergedMap.values()));
       });
 
       setPartyRooms((prev) => {
@@ -790,7 +856,7 @@ export default function App() {
     });
 
     const unsubStreams = subscribeFirestoreLiveStreams((remoteStreams) => {
-      // Merge Firestore streams non-destructively: keep active real-time backend streams & counts
+      // Merge Firestore streams non-destructively while strictly enforcing ONE card per host.id
       setLiveStreams((prev) => {
         const merged = new Map<string, LiveStream>();
         remoteStreams.forEach((s) => {
@@ -816,7 +882,17 @@ export default function App() {
             }
           }
         });
-        return Array.from(merged.values()).sort(
+        // Strictly collapse to the newest active stream per host.id so 2 cards never appear for one broadcaster
+        const byHost = new Map<string, LiveStream>();
+        Array.from(merged.values())
+          .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
+          .forEach((s) => {
+            const hostKey = s.host?.id || s.id;
+            if (!byHost.has(hostKey)) {
+              byHost.set(hostKey, s);
+            }
+          });
+        return Array.from(byHost.values()).sort(
           (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
         );
       });
@@ -850,8 +926,19 @@ export default function App() {
       });
     });
 
+    const unsubReels = subscribeReelsFeed(authenticatedUid, REELS_PAGE_SIZE, (snapshot) => {
+      setFirestoreReels(snapshot.reels);
+      setReelsLastDoc(snapshot.lastDoc);
+      setHasMoreReels(snapshot.hasMore);
+    });
+
     const unsubVideos = subscribeFirestoreVideos((remoteVideos) => {
-      setVideos(remoteVideos);
+      setLegacyPostVideos(
+        remoteVideos.map((v) => ({
+          ...v,
+          sourceCollection: 'posts',
+        }))
+      );
     });
 
     return () => {
@@ -861,9 +948,43 @@ export default function App() {
       unsubLevels();
       unsubStreams();
       unsubRooms();
+      unsubReels();
       unsubVideos();
     };
   }, [authenticatedUid]);
+
+  // Merge primary `reels` collection + paginated pages + legacy `posts` without duplicates
+  useEffect(() => {
+    const byId = new Map<string, VideoItem>();
+    [...firestoreReels, ...extraPagedReels, ...legacyPostVideos].forEach((item) => {
+      if (!item?.id) return;
+      if (!byId.has(item.id)) {
+        byId.set(item.id, item);
+      }
+    });
+    const merged = Array.from(byId.values()).sort(
+      (a, b) => (b.createdAtMillis || Date.parse(b.createdAt) || 0) - (a.createdAtMillis || Date.parse(a.createdAt) || 0)
+    );
+    setVideos(merged);
+  }, [firestoreReels, extraPagedReels, legacyPostVideos]);
+
+  const handleLoadMoreReels = async () => {
+    if (!reelsLastDoc || isLoadingMoreReels || !hasMoreReels) return;
+    setIsLoadingMoreReels(true);
+    try {
+      const nextPage = await fetchMoreReels(reelsLastDoc, authenticatedUid, REELS_PAGE_SIZE);
+      if (nextPage.reels.length > 0) {
+        setExtraPagedReels((prev) => {
+          const existingIds = new Set(prev.map((r) => r.id));
+          return [...prev, ...nextPage.reels.filter((r) => !existingIds.has(r.id))];
+        });
+      }
+      setReelsLastDoc(nextPage.lastDoc);
+      setHasMoreReels(nextPage.hasMore);
+    } finally {
+      setIsLoadingMoreReels(false);
+    }
+  };
 
   // Handler: Splash Completion
   const handleSplashComplete = () => {
@@ -876,6 +997,8 @@ export default function App() {
 
   // Handler: Auth Success
   const handleAuthSuccess = (profile: UserProfile) => {
+    setAuthScreenMode('login');
+    setAuthPrefillEmail(undefined);
     setCurrentUser(profile);
     saveStoredUserProfile(profile);
     liveAndRoomService.setCurrentUser(profile.id);
@@ -883,22 +1006,70 @@ export default function App() {
     setCurrentScreen('home');
   };
 
-  // Handler: Logout
+  // Handler: Logout (preserves device saved accounts for Welcome Back & Account Switcher; clears active session state)
   const handleLogout = async () => {
     try {
       await logoutUser();
     } catch (e) {
       console.warn('Logout notice:', e);
     }
+    resetUserScopedTransientState();
     setAuthenticatedUid(null);
     liveAndRoomService.setCurrentUser(null);
     setCurrentUser(CURRENT_USER);
     try {
       localStorage.removeItem('lenzo_party_user_profile_v3');
     } catch (_) {}
+    setAuthScreenMode('login');
+    setAuthPrefillEmail(undefined);
     setCurrentScreen('auth');
-    setActiveLiveStream(null);
-    setActiveAudioRoom(null);
+  };
+
+  // Handler: Switch Account from AccountSwitcherModal (cleanly tears down previous session & verifies target via Firebase Auth)
+  const handleSwitchAccount = async (targetAccount: SavedDeviceAccount) => {
+    setIsAccountSwitcherOpen(false);
+    try {
+      await logoutUser();
+    } catch (e) {
+      console.warn('Account switch sign-out notice:', e);
+    }
+    resetUserScopedTransientState();
+    setAuthenticatedUid(null);
+    liveAndRoomService.setCurrentUser(null);
+    try {
+      localStorage.removeItem('lenzo_party_user_profile_v3');
+    } catch (_) {}
+
+    if (targetAccount.authProvider === 'google') {
+      try {
+        const result = await signInWithGoogle({
+          loginHint: targetAccount.email,
+          forceAccountPicker: true,
+        });
+        if (result?.profile) {
+          handleAuthSuccess(result.profile);
+          showAppToast(`Switched to ${result.profile.name}`);
+        }
+      } catch (err: any) {
+        setAuthScreenMode('login');
+        setAuthPrefillEmail(undefined);
+        setCurrentScreen('auth');
+        showAppToast(err?.message || 'Select your Google account to complete switching.');
+      }
+    } else {
+      setAuthScreenMode('login');
+      setAuthPrefillEmail(targetAccount.email);
+      setCurrentScreen('auth');
+      showAppToast(`Enter password for ${targetAccount.email} to switch account.`);
+    }
+  };
+
+  // Handler: Add Account from AccountSwitcherModal
+  const handleAddAccount = () => {
+    setIsAccountSwitcherOpen(false);
+    setAuthScreenMode('add_account');
+    setAuthPrefillEmail(undefined);
+    setCurrentScreen('auth');
   };
 
   // Handler: Select & Open a Live Stream
@@ -993,7 +1164,20 @@ export default function App() {
       isLive: true,
     };
 
-    setLiveStreams((prev) => [finalStream, ...prev.filter((s) => s.id !== finalStream.id)]);
+    // Replace any older card for the same host.id so strictly 1 Solo Live card appears
+    setLiveStreams((prev) => {
+      prev.forEach((old) => {
+        if (old.id !== finalStream.id && old.host?.id === activeUid) {
+          endedLiveIdsRef.current.add(old.id);
+          backendLiveIdsRef.current.delete(old.id);
+          void endFirestoreLiveStream(old.id).catch(() => {});
+        }
+      });
+      return [
+        finalStream,
+        ...prev.filter((s) => s.id !== finalStream.id && s.host?.id !== activeUid),
+      ];
+    });
     setActiveLiveStream(finalStream);
     setCurrentScreen('live_active');
 
@@ -1409,9 +1593,20 @@ export default function App() {
 
   if (currentScreen === 'auth') {
     return (
-      <AuthScreen 
+      <AuthScreen
         onSuccess={handleAuthSuccess}
-        onSkip={() => setCurrentScreen('home')}
+        onSkip={() => {
+          setAuthScreenMode('login');
+          setAuthPrefillEmail(undefined);
+          setCurrentScreen('home');
+        }}
+        mode={authScreenMode}
+        prefillEmail={authPrefillEmail}
+        onCancelAddAccount={() => {
+          setAuthScreenMode('login');
+          setAuthPrefillEmail(undefined);
+          setCurrentScreen('profile');
+        }}
       />
     );
   }
@@ -1746,6 +1941,15 @@ export default function App() {
               onUpdateVideo={(updated) => {
                 setVideos((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
               }}
+              onDeleteVideo={(deletedId) => {
+                setFirestoreReels((prev) => prev.filter((v) => v.id !== deletedId));
+                setExtraPagedReels((prev) => prev.filter((v) => v.id !== deletedId));
+                setLegacyPostVideos((prev) => prev.filter((v) => v.id !== deletedId));
+                setVideos((prev) => prev.filter((v) => v.id !== deletedId));
+              }}
+              hasMoreVideos={hasMoreReels}
+              isLoadingMore={isLoadingMoreReels}
+              onLoadMoreVideos={handleLoadMoreReels}
               activeGiftCelebration={activeGiftCelebration}
             />
           )}
@@ -1806,7 +2010,17 @@ export default function App() {
               userVideos={videos}
               onSelectVideo={(_v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
-              onDeleteVideo={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
+              onDeleteVideo={async (id) => {
+                const target = videos.find((v) => v.id === id);
+                if (target && (target.creatorUid === currentUser.id || target.creator.id === currentUser.id)) {
+                  await deleteOwnReel(target).catch(() => {});
+                }
+                setFirestoreReels((prev) => prev.filter((v) => v.id !== id));
+                setExtraPagedReels((prev) => prev.filter((v) => v.id !== id));
+                setLegacyPostVideos((prev) => prev.filter((v) => v.id !== id));
+                setVideos((prev) => prev.filter((v) => v.id !== id));
+              }}
+              onOpenAccountSwitcher={() => setIsAccountSwitcherOpen(true)}
               blockedUsers={blockedUsers}
               blockedByUserIds={blockedByUserIds}
               onBlockUser={handleBlockUser}
@@ -1816,9 +2030,11 @@ export default function App() {
 
           {currentScreen === 'settings' && (
             <SettingsScreen
+              currentUser={currentUser}
               onNavigate={(s) => setCurrentScreen(s)}
               onLogout={handleLogout}
               onOpenWallet={() => setIsWalletOpen(true)}
+              onOpenAccountSwitcher={() => setIsAccountSwitcherOpen(true)}
               isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
               onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
               blockedUsers={blockedUsers}
@@ -2050,6 +2266,15 @@ export default function App() {
           setPkWinnerSession(null);
           setCurrentScreen('profile');
         }}
+      />
+
+      {/* 11. Multi-Account Switcher Modal (Max 5 Saved Accounts) */}
+      <AccountSwitcherModal
+        isOpen={isAccountSwitcherOpen}
+        currentUser={currentUser}
+        onClose={() => setIsAccountSwitcherOpen(false)}
+        onSwitchAccount={handleSwitchAccount}
+        onAddAccount={handleAddAccount}
       />
 
       {/* Global Toast Feedback Banner */}

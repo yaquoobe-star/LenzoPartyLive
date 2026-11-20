@@ -463,15 +463,31 @@ export async function deleteFirestorePartyRoom(roomId: string): Promise<void> {
 /**
  * 3. REAL LIVE STREAMS FIRESTORE SERVICE
  */
+function dedupeStreamsByHost(streams: LiveStream[]): LiveStream[] {
+  const sorted = [...streams].sort(
+    (a, b) => (b.startTime || 0) - (a.startTime || 0) || (b.numericViewers || 0) - (a.numericViewers || 0)
+  );
+  const byHost = new Map<string, LiveStream>();
+  for (const stream of sorted) {
+    const hostKey = stream.host?.id || stream.id;
+    if (!byHost.has(hostKey)) {
+      byHost.set(hostKey, stream);
+    }
+  }
+  return Array.from(byHost.values()).sort(
+    (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
+  );
+}
+
 export async function fetchFirestoreLiveStreams(): Promise<LiveStream[]> {
   const collPath = 'live_streams';
   try {
     const q = query(collection(db, collPath), limit(100));
     const snap = await getDocs(q);
-    return snap.docs
+    const list = snap.docs
       .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
-      .map((d) => normalizeFirestoreLiveStream(d.id, d.data()))
-      .sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
+      .map((d) => normalizeFirestoreLiveStream(d.id, d.data()));
+    return dedupeStreamsByHost(list);
   } catch (err) {
     console.warn('[Firestore] fetchFirestoreLiveStreams notice:', err);
     return [];
@@ -484,11 +500,10 @@ export function subscribeFirestoreLiveStreams(onUpdate: (streams: LiveStream[]) 
   return onSnapshot(
     q,
     (snap) => {
-      const streams = snap.docs
+      const list = snap.docs
         .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
-        .map((d) => normalizeFirestoreLiveStream(d.id, d.data()))
-        .sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
-      onUpdate(streams);
+        .map((d) => normalizeFirestoreLiveStream(d.id, d.data()));
+      onUpdate(dedupeStreamsByHost(list));
     },
     (err) => {
       console.warn('[Firestore] subscribeFirestoreLiveStreams notice:', err);
@@ -507,6 +522,23 @@ export async function createFirestoreLiveStream(stream: LiveStream | Omit<LiveSt
     const rawId = 'id' in stream && stream.id ? String(stream.id) : `live_${Date.now()}`;
     const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `live_${Date.now()}`;
     const safeHost = sanitizeFirestoreUserCard(stream.host, uid);
+
+    // Clean up any stale/previous live_streams docs owned by this host so strictly ONE Solo Live card exists per host
+    try {
+      const existingSnap = await getDocs(query(collection(db, collPath), limit(100)));
+      const staleDeletes: Promise<void>[] = [];
+      existingSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (docSnap.id !== safeId && data?.host?.id === uid) {
+          staleDeletes.push(deleteDoc(doc(db, collPath, docSnap.id)).catch(() => {}));
+        }
+      });
+      if (staleDeletes.length > 0) {
+        await Promise.all(staleDeletes);
+      }
+    } catch {
+      // Non-fatal cleanup
+    }
 
     const payload: Record<string, any> = stripUndefinedDeep({
       id: safeId,

@@ -99,6 +99,8 @@ class WebRtcMediaService {
   private liveViewerCallbacks: LiveViewerCallbacks | null = null;
   private liveViewerRetryTimer: ReturnType<typeof setInterval> | null = null;
   private liveViewerRetryCount = 0;
+  private liveStartedAt = 0;
+  private liveViewerLastOfferAt = 0;
 
   private liveUnsubscribeWs: (() => void) | null = null;
   private liveUnsubscribeFs: (() => void) | null = null;
@@ -167,6 +169,16 @@ class WebRtcMediaService {
   // 1. LIVE STREAMING: HOST PUBLISHER (1-to-Many over WS + Firestore Failover)
   // ============================================================================
 
+  public isLiveHostActive(streamId?: string): boolean {
+    if (this.liveMode !== 'host') return false;
+    return streamId ? this.liveStreamId === streamId : Boolean(this.liveStreamId);
+  }
+
+  public isLiveViewerActive(streamId?: string): boolean {
+    if (this.liveMode !== 'viewer') return false;
+    return streamId ? this.liveStreamId === streamId : Boolean(this.liveStreamId);
+  }
+
   public startLiveHost(streamId: string, hostUserId: string, localStream: MediaStream | null) {
     this.stopLive();
     if (typeof RTCPeerConnection === 'undefined') return;
@@ -178,6 +190,7 @@ class WebRtcMediaService {
     this.liveUserId = hostUserId;
     this.liveHostUserId = hostUserId;
     this.liveLocalStream = localStream;
+    this.liveStartedAt = Date.now();
 
     // 1. WebSocket signaling listener
     this.liveUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
@@ -211,26 +224,30 @@ class WebRtcMediaService {
         const reqSession = vDoc.rtcSessionId || '';
         const offeredSession = this.liveHostOfferedSessions.get(viewerId) || '';
         const existingPc = this.liveHostPeers.get(viewerId);
+        const existingHealthy = Boolean(
+          existingPc &&
+            (existingPc.connectionState === 'connected' ||
+              existingPc.iceConnectionState === 'connected' ||
+              existingPc.iceConnectionState === 'completed')
+        );
 
-        // New viewer ready request or viewer refreshed session
-        if (
-          reqSession &&
-          reqSession !== offeredSession &&
-          (!existingPc || existingPc.connectionState !== 'connected')
-        ) {
+        // New viewer ready request or viewer explicitly refreshed session (never disturb healthy connected peer)
+        if (reqSession && reqSession !== offeredSession && !existingHealthy) {
           void this.handleViewerReadyOnHost(viewerId, reqSession);
         } else if (!reqSession && !existingPc && !this.liveWaitingViewers.has(viewerId)) {
           // Viewer joined Firestore viewers subcollection even before writing rtcSessionId
           void this.handleViewerReadyOnHost(viewerId, makeSessionId('fs_auto'));
         }
 
-        // Apply viewer's SDP answer if it matches our offered session
+        // Apply viewer's SDP answer ONLY if it matches our active offered session
+        const activeOffered = this.liveHostOfferedSessions.get(viewerId);
         if (
           vDoc.rtcAnswer &&
           vDoc.rtcAnswer.sdp &&
-          (!vDoc.rtcAnswerSessionId || vDoc.rtcAnswerSessionId === this.liveHostOfferedSessions.get(viewerId))
+          activeOffered &&
+          (!vDoc.rtcAnswerSessionId || vDoc.rtcAnswerSessionId === activeOffered)
         ) {
-          const ansKey = vDoc.rtcAnswerSessionId || reqSession || 'default';
+          const ansKey = vDoc.rtcAnswerSessionId || activeOffered;
           if (this.liveHostAnsweredSessions.get(viewerId) !== ansKey) {
             void this.handleLiveHostAnswer(viewerId, vDoc.rtcAnswer, ansKey);
           }
@@ -356,13 +373,14 @@ class WebRtcMediaService {
     const timer = setTimeout(() => {
       this.liveHostIceFlushTimers.delete(viewerId);
       if (this.liveMode !== 'host' || !this.liveStreamId) return;
+      if (this.liveHostOfferedSessions.get(viewerId) !== offerSessionId) return;
       const batch = this.liveHostOutboundIce.get(viewerId);
       if (!batch || batch.length === 0) return;
       void writeFirestoreLiveHostSignal(this.liveStreamId, viewerId, {
         rtcOfferSessionId: offerSessionId,
-        rtcHostIce: batch.slice(0, 24),
+        rtcHostIce: batch.slice(0, 32),
       });
-    }, 220);
+    }, 260);
     this.liveHostIceFlushTimers.set(viewerId, timer);
   }
 
@@ -451,6 +469,10 @@ class WebRtcMediaService {
   ) {
     const pc = this.liveHostPeers.get(viewerId);
     if (!pc) return;
+    const expectedSession = this.liveHostOfferedSessions.get(viewerId);
+    if (sessionKey && expectedSession && sessionKey !== expectedSession) {
+      return;
+    }
     try {
       if (pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -537,6 +559,8 @@ class WebRtcMediaService {
     this.liveViewerRetryCount = 0;
     this.liveViewerSessionId = makeSessionId('vw');
     this.liveViewerHandledOfferSession = '';
+    this.liveStartedAt = Date.now();
+    this.liveViewerLastOfferAt = 0;
 
     callbacks.onStatusChange?.('connecting');
 
@@ -547,7 +571,15 @@ class WebRtcMediaService {
       if (!fromUserId || fromUserId === this.liveUserId) return;
 
       if (event === 'webrtc:host_ready') {
-        this.requestOfferFromHost();
+        const isConnected = Boolean(
+          this.liveViewerPc &&
+            (this.liveViewerPc.connectionState === 'connected' ||
+              this.liveViewerPc.iceConnectionState === 'connected' ||
+              this.liveViewerPc.iceConnectionState === 'completed')
+        );
+        if (!isConnected) {
+          this.requestOfferFromHost();
+        }
       } else if (event === 'webrtc:offer' && payload.sdp) {
         const offerSession = String(payload.sessionId || `ws_${Date.now()}`);
         void this.handleLiveViewerOffer(fromUserId, payload.sdp, offerSession);
@@ -559,6 +591,11 @@ class WebRtcMediaService {
     // 2. Cloud Firestore failover listener on live_streams/{streamId}/viewers/{viewerUserId}
     this.liveUnsubscribeFs = subscribeFirestoreLiveViewerDoc(streamId, viewerUserId, (vDoc) => {
       if (this.liveMode !== 'viewer' || this.liveStreamId !== streamId || !vDoc) return;
+
+      // Ignore stale pre-session offers left over from a previous viewing session
+      if (vDoc.rtcHostUpdatedAt && vDoc.rtcHostUpdatedAt < this.liveStartedAt - 15000) {
+        return;
+      }
 
       const offerSession = vDoc.rtcOfferSessionId || '';
       if (
@@ -579,23 +616,37 @@ class WebRtcMediaService {
 
     this.requestOfferFromHost();
 
-    // Retry requesting offer while connecting (handles race while Host camera starts up)
+    // Gentle recovery timer: NEVER kills an actively connecting ICE/TURN handshake!
     this.liveViewerRetryTimer = setInterval(() => {
       if (this.liveMode !== 'viewer') {
         this.clearLiveViewerRetry();
         return;
       }
-      if (this.liveViewerPc && this.liveViewerPc.connectionState === 'connected') {
+      const pc = this.liveViewerPc;
+      if (
+        pc &&
+        (pc.connectionState === 'connected' ||
+          pc.iceConnectionState === 'connected' ||
+          pc.iceConnectionState === 'completed')
+      ) {
         this.clearLiveViewerRetry();
         return;
       }
+      // If we recently received an offer and ICE is actively checking/connecting, give mobile TURN up to 10s!
+      if (
+        pc &&
+        (pc.connectionState === 'connecting' || pc.iceConnectionState === 'checking') &&
+        Date.now() - this.liveViewerLastOfferAt < 10000
+      ) {
+        return;
+      }
       this.liveViewerRetryCount += 1;
-      if (this.liveViewerRetryCount > 12) {
+      if (this.liveViewerRetryCount > 10) {
         this.clearLiveViewerRetry();
         return;
       }
       this.requestOfferFromHost();
-    }, 3000);
+    }, 5000);
   }
 
   public requestOfferFromHost() {
@@ -603,6 +654,7 @@ class WebRtcMediaService {
     // Generate a fresh sessionId so Host's Firestore onSnapshot triggers even on manual Reconnect
     this.liveViewerSessionId = makeSessionId('vw');
     this.liveViewerHandledOfferSession = '';
+    this.liveViewerLastOfferAt = 0;
 
     // Transport 1: WebSocket
     liveAndRoomService.sendSignal({
@@ -631,9 +683,9 @@ class WebRtcMediaService {
       if (this.liveViewerOutboundIce.length === 0) return;
       void writeFirestoreLiveViewerSignal(this.liveStreamId, this.liveViewerUser, {
         rtcAnswerSessionId: answerSessionId,
-        rtcViewerIce: this.liveViewerOutboundIce.slice(0, 24),
+        rtcViewerIce: this.liveViewerOutboundIce.slice(0, 32),
       });
-    }, 220);
+    }, 260);
   }
 
   private async handleLiveViewerOffer(
@@ -644,6 +696,7 @@ class WebRtcMediaService {
     if (!this.liveStreamId || !this.liveUserId) return;
     if (offerSessionId && this.liveViewerHandledOfferSession === offerSessionId) return;
     this.liveViewerHandledOfferSession = offerSessionId;
+    this.liveViewerLastOfferAt = Date.now();
 
     if (this.liveViewerIceFlushTimer) {
       clearTimeout(this.liveViewerIceFlushTimer);
@@ -654,6 +707,7 @@ class WebRtcMediaService {
         this.liveViewerPc.onicecandidate = null;
         this.liveViewerPc.ontrack = null;
         this.liveViewerPc.onconnectionstatechange = null;
+        this.liveViewerPc.oniceconnectionstatechange = null;
         this.liveViewerPc.close();
       } catch {
         // ignore
@@ -669,6 +723,20 @@ class WebRtcMediaService {
     const remoteStream = new MediaStream();
     this.liveViewerRemoteStream = remoteStream;
 
+    const emitRemoteSnapshot = () => {
+      pc.getReceivers().forEach((r) => {
+        if (r.track && r.track.readyState === 'live' && !remoteStream.getTracks().some((t) => t.id === r.track.id)) {
+          remoteStream.addTrack(r.track);
+        }
+      });
+      if (remoteStream.getTracks().some((t) => t.readyState === 'live')) {
+        const snapshotStream = new MediaStream(remoteStream.getTracks());
+        this.liveViewerCallbacks?.onRemoteStream(snapshotStream);
+        this.liveViewerCallbacks?.onStatusChange?.('connected');
+        this.clearLiveViewerRetry();
+      }
+    };
+
     pc.ontrack = (ev) => {
       if (ev.track && ev.track.readyState !== 'ended') {
         const alreadyHas = remoteStream.getTracks().some((t) => t.id === ev.track.id);
@@ -676,7 +744,6 @@ class WebRtcMediaService {
           remoteStream.addTrack(ev.track);
         }
       }
-      // Also merge any extra tracks from ev.streams[0]
       if (ev.streams && ev.streams[0]) {
         ev.streams[0].getTracks().forEach((t) => {
           if (t.readyState !== 'ended' && !remoteStream.getTracks().some((x) => x.id === t.id)) {
@@ -684,14 +751,7 @@ class WebRtcMediaService {
           }
         });
       }
-
-      if (remoteStream.getTracks().some((t) => t.readyState === 'live')) {
-        // Create a fresh MediaStream wrapper reference so React state updates cleanly when audio + video arrive
-        const snapshotStream = new MediaStream(remoteStream.getTracks());
-        this.liveViewerCallbacks?.onRemoteStream(snapshotStream);
-        this.liveViewerCallbacks?.onStatusChange?.('connected');
-        this.clearLiveViewerRetry();
-      }
+      emitRemoteSnapshot();
     };
 
     pc.onicecandidate = (ev) => {
@@ -709,11 +769,19 @@ class WebRtcMediaService {
       }
     };
 
+    pc.oniceconnectionstatechange = () => {
+      const iceState = pc.iceConnectionState;
+      if (iceState === 'connected' || iceState === 'completed') {
+        emitRemoteSnapshot();
+      } else if (iceState === 'failed') {
+        this.liveViewerCallbacks?.onStatusChange?.('failed');
+      }
+    };
+
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === 'connected') {
-        this.liveViewerCallbacks?.onStatusChange?.('connected');
-        this.clearLiveViewerRetry();
+        emitRemoteSnapshot();
       } else if (state === 'connecting') {
         this.liveViewerCallbacks?.onStatusChange?.('connecting');
       } else if (state === 'disconnected') {

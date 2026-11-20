@@ -6,15 +6,6 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).exports, mod, mod.exports), cb = null), mod.exports);
-var __exportAll = (all, no_symbols) => {
-	let target = {};
-	for (var name in all) __defProp(target, name, {
-		get: all[name],
-		enumerable: true
-	});
-	if (!no_symbols) __defProp(target, Symbol.toStringTag, { value: "Module" });
-	return target;
-};
 var __copyProps = (to, from, except, desc) => {
 	if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames(from), i = 0, n = keys.length, key; i < n; i++) {
 		key = keys[i];
@@ -12953,7 +12944,7 @@ var WebPlugin = class {
 * Safely web encode a string value (inspired by js-cookie)
 * @param str The string value to encode
 */
-var encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
+var encode$1 = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape);
 /**
 * Safely web decode a string value (inspired by js-cookie)
 * @param str The string value to decode
@@ -12974,8 +12965,8 @@ var CapacitorCookiesPluginWeb = class extends WebPlugin {
 	}
 	async setCookie(options) {
 		try {
-			const encodedKey = encode(options.key);
-			const encodedValue = encode(options.value);
+			const encodedKey = encode$1(options.key);
+			const encodedValue = encode$1(options.value);
 			const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
 			const path = (options.path || "/").replace("path=", "");
 			const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
@@ -13889,6 +13880,15 @@ function validateIndexedDBOpenable() {
 	});
 }
 /**
+*
+* This method checks whether cookie is enabled within current browser
+* @return true if cookie is enabled within current browser
+*/
+function areCookiesEnabled() {
+	if (typeof navigator === "undefined" || !navigator.cookieEnabled) return false;
+	return true;
+}
+/**
 * @license
 * Copyright 2017 Google LLC
 *
@@ -14322,6 +14322,40 @@ function noop() {}
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+/**
+* The amount of milliseconds to exponentially increase.
+*/
+var DEFAULT_INTERVAL_MILLIS = 1e3;
+/**
+* The factor to backoff by.
+* Should be a number greater than 1.
+*/
+var DEFAULT_BACKOFF_FACTOR = 2;
+/**
+* The maximum milliseconds to increase to.
+*
+* <p>Visible for testing
+*/
+var MAX_VALUE_MILLIS = 144e5;
+/**
+* The percentage of backoff time to randomize by.
+* See
+* http://go/safe-client-behavior#step-1-determine-the-appropriate-retry-interval-to-handle-spike-traffic
+* for context.
+*
+* <p>Visible for testing
+*/
+var RANDOM_FACTOR = .5;
+/**
+* Based on the backoff method from
+* https://github.com/google/closure-library/blob/master/closure/goog/math/exponentialbackoff.js.
+* Extracted here so we don't need to pass metadata and a stateful ExponentialBackoff object around.
+*/
+function calculateBackoffMillis(backoffCount, intervalMillis = DEFAULT_INTERVAL_MILLIS, backoffFactor = DEFAULT_BACKOFF_FACTOR) {
+	const currBaseValue = intervalMillis * Math.pow(backoffFactor, backoffCount);
+	const randomWait = Math.round(RANDOM_FACTOR * currBaseValue * (Math.random() - .5) * 2);
+	return Math.min(MAX_VALUE_MILLIS, currBaseValue + randomWait);
+}
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -15091,7 +15125,7 @@ var version$1$1 = "0.16.5";
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-var logger = new Logger("@firebase/app");
+var logger$2 = new Logger("@firebase/app");
 var name$q = "@firebase/app-compat";
 var name$p = "@firebase/analytics-compat";
 var name$o = "@firebase/analytics";
@@ -15114,12 +15148,12 @@ var name$8 = "@firebase/performance-compat";
 var name$7 = "@firebase/remote-config";
 var name$6 = "@firebase/remote-config-compat";
 var name$5 = "@firebase/storage";
-var name$4 = "@firebase/storage-compat";
-var name$3 = "@firebase/firestore";
-var name$2 = "@firebase/ai";
+var name$4$1 = "@firebase/storage-compat";
+var name$3$1 = "@firebase/firestore";
+var name$2$1 = "@firebase/ai";
 var name$1$1 = "@firebase/firestore-compat";
 var name$10 = "firebase";
-var version$2 = "13.2.0";
+var version$5 = "13.2.0";
 /**
 * @license
 * Copyright 2019 Google LLC
@@ -15166,10 +15200,10 @@ var PLATFORM_LOG_STRING = {
 	[name$7]: "fire-rc",
 	[name$6]: "fire-rc-compat",
 	[name$5]: "fire-gcs",
-	[name$4]: "fire-gcs-compat",
-	[name$3]: "fire-fst",
+	[name$4$1]: "fire-gcs-compat",
+	[name$3$1]: "fire-fst",
 	[name$1$1]: "fire-fst-compat",
-	[name$2]: "fire-vertex",
+	[name$2$1]: "fire-vertex",
 	"fire-js": "fire-js",
 	[name$10]: "fire-js-all"
 };
@@ -15212,7 +15246,7 @@ function _addComponent(app, component) {
 	try {
 		app.container.addComponent(component);
 	} catch (e) {
-		logger.debug(`Component ${component.name} failed to register with FirebaseApp ${app.name}`, e);
+		logger$2.debug(`Component ${component.name} failed to register with FirebaseApp ${app.name}`, e);
 	}
 }
 /**
@@ -15225,7 +15259,7 @@ function _addComponent(app, component) {
 function _registerComponent(component) {
 	const componentName = component.name;
 	if (_components.has(componentName)) {
-		logger.debug(`There were multiple attempts to register component ${componentName}.`);
+		logger$2.debug(`There were multiple attempts to register component ${componentName}.`);
 		return false;
 	}
 	_components.set(componentName, component);
@@ -15275,7 +15309,7 @@ function _isFirebaseServerApp(obj) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-var ERROR_FACTORY = new ErrorFactory("app", "Firebase", {
+var ERROR_FACTORY$3 = new ErrorFactory("app", "Firebase", {
 	["no-app"]: "No Firebase App '{$appName}' has been created - call initializeApp() first",
 	["bad-app-name"]: "Illegal App name: '{$appName}'",
 	["duplicate-app"]: "Firebase App named '{$appName}' already exists with different {$mismatchedParam}. Existing: '{$oldValue}'. New: '{$newValue}'.",
@@ -15351,7 +15385,7 @@ var FirebaseAppImpl = class {
 	* use before performing API actions on the App.
 	*/
 	checkDestroyed() {
-		if (this.isDeleted) throw ERROR_FACTORY.create("app-deleted", { appName: this._name });
+		if (this.isDeleted) throw ERROR_FACTORY$3.create("app-deleted", { appName: this._name });
 	}
 };
 /**
@@ -15391,7 +15425,7 @@ var FirebaseAppImpl = class {
 *
 * @public
 */
-var SDK_VERSION = version$2;
+var SDK_VERSION = version$5;
 function initializeApp(_options, rawConfig = {}) {
 	let options = _options;
 	if (typeof rawConfig !== "object") rawConfig = { name: rawConfig };
@@ -15401,18 +15435,18 @@ function initializeApp(_options, rawConfig = {}) {
 		...rawConfig
 	};
 	const name = config.name;
-	if (typeof name !== "string" || !name) throw ERROR_FACTORY.create("bad-app-name", { appName: String(name) });
+	if (typeof name !== "string" || !name) throw ERROR_FACTORY$3.create("bad-app-name", { appName: String(name) });
 	options || (options = getDefaultAppConfig());
-	if (!options) throw ERROR_FACTORY.create("no-options");
+	if (!options) throw ERROR_FACTORY$3.create("no-options");
 	const existingApp = _apps.get(name);
 	if (existingApp) {
-		if (!deepEqual(options, existingApp.options)) throw ERROR_FACTORY.create("duplicate-app", {
+		if (!deepEqual(options, existingApp.options)) throw ERROR_FACTORY$3.create("duplicate-app", {
 			appName: name,
 			mismatchedParam: "options",
 			oldValue: JSON.stringify(existingApp.options),
 			newValue: JSON.stringify(options)
 		});
-		else if (!deepEqual(config, existingApp.config)) throw ERROR_FACTORY.create("duplicate-app", {
+		else if (!deepEqual(config, existingApp.config)) throw ERROR_FACTORY$3.create("duplicate-app", {
 			appName: name,
 			mismatchedParam: "config",
 			oldValue: JSON.stringify(existingApp.config),
@@ -15458,7 +15492,7 @@ function initializeApp(_options, rawConfig = {}) {
 function getApp(name = DEFAULT_ENTRY_NAME) {
 	const app = _apps.get(name);
 	if (!app && name === "[DEFAULT]" && getDefaultAppConfig()) return initializeApp();
-	if (!app) throw ERROR_FACTORY.create("no-app", { appName: name });
+	if (!app) throw ERROR_FACTORY$3.create("no-app", { appName: name });
 	return app;
 }
 /**
@@ -15486,7 +15520,7 @@ function registerVersion(libraryKeyOrName, version, variant) {
 		if (libraryMismatch) warning.push(`library name "${library}" contains illegal characters (whitespace or "/")`);
 		if (libraryMismatch && versionMismatch) warning.push("and");
 		if (versionMismatch) warning.push(`version name "${version}" contains illegal characters (whitespace or "/")`);
-		logger.warn(warning.join(" "));
+		logger$2.warn(warning.join(" "));
 		return;
 	}
 	_registerComponent(new Component(`${library}-version`, () => ({
@@ -15510,52 +15544,52 @@ function registerVersion(libraryKeyOrName, version, variant) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-var DB_NAME$1 = "firebase-heartbeat-database";
-var DB_VERSION$1 = 1;
-var STORE_NAME = "firebase-heartbeat-store";
-var dbPromise = null;
-function getDbPromise() {
-	if (!dbPromise) dbPromise = openDB(DB_NAME$1, DB_VERSION$1, { upgrade: (db, oldVersion) => {
+var DB_NAME$2 = "firebase-heartbeat-database";
+var DB_VERSION$2 = 1;
+var STORE_NAME$1 = "firebase-heartbeat-store";
+var dbPromise$2 = null;
+function getDbPromise$1() {
+	if (!dbPromise$2) dbPromise$2 = openDB(DB_NAME$2, DB_VERSION$2, { upgrade: (db, oldVersion) => {
 		switch (oldVersion) {
 			case 0: try {
-				db.createObjectStore(STORE_NAME);
+				db.createObjectStore(STORE_NAME$1);
 			} catch (e) {
 				console.warn(e);
 			}
 		}
 	} }).catch((e) => {
-		throw ERROR_FACTORY.create("idb-open", { originalErrorMessage: e.message });
+		throw ERROR_FACTORY$3.create("idb-open", { originalErrorMessage: e.message });
 	});
-	return dbPromise;
+	return dbPromise$2;
 }
 async function readHeartbeatsFromIndexedDB(app) {
 	try {
-		const tx = (await getDbPromise()).transaction(STORE_NAME);
-		const result = await tx.objectStore(STORE_NAME).get(computeKey(app));
+		const tx = (await getDbPromise$1()).transaction(STORE_NAME$1);
+		const result = await tx.objectStore(STORE_NAME$1).get(computeKey$1(app));
 		await tx.done;
 		return result;
 	} catch (e) {
-		if (e instanceof FirebaseError) logger.warn(e.message);
+		if (e instanceof FirebaseError) logger$2.warn(e.message);
 		else {
-			const idbGetError = ERROR_FACTORY.create("idb-get", { originalErrorMessage: e?.message });
-			logger.warn(idbGetError.message);
+			const idbGetError = ERROR_FACTORY$3.create("idb-get", { originalErrorMessage: e?.message });
+			logger$2.warn(idbGetError.message);
 		}
 	}
 }
 async function writeHeartbeatsToIndexedDB(app, heartbeatObject) {
 	try {
-		const tx = (await getDbPromise()).transaction(STORE_NAME, "readwrite");
-		await tx.objectStore(STORE_NAME).put(heartbeatObject, computeKey(app));
+		const tx = (await getDbPromise$1()).transaction(STORE_NAME$1, "readwrite");
+		await tx.objectStore(STORE_NAME$1).put(heartbeatObject, computeKey$1(app));
 		await tx.done;
 	} catch (e) {
-		if (e instanceof FirebaseError) logger.warn(e.message);
+		if (e instanceof FirebaseError) logger$2.warn(e.message);
 		else {
-			const idbGetError = ERROR_FACTORY.create("idb-set", { originalErrorMessage: e?.message });
-			logger.warn(idbGetError.message);
+			const idbGetError = ERROR_FACTORY$3.create("idb-set", { originalErrorMessage: e?.message });
+			logger$2.warn(idbGetError.message);
 		}
 	}
 }
-function computeKey(app) {
+function computeKey$1(app) {
 	return `${app.name}!${app.options.appId}`;
 }
 /**
@@ -15624,7 +15658,7 @@ var HeartbeatServiceImpl = class {
 			}
 			return this._storage.overwrite(this._heartbeatsCache);
 		} catch (e) {
-			logger.warn(e);
+			logger$2.warn(e);
 		}
 	}
 	/**
@@ -15654,7 +15688,7 @@ var HeartbeatServiceImpl = class {
 			}
 			return headerString;
 		} catch (e) {
-			logger.warn(e);
+			logger$2.warn(e);
 			return "";
 		}
 	}
@@ -21011,8 +21045,8 @@ function _getWorkerGlobalScope() {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-var DB_NAME = "firebaseLocalStorageDb";
-var DB_VERSION = 1;
+var DB_NAME$1 = "firebaseLocalStorageDb";
+var DB_VERSION$1 = 1;
 var DB_OBJECTSTORE_NAME = "firebaseLocalStorage";
 var DB_DATA_KEYPATH = "fbase_key";
 /**
@@ -21040,10 +21074,10 @@ function getObjectStore(db, isReadWrite) {
 	return db.transaction([DB_OBJECTSTORE_NAME], isReadWrite ? "readwrite" : "readonly").objectStore(DB_OBJECTSTORE_NAME);
 }
 function _deleteDatabase() {
-	return new DBPromise(indexedDB.deleteDatabase(DB_NAME)).toPromise();
+	return new DBPromise(indexedDB.deleteDatabase(DB_NAME$1)).toPromise();
 }
 function _openDatabase() {
-	const request = indexedDB.open(DB_NAME, DB_VERSION);
+	const request = indexedDB.open(DB_NAME$1, DB_VERSION$1);
 	return new Promise((resolve, reject) => {
 		request.addEventListener("error", () => {
 			reject(request.error);
@@ -21891,6 +21925,37 @@ async function signInWithPopup(auth, provider, resolver) {
 	const authInternal = _castAuth(auth);
 	_assertInstanceOf(auth, provider, FederatedAuthProvider);
 	return new PopupOperation(authInternal, "signInViaPopup", provider, _withDefaultResolver(authInternal, resolver)).executeNotNull();
+}
+/**
+* Links the authenticated provider to the user account using a pop-up based OAuth flow.
+*
+* @remarks
+* If the linking is successful, the returned result will contain the user and the provider's credential.
+*
+* This method does not work in a Node.js environment.
+*
+* @example
+* ```javascript
+* // Sign in using some other provider.
+* const result = await signInWithEmailAndPassword(auth, email, password);
+* // Link using a popup.
+* const provider = new FacebookAuthProvider();
+* await linkWithPopup(result.user, provider);
+* ```
+*
+* @param user - The user.
+* @param provider - The provider to authenticate. The provider has to be an {@link OAuthProvider}.
+* Non-OAuth providers like {@link EmailAuthProvider} will throw an error.
+* @param resolver - An instance of {@link PopupRedirectResolver}, optional
+* if already supplied to {@link initializeAuth} or provided by {@link getAuth}.
+*
+* @public
+*/
+async function linkWithPopup(user, provider, resolver) {
+	const userInternal = getModularInstance(user);
+	_assertInstanceOf(userInternal.auth, provider, FederatedAuthProvider);
+	const resolverInternal = _withDefaultResolver(userInternal.auth, resolver);
+	return new PopupOperation(userInternal.auth, "linkViaPopup", provider, resolverInternal, userInternal).executeNotNull();
 }
 /**
 * Popup event manager. Handles the popup's entire lifecycle; listens to auth
@@ -22895,8 +22960,8 @@ var TotpSecret = class TotpSecret {
 function _isEmptyString(input) {
 	return typeof input === "undefined" || input?.length === 0;
 }
-var name$1 = "@firebase/auth";
-var version$1 = "1.13.9";
+var name$4 = "@firebase/auth";
+var version$4 = "1.13.9";
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -23004,8 +23069,8 @@ function registerAuth(clientPlatform) {
 	_registerComponent(new Component("auth-internal", (container) => {
 		return ((auth) => new AuthInterop(auth))(_castAuth(container.getProvider("auth").getImmediate()));
 	}, "PRIVATE").setInstantiationMode("EXPLICIT"));
-	registerVersion(name$1, version$1, getVersionForPlatform(clientPlatform));
-	registerVersion(name$1, version$1, "esm2020");
+	registerVersion(name$4, version$4, getVersionForPlatform(clientPlatform));
+	registerVersion(name$4, version$4, "esm2020");
 }
 /**
 * @license
@@ -36344,6 +36409,9 @@ function __PRIVATE_queryWithAddedOrderBy(e, t) {
 }
 function __PRIVATE_queryWithLimit(e, t, n) {
 	return new __PRIVATE_QueryImpl(e.path, e.collectionGroup, e.explicitOrderBy.slice(), e.filters.slice(), t, n, e.startAt, e.endAt);
+}
+function __PRIVATE_queryWithStartAt(e, t) {
+	return new __PRIVATE_QueryImpl(e.path, e.collectionGroup, e.explicitOrderBy.slice(), e.filters.slice(), e.limit, e.limitType, t, e.endAt);
 }
 function __PRIVATE_queryEquals(e, t) {
 	return __PRIVATE_targetEquals(__PRIVATE_queryToTarget(e), __PRIVATE_queryToTarget(t)) && e.limitType === t.limitType;
@@ -50056,6 +50124,70 @@ function query(e, t, ...n) {
 */ function limit(e) {
 	return __PRIVATE_validatePositiveNumber("limit", e), QueryLimitConstraint._create("limit", e, "F");
 }
+/**
+* A `QueryStartAtConstraint` is used to exclude documents from the start of a
+* result set returned by a Firestore query.
+* `QueryStartAtConstraint`s are created by invoking {@link (startAt:1)} or
+* {@link (startAfter:1)} and can then be passed to {@link (query:1)} to create a
+* new query instance that also contains this `QueryStartAtConstraint`.
+*/ var QueryStartAtConstraint = class QueryStartAtConstraint extends QueryConstraint {
+	/**
+	* @internal
+	*/
+	constructor(e, t, n) {
+		super(), this.type = e, this._docOrFields = t, this._inclusive = n;
+	}
+	static _create(e, t, n) {
+		return new QueryStartAtConstraint(e, t, n);
+	}
+	_apply(e) {
+		const t = __PRIVATE_newQueryBoundFromDocOrFields(e, this.type, this._docOrFields, this._inclusive);
+		return new Query(e.firestore, e.converter, __PRIVATE_queryWithStartAt(e._query, t));
+	}
+};
+function startAfter(...e) {
+	return QueryStartAtConstraint._create("startAfter", e, false);
+}
+/** Helper function to create a bound from a document or fields */ function __PRIVATE_newQueryBoundFromDocOrFields(e, t, n, r) {
+	if (n[0] = getModularInstance(n[0]), n[0] instanceof Yr) return function __PRIVATE_newQueryBoundFromDocument(e, t, n, r, s) {
+		if (!r) throw new Q(z.NOT_FOUND, `Can't use a DocumentSnapshot that doesn't exist for ${n}().`);
+		const a = [];
+		for (const n of __PRIVATE_queryNormalizedOrderBy(e)) if (n.field.isKeyField()) a.push(__PRIVATE_refValue(t, r.key));
+		else {
+			const e = r.data.field(n.field);
+			if (__PRIVATE_isServerTimestamp(e)) throw new Q(z.INVALID_ARGUMENT, "Invalid query. You are trying to start or end a query using a document for which the field \"" + n.field + "\" is an uncommitted server timestamp. (Since the value of this field is unknown, you cannot start/end a query with it.)");
+			if (null === e) {
+				const e = n.field.canonicalString();
+				throw new Q(z.INVALID_ARGUMENT, `Invalid query. You are trying to start or end a query using a document for which the field '${e}' (used as the orderBy) does not exist.`);
+			}
+			a.push(e);
+		}
+		return new Bound(a, s);
+	}(e._query, e.firestore._databaseId, t, n[0]._document, r);
+	{
+		const s = la(e.firestore);
+		return function __PRIVATE_newQueryBoundFromFields(e, t, n, r, s, a) {
+			const o = e.explicitOrderBy;
+			if (s.length > o.length) throw new Q(z.INVALID_ARGUMENT, `Too many arguments provided to ${r}(). The number of arguments must be less than or equal to the number of orderBy() clauses`);
+			const i = [];
+			for (let a = 0; a < s.length; a++) {
+				const c = s[a];
+				if (o[a].field.isKeyField()) {
+					if ("string" != typeof c) throw new Q(z.INVALID_ARGUMENT, `Invalid query. Expected a string for document ID in ${r}(), but got a ${typeof c}`);
+					if (!__PRIVATE_isCollectionGroupQuery(e) && -1 !== c.indexOf("/")) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection and ordering by documentId(), the value passed to ${r}() must be a plain document ID, but '${c}' contains a slash.`);
+					const n = e.path.child(ResourcePath.fromString(c));
+					if (!DocumentKey.isDocumentKey(n)) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection group and ordering by documentId(), the value passed to ${r}() must result in a valid document path, but '${n}' is not because it contains an odd number of segments.`);
+					const s = new DocumentKey(n);
+					i.push(__PRIVATE_refValue(t, s));
+				} else {
+					const e = __PRIVATE_parseQueryValue(n, r, c);
+					i.push(e);
+				}
+			}
+			return new Bound(i, a);
+		}(e._query, e.firestore._databaseId, s, t, n, r);
+	}
+}
 function __PRIVATE_parseDocumentIdValue(e, t, n) {
 	if ("string" == typeof (n = getModularInstance(n))) {
 		if ("" === n) throw new Q(z.INVALID_ARGUMENT, "Invalid query. When querying with documentId(), you must provide a valid document ID, but it was an empty string.");
@@ -51977,6 +52109,16 @@ function getDownloadUrl(service, location, mappings) {
 	requestInfo.errorHandler = objectErrorHandler(location);
 	return requestInfo;
 }
+function deleteObject$2(service, location) {
+	const url = makeUrl(location.fullServerUrl(), service.host, service._protocol);
+	const method = "DELETE";
+	const timeout = service.maxOperationRetryTime;
+	function handler(_xhr, _text) {}
+	const requestInfo = new RequestInfo(url, method, handler, timeout);
+	requestInfo.successCodes = [200, 204];
+	requestInfo.errorHandler = objectErrorHandler(location);
+	return requestInfo;
+}
 function determineContentType_(metadata, blob) {
 	return metadata && metadata["contentType"] || blob && blob.type() || "application/octet-stream";
 }
@@ -52876,6 +53018,17 @@ function getDownloadURL$1(ref) {
 	});
 }
 /**
+* Deletes the object at this location.
+* @public
+* @param ref - StorageReference for object to delete.
+* @returns A `Promise` that resolves if the deletion succeeds.
+*/
+function deleteObject$1(ref) {
+	ref._throwIfRoot("deleteObject");
+	const requestInfo = deleteObject$2(ref.storage, ref._location);
+	return ref.storage.makeRequestWithTokens(requestInfo, newTextConnection);
+}
+/**
 * Returns reference for object obtained by appending `childPath` to `ref`.
 *
 * @param ref - StorageReference to get child of.
@@ -53062,8 +53215,8 @@ var FirebaseStorageImpl = class {
 		return this._makeRequest(requestInfo, requestFactory, authToken, appCheckToken).getPromise();
 	}
 };
-var name = "@firebase/storage";
-var version = "0.14.6";
+var name$3 = "@firebase/storage";
+var version$3 = "0.14.6";
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -53123,6 +53276,16 @@ function uploadBytesResumable(ref, data, metadata) {
 function getDownloadURL(ref) {
 	ref = getModularInstance(ref);
 	return getDownloadURL$1(ref);
+}
+/**
+* Deletes the object at this location.
+* @public
+* @param ref - {@link StorageReference} for object to delete.
+* @returns A `Promise` that resolves if the deletion succeeds.
+*/
+function deleteObject(ref) {
+	ref = getModularInstance(ref);
+	return deleteObject$1(ref);
 }
 function ref(serviceOrRef, pathOrUrl) {
 	serviceOrRef = getModularInstance(serviceOrRef);
@@ -53193,15 +53356,2939 @@ function connectStorageEmulator(storage, host, port, options = {}) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-function factory(container, { instanceIdentifier: url }) {
+function factory$2(container, { instanceIdentifier: url }) {
 	return new FirebaseStorageImpl(container.getProvider("app").getImmediate(), container.getProvider("auth-internal"), container.getProvider("app-check-internal"), url, SDK_VERSION);
 }
 function registerStorage() {
-	_registerComponent(new Component(STORAGE_TYPE, factory, "PUBLIC").setMultipleInstances(true));
-	registerVersion(name, version, "");
-	registerVersion(name, version, "esm2020");
+	_registerComponent(new Component(STORAGE_TYPE, factory$2, "PUBLIC").setMultipleInstances(true));
+	registerVersion(name$3, version$3, "");
+	registerVersion(name$3, version$3, "esm2020");
 }
 registerStorage();
+// node_modules/@firebase/app-check/dist/esm/index.esm.js
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var APP_CHECK_STATES = /* @__PURE__ */ new Map();
+var DEFAULT_STATE = {
+	activated: false,
+	tokenObservers: []
+};
+var DEBUG_STATE = {
+	initialized: false,
+	enabled: false
+};
+/**
+* Gets a reference to the state object.
+*/
+function getStateReference(app) {
+	return APP_CHECK_STATES.get(app) || { ...DEFAULT_STATE };
+}
+/**
+* Set once on initialization. The map should hold the same reference to the
+* same object until this entry is deleted.
+*/
+function setInitialState(app, state) {
+	APP_CHECK_STATES.set(app, state);
+	return APP_CHECK_STATES.get(app);
+}
+function getDebugState() {
+	return DEBUG_STATE;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var BASE_ENDPOINT = "https://content-firebaseappcheck.googleapis.com/v1";
+var EXCHANGE_RECAPTCHA_TOKEN_METHOD = "exchangeRecaptchaV3Token";
+var EXCHANGE_RECAPTCHA_ENTERPRISE_TOKEN_METHOD = "exchangeRecaptchaEnterpriseToken";
+var EXCHANGE_DEBUG_TOKEN_METHOD = "exchangeDebugToken";
+var TOKEN_REFRESH_TIME = {
+	/**
+	* This is the first retrial wait after an error. This is currently
+	* 30 seconds.
+	*/
+	RETRIAL_MIN_WAIT: 3e4,
+	/**
+	* This is the maximum retrial wait, currently 16 minutes.
+	*/
+	RETRIAL_MAX_WAIT: 96e4
+};
+/**
+* One day in millis, for certain error code backoffs.
+*/
+var ONE_DAY = 864e5;
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Port from auth proactiverefresh.js
+*
+*/
+var Refresher = class {
+	constructor(operation, retryPolicy, getWaitDuration, lowerBound, upperBound) {
+		this.operation = operation;
+		this.retryPolicy = retryPolicy;
+		this.getWaitDuration = getWaitDuration;
+		this.lowerBound = lowerBound;
+		this.upperBound = upperBound;
+		this.pending = null;
+		this.nextErrorWaitInterval = lowerBound;
+		if (lowerBound > upperBound) throw new Error("Proactive refresh lower bound greater than upper bound!");
+	}
+	start() {
+		this.nextErrorWaitInterval = this.lowerBound;
+		this.process(true).catch(() => {});
+	}
+	stop() {
+		if (this.pending) {
+			this.pending.reject("cancelled");
+			this.pending = null;
+		}
+	}
+	isRunning() {
+		return !!this.pending;
+	}
+	async process(hasSucceeded) {
+		this.stop();
+		try {
+			this.pending = new Deferred();
+			this.pending.promise.catch((_e) => {});
+			await sleep$1(this.getNextRun(hasSucceeded));
+			this.pending.resolve();
+			await this.pending.promise;
+			this.pending = new Deferred();
+			this.pending.promise.catch((_e) => {});
+			await this.operation();
+			this.pending.resolve();
+			await this.pending.promise;
+			this.process(true).catch(() => {});
+		} catch (error) {
+			if (this.retryPolicy(error)) this.process(false).catch(() => {});
+			else this.stop();
+		}
+	}
+	getNextRun(hasSucceeded) {
+		if (hasSucceeded) {
+			this.nextErrorWaitInterval = this.lowerBound;
+			return this.getWaitDuration();
+		} else {
+			const currentErrorWaitInterval = this.nextErrorWaitInterval;
+			this.nextErrorWaitInterval *= 2;
+			if (this.nextErrorWaitInterval > this.upperBound) this.nextErrorWaitInterval = this.upperBound;
+			return currentErrorWaitInterval;
+		}
+	}
+};
+function sleep$1(ms) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var ERROR_FACTORY$2 = new ErrorFactory("appCheck", "AppCheck", {
+	["already-initialized"]: "You have already called initializeAppCheck() for FirebaseApp {$appName} with different options. To avoid this error, call initializeAppCheck() with the same options as when it was originally called. This will return the already initialized instance.",
+	["use-before-activation"]: "App Check is being used before initializeAppCheck() is called for FirebaseApp {$appName}. Call initializeAppCheck() before instantiating other Firebase services.",
+	["fetch-network-error"]: "Fetch failed to connect to a network. Check Internet connection. Original error: {$originalErrorMessage}.",
+	["fetch-parse-error"]: "Fetch client could not parse response. Original error: {$originalErrorMessage}.",
+	["fetch-status-error"]: "Fetch server returned an HTTP error status. HTTP status: {$httpStatus}.",
+	["storage-open"]: "Error thrown when opening storage. Original error: {$originalErrorMessage}.",
+	["storage-get"]: "Error thrown when reading from storage. Original error: {$originalErrorMessage}.",
+	["storage-set"]: "Error thrown when writing to storage. Original error: {$originalErrorMessage}.",
+	["recaptcha-error"]: "ReCAPTCHA error.",
+	["initial-throttle"]: `{$httpStatus} error. Attempts allowed again after {$time}`,
+	["throttled"]: `Requests throttled due to previous {$httpStatus} error. Attempts allowed again after {$time}`
+});
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function getRecaptcha(isEnterprise = false) {
+	if (isEnterprise) return self.grecaptcha?.enterprise;
+	return self.grecaptcha;
+}
+function ensureActivated(app) {
+	if (!getStateReference(app).activated) throw ERROR_FACTORY$2.create("use-before-activation", { appName: app.name });
+}
+function getDurationString(durationInMillis) {
+	const totalSeconds = Math.round(durationInMillis / 1e3);
+	const days = Math.floor(totalSeconds / 86400);
+	const hours = Math.floor((totalSeconds - days * 3600 * 24) / 3600);
+	const minutes = Math.floor((totalSeconds - days * 3600 * 24 - hours * 3600) / 60);
+	const seconds = totalSeconds - days * 3600 * 24 - hours * 3600 - minutes * 60;
+	let result = "";
+	if (days) result += pad(days) + "d:";
+	if (hours) result += pad(hours) + "h:";
+	result += pad(minutes) + "m:" + pad(seconds) + "s";
+	return result;
+}
+function pad(value) {
+	if (value === 0) return "00";
+	return value >= 10 ? value.toString() : "0" + value;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+async function exchangeToken({ url, body }, heartbeatServiceProvider) {
+	const headers = { "Content-Type": "application/json" };
+	const heartbeatService = heartbeatServiceProvider.getImmediate({ optional: true });
+	if (heartbeatService) {
+		const heartbeatsHeader = await heartbeatService.getHeartbeatsHeader();
+		if (heartbeatsHeader) headers["X-Firebase-Client"] = heartbeatsHeader;
+	}
+	const options = {
+		method: "POST",
+		body: JSON.stringify(body),
+		headers
+	};
+	let response;
+	try {
+		response = await fetch(url, options);
+	} catch (originalError) {
+		throw ERROR_FACTORY$2.create("fetch-network-error", { originalErrorMessage: originalError?.message });
+	}
+	if (response.status !== 200) throw ERROR_FACTORY$2.create("fetch-status-error", { httpStatus: response.status });
+	let responseBody;
+	try {
+		responseBody = await response.json();
+	} catch (originalError) {
+		throw ERROR_FACTORY$2.create("fetch-parse-error", { originalErrorMessage: originalError?.message });
+	}
+	const match = responseBody.ttl.match(/^([\d.]+)(s)$/);
+	if (!match || !match[2] || isNaN(Number(match[1]))) throw ERROR_FACTORY$2.create("fetch-parse-error", { originalErrorMessage: `ttl field (timeToLive) is not in standard Protobuf Duration format: ${responseBody.ttl}` });
+	const timeToLiveAsNumber = Number(match[1]) * 1e3;
+	const now = Date.now();
+	return {
+		token: responseBody.token,
+		expireTimeMillis: now + timeToLiveAsNumber,
+		issuedAtTimeMillis: now
+	};
+}
+function getExchangeRecaptchaV3TokenRequest(app, reCAPTCHAToken) {
+	const { projectId, appId, apiKey } = app.options;
+	return {
+		url: `${BASE_ENDPOINT}/projects/${projectId}/apps/${appId}:${EXCHANGE_RECAPTCHA_TOKEN_METHOD}?key=${apiKey}`,
+		body: { "recaptcha_v3_token": reCAPTCHAToken }
+	};
+}
+function getExchangeRecaptchaEnterpriseTokenRequest(app, reCAPTCHAToken) {
+	const { projectId, appId, apiKey } = app.options;
+	return {
+		url: `${BASE_ENDPOINT}/projects/${projectId}/apps/${appId}:${EXCHANGE_RECAPTCHA_ENTERPRISE_TOKEN_METHOD}?key=${apiKey}`,
+		body: { "recaptcha_enterprise_token": reCAPTCHAToken }
+	};
+}
+function getExchangeDebugTokenRequest(app, debugToken) {
+	const { projectId, appId, apiKey } = app.options;
+	return {
+		url: `${BASE_ENDPOINT}/projects/${projectId}/apps/${appId}:${EXCHANGE_DEBUG_TOKEN_METHOD}?key=${apiKey}`,
+		body: { debug_token: debugToken }
+	};
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var DB_NAME = "firebase-app-check-database";
+var DB_VERSION = 1;
+var STORE_NAME = "firebase-app-check-store";
+var DEBUG_TOKEN_KEY = "debug-token";
+var dbPromise$1 = null;
+function getDBPromise() {
+	if (dbPromise$1) return dbPromise$1;
+	dbPromise$1 = new Promise((resolve, reject) => {
+		try {
+			const request = indexedDB.open(DB_NAME, DB_VERSION);
+			request.onsuccess = (event) => {
+				resolve(event.target.result);
+			};
+			request.onerror = (event) => {
+				reject(ERROR_FACTORY$2.create("storage-open", { originalErrorMessage: event.target.error?.message }));
+			};
+			request.onupgradeneeded = (event) => {
+				const db = event.target.result;
+				switch (event.oldVersion) {
+					case 0: db.createObjectStore(STORE_NAME, { keyPath: "compositeKey" });
+				}
+			};
+		} catch (e) {
+			reject(ERROR_FACTORY$2.create("storage-open", { originalErrorMessage: e?.message }));
+		}
+	});
+	return dbPromise$1;
+}
+function readTokenFromIndexedDB(app) {
+	return read(computeKey(app));
+}
+function writeTokenToIndexedDB(app, token) {
+	return write(computeKey(app), token);
+}
+function writeDebugTokenToIndexedDB(token) {
+	return write(DEBUG_TOKEN_KEY, token);
+}
+function readDebugTokenFromIndexedDB() {
+	return read(DEBUG_TOKEN_KEY);
+}
+async function write(key, value) {
+	const transaction = (await getDBPromise()).transaction(STORE_NAME, "readwrite");
+	const request = transaction.objectStore(STORE_NAME).put({
+		compositeKey: key,
+		value
+	});
+	return new Promise((resolve, reject) => {
+		request.onsuccess = (_event) => {
+			resolve();
+		};
+		transaction.onerror = (event) => {
+			reject(ERROR_FACTORY$2.create("storage-set", { originalErrorMessage: event.target.error?.message }));
+		};
+	});
+}
+async function read(key) {
+	const transaction = (await getDBPromise()).transaction(STORE_NAME, "readonly");
+	const request = transaction.objectStore(STORE_NAME).get(key);
+	return new Promise((resolve, reject) => {
+		request.onsuccess = (event) => {
+			const result = event.target.result;
+			if (result) resolve(result.value);
+			else resolve(void 0);
+		};
+		transaction.onerror = (event) => {
+			reject(ERROR_FACTORY$2.create("storage-get", { originalErrorMessage: event.target.error?.message }));
+		};
+	});
+}
+function computeKey(app) {
+	return `${app.options.appId}-${app.name}`;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var logger$1 = new Logger("@firebase/app-check");
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Always resolves. In case of an error reading from indexeddb, resolve with undefined
+*/
+async function readTokenFromStorage(app) {
+	if (isIndexedDBAvailable()) {
+		let token = void 0;
+		try {
+			token = await readTokenFromIndexedDB(app);
+		} catch (e) {
+			logger$1.warn(`Failed to read token from IndexedDB. Error: ${e}`);
+		}
+		return token;
+	}
+}
+/**
+* Always resolves. In case of an error writing to indexeddb, print a warning and resolve the promise
+*/
+function writeTokenToStorage(app, token) {
+	if (isIndexedDBAvailable()) return writeTokenToIndexedDB(app, token).catch((e) => {
+		logger$1.warn(`Failed to write token to IndexedDB. Error: ${e}`);
+	});
+	return Promise.resolve();
+}
+async function readOrCreateDebugTokenFromStorage(app) {
+	/**
+	* Theoretically race condition can happen if we read, then write in 2 separate transactions.
+	* But it won't happen here, because this function will be called exactly once.
+	*/
+	let existingDebugToken = void 0;
+	try {
+		existingDebugToken = await readDebugTokenFromIndexedDB();
+	} catch (_e) {}
+	if (!existingDebugToken) {
+		const newToken = crypto.randomUUID();
+		let message = `To use this token for app debugging, register it with your project.\n\nFirebase App Check debug token: ${newToken}\n\n`;
+		const appId = app?.options.appId;
+		const projectId = app?.options.projectId;
+		if (projectId && appId) message += `You can do so in the Firebase Console:\nhttps://console.firebase.google.com/project/${projectId}/appcheck/apps?selectedAppId=${appId}\n\nOr using the Firebase CLI:\nfirebase appcheck:debugtokens:create ${newToken} --project ${projectId} --app ${appId}\n\n`;
+		else message += `You will need to add it to your app's App Check settings in the Firebase Console for it to work.\n\n`;
+		message += "Note: To keep your project secure, please revoke and delete this token using the\nFirebase Console or the CLI (`firebase appcheck:debugtokens:delete`) when you finish debugging.\n\nWarning: This debug token is a secret and should not be shared or uploaded to source code.\n\nDebug Token Guide: https://firebase.google.com/docs/app-check/web/debug-provider\nFirebase CLI install instructions: https://firebase.google.com/docs/cli\n";
+		console.log(message);
+		writeDebugTokenToIndexedDB(newToken).catch((e) => logger$1.warn(`Failed to persist debug token to IndexedDB. Error: ${e}`));
+		return newToken;
+	} else return existingDebugToken;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function isDebugMode() {
+	return getDebugState().enabled;
+}
+async function getDebugToken() {
+	const state = getDebugState();
+	if (state.enabled && state.token) return state.token.promise;
+	else throw Error(`
+            Can't get debug token in production mode.
+        `);
+}
+function initializeDebugMode(app) {
+	const globals = getGlobal();
+	const debugState = getDebugState();
+	debugState.initialized = true;
+	if (typeof globals.FIREBASE_APPCHECK_DEBUG_TOKEN !== "string" && globals.FIREBASE_APPCHECK_DEBUG_TOKEN !== true) return;
+	debugState.enabled = true;
+	const deferredToken = new Deferred();
+	debugState.token = deferredToken;
+	if (typeof globals.FIREBASE_APPCHECK_DEBUG_TOKEN === "string") deferredToken.resolve(globals.FIREBASE_APPCHECK_DEBUG_TOKEN);
+	else deferredToken.resolve(readOrCreateDebugTokenFromStorage(app));
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var defaultTokenErrorData = { error: "UNKNOWN_ERROR" };
+/**
+* Stringify and base64 encode token error data.
+*
+* @param tokenError Error data, currently hardcoded.
+*/
+function formatDummyToken(tokenErrorData) {
+	return base64.encodeString(JSON.stringify(tokenErrorData), false);
+}
+/**
+* This function always resolves.
+* The result will contain an error field if there is any error.
+* In case there is an error, the token field in the result will be populated with a dummy value
+*/
+async function getToken$2(appCheck, forceRefresh = false, shouldLogErrors = false) {
+	const app = appCheck.app;
+	ensureActivated(app);
+	const state = getStateReference(app);
+	/**
+	* First check if there is a token in memory from a previous `getToken()` call.
+	*/
+	let token = state.token;
+	let error = void 0;
+	/**
+	* If an invalid token was found in memory, clear token from
+	* memory and unset the local variable `token`.
+	*/
+	if (token && !isValid(token)) {
+		state.token = void 0;
+		token = void 0;
+	}
+	/**
+	* If there is no valid token in memory, try to load token from indexedDB.
+	*/
+	if (!token) {
+		const cachedToken = await state.cachedTokenPromise;
+		if (cachedToken) {
+			if (isValid(cachedToken)) token = cachedToken;
+			else await writeTokenToStorage(app, void 0);
+		}
+	}
+	if (!forceRefresh && token && isValid(token)) return { token: token.token };
+	let shouldCallListeners = false;
+	/**
+	* DEBUG MODE
+	* If debug mode is set, and there is no cached token, fetch a new App
+	* Check token using the debug token, and return it directly.
+	*/
+	if (isDebugMode()) try {
+		const debugToken = await getDebugToken();
+		if (!state.exchangeTokenPromise) {
+			state.exchangeTokenPromise = exchangeToken(getExchangeDebugTokenRequest(app, debugToken), appCheck.heartbeatServiceProvider).finally(() => {
+				state.exchangeTokenPromise = void 0;
+			});
+			shouldCallListeners = true;
+		}
+		const tokenFromDebugExchange = await state.exchangeTokenPromise;
+		await writeTokenToStorage(app, tokenFromDebugExchange);
+		state.token = tokenFromDebugExchange;
+		return { token: tokenFromDebugExchange.token };
+	} catch (e) {
+		if (e.code === `appCheck/throttled` || e.code === `appCheck/initial-throttle`) logger$1.warn(e.message);
+		else if (shouldLogErrors) logger$1.error(e);
+		return makeDummyTokenResult(e);
+	}
+	/**
+	* There are no valid tokens in memory or indexedDB and we are not in
+	* debug mode.
+	* Request a new token from the exchange endpoint.
+	*/
+	try {
+		if (!state.exchangeTokenPromise) {
+			state.exchangeTokenPromise = state.provider.getToken().finally(() => {
+				state.exchangeTokenPromise = void 0;
+			});
+			shouldCallListeners = true;
+		}
+		token = await getStateReference(app).exchangeTokenPromise;
+	} catch (e) {
+		if (e.code === `appCheck/throttled` || e.code === `appCheck/initial-throttle`) logger$1.warn(e.message);
+		else if (shouldLogErrors) logger$1.error(e);
+		error = e;
+	}
+	let interopTokenResult;
+	if (!token) interopTokenResult = makeDummyTokenResult(error);
+	else if (error) {
+		if (isValid(token)) interopTokenResult = {
+			token: token.token,
+			internalError: error
+		};
+		else interopTokenResult = makeDummyTokenResult(error);
+	} else {
+		interopTokenResult = { token: token.token };
+		state.token = token;
+		await writeTokenToStorage(app, token);
+	}
+	if (shouldCallListeners) notifyTokenListeners(app, interopTokenResult);
+	return interopTokenResult;
+}
+/**
+* Internal API for limited use tokens. Skips all FAC state and simply calls
+* the underlying provider.
+*/
+async function getLimitedUseToken$1(appCheck) {
+	const app = appCheck.app;
+	ensureActivated(app);
+	const { provider } = getStateReference(app);
+	if (isDebugMode()) {
+		const request = getExchangeDebugTokenRequest(app, await getDebugToken());
+		request.body["limited_use"] = true;
+		const { token } = await exchangeToken(request, appCheck.heartbeatServiceProvider);
+		return { token };
+	} else {
+		const { token } = await provider.getToken(true);
+		return { token };
+	}
+}
+function addTokenListener(appCheck, type, listener, onError) {
+	const { app } = appCheck;
+	const state = getStateReference(app);
+	const tokenObserver = {
+		next: listener,
+		error: onError,
+		type
+	};
+	state.tokenObservers = [...state.tokenObservers, tokenObserver];
+	if (state.token && isValid(state.token)) {
+		const validToken = state.token;
+		Promise.resolve().then(() => {
+			listener({ token: validToken.token });
+			initTokenRefresher(appCheck);
+		}).catch(() => {});
+	}
+	/**
+	* Wait for any cached token promise to resolve before starting the token
+	* refresher. The refresher checks to see if there is an existing token
+	* in state and calls the exchange endpoint if not. We should first let the
+	* IndexedDB check have a chance to populate state if it can.
+	*
+	* Listener call isn't needed here because cachedTokenPromise will call any
+	* listeners that exist when it resolves.
+	*/
+	state.cachedTokenPromise.then(() => initTokenRefresher(appCheck));
+}
+function removeTokenListener(app, listener) {
+	const state = getStateReference(app);
+	const newObservers = state.tokenObservers.filter((tokenObserver) => tokenObserver.next !== listener);
+	if (newObservers.length === 0 && state.tokenRefresher && state.tokenRefresher.isRunning()) state.tokenRefresher.stop();
+	state.tokenObservers = newObservers;
+}
+/**
+* Logic to create and start refresher as needed.
+*/
+function initTokenRefresher(appCheck) {
+	const { app } = appCheck;
+	const state = getStateReference(app);
+	let refresher = state.tokenRefresher;
+	if (!refresher) {
+		refresher = createTokenRefresher(appCheck);
+		state.tokenRefresher = refresher;
+	}
+	if (!refresher.isRunning() && state.isTokenAutoRefreshEnabled) refresher.start();
+}
+function createTokenRefresher(appCheck) {
+	const { app } = appCheck;
+	return new Refresher(async () => {
+		const state = getStateReference(app);
+		let result;
+		if (!state.token) result = await getToken$2(appCheck);
+		else result = await getToken$2(appCheck, true);
+		/**
+		* getToken() always resolves. In case the result has an error field defined, it means
+		* the operation failed, and we should retry.
+		*/
+		if (result.error) throw result.error;
+		/**
+		* A special `internalError` field reflects that there was an error
+		* getting a new token from the exchange endpoint, but there's still a
+		* previous token that's valid for now and this should be passed to 2P/3P
+		* requests for a token. But we want this callback (`this.operation` in
+		* `Refresher`) to throw in order to kick off the Refresher's retry
+		* backoff. (Setting `hasSucceeded` to false.)
+		*/
+		if (result.internalError) throw result.internalError;
+	}, () => {
+		return true;
+	}, () => {
+		const state = getStateReference(app);
+		if (state.token) {
+			let nextRefreshTimeMillis = state.token.issuedAtTimeMillis + (state.token.expireTimeMillis - state.token.issuedAtTimeMillis) * .5 + 3e5;
+			const latestAllowableRefresh = state.token.expireTimeMillis - 3e5;
+			nextRefreshTimeMillis = Math.min(nextRefreshTimeMillis, latestAllowableRefresh);
+			return Math.max(0, nextRefreshTimeMillis - Date.now());
+		} else return 0;
+	}, TOKEN_REFRESH_TIME.RETRIAL_MIN_WAIT, TOKEN_REFRESH_TIME.RETRIAL_MAX_WAIT);
+}
+function notifyTokenListeners(app, token) {
+	const observers = getStateReference(app).tokenObservers;
+	for (const observer of observers) try {
+		if (observer.type === "EXTERNAL" && token.error != null) observer.error(token.error);
+		else observer.next(token);
+	} catch (e) {}
+}
+function isValid(token) {
+	return token.expireTimeMillis - Date.now() > 0;
+}
+function makeDummyTokenResult(error) {
+	return {
+		token: formatDummyToken(defaultTokenErrorData),
+		error
+	};
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* AppCheck Service class.
+*/
+var AppCheckService = class {
+	constructor(app, heartbeatServiceProvider) {
+		this.app = app;
+		this.heartbeatServiceProvider = heartbeatServiceProvider;
+	}
+	_delete() {
+		const { tokenObservers } = getStateReference(this.app);
+		for (const tokenObserver of tokenObservers) removeTokenListener(this.app, tokenObserver.next);
+		return Promise.resolve();
+	}
+};
+function factory$1(app, heartbeatServiceProvider) {
+	return new AppCheckService(app, heartbeatServiceProvider);
+}
+function internalFactory$1(appCheck) {
+	return {
+		getToken: (forceRefresh) => getToken$2(appCheck, forceRefresh),
+		getLimitedUseToken: () => getLimitedUseToken$1(appCheck),
+		addTokenListener: (listener) => addTokenListener(appCheck, "INTERNAL", listener),
+		removeTokenListener: (listener) => removeTokenListener(appCheck.app, listener)
+	};
+}
+var name$2 = "@firebase/app-check";
+var version$2 = "0.13.1";
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var RECAPTCHA_URL = "https://www.google.com/recaptcha/api.js";
+function initializeV3(app, siteKey) {
+	const initialized = new Deferred();
+	const state = getStateReference(app);
+	state.reCAPTCHAState = { initialized };
+	const divId = makeDiv(app);
+	const grecaptcha = getRecaptcha(false);
+	if (!grecaptcha) loadReCAPTCHAV3Script(() => {
+		const grecaptcha = getRecaptcha(false);
+		if (!grecaptcha) throw new Error("no recaptcha");
+		queueWidgetRender(app, siteKey, grecaptcha, divId, initialized);
+	});
+	else queueWidgetRender(app, siteKey, grecaptcha, divId, initialized);
+	return initialized.promise;
+}
+function initializeEnterprise(app, siteKey) {
+	const initialized = new Deferred();
+	const state = getStateReference(app);
+	state.reCAPTCHAState = { initialized };
+	const divId = makeDiv(app);
+	const grecaptcha = getRecaptcha(true);
+	if (!grecaptcha) loadReCAPTCHAEnterpriseScript(() => {
+		const grecaptcha = getRecaptcha(true);
+		if (!grecaptcha) throw new Error("no recaptcha");
+		queueWidgetRender(app, siteKey, grecaptcha, divId, initialized);
+	});
+	else queueWidgetRender(app, siteKey, grecaptcha, divId, initialized);
+	return initialized.promise;
+}
+/**
+* Add listener to render the widget and resolve the promise when
+* the grecaptcha.ready() event fires.
+*/
+function queueWidgetRender(app, siteKey, grecaptcha, container, initialized) {
+	grecaptcha.ready(() => {
+		renderInvisibleWidget(app, siteKey, grecaptcha, container);
+		initialized.resolve(grecaptcha);
+	});
+}
+/**
+* Add invisible div to page.
+*/
+function makeDiv(app) {
+	const divId = `fire_app_check_${app.name}`;
+	const invisibleDiv = document.createElement("div");
+	invisibleDiv.id = divId;
+	invisibleDiv.style.display = "none";
+	document.body.appendChild(invisibleDiv);
+	return divId;
+}
+async function getToken$1(app) {
+	ensureActivated(app);
+	const recaptcha = await getStateReference(app).reCAPTCHAState.initialized.promise;
+	return new Promise((resolve, _reject) => {
+		const reCAPTCHAState = getStateReference(app).reCAPTCHAState;
+		recaptcha.ready(() => {
+			resolve(recaptcha.execute(reCAPTCHAState.widgetId, { action: "fire_app_check" }));
+		});
+	});
+}
+/**
+*
+* @param app
+* @param container - Id of a HTML element.
+*/
+function renderInvisibleWidget(app, siteKey, grecaptcha, container) {
+	const widgetId = grecaptcha.render(container, {
+		sitekey: siteKey,
+		size: "invisible",
+		callback: () => {
+			getStateReference(app).reCAPTCHAState.succeeded = true;
+		},
+		"error-callback": () => {
+			getStateReference(app).reCAPTCHAState.succeeded = false;
+		}
+	});
+	const state = getStateReference(app);
+	state.reCAPTCHAState = {
+		...state.reCAPTCHAState,
+		widgetId
+	};
+}
+function loadReCAPTCHAV3Script(onload) {
+	const script = document.createElement("script");
+	script.src = RECAPTCHA_URL;
+	script.onload = onload;
+	document.head.appendChild(script);
+}
+function loadReCAPTCHAEnterpriseScript(onload) {
+	const script = document.createElement("script");
+	script.src = "https://www.google.com/recaptcha/enterprise.js?render=explicit";
+	script.onload = onload;
+	document.head.appendChild(script);
+}
+/**
+* @license
+* Copyright 2021 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* App Check provider that can obtain a reCAPTCHA V3 token and exchange it
+* for an App Check token.
+*
+* @public
+*/
+var ReCaptchaV3Provider = class ReCaptchaV3Provider {
+	/**
+	* Create a ReCaptchaV3Provider instance.
+	* @param siteKey - ReCAPTCHA V3 siteKey.
+	*/
+	constructor(_siteKey) {
+		this._siteKey = _siteKey;
+		/**
+		* Throttle requests on certain error codes to prevent too many retries
+		* in a short time.
+		*/
+		this._throttleData = null;
+	}
+	/**
+	* Returns an App Check token.
+	* @internal
+	*/
+	async getToken(isLimitedUse = false) {
+		throwIfThrottled(this._throttleData);
+		const attestedClaimsToken = await getToken$1(this._app).catch((_e) => {
+			throw ERROR_FACTORY$2.create("recaptcha-error");
+		});
+		if (!getStateReference(this._app).reCAPTCHAState?.succeeded) throw ERROR_FACTORY$2.create("recaptcha-error");
+		let result;
+		try {
+			const request = getExchangeRecaptchaV3TokenRequest(this._app, attestedClaimsToken);
+			if (isLimitedUse) request.body["limited_use"] = true;
+			result = await exchangeToken(request, this._heartbeatServiceProvider);
+		} catch (e) {
+			if (e.code?.includes("fetch-status-error")) {
+				this._throttleData = setBackoff(Number(e.customData?.httpStatus), this._throttleData);
+				throw ERROR_FACTORY$2.create("initial-throttle", {
+					time: getDurationString(this._throttleData.allowRequestsAfter - Date.now()),
+					httpStatus: this._throttleData.httpStatus
+				});
+			} else throw e;
+		}
+		this._throttleData = null;
+		return result;
+	}
+	/**
+	* @internal
+	*/
+	initialize(app) {
+		this._app = app;
+		this._heartbeatServiceProvider = _getProvider(app, "heartbeat");
+		initializeV3(app, this._siteKey).catch(() => {});
+	}
+	/**
+	* @internal
+	*/
+	isEqual(otherProvider) {
+		if (otherProvider instanceof ReCaptchaV3Provider) return this._siteKey === otherProvider._siteKey;
+		else return false;
+	}
+};
+/**
+* App Check provider that can obtain a reCAPTCHA Enterprise token and exchange it
+* for an App Check token.
+*
+* @public
+*/
+var ReCaptchaEnterpriseProvider = class ReCaptchaEnterpriseProvider {
+	/**
+	* Create a ReCaptchaEnterpriseProvider instance.
+	* @param siteKey - reCAPTCHA Enterprise score-based site key.
+	*/
+	constructor(_siteKey) {
+		this._siteKey = _siteKey;
+		/**
+		* Throttle requests on certain error codes to prevent too many retries
+		* in a short time.
+		*/
+		this._throttleData = null;
+	}
+	/**
+	* Returns an App Check token.
+	* @internal
+	*/
+	async getToken(isLimitedUse = false) {
+		throwIfThrottled(this._throttleData);
+		const attestedClaimsToken = await getToken$1(this._app).catch((_e) => {
+			throw ERROR_FACTORY$2.create("recaptcha-error");
+		});
+		if (!getStateReference(this._app).reCAPTCHAState?.succeeded) throw ERROR_FACTORY$2.create("recaptcha-error");
+		let result;
+		try {
+			const request = getExchangeRecaptchaEnterpriseTokenRequest(this._app, attestedClaimsToken);
+			if (isLimitedUse) request.body["limited_use"] = true;
+			result = await exchangeToken(request, this._heartbeatServiceProvider);
+		} catch (e) {
+			if (e.code?.includes("fetch-status-error")) {
+				this._throttleData = setBackoff(Number(e.customData?.httpStatus), this._throttleData);
+				throw ERROR_FACTORY$2.create("initial-throttle", {
+					time: getDurationString(this._throttleData.allowRequestsAfter - Date.now()),
+					httpStatus: this._throttleData.httpStatus
+				});
+			} else throw e;
+		}
+		this._throttleData = null;
+		return result;
+	}
+	/**
+	* @internal
+	*/
+	initialize(app) {
+		this._app = app;
+		this._heartbeatServiceProvider = _getProvider(app, "heartbeat");
+		initializeEnterprise(app, this._siteKey).catch(() => {});
+	}
+	/**
+	* @internal
+	*/
+	isEqual(otherProvider) {
+		if (otherProvider instanceof ReCaptchaEnterpriseProvider) return this._siteKey === otherProvider._siteKey;
+		else return false;
+	}
+};
+/**
+* Set throttle data to block requests until after a certain time
+* depending on the failed request's status code.
+* @param httpStatus - Status code of failed request.
+* @param throttleData - `ThrottleData` object containing previous throttle
+* data state.
+* @returns Data about current throttle state and expiration time.
+*/
+function setBackoff(httpStatus, throttleData) {
+	/**
+	* Block retries for 1 day for the following error codes:
+	*
+	* 404: Likely malformed URL.
+	*
+	* 403:
+	* - Attestation failed
+	* - Wrong API key
+	* - Project deleted
+	*/
+	if (httpStatus === 404 || httpStatus === 403) return {
+		backoffCount: 1,
+		allowRequestsAfter: Date.now() + ONE_DAY,
+		httpStatus
+	};
+	else {
+		/**
+		* For all other error codes, the time when it is ok to retry again
+		* is based on exponential backoff.
+		*/
+		const backoffCount = throttleData ? throttleData.backoffCount : 0;
+		const backoffMillis = calculateBackoffMillis(backoffCount, 1e3, 2);
+		return {
+			backoffCount: backoffCount + 1,
+			allowRequestsAfter: Date.now() + backoffMillis,
+			httpStatus
+		};
+	}
+}
+function throwIfThrottled(throttleData) {
+	if (throttleData) {
+		if (Date.now() - throttleData.allowRequestsAfter <= 0) throw ERROR_FACTORY$2.create("throttled", {
+			time: getDurationString(throttleData.allowRequestsAfter - Date.now()),
+			httpStatus: throttleData.httpStatus
+		});
+	}
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Activate App Check for the given app. Can be called only once per app.
+* @param app - the {@link @firebase/app#FirebaseApp} to activate App Check for
+* @param options - App Check initialization options
+* @public
+*/
+function initializeAppCheck(app = getApp(), options) {
+	app = getModularInstance(app);
+	const provider = _getProvider(app, "app-check");
+	if (!getDebugState().initialized) initializeDebugMode(app);
+	if (isDebugMode()) getDebugToken().then((token) => {
+		console.log(`Firebase App Check debug token: ${token}`);
+	});
+	if (provider.isInitialized()) {
+		const existingInstance = provider.getImmediate();
+		const initialOptions = provider.getOptions();
+		if (initialOptions && !!initialOptions.isTokenAutoRefreshEnabled === !!options.isTokenAutoRefreshEnabled && initialOptions.provider?.isEqual(options.provider)) return existingInstance;
+		else throw ERROR_FACTORY$2.create("already-initialized", { appName: app.name });
+	}
+	const appCheck = provider.initialize({ options });
+	_activate(app, options.provider, options.isTokenAutoRefreshEnabled);
+	if (getStateReference(app).isTokenAutoRefreshEnabled) addTokenListener(appCheck, "INTERNAL", () => {});
+	return appCheck;
+}
+/**
+* Activate App Check
+* @param app - Firebase app to activate App Check for.
+* @param provider - reCAPTCHA v3 provider or
+* custom token provider.
+* @param isTokenAutoRefreshEnabled - If true, the SDK automatically
+* refreshes App Check tokens as needed. If undefined, defaults to the
+* value of `app.automaticDataCollectionEnabled`, which defaults to
+* false and can be set in the app config.
+*/
+function _activate(app, provider, isTokenAutoRefreshEnabled = false) {
+	const state = setInitialState(app, { ...DEFAULT_STATE });
+	state.activated = true;
+	state.provider = provider;
+	state.cachedTokenPromise = readTokenFromStorage(app).then((cachedToken) => {
+		if (cachedToken && isValid(cachedToken)) {
+			state.token = cachedToken;
+			notifyTokenListeners(app, { token: cachedToken.token });
+		}
+		return cachedToken;
+	});
+	state.isTokenAutoRefreshEnabled = isTokenAutoRefreshEnabled && app.automaticDataCollectionEnabled;
+	if (!app.automaticDataCollectionEnabled && isTokenAutoRefreshEnabled) logger$1.warn("`isTokenAutoRefreshEnabled` is true but `automaticDataCollectionEnabled` was set to false during `initializeApp()`. This blocks automatic token refresh.");
+	state.provider.initialize(app);
+}
+/**
+* The Firebase App Check Web SDK.
+*
+* @remarks
+* Firebase App Check does not work in a Node.js environment using `ReCaptchaV3Provider` or
+* `ReCaptchaEnterpriseProvider`, but can be used in Node.js if you use
+* `CustomProvider` and write your own attestation method.
+*
+* @packageDocumentation
+*/
+/**
+* @license
+* Copyright 2021 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var APP_CHECK_NAME = "app-check";
+var APP_CHECK_NAME_INTERNAL = "app-check-internal";
+function registerAppCheck() {
+	_registerComponent(new Component(APP_CHECK_NAME, (container) => {
+		return factory$1(container.getProvider("app").getImmediate(), container.getProvider("heartbeat"));
+	}, "PUBLIC").setInstantiationMode("EXPLICIT").setInstanceCreatedCallback((container, _identifier, _appcheckService) => {
+		container.getProvider(APP_CHECK_NAME_INTERNAL).initialize();
+	}));
+	_registerComponent(new Component(APP_CHECK_NAME_INTERNAL, (container) => {
+		return internalFactory$1(container.getProvider("app-check").getImmediate());
+	}, "PUBLIC").setInstantiationMode("EXPLICIT"));
+	registerVersion(name$2, version$2);
+}
+registerAppCheck();
+// node_modules/@firebase/installations/dist/esm/index.esm.js
+var name$1 = "@firebase/installations";
+var version$1 = "0.6.24";
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var PENDING_TIMEOUT_MS = 1e4;
+var PACKAGE_VERSION = `w:${version$1}`;
+var INTERNAL_AUTH_VERSION = "FIS_v2";
+var INSTALLATIONS_API_URL = "https://firebaseinstallations.googleapis.com/v1";
+var TOKEN_EXPIRATION_BUFFER = 36e5;
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var ERROR_FACTORY$1 = new ErrorFactory("installations", "Installations", {
+	["missing-app-config-values"]: "Missing App configuration value: \"{$valueName}\"",
+	["not-registered"]: "Firebase Installation is not registered.",
+	["installation-not-found"]: "Firebase Installation not found.",
+	["request-failed"]: "{$requestName} request failed with error \"{$serverCode} {$serverStatus}: {$serverMessage}\"",
+	["app-offline"]: "Could not process request. Application offline.",
+	["delete-pending-registration"]: "Can't delete installation while there is a pending registration request."
+});
+/** Returns true if error is a FirebaseError that is based on an error from the server. */
+function isServerError(error) {
+	return error instanceof FirebaseError && error.code.includes("request-failed");
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function getInstallationsEndpoint({ projectId }) {
+	return `${INSTALLATIONS_API_URL}/projects/${projectId}/installations`;
+}
+function extractAuthTokenInfoFromResponse(response) {
+	return {
+		token: response.token,
+		requestStatus: 2,
+		expiresIn: getExpiresInFromResponseExpiresIn(response.expiresIn),
+		creationTime: Date.now()
+	};
+}
+async function getErrorFromResponse(requestName, response) {
+	const errorData = (await response.json()).error;
+	return ERROR_FACTORY$1.create("request-failed", {
+		requestName,
+		serverCode: errorData.code,
+		serverMessage: errorData.message,
+		serverStatus: errorData.status
+	});
+}
+function getHeaders$1({ apiKey }) {
+	return new Headers({
+		"Content-Type": "application/json",
+		Accept: "application/json",
+		"x-goog-api-key": apiKey
+	});
+}
+function getHeadersWithAuth(appConfig, { refreshToken }) {
+	const headers = getHeaders$1(appConfig);
+	headers.append("Authorization", getAuthorizationHeader(refreshToken));
+	return headers;
+}
+/**
+* Calls the passed in fetch wrapper and returns the response.
+* If the returned response has a status of 5xx, re-runs the function once and
+* returns the response.
+*/
+async function retryIfServerError(fn) {
+	const result = await fn();
+	if (result.status >= 500 && result.status < 600) return fn();
+	return result;
+}
+function getExpiresInFromResponseExpiresIn(responseExpiresIn) {
+	return Number(responseExpiresIn.replace("s", "000"));
+}
+function getAuthorizationHeader(refreshToken) {
+	return `${INTERNAL_AUTH_VERSION} ${refreshToken}`;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+async function createInstallationRequest({ appConfig, heartbeatServiceProvider }, { fid }) {
+	const endpoint = getInstallationsEndpoint(appConfig);
+	const headers = getHeaders$1(appConfig);
+	const heartbeatService = heartbeatServiceProvider.getImmediate({ optional: true });
+	if (heartbeatService) {
+		const heartbeatsHeader = await heartbeatService.getHeartbeatsHeader();
+		if (heartbeatsHeader) headers.append("x-firebase-client", heartbeatsHeader);
+	}
+	const body = {
+		fid,
+		authVersion: INTERNAL_AUTH_VERSION,
+		appId: appConfig.appId,
+		sdkVersion: PACKAGE_VERSION
+	};
+	const request = {
+		method: "POST",
+		headers,
+		body: JSON.stringify(body)
+	};
+	const response = await retryIfServerError(() => fetch(endpoint, request));
+	if (response.ok) {
+		const responseValue = await response.json();
+		return {
+			fid: responseValue.fid || fid,
+			registrationStatus: 2,
+			refreshToken: responseValue.refreshToken,
+			authToken: extractAuthTokenInfoFromResponse(responseValue.authToken)
+		};
+	} else throw await getErrorFromResponse("Create Installation", response);
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/** Returns a promise that resolves after given time passes. */
+function sleep(ms) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function bufferToBase64UrlSafe(array) {
+	return btoa(String.fromCharCode(...array)).replace(/\+/g, "-").replace(/\//g, "_");
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var VALID_FID_PATTERN = /^[cdef][\w-]{21}$/;
+var INVALID_FID = "";
+/**
+* Generates a new FID using random values from Web Crypto API.
+* Returns an empty string if FID generation fails for any reason.
+*/
+function generateFid() {
+	try {
+		const fidByteArray = /* @__PURE__ */ new Uint8Array(17);
+		(self.crypto || self.msCrypto).getRandomValues(fidByteArray);
+		fidByteArray[0] = 112 + fidByteArray[0] % 16;
+		const fid = encode(fidByteArray);
+		return VALID_FID_PATTERN.test(fid) ? fid : INVALID_FID;
+	} catch {
+		return INVALID_FID;
+	}
+}
+/** Converts a FID Uint8Array to a base64 string representation. */
+function encode(fidByteArray) {
+	return bufferToBase64UrlSafe(fidByteArray).substr(0, 22);
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/** Returns a string key that can be used to identify the app. */
+function getKey(appConfig) {
+	return `${appConfig.appName}!${appConfig.appId}`;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var fidChangeCallbacks = /* @__PURE__ */ new Map();
+/**
+* Calls the onIdChange callbacks with the new FID value, and broadcasts the
+* change to other tabs.
+*/
+function fidChanged(appConfig, fid) {
+	const key = getKey(appConfig);
+	callFidChangeCallbacks(key, fid);
+	broadcastFidChange(key, fid);
+}
+function callFidChangeCallbacks(key, fid) {
+	const callbacks = fidChangeCallbacks.get(key);
+	if (!callbacks) return;
+	for (const callback of callbacks) callback(fid);
+}
+function broadcastFidChange(key, fid) {
+	const channel = getBroadcastChannel();
+	if (channel) channel.postMessage({
+		key,
+		fid
+	});
+	closeBroadcastChannel();
+}
+var broadcastChannel = null;
+/** Opens and returns a BroadcastChannel if it is supported by the browser. */
+function getBroadcastChannel() {
+	if (!broadcastChannel && "BroadcastChannel" in self) {
+		broadcastChannel = new BroadcastChannel("[Firebase] FID Change");
+		broadcastChannel.onmessage = (e) => {
+			callFidChangeCallbacks(e.data.key, e.data.fid);
+		};
+	}
+	return broadcastChannel;
+}
+function closeBroadcastChannel() {
+	if (fidChangeCallbacks.size === 0 && broadcastChannel) {
+		broadcastChannel.close();
+		broadcastChannel = null;
+	}
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var DATABASE_NAME = "firebase-installations-database";
+var DATABASE_VERSION = 1;
+var OBJECT_STORE_NAME = "firebase-installations-store";
+var dbPromise = null;
+function getDbPromise() {
+	if (!dbPromise) dbPromise = openDB(DATABASE_NAME, DATABASE_VERSION, { upgrade: (db, oldVersion) => {
+		switch (oldVersion) {
+			case 0: db.createObjectStore(OBJECT_STORE_NAME);
+		}
+	} });
+	return dbPromise;
+}
+/** Assigns or overwrites the record for the given key with the given value. */
+async function set(appConfig, value) {
+	const key = getKey(appConfig);
+	const tx = (await getDbPromise()).transaction(OBJECT_STORE_NAME, "readwrite");
+	const objectStore = tx.objectStore(OBJECT_STORE_NAME);
+	const oldValue = await objectStore.get(key);
+	await objectStore.put(value, key);
+	await tx.done;
+	if (!oldValue || oldValue.fid !== value.fid) fidChanged(appConfig, value.fid);
+	return value;
+}
+/** Removes record(s) from the objectStore that match the given key. */
+async function remove(appConfig) {
+	const key = getKey(appConfig);
+	const tx = (await getDbPromise()).transaction(OBJECT_STORE_NAME, "readwrite");
+	await tx.objectStore(OBJECT_STORE_NAME).delete(key);
+	await tx.done;
+}
+/**
+* Atomically updates a record with the result of updateFn, which gets
+* called with the current value. If newValue is undefined, the record is
+* deleted instead.
+* @return Updated value
+*/
+async function update(appConfig, updateFn) {
+	const key = getKey(appConfig);
+	const tx = (await getDbPromise()).transaction(OBJECT_STORE_NAME, "readwrite");
+	const store = tx.objectStore(OBJECT_STORE_NAME);
+	const oldValue = await store.get(key);
+	const newValue = updateFn(oldValue);
+	if (newValue === void 0) await store.delete(key);
+	else await store.put(newValue, key);
+	await tx.done;
+	if (newValue && (!oldValue || oldValue.fid !== newValue.fid)) fidChanged(appConfig, newValue.fid);
+	return newValue;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Updates and returns the InstallationEntry from the database.
+* Also triggers a registration request if it is necessary and possible.
+*/
+async function getInstallationEntry(installations) {
+	let registrationPromise;
+	const installationEntry = await update(installations.appConfig, (oldEntry) => {
+		const entryWithPromise = triggerRegistrationIfNecessary(installations, updateOrCreateInstallationEntry(oldEntry));
+		registrationPromise = entryWithPromise.registrationPromise;
+		return entryWithPromise.installationEntry;
+	});
+	if (installationEntry.fid === INVALID_FID) return { installationEntry: await registrationPromise };
+	return {
+		installationEntry,
+		registrationPromise
+	};
+}
+/**
+* Creates a new Installation Entry if one does not exist.
+* Also clears timed out pending requests.
+*/
+function updateOrCreateInstallationEntry(oldEntry) {
+	return clearTimedOutRequest(oldEntry || {
+		fid: generateFid(),
+		registrationStatus: 0
+	});
+}
+/**
+* If the Firebase Installation is not registered yet, this will trigger the
+* registration and return an InProgressInstallationEntry.
+*
+* If registrationPromise does not exist, the installationEntry is guaranteed
+* to be registered.
+*/
+function triggerRegistrationIfNecessary(installations, installationEntry) {
+	if (installationEntry.registrationStatus === 0) {
+		if (!navigator.onLine) return {
+			installationEntry,
+			registrationPromise: Promise.reject(ERROR_FACTORY$1.create("app-offline"))
+		};
+		const inProgressEntry = {
+			fid: installationEntry.fid,
+			registrationStatus: 1,
+			registrationTime: Date.now()
+		};
+		return {
+			installationEntry: inProgressEntry,
+			registrationPromise: registerInstallation(installations, inProgressEntry)
+		};
+	} else if (installationEntry.registrationStatus === 1) return {
+		installationEntry,
+		registrationPromise: waitUntilFidRegistration(installations)
+	};
+	else return { installationEntry };
+}
+/** This will be executed only once for each new Firebase Installation. */
+async function registerInstallation(installations, installationEntry) {
+	try {
+		const registeredInstallationEntry = await createInstallationRequest(installations, installationEntry);
+		return set(installations.appConfig, registeredInstallationEntry);
+	} catch (e) {
+		if (isServerError(e) && e.customData.serverCode === 409) await remove(installations.appConfig);
+		else await set(installations.appConfig, {
+			fid: installationEntry.fid,
+			registrationStatus: 0
+		});
+		throw e;
+	}
+}
+/** Call if FID registration is pending in another request. */
+async function waitUntilFidRegistration(installations) {
+	let entry = await updateInstallationRequest(installations.appConfig);
+	while (entry.registrationStatus === 1) {
+		await sleep(100);
+		entry = await updateInstallationRequest(installations.appConfig);
+	}
+	if (entry.registrationStatus === 0) {
+		const { installationEntry, registrationPromise } = await getInstallationEntry(installations);
+		if (registrationPromise) return registrationPromise;
+		else return installationEntry;
+	}
+	return entry;
+}
+/**
+* Called only if there is a CreateInstallation request in progress.
+*
+* Updates the InstallationEntry in the DB based on the status of the
+* CreateInstallation request.
+*
+* Returns the updated InstallationEntry.
+*/
+function updateInstallationRequest(appConfig) {
+	return update(appConfig, (oldEntry) => {
+		if (!oldEntry) throw ERROR_FACTORY$1.create("installation-not-found");
+		return clearTimedOutRequest(oldEntry);
+	});
+}
+function clearTimedOutRequest(entry) {
+	if (hasInstallationRequestTimedOut(entry)) return {
+		fid: entry.fid,
+		registrationStatus: 0
+	};
+	return entry;
+}
+function hasInstallationRequestTimedOut(installationEntry) {
+	return installationEntry.registrationStatus === 1 && installationEntry.registrationTime + PENDING_TIMEOUT_MS < Date.now();
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+async function generateAuthTokenRequest({ appConfig, heartbeatServiceProvider }, installationEntry) {
+	const endpoint = getGenerateAuthTokenEndpoint(appConfig, installationEntry);
+	const headers = getHeadersWithAuth(appConfig, installationEntry);
+	const heartbeatService = heartbeatServiceProvider.getImmediate({ optional: true });
+	if (heartbeatService) {
+		const heartbeatsHeader = await heartbeatService.getHeartbeatsHeader();
+		if (heartbeatsHeader) headers.append("x-firebase-client", heartbeatsHeader);
+	}
+	const body = { installation: {
+		sdkVersion: PACKAGE_VERSION,
+		appId: appConfig.appId
+	} };
+	const request = {
+		method: "POST",
+		headers,
+		body: JSON.stringify(body)
+	};
+	const response = await retryIfServerError(() => fetch(endpoint, request));
+	if (response.ok) return extractAuthTokenInfoFromResponse(await response.json());
+	else throw await getErrorFromResponse("Generate Auth Token", response);
+}
+function getGenerateAuthTokenEndpoint(appConfig, { fid }) {
+	return `${getInstallationsEndpoint(appConfig)}/${fid}/authTokens:generate`;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Returns a valid authentication token for the installation. Generates a new
+* token if one doesn't exist, is expired or about to expire.
+*
+* Should only be called if the Firebase Installation is registered.
+*/
+async function refreshAuthToken(installations, forceRefresh = false) {
+	let tokenPromise;
+	const entry = await update(installations.appConfig, (oldEntry) => {
+		if (!isEntryRegistered(oldEntry)) throw ERROR_FACTORY$1.create("not-registered");
+		const oldAuthToken = oldEntry.authToken;
+		if (!forceRefresh && isAuthTokenValid(oldAuthToken)) return oldEntry;
+		else if (oldAuthToken.requestStatus === 1) {
+			tokenPromise = waitUntilAuthTokenRequest(installations, forceRefresh);
+			return oldEntry;
+		} else {
+			if (!navigator.onLine) throw ERROR_FACTORY$1.create("app-offline");
+			const inProgressEntry = makeAuthTokenRequestInProgressEntry(oldEntry);
+			tokenPromise = fetchAuthTokenFromServer(installations, inProgressEntry);
+			return inProgressEntry;
+		}
+	});
+	return tokenPromise ? await tokenPromise : entry.authToken;
+}
+/**
+* Call only if FID is registered and Auth Token request is in progress.
+*
+* Waits until the current pending request finishes. If the request times out,
+* tries once in this thread as well.
+*/
+async function waitUntilAuthTokenRequest(installations, forceRefresh) {
+	let entry = await updateAuthTokenRequest(installations.appConfig);
+	while (entry.authToken.requestStatus === 1) {
+		await sleep(100);
+		entry = await updateAuthTokenRequest(installations.appConfig);
+	}
+	const authToken = entry.authToken;
+	if (authToken.requestStatus === 0) return refreshAuthToken(installations, forceRefresh);
+	else return authToken;
+}
+/**
+* Called only if there is a GenerateAuthToken request in progress.
+*
+* Updates the InstallationEntry in the DB based on the status of the
+* GenerateAuthToken request.
+*
+* Returns the updated InstallationEntry.
+*/
+function updateAuthTokenRequest(appConfig) {
+	return update(appConfig, (oldEntry) => {
+		if (!isEntryRegistered(oldEntry)) throw ERROR_FACTORY$1.create("not-registered");
+		const oldAuthToken = oldEntry.authToken;
+		if (hasAuthTokenRequestTimedOut(oldAuthToken)) return {
+			...oldEntry,
+			authToken: { requestStatus: 0 }
+		};
+		return oldEntry;
+	});
+}
+async function fetchAuthTokenFromServer(installations, installationEntry) {
+	try {
+		const authToken = await generateAuthTokenRequest(installations, installationEntry);
+		const updatedInstallationEntry = {
+			...installationEntry,
+			authToken
+		};
+		await set(installations.appConfig, updatedInstallationEntry);
+		return authToken;
+	} catch (e) {
+		if (isServerError(e) && (e.customData.serverCode === 401 || e.customData.serverCode === 404)) await remove(installations.appConfig);
+		else {
+			const updatedInstallationEntry = {
+				...installationEntry,
+				authToken: { requestStatus: 0 }
+			};
+			await set(installations.appConfig, updatedInstallationEntry);
+		}
+		throw e;
+	}
+}
+function isEntryRegistered(installationEntry) {
+	return installationEntry !== void 0 && installationEntry.registrationStatus === 2;
+}
+function isAuthTokenValid(authToken) {
+	return authToken.requestStatus === 2 && !isAuthTokenExpired(authToken);
+}
+function isAuthTokenExpired(authToken) {
+	const now = Date.now();
+	return now < authToken.creationTime || authToken.creationTime + authToken.expiresIn < now + TOKEN_EXPIRATION_BUFFER;
+}
+/** Returns an updated InstallationEntry with an InProgressAuthToken. */
+function makeAuthTokenRequestInProgressEntry(oldEntry) {
+	const inProgressAuthToken = {
+		requestStatus: 1,
+		requestTime: Date.now()
+	};
+	return {
+		...oldEntry,
+		authToken: inProgressAuthToken
+	};
+}
+function hasAuthTokenRequestTimedOut(authToken) {
+	return authToken.requestStatus === 1 && authToken.requestTime + PENDING_TIMEOUT_MS < Date.now();
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Creates a Firebase Installation if there isn't one for the app and
+* returns the Installation ID.
+* @param installations - The `Installations` instance.
+*
+* @public
+*/
+async function getId(installations) {
+	const installationsImpl = installations;
+	const { installationEntry, registrationPromise } = await getInstallationEntry(installationsImpl);
+	if (registrationPromise) registrationPromise.catch(console.error);
+	else refreshAuthToken(installationsImpl).catch(console.error);
+	return installationEntry.fid;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Returns a Firebase Installations auth token, identifying the current
+* Firebase Installation.
+* @param installations - The `Installations` instance.
+* @param forceRefresh - Force refresh regardless of token expiration.
+*
+* @public
+*/
+async function getToken(installations, forceRefresh = false) {
+	const installationsImpl = installations;
+	await completeInstallationRegistration(installationsImpl);
+	return (await refreshAuthToken(installationsImpl, forceRefresh)).token;
+}
+async function completeInstallationRegistration(installations) {
+	const { registrationPromise } = await getInstallationEntry(installations);
+	if (registrationPromise) await registrationPromise;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function extractAppConfig(app) {
+	if (!app || !app.options) throw getMissingValueError("App Configuration");
+	if (!app.name) throw getMissingValueError("App Name");
+	for (const keyName of [
+		"projectId",
+		"apiKey",
+		"appId"
+	]) if (!app.options[keyName]) throw getMissingValueError(keyName);
+	return {
+		appName: app.name,
+		projectId: app.options.projectId,
+		apiKey: app.options.apiKey,
+		appId: app.options.appId
+	};
+}
+function getMissingValueError(valueName) {
+	return ERROR_FACTORY$1.create("missing-app-config-values", { valueName });
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var INSTALLATIONS_NAME = "installations";
+var INSTALLATIONS_NAME_INTERNAL = "installations-internal";
+var publicFactory = (container) => {
+	const app = container.getProvider("app").getImmediate();
+	return {
+		app,
+		appConfig: extractAppConfig(app),
+		heartbeatServiceProvider: _getProvider(app, "heartbeat"),
+		_delete: () => Promise.resolve()
+	};
+};
+var internalFactory = (container) => {
+	const installations = _getProvider(container.getProvider("app").getImmediate(), INSTALLATIONS_NAME).getImmediate();
+	return {
+		getId: () => getId(installations),
+		getToken: (forceRefresh) => getToken(installations, forceRefresh)
+	};
+};
+function registerInstallations() {
+	_registerComponent(new Component(INSTALLATIONS_NAME, publicFactory, "PUBLIC"));
+	_registerComponent(new Component(INSTALLATIONS_NAME_INTERNAL, internalFactory, "PRIVATE"));
+}
+/**
+* The Firebase Installations Web SDK.
+* This SDK does not work in a Node.js environment.
+*
+* @packageDocumentation
+*/
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+registerInstallations();
+registerVersion(name$1, version$1);
+registerVersion(name$1, version$1, "esm2020");
+// node_modules/@firebase/analytics/dist/esm/index.esm.js
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Type constant for Firebase Analytics.
+*/
+var ANALYTICS_TYPE = "analytics";
+var GA_FID_KEY = "firebase_id";
+var ORIGIN_KEY = "origin";
+var FETCH_TIMEOUT_MILLIS = 6e4;
+var DYNAMIC_CONFIG_URL = "https://firebase.googleapis.com/v1alpha/projects/-/apps/{app-id}/webConfig";
+var GTAG_URL = "https://www.googletagmanager.com/gtag/js";
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var logger = new Logger("@firebase/analytics");
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var ERROR_FACTORY = new ErrorFactory("analytics", "Analytics", {
+	["already-exists"]: "A Firebase Analytics instance with the appId {$id}  already exists. Only one Firebase Analytics instance can be created for each appId.",
+	["already-initialized"]: "initializeAnalytics() cannot be called again with different options than those it was initially called with. It can be called again with the same options to return the existing instance, or getAnalytics() can be used to get a reference to the already-initialized instance.",
+	["already-initialized-settings"]: "Firebase Analytics has already been initialized.settings() must be called before initializing any Analytics instanceor it will have no effect.",
+	["interop-component-reg-failed"]: "Firebase Analytics Interop Component failed to instantiate: {$reason}",
+	["invalid-analytics-context"]: "Firebase Analytics is not supported in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
+	["indexeddb-unavailable"]: "IndexedDB unavailable or restricted in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
+	["fetch-throttle"]: "The config fetch request timed out while in an exponential backoff state. Unix timestamp in milliseconds when fetch request throttling ends: {$throttleEndTimeMillis}.",
+	["config-fetch-failed"]: "Dynamic config fetch failed: [{$httpStatus}] {$responseMessage}",
+	["no-api-key"]: "The \"apiKey\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid API key.",
+	["no-app-id"]: "The \"appId\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid app ID.",
+	["no-client-id"]: "The \"client_id\" field is empty.",
+	["invalid-gtag-resource"]: "Trusted Types detected an invalid gtag resource: {$gtagURL}."
+});
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Verifies and creates a TrustedScriptURL.
+*/
+function createGtagTrustedTypesScriptURL(url) {
+	if (!url.startsWith(GTAG_URL)) {
+		const err = ERROR_FACTORY.create("invalid-gtag-resource", { gtagURL: url });
+		logger.warn(err.message);
+		return "";
+	}
+	return url;
+}
+/**
+* Makeshift polyfill for Promise.allSettled(). Resolves when all promises
+* have either resolved or rejected.
+*
+* @param promises Array of promises to wait for.
+*/
+function promiseAllSettled(promises) {
+	return Promise.all(promises.map((promise) => promise.catch((e) => e)));
+}
+/**
+* Creates a TrustedTypePolicy object that implements the rules passed as policyOptions.
+*
+* @param policyName A string containing the name of the policy
+* @param policyOptions Object containing implementations of instance methods for TrustedTypesPolicy, see {@link https://developer.mozilla.org/en-US/docs/Web/API/TrustedTypePolicy#instance_methods
+* | the TrustedTypePolicy reference documentation}.
+*/
+function createTrustedTypesPolicy(policyName, policyOptions) {
+	let trustedTypesPolicy;
+	if (window.trustedTypes) trustedTypesPolicy = window.trustedTypes.createPolicy(policyName, policyOptions);
+	return trustedTypesPolicy;
+}
+/**
+* Inserts gtag script tag into the page to asynchronously download gtag.
+* @param dataLayerName Name of datalayer (most often the default, "_dataLayer").
+*/
+function insertScriptTag(dataLayerName, measurementId) {
+	const trustedTypesPolicy = createTrustedTypesPolicy("firebase-js-sdk-policy", { createScriptURL: createGtagTrustedTypesScriptURL });
+	const script = document.createElement("script");
+	const gtagScriptURL = `${GTAG_URL}?l=${dataLayerName}&id=${measurementId}`;
+	script.src = trustedTypesPolicy ? trustedTypesPolicy?.createScriptURL(gtagScriptURL) : gtagScriptURL;
+	script.async = true;
+	document.head.appendChild(script);
+}
+/**
+* Get reference to, or create, global datalayer.
+* @param dataLayerName Name of datalayer (most often the default, "_dataLayer").
+*/
+function getOrCreateDataLayer(dataLayerName) {
+	let dataLayer = [];
+	if (Array.isArray(window[dataLayerName])) dataLayer = window[dataLayerName];
+	else window[dataLayerName] = dataLayer;
+	return dataLayer;
+}
+/**
+* Wrapped gtag logic when gtag is called with 'config' command.
+*
+* @param gtagCore Basic gtag function that just appends to dataLayer.
+* @param initializationPromisesMap Map of appIds to their initialization promises.
+* @param dynamicConfigPromisesList Array of dynamic config fetch promises.
+* @param measurementIdToAppId Map of GA measurementIDs to corresponding Firebase appId.
+* @param measurementId GA Measurement ID to set config for.
+* @param gtagParams Gtag config params to set.
+*/
+async function gtagOnConfig(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId, measurementId, gtagParams) {
+	const correspondingAppId = measurementIdToAppId[measurementId];
+	try {
+		if (correspondingAppId) await initializationPromisesMap[correspondingAppId];
+		else {
+			const foundConfig = (await promiseAllSettled(dynamicConfigPromisesList)).find((config) => config.measurementId === measurementId);
+			if (foundConfig) await initializationPromisesMap[foundConfig.appId];
+		}
+	} catch (e) {
+		logger.error(e);
+	}
+	gtagCore("config", measurementId, gtagParams);
+}
+/**
+* Wrapped gtag logic when gtag is called with 'event' command.
+*
+* @param gtagCore Basic gtag function that just appends to dataLayer.
+* @param initializationPromisesMap Map of appIds to their initialization promises.
+* @param dynamicConfigPromisesList Array of dynamic config fetch promises.
+* @param measurementId GA Measurement ID to log event to.
+* @param gtagParams Params to log with this event.
+*/
+async function gtagOnEvent(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementId, gtagParams) {
+	try {
+		let initializationPromisesToWaitFor = [];
+		if (gtagParams && gtagParams["send_to"]) {
+			let gaSendToList = gtagParams["send_to"];
+			if (!Array.isArray(gaSendToList)) gaSendToList = [gaSendToList];
+			const dynamicConfigResults = await promiseAllSettled(dynamicConfigPromisesList);
+			for (const sendToId of gaSendToList) {
+				const foundConfig = dynamicConfigResults.find((config) => config.measurementId === sendToId);
+				const initializationPromise = foundConfig && initializationPromisesMap[foundConfig.appId];
+				if (initializationPromise) initializationPromisesToWaitFor.push(initializationPromise);
+				else {
+					initializationPromisesToWaitFor = [];
+					break;
+				}
+			}
+		}
+		if (initializationPromisesToWaitFor.length === 0) initializationPromisesToWaitFor = Object.values(initializationPromisesMap);
+		await Promise.all(initializationPromisesToWaitFor);
+		gtagCore("event", measurementId, gtagParams || {});
+	} catch (e) {
+		logger.error(e);
+	}
+}
+/**
+* Wraps a standard gtag function with extra code to wait for completion of
+* relevant initialization promises before sending requests.
+*
+* @param gtagCore Basic gtag function that just appends to dataLayer.
+* @param initializationPromisesMap Map of appIds to their initialization promises.
+* @param dynamicConfigPromisesList Array of dynamic config fetch promises.
+* @param measurementIdToAppId Map of GA measurementIDs to corresponding Firebase appId.
+*/
+function wrapGtag(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId) {
+	/**
+	* Wrapper around gtag that ensures FID is sent with gtag calls.
+	* @param command Gtag command type.
+	* @param idOrNameOrParams Measurement ID if command is EVENT/CONFIG, params if command is SET.
+	* @param gtagParams Params if event is EVENT/CONFIG.
+	*/
+	async function gtagWrapper(command, ...args) {
+		try {
+			if (command === "event") {
+				const [measurementId, gtagParams] = args;
+				await gtagOnEvent(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementId, gtagParams);
+			} else if (command === "config") {
+				const [measurementId, gtagParams] = args;
+				await gtagOnConfig(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId, measurementId, gtagParams);
+			} else if (command === "consent") {
+				const [consentAction, gtagParams] = args;
+				gtagCore("consent", consentAction, gtagParams);
+			} else if (command === "get") {
+				const [measurementId, fieldName, callback] = args;
+				gtagCore("get", measurementId, fieldName, callback);
+			} else if (command === "set") {
+				const [customParams] = args;
+				gtagCore("set", customParams);
+			} else gtagCore(command, ...args);
+		} catch (e) {
+			logger.error(e);
+		}
+	}
+	return gtagWrapper;
+}
+/**
+* Creates global gtag function or wraps existing one if found.
+* This wrapped function attaches Firebase instance ID (FID) to gtag 'config' and
+* 'event' calls that belong to the GAID associated with this Firebase instance.
+*
+* @param initializationPromisesMap Map of appIds to their initialization promises.
+* @param dynamicConfigPromisesList Array of dynamic config fetch promises.
+* @param measurementIdToAppId Map of GA measurementIDs to corresponding Firebase appId.
+* @param dataLayerName Name of global GA datalayer array.
+* @param gtagFunctionName Name of global gtag function ("gtag" if not user-specified).
+*/
+function wrapOrCreateGtag(initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId, dataLayerName, gtagFunctionName) {
+	let gtagCore = function(..._args) {
+		window[dataLayerName].push(arguments);
+	};
+	if (window[gtagFunctionName] && typeof window[gtagFunctionName] === "function") gtagCore = window[gtagFunctionName];
+	window[gtagFunctionName] = wrapGtag(gtagCore, initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId);
+	return {
+		gtagCore,
+		wrappedGtag: window[gtagFunctionName]
+	};
+}
+/**
+* Returns the script tag in the DOM matching both the gtag url pattern
+* and the provided data layer name.
+*/
+function findGtagScriptOnPage(dataLayerName) {
+	const scriptTags = window.document.getElementsByTagName("script");
+	for (const tag of Object.values(scriptTags)) if (tag.src && tag.src.includes(GTAG_URL) && tag.src.includes(dataLayerName)) return tag;
+	return null;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Backoff factor for 503 errors, which we want to be conservative about
+* to avoid overloading servers. Each retry interval will be
+* BASE_INTERVAL_MILLIS * LONG_RETRY_FACTOR ^ retryCount, so the second one
+* will be ~30 seconds (with fuzzing).
+*/
+var LONG_RETRY_FACTOR = 30;
+/**
+* Base wait interval to multiplied by backoffFactor^backoffCount.
+*/
+var BASE_INTERVAL_MILLIS = 1e3;
+/**
+* Stubbable retry data storage class.
+*/
+var RetryData = class {
+	constructor(throttleMetadata = {}, intervalMillis = BASE_INTERVAL_MILLIS) {
+		this.throttleMetadata = throttleMetadata;
+		this.intervalMillis = intervalMillis;
+	}
+	getThrottleMetadata(appId) {
+		return this.throttleMetadata[appId];
+	}
+	setThrottleMetadata(appId, metadata) {
+		this.throttleMetadata[appId] = metadata;
+	}
+	deleteThrottleMetadata(appId) {
+		delete this.throttleMetadata[appId];
+	}
+};
+var defaultRetryData = new RetryData();
+/**
+* Set GET request headers.
+* @param apiKey App API key.
+*/
+function getHeaders(apiKey) {
+	return new Headers({
+		Accept: "application/json",
+		"x-goog-api-key": apiKey
+	});
+}
+/**
+* Fetches dynamic config from backend.
+* @param app Firebase app to fetch config for.
+*/
+async function fetchDynamicConfig(appFields) {
+	const { appId, apiKey } = appFields;
+	const request = {
+		method: "GET",
+		headers: getHeaders(apiKey)
+	};
+	const appUrl = DYNAMIC_CONFIG_URL.replace("{app-id}", appId);
+	const response = await fetch(appUrl, request);
+	if (response.status !== 200 && response.status !== 304) {
+		let errorMessage = "";
+		try {
+			const jsonResponse = await response.json();
+			if (jsonResponse.error?.message) errorMessage = jsonResponse.error.message;
+		} catch (_ignored) {}
+		throw ERROR_FACTORY.create("config-fetch-failed", {
+			httpStatus: response.status,
+			responseMessage: errorMessage
+		});
+	}
+	return response.json();
+}
+/**
+* Fetches dynamic config from backend, retrying if failed.
+* @param app Firebase app to fetch config for.
+*/
+async function fetchDynamicConfigWithRetry(app, retryData = defaultRetryData, timeoutMillis) {
+	const { appId, apiKey, measurementId } = app.options;
+	if (!appId) throw ERROR_FACTORY.create("no-app-id");
+	if (!apiKey) {
+		if (measurementId) return {
+			measurementId,
+			appId
+		};
+		throw ERROR_FACTORY.create("no-api-key");
+	}
+	const throttleMetadata = retryData.getThrottleMetadata(appId) || {
+		backoffCount: 0,
+		throttleEndTimeMillis: Date.now()
+	};
+	const signal = new AnalyticsAbortSignal();
+	setTimeout(async () => {
+		signal.abort();
+	}, FETCH_TIMEOUT_MILLIS);
+	return attemptFetchDynamicConfigWithRetry({
+		appId,
+		apiKey,
+		measurementId
+	}, throttleMetadata, signal, retryData);
+}
+/**
+* Runs one retry attempt.
+* @param appFields Necessary app config fields.
+* @param throttleMetadata Ongoing metadata to determine throttling times.
+* @param signal Abort signal.
+*/
+async function attemptFetchDynamicConfigWithRetry(appFields, { throttleEndTimeMillis, backoffCount }, signal, retryData = defaultRetryData) {
+	const { appId, measurementId } = appFields;
+	try {
+		await setAbortableTimeout(signal, throttleEndTimeMillis);
+	} catch (e) {
+		if (measurementId) {
+			logger.warn(`Timed out fetching this Firebase app's measurement ID from the server. Falling back to the measurement ID ${measurementId} provided in the "measurementId" field in the local Firebase config. [${e?.message}]`);
+			return {
+				appId,
+				measurementId
+			};
+		}
+		throw e;
+	}
+	try {
+		const response = await fetchDynamicConfig(appFields);
+		retryData.deleteThrottleMetadata(appId);
+		return response;
+	} catch (e) {
+		const error = e;
+		if (!isRetriableError(error)) {
+			retryData.deleteThrottleMetadata(appId);
+			if (measurementId) {
+				logger.warn(`Failed to fetch this Firebase app's measurement ID from the server. Falling back to the measurement ID ${measurementId} provided in the "measurementId" field in the local Firebase config. [${error?.message}]`);
+				return {
+					appId,
+					measurementId
+				};
+			} else throw e;
+		}
+		const backoffMillis = Number(error?.customData?.httpStatus) === 503 ? calculateBackoffMillis(backoffCount, retryData.intervalMillis, LONG_RETRY_FACTOR) : calculateBackoffMillis(backoffCount, retryData.intervalMillis);
+		const throttleMetadata = {
+			throttleEndTimeMillis: Date.now() + backoffMillis,
+			backoffCount: backoffCount + 1
+		};
+		retryData.setThrottleMetadata(appId, throttleMetadata);
+		logger.debug(`Calling attemptFetch again in ${backoffMillis} millis`);
+		return attemptFetchDynamicConfigWithRetry(appFields, throttleMetadata, signal, retryData);
+	}
+}
+/**
+* Supports waiting on a backoff by:
+*
+* <ul>
+*   <li>Promisifying setTimeout, so we can set a timeout in our Promise chain</li>
+*   <li>Listening on a signal bus for abort events, just like the Fetch API</li>
+*   <li>Failing in the same way the Fetch API fails, so timing out a live request and a throttled
+*       request appear the same.</li>
+* </ul>
+*
+* <p>Visible for testing.
+*/
+function setAbortableTimeout(signal, throttleEndTimeMillis) {
+	return new Promise((resolve, reject) => {
+		const backoffMillis = Math.max(throttleEndTimeMillis - Date.now(), 0);
+		const timeout = setTimeout(resolve, backoffMillis);
+		signal.addEventListener(() => {
+			clearTimeout(timeout);
+			reject(ERROR_FACTORY.create("fetch-throttle", { throttleEndTimeMillis }));
+		});
+	});
+}
+/**
+* Returns true if the {@link Error} indicates a fetch request may succeed later.
+*/
+function isRetriableError(e) {
+	if (!(e instanceof FirebaseError) || !e.customData) return false;
+	const httpStatus = Number(e.customData["httpStatus"]);
+	return httpStatus === 429 || httpStatus === 500 || httpStatus === 503 || httpStatus === 504;
+}
+/**
+* Shims a minimal AbortSignal (copied from Remote Config).
+*
+* <p>AbortController's AbortSignal conveniently decouples fetch timeout logic from other aspects
+* of networking, such as retries. Firebase doesn't use AbortController enough to justify a
+* polyfill recommendation, like we do with the Fetch API, but this minimal shim can easily be
+* swapped out if/when we do.
+*/
+var AnalyticsAbortSignal = class {
+	constructor() {
+		this.listeners = [];
+	}
+	addEventListener(listener) {
+		this.listeners.push(listener);
+	}
+	abort() {
+		this.listeners.forEach((listener) => listener());
+	}
+};
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Event parameters to set on 'gtag' during initialization.
+*/
+var defaultEventParametersForInit;
+/**
+* Logs an analytics event through the Firebase SDK.
+*
+* @param gtagFunction Wrapped gtag function that waits for fid to be set before sending an event
+* @param eventName Google Analytics event name, choose from standard list or use a custom string.
+* @param eventParams Analytics event parameters.
+*/
+async function logEvent$1(gtagFunction, initializationPromise, eventName, eventParams, options) {
+	if (options && options.global) {
+		gtagFunction("event", eventName, eventParams);
+		return;
+	} else {
+		const measurementId = await initializationPromise;
+		gtagFunction("event", eventName, {
+			...eventParams,
+			"send_to": measurementId
+		});
+	}
+}
+/**
+* Set all other user properties other than user_id and screen_name.
+*
+* @param gtagFunction Wrapped gtag function that waits for fid to be set before sending an event
+* @param properties Map of user properties to set
+*/
+async function setUserProperties$1(gtagFunction, initializationPromise, properties, options) {
+	if (options && options.global) {
+		const flatProperties = {};
+		for (const key of Object.keys(properties)) flatProperties[`user_properties.${key}`] = properties[key];
+		gtagFunction("set", flatProperties);
+		return Promise.resolve();
+	} else gtagFunction("config", await initializationPromise, {
+		update: true,
+		"user_properties": properties
+	});
+}
+/**
+* Consent parameters to default to during 'gtag' initialization.
+*/
+var defaultConsentSettingsForInit;
+/**
+* Sets the variable {@link defaultConsentSettingsForInit} for use in the initialization of
+* analytics.
+*
+* @param consentSettings Maps the applicable end user consent state for gtag.js.
+*/
+function _setConsentDefaultForInit(consentSettings) {
+	defaultConsentSettingsForInit = consentSettings;
+}
+/**
+* Sets the variable `defaultEventParametersForInit` for use in the initialization of
+* analytics.
+*
+* @param customParams Any custom params the user may pass to gtag.js.
+*/
+function _setDefaultEventParametersForInit(customParams) {
+	defaultEventParametersForInit = customParams;
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+async function validateIndexedDB() {
+	if (!isIndexedDBAvailable()) {
+		logger.warn(ERROR_FACTORY.create("indexeddb-unavailable", { errorInfo: "IndexedDB is not available in this environment." }).message);
+		return false;
+	} else try {
+		await validateIndexedDBOpenable();
+	} catch (e) {
+		logger.warn(ERROR_FACTORY.create("indexeddb-unavailable", { errorInfo: e?.toString() }).message);
+		return false;
+	}
+	return true;
+}
+/**
+* Initialize the analytics instance in gtag.js by calling config command with fid.
+*
+* NOTE: We combine analytics initialization and setting fid together because we want fid to be
+* part of the `page_view` event that's sent during the initialization
+* @param app Firebase app
+* @param gtagCore The gtag function that's not wrapped.
+* @param dynamicConfigPromisesList Array of all dynamic config promises.
+* @param measurementIdToAppId Maps measurementID to appID.
+* @param installations _FirebaseInstallationsInternal instance.
+*
+* @returns Measurement ID.
+*/
+async function _initializeAnalytics(app, dynamicConfigPromisesList, measurementIdToAppId, installations, gtagCore, dataLayerName, options) {
+	const dynamicConfigPromise = fetchDynamicConfigWithRetry(app);
+	dynamicConfigPromise.then((config) => {
+		measurementIdToAppId[config.measurementId] = config.appId;
+		if (app.options.measurementId && config.measurementId !== app.options.measurementId) logger.warn(`The measurement ID in the local Firebase config (${app.options.measurementId}) does not match the measurement ID fetched from the server (${config.measurementId}). To ensure analytics events are always sent to the correct Analytics property, update the measurement ID field in the local config or remove it from the local config.`);
+	}).catch((e) => logger.error(e));
+	dynamicConfigPromisesList.push(dynamicConfigPromise);
+	const fidPromise = validateIndexedDB().then((envIsValid) => {
+		if (envIsValid) return installations.getId();
+		else return;
+	});
+	const [dynamicConfig, fid] = await Promise.all([dynamicConfigPromise, fidPromise]);
+	if (!findGtagScriptOnPage(dataLayerName)) insertScriptTag(dataLayerName, dynamicConfig.measurementId);
+	if (defaultConsentSettingsForInit) {
+		gtagCore("consent", "default", defaultConsentSettingsForInit);
+		_setConsentDefaultForInit(void 0);
+	}
+	gtagCore("js", /* @__PURE__ */ new Date());
+	const configProperties = options?.config ?? {};
+	configProperties[ORIGIN_KEY] = "firebase";
+	configProperties.update = true;
+	if (fid != null) configProperties[GA_FID_KEY] = fid;
+	gtagCore("config", dynamicConfig.measurementId, configProperties);
+	if (defaultEventParametersForInit) {
+		gtagCore("set", defaultEventParametersForInit);
+		_setDefaultEventParametersForInit(void 0);
+	}
+	return dynamicConfig.measurementId;
+}
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Analytics Service class.
+*/
+var AnalyticsService = class {
+	constructor(app) {
+		this.app = app;
+	}
+	_delete() {
+		delete initializationPromisesMap[this.app.options.appId];
+		return Promise.resolve();
+	}
+};
+/**
+* Maps appId to full initialization promise. Wrapped gtag calls must wait on
+* all or some of these, depending on the call's `send_to` param and the status
+* of the dynamic config fetches (see below).
+*/
+var initializationPromisesMap = {};
+/**
+* List of dynamic config fetch promises. In certain cases, wrapped gtag calls
+* wait on all these to be complete in order to determine if it can selectively
+* wait for only certain initialization (FID) promises or if it must wait for all.
+*/
+var dynamicConfigPromisesList = [];
+/**
+* Maps fetched measurementIds to appId. Populated when the app's dynamic config
+* fetch completes. If already populated, gtag config calls can use this to
+* selectively wait for only this app's initialization promise (FID) instead of all
+* initialization promises.
+*/
+var measurementIdToAppId = {};
+/**
+* Name for window global data layer array used by GA: defaults to 'dataLayer'.
+*/
+var dataLayerName = "dataLayer";
+/**
+* Name for window global gtag function used by GA: defaults to 'gtag'.
+*/
+var gtagName = "gtag";
+/**
+* Reproduction of standard gtag function or reference to existing
+* gtag function on window object.
+*/
+var gtagCoreFunction;
+/**
+* Wrapper around gtag function that ensures FID is sent with all
+* relevant event and config calls.
+*/
+var wrappedGtagFunction;
+/**
+* Flag to ensure page initialization steps (creation or wrapping of
+* dataLayer and gtag script) are only run once per page load.
+*/
+var globalInitDone = false;
+/**
+* Returns true if no environment mismatch is found.
+* If environment mismatches are found, throws an INVALID_ANALYTICS_CONTEXT
+* error that also lists details for each mismatch found.
+*/
+function warnOnBrowserContextMismatch() {
+	const mismatchedEnvMessages = [];
+	if (isBrowserExtension()) mismatchedEnvMessages.push("This is a browser extension environment.");
+	if (!areCookiesEnabled()) mismatchedEnvMessages.push("Cookies are not available.");
+	if (mismatchedEnvMessages.length > 0) {
+		const details = mismatchedEnvMessages.map((message, index) => `(${index + 1}) ${message}`).join(" ");
+		const err = ERROR_FACTORY.create("invalid-analytics-context", { errorInfo: details });
+		logger.warn(err.message);
+	}
+}
+/**
+* Analytics instance factory.
+* @internal
+*/
+function factory(app, installations, options) {
+	warnOnBrowserContextMismatch();
+	const appId = app.options.appId;
+	if (!appId) throw ERROR_FACTORY.create("no-app-id");
+	if (!app.options.apiKey) {
+		if (app.options.measurementId) logger.warn(`The "apiKey" field is empty in the local Firebase config. This is needed to fetch the latest measurement ID for this Firebase app. Falling back to the measurement ID ${app.options.measurementId} provided in the "measurementId" field in the local Firebase config.`);
+		else throw ERROR_FACTORY.create("no-api-key");
+	}
+	if (initializationPromisesMap[appId] != null) throw ERROR_FACTORY.create("already-exists", { id: appId });
+	if (!globalInitDone) {
+		getOrCreateDataLayer(dataLayerName);
+		const { wrappedGtag, gtagCore } = wrapOrCreateGtag(initializationPromisesMap, dynamicConfigPromisesList, measurementIdToAppId, dataLayerName, gtagName);
+		wrappedGtagFunction = wrappedGtag;
+		gtagCoreFunction = gtagCore;
+		globalInitDone = true;
+	}
+	initializationPromisesMap[appId] = _initializeAnalytics(app, dynamicConfigPromisesList, measurementIdToAppId, installations, gtagCoreFunction, dataLayerName, options);
+	return new AnalyticsService(app);
+}
+/**
+* @license
+* Copyright 2020 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Returns an {@link Analytics} instance for the given app.
+*
+* @public
+*
+* @param app - The {@link @firebase/app#FirebaseApp} to use.
+*/
+function getAnalytics(app = getApp()) {
+	app = getModularInstance(app);
+	const analyticsProvider = _getProvider(app, ANALYTICS_TYPE);
+	if (analyticsProvider.isInitialized()) return analyticsProvider.getImmediate();
+	return initializeAnalytics(app);
+}
+/**
+* Returns an {@link Analytics} instance for the given app.
+*
+* @public
+*
+* @param app - The {@link @firebase/app#FirebaseApp} to use.
+*/
+function initializeAnalytics(app, options = {}) {
+	const analyticsProvider = _getProvider(app, ANALYTICS_TYPE);
+	if (analyticsProvider.isInitialized()) {
+		const existingInstance = analyticsProvider.getImmediate();
+		if (deepEqual(options, analyticsProvider.getOptions())) return existingInstance;
+		else throw ERROR_FACTORY.create("already-initialized");
+	}
+	return analyticsProvider.initialize({ options });
+}
+/**
+* This is a public static method provided to users that wraps four different checks:
+*
+* 1. Check if it's not a browser extension environment.
+* 2. Check if cookies are enabled in current browser.
+* 3. Check if IndexedDB is supported by the browser environment.
+* 4. Check if the current browser context is valid for using `IndexedDB.open()`.
+*
+* @public
+*
+*/
+async function isSupported() {
+	if (isBrowserExtension()) return false;
+	if (!areCookiesEnabled()) return false;
+	if (!isIndexedDBAvailable()) return false;
+	try {
+		return await validateIndexedDBOpenable();
+	} catch (error) {
+		return false;
+	}
+}
+/**
+* Use gtag `config` command to set all params specified.
+*
+* @public
+*/
+function setUserProperties(analyticsInstance, properties, options) {
+	analyticsInstance = getModularInstance(analyticsInstance);
+	setUserProperties$1(wrappedGtagFunction, initializationPromisesMap[analyticsInstance.app.options.appId], properties, options).catch((e) => logger.error(e));
+}
+/**
+* Sends a Google Analytics event with given `eventParams`. This method
+* automatically associates this logged event with this Firebase web
+* app instance on this device.
+* List of official event parameters can be found in the gtag.js
+* reference documentation:
+* {@link https://developers.google.com/gtagjs/reference/ga4-events
+* | the GA4 reference documentation}.
+*
+* @public
+*/
+function logEvent(analyticsInstance, eventName, eventParams, options) {
+	analyticsInstance = getModularInstance(analyticsInstance);
+	logEvent$1(wrappedGtagFunction, initializationPromisesMap[analyticsInstance.app.options.appId], eventName, eventParams, options).catch((e) => logger.error(e));
+}
+var name = "@firebase/analytics";
+var version = "0.10.25";
+/**
+* The Firebase Analytics Web SDK.
+* This SDK does not work in a Node.js environment.
+*
+* @packageDocumentation
+*/
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function registerAnalytics() {
+	_registerComponent(new Component(ANALYTICS_TYPE, (container, { options: analyticsOptions }) => {
+		return factory(container.getProvider("app").getImmediate(), container.getProvider("installations-internal").getImmediate(), analyticsOptions);
+	}, "PUBLIC"));
+	_registerComponent(new Component("analytics-internal", internalFactory, "PRIVATE"));
+	registerVersion(name, version);
+	registerVersion(name, version, "esm2020");
+	function internalFactory(container) {
+		try {
+			const analytics = container.getProvider(ANALYTICS_TYPE).getImmediate();
+			return {
+				logEvent: (eventName, eventParams, options) => logEvent(analytics, eventName, eventParams, options),
+				setUserProperties: (properties, options) => setUserProperties(analytics, properties, options)
+			};
+		} catch (e) {
+			throw ERROR_FACTORY.create("interop-component-reg-failed", { reason: e });
+		}
+	}
+}
+registerAnalytics();
 var firebase_applet_config_default = {
 	projectId: "confident-drake-3bcxw",
 	appId: "1:238539539886:web:0832836cf24ff0781df43f",
@@ -53215,7 +56302,6 @@ var firebase_applet_config_default = {
 	recaptchaSiteKey: ""
 };
 // src/firebase.ts
-var firebase_exports = /* @__PURE__ */ __exportAll({ auth: () => auth });
 var app = getApps().length > 0 ? getApp() : initializeApp(firebase_applet_config_default);
 function createFirestoreInstance() {
 	const databaseId = firebase_applet_config_default.firestoreDatabaseId;
@@ -53231,6 +56317,43 @@ function createFirestoreInstance() {
 var db = createFirestoreInstance();
 var auth = getAuth(app);
 var storage = getStorage(app);
+var appCheckInstance = null;
+var appCheckProviderName = "not_configured";
+if (typeof window !== "undefined") {
+	const env = {
+		"BASE_URL": "/",
+		"DEV": false,
+		"MODE": "production",
+		"PROD": true,
+		"SSR": false
+	};
+	const debugToken = env.VITE_APP_CHECK_DEBUG_TOKEN;
+	if (debugToken) self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken === "true" ? true : debugToken;
+	const siteKey = (env.VITE_RECAPTCHA_SITE_KEY || firebase_applet_config_default.recaptchaSiteKey || "").trim();
+	if (siteKey) try {
+		const useEnterprise = env.VITE_RECAPTCHA_ENTERPRISE !== "false";
+		appCheckInstance = initializeAppCheck(app, {
+			provider: useEnterprise ? new ReCaptchaEnterpriseProvider(siteKey) : new ReCaptchaV3Provider(siteKey),
+			isTokenAutoRefreshEnabled: true
+		});
+		appCheckProviderName = useEnterprise ? "recaptcha_enterprise" : "recaptcha_v3";
+	} catch (err) {
+		console.warn("[Firebase App Check] Initialization notice:", err);
+		appCheckProviderName = "init_error";
+	}
+}
+if (typeof window !== "undefined" && firebase_applet_config_default.measurementId) isSupported().then((supported) => {
+	if (supported) getAnalytics(app);
+}).catch(() => {});
+var FIREBASE_RUNTIME_INFO = {
+	projectId: firebase_applet_config_default.projectId,
+	firestoreDatabaseId: firebase_applet_config_default.firestoreDatabaseId,
+	storageBucket: firebase_applet_config_default.storageBucket,
+	authDomain: firebase_applet_config_default.authDomain,
+	appCheckEnabled: Boolean(appCheckInstance),
+	appCheckProvider: appCheckProviderName,
+	analyticsConfigured: Boolean(firebase_applet_config_default.measurementId)
+};
 if (typeof window !== "undefined") window.addEventListener("online", () => {
 	enableNetwork(db).catch(() => {});
 });
@@ -53572,6 +56695,190 @@ var PKService = class {
 	}
 };
 var pkService = new PKService();
+var STORAGE_KEY_SAVED_ACCOUNTS = "lenzo_party_device_accounts_v1";
+var STORAGE_KEY_LAST_LOGIN_UID = "lenzo_party_last_login_uid_v1";
+var DEFAULT_USER_SETTINGS = {
+	notificationsEnabled: true,
+	darkMode: true,
+	language: "English",
+	showOnlineStatus: true,
+	allowDirectMessages: "everyone"
+};
+function readRawAccounts() {
+	if (typeof window === "undefined") return [];
+	try {
+		const raw = localStorage.getItem(STORAGE_KEY_SAVED_ACCOUNTS);
+		if (!raw) return [];
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) return [];
+		return parsed.filter((item) => Boolean(item && typeof item.uid === "string" && item.uid.length > 0 && typeof item.email === "string")).slice(0, 5);
+	} catch {
+		return [];
+	}
+}
+function writeRawAccounts(accounts) {
+	if (typeof window === "undefined") return;
+	try {
+		localStorage.setItem(STORAGE_KEY_SAVED_ACCOUNTS, JSON.stringify(accounts.slice(0, 5)));
+	} catch (err) {
+		console.warn("[AccountSwitcher] Could not persist device account list:", err);
+	}
+}
+function getSavedDeviceAccounts() {
+	return readRawAccounts().sort((a, b) => new Date(b.lastUsedAt || 0).getTime() - new Date(a.lastUsedAt || 0).getTime());
+}
+function canAddAnotherDeviceAccount(existingUid) {
+	const accounts = readRawAccounts();
+	if (existingUid && accounts.some((a) => a.uid === existingUid)) return true;
+	return accounts.length < 5;
+}
+/**
+* Save or refresh an authenticated account on this device (strictly capped at 5 accounts).
+* Also updates the device's Last Logged-In Account reference.
+*/
+function rememberAuthenticatedAccount(profile, authProvider) {
+	if (!profile?.id || profile.id === "user_current_01") return {
+		saved: false,
+		limitReached: false,
+		accounts: getSavedDeviceAccounts()
+	};
+	const now = (/* @__PURE__ */ new Date()).toISOString();
+	const entry = {
+		uid: profile.id,
+		displayId: profile.displayId || profile.id.slice(0, 6).toUpperCase(),
+		name: profile.name || "Lenzo User",
+		username: profile.username || `@${(profile.email?.split("@")[0] || "user").toLowerCase()}`,
+		email: profile.email || "",
+		avatar: profile.avatar || "",
+		authProvider,
+		level: typeof profile.level === "number" ? profile.level : 0,
+		vipLevel: typeof profile.vipLevel === "number" ? profile.vipLevel : 0,
+		lastUsedAt: now
+	};
+	const existing = readRawAccounts();
+	const existingIdx = existing.findIndex((a) => a.uid === entry.uid);
+	let next;
+	let limitReached = false;
+	if (existingIdx >= 0) next = existing.map((a, idx) => idx === existingIdx ? {
+		...a,
+		...entry
+	} : a);
+	else if (existing.length < 5) next = [entry, ...existing];
+	else {
+		limitReached = true;
+		next = existing;
+	}
+	writeRawAccounts(next);
+	if (typeof window !== "undefined" && !limitReached) try {
+		localStorage.setItem(STORAGE_KEY_LAST_LOGIN_UID, entry.uid);
+	} catch {}
+	return {
+		saved: !limitReached,
+		limitReached,
+		accounts: getSavedDeviceAccounts()
+	};
+}
+/**
+* Retrieve the Last Logged-In Account card for the logged-out Welcome Back screen.
+*/
+function getLastLoggedInAccount() {
+	const accounts = getSavedDeviceAccounts();
+	if (accounts.length === 0) return null;
+	if (typeof window !== "undefined") try {
+		const lastUid = localStorage.getItem(STORAGE_KEY_LAST_LOGIN_UID);
+		if (lastUid) {
+			const match = accounts.find((a) => a.uid === lastUid);
+			if (match) return match;
+		}
+	} catch {}
+	return accounts[0];
+}
+/**
+* Remove an account from this device's switcher ONLY.
+* Does NOT delete the user's Firebase Auth account or any Firestore data.
+*/
+function removeAccountFromDevice(uid) {
+	const next = readRawAccounts().filter((a) => a.uid !== uid);
+	writeRawAccounts(next);
+	if (typeof window !== "undefined") try {
+		if (localStorage.getItem(STORAGE_KEY_LAST_LOGIN_UID) === uid) {
+			if (next.length > 0) localStorage.setItem(STORAGE_KEY_LAST_LOGIN_UID, next[0].uid);
+			else localStorage.removeItem(STORAGE_KEY_LAST_LOGIN_UID);
+		}
+	} catch {}
+	return getSavedDeviceAccounts();
+}
+/**
+* Persist and subscribe to user settings in Firestore `user_settings/{uid}`
+*/
+async function loadUserSettingsFromFirestore(uid) {
+	const fallback = {
+		userId: uid,
+		...DEFAULT_USER_SETTINGS,
+		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+	};
+	try {
+		const snap = await getDoc(doc(db, "user_settings", uid));
+		if (snap.exists()) {
+			const data = snap.data();
+			return {
+				userId: uid,
+				notificationsEnabled: data.notificationsEnabled !== false,
+				darkMode: data.darkMode !== false,
+				language: typeof data.language === "string" ? data.language : "English",
+				showOnlineStatus: data.showOnlineStatus !== false,
+				allowDirectMessages: data.allowDirectMessages === "followers" || data.allowDirectMessages === "nobody" ? data.allowDirectMessages : "everyone",
+				updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : fallback.updatedAt
+			};
+		}
+		return fallback;
+	} catch (err) {
+		console.warn("[Firestore] loadUserSettings notice:", err);
+		return fallback;
+	}
+}
+async function saveUserSettingsToFirestore(uid, partial) {
+	if (!auth.currentUser || auth.currentUser.uid !== uid) return;
+	const payload = {
+		...await loadUserSettingsFromFirestore(uid),
+		...partial,
+		userId: uid,
+		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+	};
+	await setDoc(doc(db, "user_settings", uid), payload, { merge: true });
+}
+function subscribeUserSettings(uid, onUpdate) {
+	return onSnapshot(doc(db, "user_settings", uid), (snap) => {
+		if (snap.exists()) {
+			const data = snap.data();
+			onUpdate({
+				userId: uid,
+				notificationsEnabled: data.notificationsEnabled !== false,
+				darkMode: data.darkMode !== false,
+				language: typeof data.language === "string" ? data.language : "English",
+				showOnlineStatus: data.showOnlineStatus !== false,
+				allowDirectMessages: data.allowDirectMessages === "followers" || data.allowDirectMessages === "nobody" ? data.allowDirectMessages : "everyone",
+				updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : (/* @__PURE__ */ new Date()).toISOString()
+			});
+		}
+	}, (err) => {
+		console.warn("[Firestore] subscribeUserSettings notice:", err);
+	});
+}
+/**
+* Record an account deletion request in Firestore `deletion_requests/{uid}`
+*/
+async function submitAccountDeletionRequest(reason) {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Authentication required.");
+	await setDoc(doc(db, "deletion_requests", user.uid), {
+		userId: user.uid,
+		email: (user.email || "").slice(0, 120),
+		reason: reason.trim().slice(0, 300) || "User requested account deletion",
+		status: "pending",
+		requestedAt: (/* @__PURE__ */ new Date()).toISOString()
+	});
+}
 // src/services/authService.ts
 var NativeGoogleAuth = registerPlugin("NativeGoogleAuth");
 var DEFAULT_AVATARS = [
@@ -53667,10 +56974,16 @@ async function syncUserInFirestore(user, authProvider, extra) {
 		const existingSnap = await getDoc(userRef);
 		if (existingSnap.exists()) {
 			const existingData = existingSnap.data();
+			const providerIds = Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
 			const updatePayload = {
 				lastLogin: now,
-				isOnline: true
+				lastActiveAt: now,
+				isOnline: true,
+				...providerIds.length > 0 ? { providerIds } : {}
 			};
+			if (!existingData.displayId) updatePayload.displayId = `LP${user.uid.substring(0, 6).toUpperCase()}`;
+			if (!existingData.username) updatePayload.username = `@${(existingData.email || user.email || "user").split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").toLowerCase() || "lenzouser"}`;
+			if (user.phoneNumber && !existingData.phoneNumber) updatePayload.phoneNumber = user.phoneNumber;
 			if (!existingData.fullName || existingData.fullName.trim().length < 2) updatePayload.fullName = normalizeDisplayName(extra?.fullName || user.displayName, "Lenzo User");
 			if (extra?.profileImage && !existingData.profileImage) updatePayload.profileImage = extra.profileImage;
 			await updateDoc(userRef, updatePayload);
@@ -53680,14 +56993,21 @@ async function syncUserInFirestore(user, authProvider, extra) {
 			};
 		} else {
 			const safeFullName = normalizeDisplayName(extra?.fullName || user.displayName, "Lenzo User");
+			const generatedUsername = `@${(user.email || "user").split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").toLowerCase() || "lenzouser"}`;
+			const providerIds = Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
 			const newUserData = {
 				uid: user.uid,
+				displayId: `LP${user.uid.substring(0, 6).toUpperCase()}`,
+				username: generatedUsername,
 				fullName: safeFullName,
 				email: (user.email || "").slice(0, 120),
+				...user.phoneNumber ? { phoneNumber: user.phoneNumber } : {},
 				profileImage: (extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]).slice(0, 1500),
 				authProvider,
+				providerIds: providerIds.length > 0 ? providerIds : [authProvider === "google" ? "google.com" : "password"],
 				createdAt: now,
 				lastLogin: now,
+				lastActiveAt: now,
 				isOnline: true,
 				followersCount: 0,
 				followingCount: 0,
@@ -53718,7 +57038,9 @@ async function checkRedirectAuthOutcome() {
 				profileImage: result.user.photoURL || void 0
 			});
 			await syncBackendAuthSession(result.user);
-			return { profile: mapFirestoreUserToProfile(firestoreData, result.user) };
+			const profile = mapFirestoreUserToProfile(firestoreData, result.user);
+			rememberAuthenticatedAccount(profile, "google");
+			return { profile };
 		}
 		return { profile: null };
 	} catch (err) {
@@ -53761,7 +57083,7 @@ async function syncBackendAuthSession(user) {
 * REAL Google Sign-In via Native Android Credential/Play Services OR Firebase Web Popup/Redirect
 * Both platforms authenticate into the exact same Firebase project (`confident-drake-3bcxw`) and Firestore DB.
 */
-async function signInWithGoogle() {
+async function signInWithGoogle(options) {
 	try {
 		await setPersistence(auth, browserLocalPersistence);
 		if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") try {
@@ -53773,9 +57095,11 @@ async function signInWithGoogle() {
 				profileImage: nativeRes.photoUrl || user.photoURL || void 0
 			});
 			await syncBackendAuthSession(user);
+			const profile = mapFirestoreUserToProfile(firestoreData, user);
+			rememberAuthenticatedAccount(profile, "google");
 			return {
 				user,
-				profile: mapFirestoreUserToProfile(firestoreData, user)
+				profile
 			};
 		} catch (nativeErr) {
 			const rawMsg = String(nativeErr?.message || nativeErr || "");
@@ -53784,7 +57108,12 @@ async function signInWithGoogle() {
 			throw nativeErr;
 		}
 		const provider = new GoogleAuthProvider();
-		provider.setCustomParameters({ prompt: "select_account" });
+		const customParams = { prompt: options?.forceAccountPicker === false ? "none" : "select_account" };
+		if (options?.loginHint && options.loginHint.trim()) {
+			customParams.login_hint = options.loginHint.trim();
+			customParams.prompt = "select_account";
+		}
+		provider.setCustomParameters(customParams);
 		try {
 			const user = (await signInWithPopup(auth, provider)).user;
 			const firestoreData = await syncUserInFirestore(user, "google", {
@@ -53792,9 +57121,11 @@ async function signInWithGoogle() {
 				profileImage: user.photoURL || void 0
 			});
 			await syncBackendAuthSession(user);
+			const profile = mapFirestoreUserToProfile(firestoreData, user);
+			rememberAuthenticatedAccount(profile, "google");
 			return {
 				user,
-				profile: mapFirestoreUserToProfile(firestoreData, user)
+				profile
 			};
 		} catch (popupError) {
 			if (popupError.code === "auth/popup-blocked" || popupError.code === "auth/cancelled-popup-request" || popupError.code === "auth/operation-not-supported-in-this-environment" || popupError.code === "auth/internal-error") {
@@ -53841,9 +57172,11 @@ async function registerWithEmail(params) {
 			profileImage: chosenAvatar
 		});
 		await syncBackendAuthSession(user);
+		const profile = mapFirestoreUserToProfile(firestoreData, user);
+		rememberAuthenticatedAccount(profile, "password");
 		return {
 			user,
-			profile: mapFirestoreUserToProfile(firestoreData, user)
+			profile
 		};
 	} catch (error) {
 		console.error("[Email Register Error]:", error);
@@ -53864,9 +57197,11 @@ async function loginWithEmail(email, pass, rememberMe = true) {
 		const user = (await signInWithEmailAndPassword(auth, email, pass)).user;
 		const firestoreData = await syncUserInFirestore(user, "password");
 		await syncBackendAuthSession(user);
+		const profile = mapFirestoreUserToProfile(firestoreData, user);
+		rememberAuthenticatedAccount(profile, "password");
 		return {
 			user,
-			profile: mapFirestoreUserToProfile(firestoreData, user)
+			profile
 		};
 	} catch (error) {
 		console.error("[Email Login Error]:", error);
@@ -53923,6 +57258,35 @@ async function fetchCurrentFirestoreProfile(uid) {
 		console.warn("Could not fetch user document:", err);
 		return null;
 	}
+}
+/**
+* Safe verified provider linking: links Google sign-in to the currently authenticated UID
+* without ever merging unverified accounts.
+*/
+async function linkGoogleAccount() {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Please sign in first before linking a Google account.");
+	const provider = new GoogleAuthProvider();
+	provider.setCustomParameters({ prompt: "select_account" });
+	try {
+		const result = await linkWithPopup(user, provider);
+		const providerIds = Array.from(new Set(result.user.providerData.map((p) => p.providerId).filter(Boolean)));
+		await updateDoc(doc(db, "users", user.uid), {
+			providerIds,
+			lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+		}).catch(() => {});
+		return providerIds;
+	} catch (err) {
+		if (err.code === "auth/credential-already-in-use") throw new Error("This Google account is already linked to another Lenzo Party account.");
+		if (err.code === "auth/provider-already-linked") return getLinkedAuthProviders();
+		if (err.code === "auth/popup-closed-by-user") throw new Error("Google account linking was cancelled.");
+		throw new Error(err?.message || "Failed to link Google account.");
+	}
+}
+function getLinkedAuthProviders() {
+	const user = auth.currentUser;
+	if (!user) return [];
+	return Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
 }
 // src/services/firestoreService.ts
 /**
@@ -54010,35 +57374,6 @@ function subscribeFirestoreVideos(onUpdate) {
 	}, (err) => {
 		handleFirestoreError(err, OperationType.LIST, collPath);
 	});
-}
-async function createFirestoreVideo(video) {
-	const collPath = "posts";
-	const currentUser = auth.currentUser;
-	if (!currentUser) throw new Error("Authentication required to upload a video.");
-	try {
-		return (await addDoc(collection(db, collPath), {
-			videoUrl: video.videoUrl,
-			thumbnailUrl: video.thumbnailUrl || video.videoUrl,
-			description: video.description,
-			musicTitle: video.musicTitle || "Original Sound - Lenzo Party Live",
-			isPrivate: video.isPrivate || false,
-			userId: currentUser.uid,
-			user: {
-				id: currentUser.uid,
-				name: currentUser.displayName || "Lenzo Creator",
-				username: `@${(currentUser.email?.split("@")[0] || "user").toLowerCase()}`,
-				avatar: currentUser.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
-				level: 1
-			},
-			likesCount: 0,
-			commentsCount: 0,
-			sharesCount: 0,
-			createdAt: serverTimestamp()
-		})).id;
-	} catch (err) {
-		handleFirestoreError(err, OperationType.CREATE, collPath);
-		throw err;
-	}
 }
 async function toggleLikeVideo(videoId, isLiked) {
 	const docRef = doc(db, "posts", videoId);
@@ -54242,9 +57577,21 @@ async function deleteFirestorePartyRoom(roomId) {
 		console.warn(`[Firestore] deleteFirestorePartyRoom (${roomId}) notice:`, err);
 	}
 }
+/**
+* 3. REAL LIVE STREAMS FIRESTORE SERVICE
+*/
+function dedupeStreamsByHost(streams) {
+	const sorted = [...streams].sort((a, b) => (b.startTime || 0) - (a.startTime || 0) || (b.numericViewers || 0) - (a.numericViewers || 0));
+	const byHost = /* @__PURE__ */ new Map();
+	for (const stream of sorted) {
+		const hostKey = stream.host?.id || stream.id;
+		if (!byHost.has(hostKey)) byHost.set(hostKey, stream);
+	}
+	return Array.from(byHost.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
+}
 function subscribeFirestoreLiveStreams(onUpdate) {
 	return onSnapshot(query(collection(db, "live_streams"), limit(100)), (snap) => {
-		onUpdate(snap.docs.filter((d) => d.data()?.isLive !== false && d.data()?.status !== "ended").map((d) => normalizeFirestoreLiveStream(d.id, d.data())).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)));
+		onUpdate(dedupeStreamsByHost(snap.docs.filter((d) => d.data()?.isLive !== false && d.data()?.status !== "ended").map((d) => normalizeFirestoreLiveStream(d.id, d.data()))));
 	}, (err) => {
 		console.warn("[Firestore] subscribeFirestoreLiveStreams notice:", err);
 	});
@@ -54257,6 +57604,15 @@ async function createFirestoreLiveStream(stream) {
 		const rawId = "id" in stream && stream.id ? String(stream.id) : `live_${Date.now()}`;
 		const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `live_${Date.now()}`;
 		const safeHost = sanitizeFirestoreUserCard(stream.host, uid);
+		try {
+			const existingSnap = await getDocs(query(collection(db, collPath), limit(100)));
+			const staleDeletes = [];
+			existingSnap.docs.forEach((docSnap) => {
+				const data = docSnap.data();
+				if (docSnap.id !== safeId && data?.host?.id === uid) staleDeletes.push(deleteDoc(doc(db, collPath, docSnap.id)).catch(() => {}));
+			});
+			if (staleDeletes.length > 0) await Promise.all(staleDeletes);
+		} catch {}
 		const payload = stripUndefinedDeep({
 			id: safeId,
 			title: String(stream.title || "Live Broadcast").trim().slice(0, 120),
@@ -54941,6 +58297,652 @@ var ProfileService = class {
 	}
 };
 var profileService = new ProfileService();
+// src/services/storageService.ts
+async function compressImageToDataUrl(file, maxDimension, quality = .82) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onerror = () => reject(/* @__PURE__ */ new Error("Failed to read selected image."));
+		reader.onload = () => {
+			const src = String(reader.result || "");
+			if (typeof Image === "undefined" || typeof document === "undefined") {
+				resolve(src);
+				return;
+			}
+			const img = new Image();
+			img.onload = () => {
+				const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+				const width = Math.max(1, Math.round((img.width || maxDimension) * scale));
+				const height = Math.max(1, Math.round((img.height || maxDimension) * scale));
+				const canvas = document.createElement("canvas");
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext("2d");
+				if (!ctx) {
+					resolve(src);
+					return;
+				}
+				ctx.drawImage(img, 0, 0, width, height);
+				resolve(canvas.toDataURL("image/jpeg", quality));
+			};
+			img.onerror = () => resolve(src);
+			img.src = src;
+		};
+		reader.readAsDataURL(file);
+	});
+}
+/**
+* Upload a profile or cover image to Firebase Storage (with resilient backend fallback)
+*/
+async function uploadUserImage(file, folder, onProgress) {
+	const user = auth.currentUser;
+	const maxDim = folder === "covers" ? 1200 : 512;
+	if (user) try {
+		const fileType = file.type || "image/jpeg";
+		const ext = fileType.includes("png") ? "png" : fileType.includes("webp") ? "webp" : "jpg";
+		const fileName = `${folder}_${user.uid}_${Date.now()}.${ext}`;
+		const storageRef = ref(storage, `users/${user.uid}/${folder}/${fileName}`);
+		const storageUrl = await new Promise((resolve, reject) => {
+			const timeoutId = setTimeout(() => reject(/* @__PURE__ */ new Error("Firebase Storage upload timed out")), 12e3);
+			const uploadTask = uploadBytesResumable(storageRef, file, {
+				contentType: fileType,
+				customMetadata: {
+					userId: user.uid,
+					uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
+				}
+			});
+			uploadTask.on("state_changed", (snapshot) => {
+				const progress = snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes * 100 : 25;
+				onProgress?.(Math.round(progress), snapshot);
+			}, (error) => {
+				clearTimeout(timeoutId);
+				reject(error);
+			}, async () => {
+				clearTimeout(timeoutId);
+				try {
+					resolve(await getDownloadURL(uploadTask.snapshot.ref));
+				} catch (urlErr) {
+					reject(urlErr);
+				}
+			});
+		});
+		if (storageUrl) return storageUrl;
+	} catch (storageErr) {
+		console.warn("[Firebase Storage] Falling back to backend media upload:", storageErr);
+	}
+	onProgress?.(45, {});
+	const dataUrl = await compressImageToDataUrl(file, maxDim, .78);
+	try {
+		const res = await apiFetch("/api/media/upload", {
+			method: "POST",
+			body: JSON.stringify({
+				dataUrl,
+				folder
+			})
+		});
+		if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+			const data = await res.json();
+			if (data.url) {
+				onProgress?.(100, {});
+				return data.url;
+			}
+		}
+	} catch (apiErr) {
+		console.warn("[Media Upload] Backend fallback notice:", apiErr);
+	}
+	onProgress?.(100, {});
+	return dataUrl;
+}
+var ALLOWED_VIDEO_TYPES = [
+	"video/mp4",
+	"video/webm",
+	"video/quicktime",
+	"video/x-m4v",
+	"video/ogg"
+];
+var MAX_REEL_VIDEO_BYTES = 104857600;
+/**
+* Extract a JPEG thumbnail Blob from a local video File/Blob using an offscreen video + canvas
+*/
+async function captureVideoThumbnailBlob(videoFile) {
+	if (typeof document === "undefined" || typeof URL === "undefined") return null;
+	const objectUrl = URL.createObjectURL(videoFile);
+	try {
+		return await new Promise((resolve) => {
+			const video = document.createElement("video");
+			video.muted = true;
+			video.playsInline = true;
+			video.preload = "metadata";
+			video.crossOrigin = "anonymous";
+			const cleanup = () => {
+				video.onloadeddata = null;
+				video.onseeked = null;
+				video.onerror = null;
+			};
+			const timeout = setTimeout(() => {
+				cleanup();
+				resolve(null);
+			}, 6e3);
+			const drawFrame = () => {
+				try {
+					const vw = video.videoWidth || 720;
+					const vh = video.videoHeight || 1280;
+					const scale = Math.min(1, 720 / Math.max(vw, vh));
+					const canvas = document.createElement("canvas");
+					canvas.width = Math.max(1, Math.round(vw * scale));
+					canvas.height = Math.max(1, Math.round(vh * scale));
+					const ctx = canvas.getContext("2d");
+					if (!ctx) {
+						clearTimeout(timeout);
+						cleanup();
+						resolve(null);
+						return;
+					}
+					ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+					canvas.toBlob((jpgBlob) => {
+						clearTimeout(timeout);
+						cleanup();
+						resolve(jpgBlob);
+					}, "image/jpeg", .8);
+				} catch {
+					clearTimeout(timeout);
+					cleanup();
+					resolve(null);
+				}
+			};
+			video.onloadeddata = () => {
+				try {
+					video.currentTime = Math.min(.4, Math.max(0, (video.duration || 1) * .1));
+				} catch {
+					drawFrame();
+				}
+			};
+			video.onseeked = drawFrame;
+			video.onerror = () => {
+				clearTimeout(timeout);
+				cleanup();
+				resolve(null);
+			};
+			video.src = objectUrl;
+		});
+	} finally {
+		URL.revokeObjectURL(objectUrl);
+	}
+}
+/**
+* Upload a Reel video + auto-captured thumbnail to structured Firebase Storage paths:
+*   reels/{userUID}/{reelID}/video.{ext}
+*   reels/{userUID}/{reelID}/thumbnail.jpg
+*/
+async function uploadReelVideoAndThumbnail(params) {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Authentication required to upload reels.");
+	const fileType = (params.videoFile.type || "video/mp4").toLowerCase();
+	if (fileType && !ALLOWED_VIDEO_TYPES.some((allowed) => fileType.startsWith(allowed.split(";")[0]))) throw new Error("Unsupported video format. Please upload an MP4, WebM, or MOV video.");
+	if (params.videoFile.size <= 0) throw new Error("Selected video file is empty.");
+	if (params.videoFile.size > MAX_REEL_VIDEO_BYTES) throw new Error("Video file exceeds the 100 MB maximum limit.");
+	const ext = fileType.includes("webm") ? "webm" : fileType.includes("quicktime") ? "mov" : "mp4";
+	const videoStoragePath = `reels/${user.uid}/${params.reelId}/video.${ext}`;
+	const videoRef = ref(storage, videoStoragePath);
+	const videoUrl = await new Promise((resolve, reject) => {
+		const uploadTask = uploadBytesResumable(videoRef, params.videoFile, {
+			contentType: fileType,
+			customMetadata: {
+				userId: user.uid,
+				reelId: params.reelId,
+				uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
+			}
+		});
+		uploadTask.on("state_changed", (snapshot) => {
+			const pct = snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes * 88 : 15;
+			params.onProgress?.(Math.min(88, Math.max(5, Math.round(pct))), snapshot);
+		}, (error) => {
+			console.error("[Firebase Storage] Reel video upload error:", error);
+			reject(error);
+		}, async () => {
+			try {
+				resolve(await getDownloadURL(uploadTask.snapshot.ref));
+			} catch (urlErr) {
+				reject(urlErr);
+			}
+		});
+	});
+	let thumbnailUrl = videoUrl;
+	let thumbnailStoragePath = "";
+	try {
+		const thumbBlob = await captureVideoThumbnailBlob(params.videoFile);
+		if (thumbBlob && thumbBlob.size > 0) {
+			thumbnailStoragePath = `reels/${user.uid}/${params.reelId}/thumbnail.jpg`;
+			const thumbTask = uploadBytesResumable(ref(storage, thumbnailStoragePath), thumbBlob, {
+				contentType: "image/jpeg",
+				customMetadata: {
+					userId: user.uid,
+					reelId: params.reelId
+				}
+			});
+			thumbnailUrl = await new Promise((resolve, reject) => {
+				thumbTask.on("state_changed", () => {}, (err) => reject(err), async () => {
+					try {
+						resolve(await getDownloadURL(thumbTask.snapshot.ref));
+					} catch (e) {
+						reject(e);
+					}
+				});
+			});
+		}
+	} catch (thumbErr) {
+		console.warn("[Firebase Storage] Reel thumbnail upload fallback:", thumbErr);
+		thumbnailStoragePath = "";
+	}
+	params.onProgress?.(96, {});
+	return {
+		videoUrl,
+		videoStoragePath,
+		thumbnailUrl,
+		thumbnailStoragePath
+	};
+}
+/**
+* Safely delete a file from Firebase Storage by storage path (e.g. reels/{uid}/{reelId}/video.mp4)
+*/
+async function deleteStoragePath(storagePath) {
+	if (!storagePath || !storagePath.trim()) return false;
+	try {
+		await deleteObject(ref(storage, storagePath.trim()));
+		return true;
+	} catch (err) {
+		console.warn("[Firebase Storage] Could not delete storage path:", storagePath, err);
+		return false;
+	}
+}
+/**
+* Safely delete an uploaded file from Firebase Storage by URL
+*/
+async function deleteStorageFileByUrl(fileUrl) {
+	if (!fileUrl || !fileUrl.includes("firebasestorage")) return false;
+	try {
+		await deleteObject(ref(storage, fileUrl));
+		return true;
+	} catch (err) {
+		console.warn("[Firebase Storage] Could not delete file:", err);
+		return false;
+	}
+}
+function generateReelId() {
+	return `reel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+function toTimestampInfo(val) {
+	if (!val) {
+		const now = Date.now();
+		return {
+			iso: new Date(now).toISOString(),
+			millis: now
+		};
+	}
+	if (val instanceof Timestamp) return {
+		iso: val.toDate().toISOString(),
+		millis: val.toMillis()
+	};
+	if (typeof val.toMillis === "function") {
+		const ms = val.toMillis();
+		return {
+			iso: new Date(ms).toISOString(),
+			millis: ms
+		};
+	}
+	if (typeof val.seconds === "number") {
+		const ms = val.seconds * 1e3;
+		return {
+			iso: new Date(ms).toISOString(),
+			millis: ms
+		};
+	}
+	if (typeof val === "number" && Number.isFinite(val)) return {
+		iso: new Date(val).toISOString(),
+		millis: val
+	};
+	const parsed = Date.parse(String(val));
+	if (Number.isFinite(parsed)) return {
+		iso: new Date(parsed).toISOString(),
+		millis: parsed
+	};
+	const now = Date.now();
+	return {
+		iso: new Date(now).toISOString(),
+		millis: now
+	};
+}
+function mapReelDocToVideoItem(id, data, likedReelIds) {
+	const creatorUid = String(data.creatorUID || data.creatorUid || data.userId || data.creator?.id || "unknown");
+	const creator = sanitizeFirestoreUserCard(data.creator || data.user, creatorUid);
+	const ts = toTimestampInfo(data.createdAt ?? data.createdAtMillis);
+	const visibility = data.visibility === "private" || data.isPrivate ? "private" : data.visibility === "friends" ? "friends" : "public";
+	return {
+		id,
+		creator,
+		creatorUid,
+		videoUrl: String(data.videoUrl || ""),
+		videoStoragePath: typeof data.videoStoragePath === "string" ? data.videoStoragePath : void 0,
+		thumbnailUrl: String(data.thumbnailUrl || data.videoUrl || ""),
+		thumbnailStoragePath: typeof data.thumbnailStoragePath === "string" ? data.thumbnailStoragePath : void 0,
+		description: String(data.caption ?? data.description ?? ""),
+		musicTitle: String(data.musicTitle || `Original Sound - ${creator.name}`),
+		hashtags: Array.isArray(data.hashtags) ? data.hashtags.map(String) : ["#lenzo", "#reels"],
+		likesCount: typeof data.likesCount === "number" ? Math.max(0, data.likesCount) : 0,
+		commentsCount: typeof data.commentsCount === "number" ? Math.max(0, data.commentsCount) : 0,
+		sharesCount: typeof data.sharesCount === "number" ? Math.max(0, data.sharesCount) : 0,
+		repostsCount: typeof data.repostsCount === "number" ? Math.max(0, data.repostsCount) : 0,
+		viewsCount: typeof data.viewsCount === "number" ? Math.max(0, data.viewsCount) : 0,
+		isLiked: likedReelIds.has(id),
+		isSaved: false,
+		privacy: visibility,
+		isPrivate: visibility === "private",
+		processingStatus: data.processingStatus || "ready",
+		createdAt: ts.iso,
+		createdAtMillis: typeof data.createdAtMillis === "number" ? data.createdAtMillis : ts.millis,
+		sourceCollection: "reels",
+		contentType: "video"
+	};
+}
+/**
+* Create a new Reel document in Firestore `reels/{reelID}`
+*/
+async function createReelDocument(params) {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Authentication required to publish a reel.");
+	const safeCreator = sanitizeFirestoreUserCard(params.creator, user.uid);
+	const nowMs = Date.now();
+	const payload = stripUndefinedDeep({
+		reelID: params.reelId,
+		creatorUID: user.uid,
+		creator: safeCreator,
+		videoUrl: params.videoUrl,
+		videoStoragePath: params.videoStoragePath,
+		thumbnailUrl: params.thumbnailUrl || params.videoUrl,
+		thumbnailStoragePath: params.thumbnailStoragePath || "",
+		caption: params.caption.trim().slice(0, 500),
+		description: params.caption.trim().slice(0, 500),
+		musicTitle: (params.musicTitle || `Original Sound - ${safeCreator.name}`).slice(0, 120),
+		hashtags: params.hashtags.slice(0, 12),
+		visibility: params.visibility,
+		isPrivate: params.visibility === "private",
+		likesCount: 0,
+		commentsCount: 0,
+		viewsCount: 0,
+		sharesCount: 0,
+		repostsCount: 0,
+		processingStatus: "ready",
+		createdAtMillis: nowMs
+	});
+	try {
+		await setDoc(doc(db, "reels", params.reelId), {
+			...payload,
+			createdAt: serverTimestamp()
+		});
+		return {
+			id: params.reelId,
+			creator: safeCreator,
+			creatorUid: user.uid,
+			videoUrl: params.videoUrl,
+			videoStoragePath: params.videoStoragePath,
+			thumbnailUrl: params.thumbnailUrl || params.videoUrl,
+			thumbnailStoragePath: params.thumbnailStoragePath || "",
+			description: payload.caption,
+			musicTitle: payload.musicTitle,
+			hashtags: payload.hashtags,
+			likesCount: 0,
+			commentsCount: 0,
+			sharesCount: 0,
+			repostsCount: 0,
+			viewsCount: 0,
+			isLiked: false,
+			isSaved: false,
+			privacy: params.visibility,
+			isPrivate: params.visibility === "private",
+			processingStatus: "ready",
+			createdAt: new Date(nowMs).toISOString(),
+			createdAtMillis: nowMs,
+			sourceCollection: "reels",
+			contentType: "video"
+		};
+	} catch (err) {
+		handleFirestoreError(err, OperationType.CREATE, `reels/${params.reelId}`);
+		throw err;
+	}
+}
+async function fetchViewerLikedReelIds(viewerUid) {
+	const liked = /* @__PURE__ */ new Set();
+	if (!viewerUid) return liked;
+	try {
+		(await getDocs(query(collection(db, "reel_likes"), where("userId", "==", viewerUid), limit(200)))).docs.forEach((d) => {
+			const rId = d.data()?.reelId;
+			if (typeof rId === "string" && rId) liked.add(rId);
+		});
+	} catch (err) {
+		console.warn("[Reels] Could not hydrate reel likes:", err);
+	}
+	return liked;
+}
+/**
+* Real-time subscription to Firestore `reels` collection ordered by `createdAt desc`
+*/
+function subscribeReelsFeed(viewerUid, pageSize = 12, onUpdate) {
+	let active = true;
+	let cachedLikes = /* @__PURE__ */ new Set();
+	if (viewerUid) fetchViewerLikedReelIds(viewerUid).then((set) => {
+		if (active) cachedLikes = set;
+	});
+	const unsubscribe = onSnapshot(query(collection(db, "reels"), orderBy("createdAt", "desc"), limit(pageSize)), async (snap) => {
+		if (!active) return;
+		if (viewerUid && cachedLikes.size === 0) cachedLikes = await fetchViewerLikedReelIds(viewerUid);
+		onUpdate({
+			reels: snap.docs.map((d) => mapReelDocToVideoItem(d.id, d.data(), cachedLikes)).filter((reel) => {
+				if (!reel.videoUrl) return false;
+				if (reel.privacy === "private") return Boolean(viewerUid && (reel.creatorUid === viewerUid || reel.creator.id === viewerUid));
+				return true;
+			}),
+			lastDoc: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+			hasMore: snap.docs.length >= pageSize
+		});
+	}, (err) => {
+		console.warn("[Firestore] subscribeReelsFeed notice:", err);
+	});
+	return () => {
+		active = false;
+		unsubscribe();
+	};
+}
+/**
+* Cursor-based pagination for loading older Reels from Firestore
+*/
+async function fetchMoreReels(lastDoc, viewerUid, pageSize = 12) {
+	try {
+		const likedSet = await fetchViewerLikedReelIds(viewerUid);
+		const snap = await getDocs(query(collection(db, "reels"), orderBy("createdAt", "desc"), startAfter(lastDoc), limit(pageSize)));
+		return {
+			reels: snap.docs.map((d) => mapReelDocToVideoItem(d.id, d.data(), likedSet)).filter((reel) => {
+				if (!reel.videoUrl) return false;
+				if (reel.privacy === "private") return Boolean(viewerUid && (reel.creatorUid === viewerUid || reel.creator.id === viewerUid));
+				return true;
+			}),
+			lastDoc: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+			hasMore: snap.docs.length >= pageSize
+		};
+	} catch (err) {
+		console.warn("[Firestore] fetchMoreReels notice:", err);
+		return {
+			reels: [],
+			lastDoc: null,
+			hasMore: false
+		};
+	}
+}
+/**
+* Atomic Like toggle using `reel_likes/{reelId}_{userId}` and counter update on `reels/{reelId}` (or `posts/{reelId}`)
+*/
+async function toggleReelLike(reel, userId) {
+	if (!auth.currentUser || auth.currentUser.uid !== userId) throw new Error("Authentication required to like reels.");
+	const targetCollection = reel.sourceCollection === "posts" ? "posts" : "reels";
+	const likeDocId = `${reel.id}_${userId}`;
+	const likeRef = doc(db, "reel_likes", likeDocId);
+	const reelRef = doc(db, targetCollection, reel.id);
+	try {
+		return await runTransaction(db, async (tx) => {
+			const [likeSnap, reelSnap] = await Promise.all([tx.get(likeRef), tx.get(reelRef)]);
+			const currentLikes = reelSnap.exists() ? Number(reelSnap.data()?.likesCount || 0) : 0;
+			if (likeSnap.exists()) {
+				tx.delete(likeRef);
+				const nextCount = Math.max(0, currentLikes - 1);
+				if (reelSnap.exists()) tx.update(reelRef, { likesCount: nextCount });
+				return {
+					liked: false,
+					likesCount: nextCount
+				};
+			} else {
+				tx.set(likeRef, {
+					reelId: reel.id,
+					userId,
+					createdAt: serverTimestamp()
+				});
+				const nextCount = currentLikes + 1;
+				if (reelSnap.exists()) tx.update(reelRef, { likesCount: nextCount });
+				return {
+					liked: true,
+					likesCount: nextCount
+				};
+			}
+		});
+	} catch (err) {
+		handleFirestoreError(err, OperationType.WRITE, `reel_likes/${likeDocId}`);
+		throw err;
+	}
+}
+/**
+* Subscribe to persisted comments in `reel_comments` for a specific reel
+*/
+function subscribeReelComments(reelId, onUpdate) {
+	return onSnapshot(query(collection(db, "reel_comments"), where("reelId", "==", reelId), limit(100)), (snap) => {
+		onUpdate(snap.docs.map((d) => {
+			const data = d.data();
+			const ts = toTimestampInfo(data.createdAt ?? data.createdAtMillis);
+			const commentUser = sanitizeFirestoreUserCard({
+				id: data.userId || "unknown",
+				name: data.userName || "Lenzo User",
+				avatar: data.userAvatar || "",
+				level: typeof data.userLevel === "number" ? data.userLevel : 0,
+				vipLevel: typeof data.userVipLevel === "number" ? data.userVipLevel : 0,
+				isVIP: Boolean(data.userVipLevel && data.userVipLevel > 0)
+			}, data.userId || "unknown");
+			return {
+				id: d.id,
+				user: commentUser,
+				text: String(data.text || ""),
+				timestamp: new Date(ts.millis).toLocaleTimeString([], {
+					hour: "2-digit",
+					minute: "2-digit"
+				}),
+				likes: typeof data.likesCount === "number" ? data.likesCount : 0,
+				_sortMs: ts.millis
+			};
+		}).sort((a, b) => b._sortMs - a._sortMs).map(({ _sortMs, ...comment }) => comment));
+	}, (err) => {
+		console.warn("[Firestore] subscribeReelComments notice:", err);
+	});
+}
+/**
+* Persist a new comment in `reel_comments` and increment `commentsCount` on the parent reel
+*/
+async function addReelComment(params) {
+	const currentUser = auth.currentUser;
+	if (!currentUser) throw new Error("Authentication required to post a comment.");
+	const cleanText = params.text.trim().slice(0, 400);
+	if (!cleanText) throw new Error("Comment cannot be empty.");
+	try {
+		const docRef = await addDoc(collection(db, "reel_comments"), {
+			reelId: params.reelId,
+			userId: currentUser.uid,
+			userName: (params.user.name || currentUser.displayName || "Lenzo User").slice(0, 80),
+			userAvatar: params.user.avatar || currentUser.photoURL || "",
+			userLevel: typeof params.user.level === "number" ? params.user.level : 0,
+			userVipLevel: typeof params.user.vipLevel === "number" ? params.user.vipLevel : 0,
+			text: cleanText,
+			likesCount: 0,
+			createdAtMillis: Date.now(),
+			createdAt: serverTimestamp()
+		});
+		await updateDoc(doc(db, params.sourceCollection === "posts" ? "posts" : "reels", params.reelId), { commentsCount: increment(1) }).catch(() => {});
+		return docRef.id;
+	} catch (err) {
+		handleFirestoreError(err, OperationType.CREATE, "reel_comments");
+		throw err;
+	}
+}
+/**
+* Record a deduplicated Reel view in `reel_views/{reelId}_{userId}` and increment `viewsCount` once per user
+*/
+async function recordReelView(reelId, userId, sourceCollection) {
+	if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return;
+	const viewRef = doc(db, "reel_views", `${reelId}_${userId}`);
+	try {
+		if ((await getDoc(viewRef)).exists()) return;
+		await setDoc(viewRef, {
+			reelId,
+			userId,
+			viewedAt: serverTimestamp()
+		});
+		await updateDoc(doc(db, sourceCollection === "posts" ? "posts" : "reels", reelId), { viewsCount: increment(1) }).catch(() => {});
+	} catch {}
+}
+/**
+* Increment share counter for a reel
+*/
+async function incrementReelShare(reelId, sourceCollection) {
+	if (!auth.currentUser) return;
+	const targetCollection = sourceCollection === "posts" ? "posts" : "reels";
+	try {
+		await updateDoc(doc(db, targetCollection, reelId), { sharesCount: increment(1) });
+	} catch {}
+}
+/**
+* Delete own reel: removes Firebase Storage video & thumbnail AND Firestore document
+*/
+async function deleteOwnReel(reel) {
+	const currentUser = auth.currentUser;
+	if (!currentUser) throw new Error("Authentication required to delete a reel.");
+	if ((reel.creatorUid || reel.creator?.id) !== currentUser.uid) throw new Error("Only the creator can delete this reel.");
+	if (reel.videoStoragePath) await deleteStoragePath(reel.videoStoragePath);
+	else if (reel.videoUrl) await deleteStorageFileByUrl(reel.videoUrl);
+	if (reel.thumbnailStoragePath) await deleteStoragePath(reel.thumbnailStoragePath);
+	else if (reel.thumbnailUrl && reel.thumbnailUrl !== reel.videoUrl) await deleteStorageFileByUrl(reel.thumbnailUrl);
+	const targetCollection = reel.sourceCollection === "posts" ? "posts" : "reels";
+	try {
+		await deleteDoc(doc(db, targetCollection, reel.id));
+	} catch (err) {
+		handleFirestoreError(err, OperationType.DELETE, `${targetCollection}/${reel.id}`);
+		throw err;
+	}
+}
+/**
+* Submit a content/user report into Firestore `reports`
+*/
+async function submitContentReport(params) {
+	const currentUser = auth.currentUser;
+	if (!currentUser) throw new Error("Authentication required to submit a report.");
+	try {
+		return (await addDoc(collection(db, "reports"), {
+			reporterUid: currentUser.uid,
+			targetType: params.targetType,
+			targetId: params.targetId,
+			targetOwnerUid: params.targetOwnerUid || "",
+			reason: params.reason.trim().slice(0, 120),
+			details: (params.details || "").trim().slice(0, 500),
+			status: "open",
+			createdAt: serverTimestamp()
+		})).id;
+	} catch (err) {
+		handleFirestoreError(err, OperationType.CREATE, "reports");
+		throw err;
+	}
+}
 // \0vite/preload-helper.js
 var scriptRel = "modulepreload";
 var assetsURL = function(dep) {
@@ -55042,7 +59044,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-mdNUKxAy.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-xpQifT69.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -55094,7 +59096,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-DT9qTyxI.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-BTqYNw0K.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -55737,10 +59739,13 @@ var LiveAndRoomService = class {
 		}
 		return (await res.json()).stream || stream;
 	}
-	async joinLiveStream(streamId, user) {
+	async joinLiveStream(streamId, user, streamMeta) {
 		const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/join`, {
 			method: "POST",
-			body: JSON.stringify({ user })
+			body: JSON.stringify({
+				user,
+				streamMeta
+			})
 		});
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({ error: "Live broadcast ended or unavailable" }));
@@ -55779,12 +59784,14 @@ var LiveAndRoomService = class {
 		};
 		return await res.json();
 	}
-	async sendLiveComment(streamId, sender, text) {
+	async sendLiveComment(streamId, sender, text, customId, streamMeta) {
 		const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/comment`, {
 			method: "POST",
 			body: JSON.stringify({
 				sender,
-				text
+				text,
+				customId,
+				streamMeta
 			})
 		});
 		if (!res.ok) {
@@ -55793,13 +59800,14 @@ var LiveAndRoomService = class {
 		}
 		return (await res.json()).message;
 	}
-	async sendLiveHeart(streamId, senderId, count = 1) {
+	async sendLiveHeart(streamId, senderId, count = 1, streamMeta) {
 		try {
 			const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/heart`, {
 				method: "POST",
 				body: JSON.stringify({
 					senderId,
-					count
+					count,
+					streamMeta
 				})
 			});
 			if (res.ok) return (await res.json()).likesCount || 0;
@@ -58133,6 +62141,39 @@ var LayoutGrid = createLucideIcon("layout-grid", [
 		key: "1bb6yr"
 	}]
 ]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Link2 = createLucideIcon("link-2", [
+	["path", {
+		d: "M9 17H7A5 5 0 0 1 7 7h2",
+		key: "8i5ue5"
+	}],
+	["path", {
+		d: "M15 7h2a5 5 0 1 1 0 10h-2",
+		key: "1b9ql8"
+	}],
+	["line", {
+		x1: "8",
+		x2: "16",
+		y1: "12",
+		y2: "12",
+		key: "1jonct"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var LoaderCircle = createLucideIcon("loader-circle", [["path", {
+	d: "M21 12a9 9 0 1 1-6.219-8.56",
+	key: "13zald"
+}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -61967,10 +66008,17 @@ var SplashScreen = ({ onComplete }) => {
 	});
 };
 // src/components/screens/AuthScreen.tsx
-var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
-	const [subScreen, setSubScreen] = (0, import_react.useState)(initialSubScreen);
+var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefillEmail, onCancelAddAccount }) => {
+	const [savedAccounts, setSavedAccounts] = (0, import_react.useState)(() => getSavedDeviceAccounts());
+	const [lastAccount, setLastAccount] = (0, import_react.useState)(() => getLastLoggedInAccount());
+	const [subScreen, setSubScreen] = (0, import_react.useState)((() => {
+		if (initialSubScreen) return initialSubScreen;
+		if (prefillEmail) return "login";
+		if (mode !== "add_account" && lastAccount) return "welcome_back";
+		return "welcome";
+	})());
 	const [fullName, setFullName] = (0, import_react.useState)("");
-	const [email, setEmail] = (0, import_react.useState)("");
+	const [email, setEmail] = (0, import_react.useState)(prefillEmail || "");
 	const [password, setPassword] = (0, import_react.useState)("");
 	const [confirmPassword, setConfirmPassword] = (0, import_react.useState)("");
 	const [selectedAvatar, setSelectedAvatar] = (0, import_react.useState)(DEFAULT_AVATARS[0]);
@@ -61988,6 +66036,17 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 	const [showPrivacyModal, setShowPrivacyModal] = (0, import_react.useState)(false);
 	const [registeredEmail, setRegisteredEmail] = (0, import_react.useState)("");
 	const [verificationSent, setVerificationSent] = (0, import_react.useState)(false);
+	(0, import_react.useEffect)(() => {
+		setSavedAccounts(getSavedDeviceAccounts());
+		setLastAccount(getLastLoggedInAccount());
+	}, [mode]);
+	(0, import_react.useEffect)(() => {
+		if (prefillEmail) {
+			setEmail(prefillEmail);
+			setSubScreen("login");
+		}
+	}, [prefillEmail]);
+	const isDeviceAccountLimitReached = mode === "add_account" && !canAddAnotherDeviceAccount();
 	const navigateTo = (screen) => {
 		setErrorMessage(null);
 		setUnauthorizedHost(null);
@@ -62012,18 +66071,21 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 			active = false;
 		};
 	}, [onSuccess]);
-	const handleGoogleAuth = async () => {
+	const handleGoogleAuth = async (loginHint) => {
 		setIsGoogleLoading(true);
 		setErrorMessage(null);
 		setUnauthorizedHost(null);
 		try {
-			const authResult = await signInWithGoogle();
+			const authResult = await signInWithGoogle(loginHint ? {
+				loginHint,
+				forceAccountPicker: true
+			} : { forceAccountPicker: true });
 			if (!authResult) return;
 			const { profile } = authResult;
-			setSuccessMessage(`Welcome to Lenzo Party Live, ${profile.name}! ✨`);
+			setSuccessMessage(`Welcome to Lenzo Party Live, ${profile.name}!`);
 			setTimeout(() => {
 				onSuccess(profile);
-			}, 500);
+			}, 450);
 		} catch (err) {
 			if (err?.code === "auth/unauthorized-domain" || err?.unauthorizedDomain) {
 				const host = err.unauthorizedDomain || (typeof window !== "undefined" ? window.location.hostname : "lenzoparty.com");
@@ -62032,6 +66094,29 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 			setErrorMessage(err.message || "Google Authentication failed. Please try again.");
 		} finally {
 			setIsGoogleLoading(false);
+		}
+	};
+	const handleContinueAsSavedAccount = async (account) => {
+		setErrorMessage(null);
+		setSuccessMessage(null);
+		if (auth.currentUser && auth.currentUser.uid === account.uid) {
+			setIsLoading(true);
+			try {
+				const profile = await fetchCurrentFirestoreProfile(account.uid);
+				if (profile) {
+					setSuccessMessage(`Welcome back, ${profile.name}!`);
+					setTimeout(() => onSuccess(profile), 350);
+					return;
+				}
+			} catch {} finally {
+				setIsLoading(false);
+			}
+		}
+		if (account.authProvider === "google") await handleGoogleAuth(account.email);
+		else {
+			setEmail(account.email);
+			setPassword("");
+			navigateTo("login");
 		}
 	};
 	const handleEmailSignUp = async (e) => {
@@ -62192,14 +66277,19 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "absolute top-4 right-4 z-20",
-				children: onSkip && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "absolute top-4 left-4 right-4 z-20 flex items-center justify-between",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: mode === "add_account" && onCancelAddAccount && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					onClick: onCancelAddAccount,
+					className: "text-xs text-white bg-white/10 hover:bg-white/15 px-3.5 py-1.5 rounded-full border border-white/15 transition-all backdrop-blur-md active:scale-95 flex items-center gap-1.5 font-bold",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Return to App" })]
+				}) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: onSkip && mode !== "add_account" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
 					onClick: onSkip,
 					className: "text-xs text-[#B9AECF] hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-all backdrop-blur-md active:scale-95",
 					children: "Explore as Guest ›"
-				})
+				}) })]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "w-full max-w-md bg-[#160C25]/90 border border-white/10 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-[0_15px_45px_rgba(0,0,0,0.7)] z-10 animate-fade-in relative",
@@ -62269,6 +66359,80 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 							})
 						]
 					}),
+					subScreen === "welcome_back" && lastAccount && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex flex-col items-center text-center animate-fade-in",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "mb-4 scale-100",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LenzoLogo, {
+									size: "lg",
+									showTagline: false
+								})
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-black tracking-[0.22em] text-[#FFC84A] uppercase mb-1",
+								children: "WELCOME BACK"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] mb-5",
+								children: "Last time you logged in as:"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "w-full p-4 rounded-2xl bg-white/[0.04] border border-white/15 mb-6 flex items-center gap-3.5 text-left",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: lastAccount.avatar || DEFAULT_AVATARS[0],
+									alt: lastAccount.name,
+									className: "w-14 h-14 rounded-full object-cover border-2 border-[#F328D5] shadow-lg shrink-0"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex-1 min-w-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-sm font-black text-white truncate",
+											children: lastAccount.name
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-[#FFC84A] font-semibold truncate",
+											children: lastAccount.username
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#B9AECF] truncate mt-0.5",
+											children: lastAccount.email
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-1.5 mt-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[9px] font-bold px-2 py-0.5 rounded bg-white/10 text-white/80 uppercase",
+												children: lastAccount.authProvider === "google" ? "Google Account" : "Email Account"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-[9px] font-bold px-2 py-0.5 rounded bg-[#8B20FF]/30 text-purple-200",
+												children: ["Lv.", lastAccount.level]
+											})]
+										})
+									]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "w-full space-y-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => handleContinueAsSavedAccount(lastAccount),
+									disabled: isGoogleLoading || isLoading,
+									className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-black text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50",
+									children: isGoogleLoading || isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "CONTINUE AS THIS ACCOUNT" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => navigateTo("welcome"),
+									disabled: isGoogleLoading || isLoading,
+									className: "w-full py-3.5 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs sm:text-sm transition-all active:scale-98",
+									children: "USE ANOTHER ACCOUNT"
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "mt-5 text-[10px] text-[#B9AECF]/65 leading-relaxed",
+								children: "Verified via Firebase Authentication. Your permanent UID, coins, VIP tier, and inventory are preserved automatically."
+							})
+						]
+					}),
 					subScreen === "welcome" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "flex flex-col items-center text-center animate-fade-in",
 						children: [
@@ -62281,14 +66445,64 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
 								className: "text-2xl font-black text-white font-display tracking-tight mb-2",
-								children: "Live Stream & Party"
+								children: mode === "add_account" ? "Add Lenzo Account" : "Live Stream & Party"
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-[#B9AECF] max-w-xs mb-6 leading-relaxed",
-								children: "Join thousands of broadcasters in real-time video, multi-seat voice rooms, and high-energy PK battles!"
+								className: "text-xs text-[#B9AECF] max-w-xs mb-5 leading-relaxed",
+								children: mode === "add_account" ? `Sign in with another account to save it on this device (${savedAccounts.length}/5 used).` : "Join thousands of broadcasters in real-time video, multi-seat voice rooms, and high-energy PK battles!"
+							}),
+							isDeviceAccountLimitReached && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "w-full mb-4 p-3 rounded-2xl bg-amber-500/15 border border-amber-400/35 text-amber-200 text-xs text-left leading-relaxed",
+								children: [
+									"You already have ",
+									5,
+									" accounts saved on this device. Remove one in Switch Account if you want to save a new slot."
+								]
+							}),
+							mode !== "add_account" && savedAccounts.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "w-full mb-5 text-left",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between mb-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] font-bold uppercase tracking-wider text-[#B9AECF]",
+										children: [
+											"Saved on this device (",
+											savedAccounts.length,
+											"/",
+											5,
+											")"
+										]
+									}), lastAccount && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => navigateTo("welcome_back"),
+										className: "text-[10px] font-bold text-[#FFC84A] hover:underline",
+										children: "Last Account ›"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "flex gap-2 overflow-x-auto pb-1 no-scrollbar",
+									children: savedAccounts.map((acc) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => handleContinueAsSavedAccount(acc),
+										className: "shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 transition-colors",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+											src: acc.avatar || DEFAULT_AVATARS[0],
+											alt: acc.name,
+											className: "w-7 h-7 rounded-full object-cover border border-white/20"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "text-left max-w-[115px]",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[11px] font-bold text-white truncate",
+												children: acc.name
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[9px] text-[#B9AECF] truncate",
+												children: acc.email
+											})]
+										})]
+									}, acc.uid))
+								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "grid grid-cols-3 gap-2 w-full mb-7",
+								className: "grid grid-cols-3 gap-2 w-full mb-6",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex flex-col items-center p-2 rounded-2xl bg-white/[0.04] border border-white/[0.08]",
@@ -62339,7 +66553,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 										type: "button",
-										onClick: handleGoogleAuth,
+										onClick: () => handleGoogleAuth(),
 										disabled: isGoogleLoading || isLoading,
 										className: "w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs sm:text-sm shadow-xl flex items-center justify-center gap-3 transition-all active:scale-98 disabled:opacity-50",
 										children: [isGoogleLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
@@ -62591,7 +66805,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								type: "button",
-								onClick: handleGoogleAuth,
+								onClick: () => handleGoogleAuth(),
 								disabled: isGoogleLoading,
 								className: "w-full py-2.5 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3 transition-colors active:scale-98",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
@@ -62730,7 +66944,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen = "welcome" }) => {
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								type: "button",
-								onClick: handleGoogleAuth,
+								onClick: () => handleGoogleAuth(),
 								disabled: isGoogleLoading,
 								className: "w-full py-2.5 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3 transition-colors active:scale-98",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
@@ -112538,6 +116752,8 @@ var WebRtcMediaService = class {
 		this.liveViewerCallbacks = null;
 		this.liveViewerRetryTimer = null;
 		this.liveViewerRetryCount = 0;
+		this.liveStartedAt = 0;
+		this.liveViewerLastOfferAt = 0;
 		this.liveUnsubscribeWs = null;
 		this.liveUnsubscribeFs = null;
 		this.partyRoomId = null;
@@ -112592,6 +116808,14 @@ var WebRtcMediaService = class {
 		if (!stream) return false;
 		return stream.getTracks().some((t) => t.readyState === "live");
 	}
+	isLiveHostActive(streamId) {
+		if (this.liveMode !== "host") return false;
+		return streamId ? this.liveStreamId === streamId : Boolean(this.liveStreamId);
+	}
+	isLiveViewerActive(streamId) {
+		if (this.liveMode !== "viewer") return false;
+		return streamId ? this.liveStreamId === streamId : Boolean(this.liveStreamId);
+	}
 	startLiveHost(streamId, hostUserId, localStream) {
 		this.stopLive();
 		if (typeof RTCPeerConnection === "undefined") return;
@@ -112601,6 +116825,7 @@ var WebRtcMediaService = class {
 		this.liveUserId = hostUserId;
 		this.liveHostUserId = hostUserId;
 		this.liveLocalStream = localStream;
+		this.liveStartedAt = Date.now();
 		this.liveUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
 			if (this.liveMode !== "host" || !payload || payload.streamId !== this.liveStreamId) return;
 			const fromUserId = String(payload.fromUserId || "");
@@ -112625,10 +116850,12 @@ var WebRtcMediaService = class {
 				const reqSession = vDoc.rtcSessionId || "";
 				const offeredSession = this.liveHostOfferedSessions.get(viewerId) || "";
 				const existingPc = this.liveHostPeers.get(viewerId);
-				if (reqSession && reqSession !== offeredSession && (!existingPc || existingPc.connectionState !== "connected")) this.handleViewerReadyOnHost(viewerId, reqSession);
+				const existingHealthy = Boolean(existingPc && (existingPc.connectionState === "connected" || existingPc.iceConnectionState === "connected" || existingPc.iceConnectionState === "completed"));
+				if (reqSession && reqSession !== offeredSession && !existingHealthy) this.handleViewerReadyOnHost(viewerId, reqSession);
 				else if (!reqSession && !existingPc && !this.liveWaitingViewers.has(viewerId)) this.handleViewerReadyOnHost(viewerId, makeSessionId("fs_auto"));
-				if (vDoc.rtcAnswer && vDoc.rtcAnswer.sdp && (!vDoc.rtcAnswerSessionId || vDoc.rtcAnswerSessionId === this.liveHostOfferedSessions.get(viewerId))) {
-					const ansKey = vDoc.rtcAnswerSessionId || reqSession || "default";
+				const activeOffered = this.liveHostOfferedSessions.get(viewerId);
+				if (vDoc.rtcAnswer && vDoc.rtcAnswer.sdp && activeOffered && (!vDoc.rtcAnswerSessionId || vDoc.rtcAnswerSessionId === activeOffered)) {
+					const ansKey = vDoc.rtcAnswerSessionId || activeOffered;
 					if (this.liveHostAnsweredSessions.get(viewerId) !== ansKey) this.handleLiveHostAnswer(viewerId, vDoc.rtcAnswer, ansKey);
 				}
 				if (Array.isArray(vDoc.rtcViewerIce) && vDoc.rtcViewerIce.length > 0) for (const cand of vDoc.rtcViewerIce) this.handleLiveHostIce(viewerId, cand);
@@ -112704,13 +116931,14 @@ var WebRtcMediaService = class {
 		const timer = setTimeout(() => {
 			this.liveHostIceFlushTimers.delete(viewerId);
 			if (this.liveMode !== "host" || !this.liveStreamId) return;
+			if (this.liveHostOfferedSessions.get(viewerId) !== offerSessionId) return;
 			const batch = this.liveHostOutboundIce.get(viewerId);
 			if (!batch || batch.length === 0) return;
 			writeFirestoreLiveHostSignal(this.liveStreamId, viewerId, {
 				rtcOfferSessionId: offerSessionId,
-				rtcHostIce: batch.slice(0, 24)
+				rtcHostIce: batch.slice(0, 32)
 			});
-		}, 220);
+		}, 260);
 		this.liveHostIceFlushTimers.set(viewerId, timer);
 	}
 	async createLiveHostOffer(viewerId, offerSessionId) {
@@ -112783,6 +117011,8 @@ var WebRtcMediaService = class {
 	async handleLiveHostAnswer(viewerId, sdp, sessionKey) {
 		const pc = this.liveHostPeers.get(viewerId);
 		if (!pc) return;
+		const expectedSession = this.liveHostOfferedSessions.get(viewerId);
+		if (sessionKey && expectedSession && sessionKey !== expectedSession) return;
 		try {
 			if (pc.signalingState === "have-local-offer") {
 				await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -112845,19 +117075,23 @@ var WebRtcMediaService = class {
 		this.liveViewerRetryCount = 0;
 		this.liveViewerSessionId = makeSessionId("vw");
 		this.liveViewerHandledOfferSession = "";
+		this.liveStartedAt = Date.now();
+		this.liveViewerLastOfferAt = 0;
 		callbacks.onStatusChange?.("connecting");
 		this.liveUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
 			if (this.liveMode !== "viewer" || !payload || payload.streamId !== this.liveStreamId) return;
 			const fromUserId = String(payload.fromUserId || "");
 			if (!fromUserId || fromUserId === this.liveUserId) return;
-			if (event === "webrtc:host_ready") this.requestOfferFromHost();
-			else if (event === "webrtc:offer" && payload.sdp) {
+			if (event === "webrtc:host_ready") {
+				if (!Boolean(this.liveViewerPc && (this.liveViewerPc.connectionState === "connected" || this.liveViewerPc.iceConnectionState === "connected" || this.liveViewerPc.iceConnectionState === "completed"))) this.requestOfferFromHost();
+			} else if (event === "webrtc:offer" && payload.sdp) {
 				const offerSession = String(payload.sessionId || `ws_${Date.now()}`);
 				this.handleLiveViewerOffer(fromUserId, payload.sdp, offerSession);
 			} else if (event === "webrtc:ice" && payload.candidate) this.handleLiveViewerIce(payload.candidate);
 		});
 		this.liveUnsubscribeFs = subscribeFirestoreLiveViewerDoc(streamId, viewerUserId, (vDoc) => {
 			if (this.liveMode !== "viewer" || this.liveStreamId !== streamId || !vDoc) return;
+			if (vDoc.rtcHostUpdatedAt && vDoc.rtcHostUpdatedAt < this.liveStartedAt - 15e3) return;
 			const offerSession = vDoc.rtcOfferSessionId || "";
 			if (vDoc.rtcOffer && vDoc.rtcOffer.sdp && offerSession && offerSession !== this.liveViewerHandledOfferSession) this.handleLiveViewerOffer(hostUserId, vDoc.rtcOffer, offerSession);
 			if (Array.isArray(vDoc.rtcHostIce) && vDoc.rtcHostIce.length > 0) for (const cand of vDoc.rtcHostIce) this.handleLiveViewerIce(cand);
@@ -112868,22 +117102,25 @@ var WebRtcMediaService = class {
 				this.clearLiveViewerRetry();
 				return;
 			}
-			if (this.liveViewerPc && this.liveViewerPc.connectionState === "connected") {
+			const pc = this.liveViewerPc;
+			if (pc && (pc.connectionState === "connected" || pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed")) {
 				this.clearLiveViewerRetry();
 				return;
 			}
+			if (pc && (pc.connectionState === "connecting" || pc.iceConnectionState === "checking") && Date.now() - this.liveViewerLastOfferAt < 1e4) return;
 			this.liveViewerRetryCount += 1;
-			if (this.liveViewerRetryCount > 12) {
+			if (this.liveViewerRetryCount > 10) {
 				this.clearLiveViewerRetry();
 				return;
 			}
 			this.requestOfferFromHost();
-		}, 3e3);
+		}, 5e3);
 	}
 	requestOfferFromHost() {
 		if (this.liveMode !== "viewer" || !this.liveStreamId || !this.liveUserId) return;
 		this.liveViewerSessionId = makeSessionId("vw");
 		this.liveViewerHandledOfferSession = "";
+		this.liveViewerLastOfferAt = 0;
 		liveAndRoomService.sendSignal({
 			signalType: "webrtc:viewer_ready",
 			fromUserId: this.liveUserId,
@@ -112910,14 +117147,15 @@ var WebRtcMediaService = class {
 			if (this.liveViewerOutboundIce.length === 0) return;
 			writeFirestoreLiveViewerSignal(this.liveStreamId, this.liveViewerUser, {
 				rtcAnswerSessionId: answerSessionId,
-				rtcViewerIce: this.liveViewerOutboundIce.slice(0, 24)
+				rtcViewerIce: this.liveViewerOutboundIce.slice(0, 32)
 			});
-		}, 220);
+		}, 260);
 	}
 	async handleLiveViewerOffer(hostId, sdp, offerSessionId) {
 		if (!this.liveStreamId || !this.liveUserId) return;
 		if (offerSessionId && this.liveViewerHandledOfferSession === offerSessionId) return;
 		this.liveViewerHandledOfferSession = offerSessionId;
+		this.liveViewerLastOfferAt = Date.now();
 		if (this.liveViewerIceFlushTimer) {
 			clearTimeout(this.liveViewerIceFlushTimer);
 			this.liveViewerIceFlushTimer = null;
@@ -112927,6 +117165,7 @@ var WebRtcMediaService = class {
 				this.liveViewerPc.onicecandidate = null;
 				this.liveViewerPc.ontrack = null;
 				this.liveViewerPc.onconnectionstatechange = null;
+				this.liveViewerPc.oniceconnectionstatechange = null;
 				this.liveViewerPc.close();
 			} catch {}
 			this.liveViewerPc = null;
@@ -112938,12 +117177,9 @@ var WebRtcMediaService = class {
 		this.liveViewerOutboundIce = [];
 		const remoteStream = new MediaStream();
 		this.liveViewerRemoteStream = remoteStream;
-		pc.ontrack = (ev) => {
-			if (ev.track && ev.track.readyState !== "ended") {
-				if (!remoteStream.getTracks().some((t) => t.id === ev.track.id)) remoteStream.addTrack(ev.track);
-			}
-			if (ev.streams && ev.streams[0]) ev.streams[0].getTracks().forEach((t) => {
-				if (t.readyState !== "ended" && !remoteStream.getTracks().some((x) => x.id === t.id)) remoteStream.addTrack(t);
+		const emitRemoteSnapshot = () => {
+			pc.getReceivers().forEach((r) => {
+				if (r.track && r.track.readyState === "live" && !remoteStream.getTracks().some((t) => t.id === r.track.id)) remoteStream.addTrack(r.track);
 			});
 			if (remoteStream.getTracks().some((t) => t.readyState === "live")) {
 				const snapshotStream = new MediaStream(remoteStream.getTracks());
@@ -112951,6 +117187,15 @@ var WebRtcMediaService = class {
 				this.liveViewerCallbacks?.onStatusChange?.("connected");
 				this.clearLiveViewerRetry();
 			}
+		};
+		pc.ontrack = (ev) => {
+			if (ev.track && ev.track.readyState !== "ended") {
+				if (!remoteStream.getTracks().some((t) => t.id === ev.track.id)) remoteStream.addTrack(ev.track);
+			}
+			if (ev.streams && ev.streams[0]) ev.streams[0].getTracks().forEach((t) => {
+				if (t.readyState !== "ended" && !remoteStream.getTracks().some((x) => x.id === t.id)) remoteStream.addTrack(t);
+			});
+			emitRemoteSnapshot();
 		};
 		pc.onicecandidate = (ev) => {
 			if (ev.candidate && this.liveStreamId && this.liveUserId) {
@@ -112969,12 +117214,15 @@ var WebRtcMediaService = class {
 				this.scheduleViewerIceFlush(offerSessionId);
 			}
 		};
+		pc.oniceconnectionstatechange = () => {
+			const iceState = pc.iceConnectionState;
+			if (iceState === "connected" || iceState === "completed") emitRemoteSnapshot();
+			else if (iceState === "failed") this.liveViewerCallbacks?.onStatusChange?.("failed");
+		};
 		pc.onconnectionstatechange = () => {
 			const state = pc.connectionState;
-			if (state === "connected") {
-				this.liveViewerCallbacks?.onStatusChange?.("connected");
-				this.clearLiveViewerRetry();
-			} else if (state === "connecting") this.liveViewerCallbacks?.onStatusChange?.("connecting");
+			if (state === "connected") emitRemoteSnapshot();
+			else if (state === "connecting") this.liveViewerCallbacks?.onStatusChange?.("connecting");
 			else if (state === "disconnected") this.liveViewerCallbacks?.onStatusChange?.("reconnecting");
 			else if (state === "failed") this.liveViewerCallbacks?.onStatusChange?.("failed");
 		};
@@ -113745,8 +117993,14 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		setViewersLoading(true);
 		try {
 			const res = await liveAndRoomService.fetchLiveViewers(stream.id, page, 20);
-			setViewersList((prev) => append ? [...prev, ...res.viewers] : res.viewers);
-			setViewersTotalCount(res.totalCount);
+			if (Array.isArray(res.viewers) && res.viewers.length > 0) setViewersList((prev) => {
+				const byId = /* @__PURE__ */ new Map();
+				prev.forEach((v) => byId.set(v.userId, v));
+				res.viewers.forEach((v) => byId.set(v.userId, v));
+				const merged = Array.from(byId.values());
+				setViewersTotalCount(Math.max(res.totalCount || 0, merged.length));
+				return merged;
+			});
 			setViewersHasMore(res.hasMore);
 			setViewersPage(page);
 		} finally {
@@ -113758,10 +118012,15 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		let streamDocEverExisted = false;
 		const initialKnownViewerIds = /* @__PURE__ */ new Set([currentUser.id]);
 		let fsViewersInitialized = false;
+		const streamMeta = {
+			host: stream.host,
+			title: stream.title,
+			category: stream.category
+		};
 		liveAndRoomService.setCurrentUser(currentUser.id);
 		liveAndRoomService.subscribeLive(stream.id, currentUser.id);
 		joinFirestoreLiveViewer(stream.id, currentUser, isActualHost);
-		liveAndRoomService.joinLiveStream(stream.id, currentUser).then((res) => {
+		liveAndRoomService.joinLiveStream(stream.id, currentUser, streamMeta).then((res) => {
 			if (!active) return;
 			if (res.stream) {
 				setLiveViewerCount((prev) => Math.max(prev, res.stream?.numericViewers ?? 0));
@@ -113775,7 +118034,6 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 				setViewersTotalCount(merged.length);
 				return merged;
 			});
-			else loadLiveViewers(1, false);
 			if (Array.isArray(res.comments) && res.comments.length > 0) setMessages((prev) => {
 				const seen = new Set(prev.map((m) => m.id));
 				const next = [...prev];
@@ -113829,7 +118087,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 						if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
 						entryTimerRef.current = setTimeout(() => setEntryNotice(null), 3500);
 					}
-					if (isActualHost && mediaTransportRef.current === "webrtc") webrtcMediaService.sendOfferToViewer(v.userId);
+					if (isActualHost && webrtcMediaService.isLiveHostActive(stream.id)) webrtcMediaService.sendOfferToViewer(v.userId);
 				}
 			});
 			setViewersList(fsViewers);
@@ -113909,7 +118167,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 					setViewersTotalCount(next.length);
 					return next;
 				});
-				if (isActualHost && mediaTransportRef.current === "webrtc" && joinedViewer?.userId && joinedViewer.userId !== currentUser.id) webrtcMediaService.sendOfferToViewer(joinedViewer.userId);
+				if (isActualHost && webrtcMediaService.isLiveHostActive(stream.id) && joinedViewer?.userId && joinedViewer.userId !== currentUser.id) webrtcMediaService.sendOfferToViewer(joinedViewer.userId);
 				if (joinedViewer && joinedViewer.userId !== currentUser.id) {
 					const now = Date.now();
 					if (now - (seenEntriesRef.current.get(joinedViewer.userId) || 0) > 1e4) {
@@ -114081,15 +118339,44 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 	(0, import_react.useEffect)(() => {
 		const videoEl = remoteWebRtcVideoRef.current;
 		if (!videoEl || !remoteWebRtcStream) return;
-		videoEl.srcObject = remoteWebRtcStream;
-		videoEl.muted = isMuted;
+		if (videoEl.srcObject !== remoteWebRtcStream) videoEl.srcObject = remoteWebRtcStream;
+		videoEl.muted = isMutedRef.current;
 		videoEl.play().catch(() => {
 			videoEl.muted = true;
 			setAutoplayBlocked(true);
 			setViewerSoundMuted(true);
 			videoEl.play().catch(() => {});
 		});
-	}, [remoteWebRtcStream]);
+	}, [
+		remoteWebRtcStream,
+		mediaTransport,
+		hasRemoteAgoraStream,
+		remoteHostIsCameraOn
+	]);
+	(0, import_react.useEffect)(() => {
+		if (isActualHost) return;
+		const unlockOnGesture = () => {
+			if (isMutedRef.current && !autoplayBlocked) return;
+			if (autoplayBlocked) {
+				setIsMuted(false);
+				setViewerSoundMuted(false);
+				setAutoplayBlocked(false);
+			}
+			agoraRtcService.setSpeakerMuted(false);
+			agoraRtcService.resumeRemoteAudio();
+			const videoEl = remoteWebRtcVideoRef.current;
+			if (videoEl && videoEl.srcObject) {
+				videoEl.muted = false;
+				videoEl.play().catch(() => {});
+			}
+		};
+		window.addEventListener("pointerdown", unlockOnGesture, { passive: true });
+		window.addEventListener("touchstart", unlockOnGesture, { passive: true });
+		return () => {
+			window.removeEventListener("pointerdown", unlockOnGesture);
+			window.removeEventListener("touchstart", unlockOnGesture);
+		};
+	}, [isActualHost, autoplayBlocked]);
 	const handleToggleCamera = () => {
 		if (isCameraOn) {
 			if (mediaStreamRef.current) mediaStreamRef.current.getVideoTracks().forEach((t) => {
@@ -114186,6 +118473,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			showToast("Please allow Camera & Microphone permissions in settings");
 			return;
 		}
+		webrtcMediaService.updateLiveHostStream(newStream);
 		if (mediaTransportRef.current === "agora") try {
 			await agoraRtcService.switchRole("host", {
 				enableVideo: true,
@@ -114200,20 +118488,54 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			console.warn("[Live Media] Agora camera republish notice:", err);
 			setHasAgoraLocalVideo(false);
 		}
-		else {
-			webrtcMediaService.updateLiveHostStream(newStream);
-			setHasAgoraLocalVideo(false);
-		}
+		else setHasAgoraLocalVideo(false);
 		showToast("Camera & microphone are now live");
 	};
 	(0, import_react.useEffect)(() => {
 		let isSubscribed = true;
+		let hasAgoraTrack = false;
+		let webrtcFallbackStarted = false;
+		let agoraFallbackTimer = null;
 		const role = isActualHost && isHostMode ? "host" : "audience";
 		setAgoraRole(role);
 		setHasRemoteAgoraStream(false);
 		setHasAgoraLocalVideo(false);
 		setRemoteWebRtcStream(null);
 		setAutoplayBlocked(false);
+		const startWebRtcViewerFallback = () => {
+			if (!isSubscribed || webrtcFallbackStarted || hasAgoraTrack) return;
+			webrtcFallbackStarted = true;
+			webrtcMediaService.startLiveViewer(stream.id, currentUser.id, stream.host.id, {
+				onRemoteStream: (remoteStream) => {
+					if (!isSubscribed) return;
+					if (agoraFallbackTimer) {
+						clearTimeout(agoraFallbackTimer);
+						agoraFallbackTimer = null;
+					}
+					setMediaTransport("webrtc");
+					setRemoteWebRtcStream(remoteStream);
+					setHasRemoteAgoraStream(true);
+					const hasActiveVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
+					setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
+					setAgoraConnected(true);
+					setAgoraConnectionState("connected");
+					agoraRtcService.leaveChannel().catch(() => {});
+				},
+				onStatusChange: (status) => {
+					if (!isSubscribed || hasAgoraTrack) return;
+					if (status === "connected") {
+						setAgoraConnected(true);
+						setAgoraConnectionState("connected");
+					} else if (status === "connecting" || status === "reconnecting") setAgoraConnectionState("connecting");
+					else if (status === "failed") setAgoraConnectionState("error");
+				},
+				onAutoplayBlocked: () => {
+					if (!isSubscribed) return;
+					setAutoplayBlocked(true);
+					setViewerSoundMuted(true);
+				}
+			}, currentUser);
+		};
 		const setupLiveMedia = async () => {
 			try {
 				setAgoraConnectionState("connecting");
@@ -114271,12 +118593,16 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 						setAgoraConnected(true);
 						setAgoraConnectionState("connected");
 						if (agoraRtcService.getIsCameraPermissionDenied()) setCameraPermissionDenied(true);
-						if (role === "host" && localPlayerContainerRef.current && agoraRtcService.getLocalVideoTrack()) {
-							agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
-							setHasAgoraLocalVideo(true);
+						if (role === "host") {
+							if (localPlayerContainerRef.current && agoraRtcService.getLocalVideoTrack()) {
+								agoraRtcService.playLocalVideo(localPlayerContainerRef.current);
+								setHasAgoraLocalVideo(true);
+							}
+							webrtcMediaService.startLiveHost(stream.id, currentUser.id, acquiredStream);
 						} else if (role === "audience") {
 							const existingHost = agoraRtcService.getRemoteHosts()[0];
-							if (existingHost) {
+							if (existingHost && (existingHost.videoTrack || existingHost.audioTrack)) {
+								hasAgoraTrack = true;
 								if (existingHost.videoTrack && remotePlayerContainerRef.current) {
 									agoraRtcService.playRemoteVideo(existingHost.uid, remotePlayerContainerRef.current);
 									setHasRemoteAgoraStream(true);
@@ -114291,7 +118617,9 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 									}
 								}
 								setRemoteHostIsCameraOn(existingHost.hasVideo);
-							}
+							} else agoraFallbackTimer = setTimeout(() => {
+								if (isSubscribed && !hasAgoraTrack) startWebRtcViewerFallback();
+							}, 3500);
 						}
 						return;
 					}
@@ -114306,30 +118634,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 					webrtcMediaService.startLiveHost(stream.id, currentUser.id, acquiredStream);
 					setAgoraConnected(true);
 					setAgoraConnectionState("connected");
-				} else webrtcMediaService.startLiveViewer(stream.id, currentUser.id, stream.host.id, {
-					onRemoteStream: (remoteStream) => {
-						if (!isSubscribed) return;
-						setRemoteWebRtcStream(remoteStream);
-						setHasRemoteAgoraStream(true);
-						const hasActiveVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
-						setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
-						setAgoraConnected(true);
-						setAgoraConnectionState("connected");
-					},
-					onStatusChange: (status) => {
-						if (!isSubscribed) return;
-						if (status === "connected") {
-							setAgoraConnected(true);
-							setAgoraConnectionState("connected");
-						} else if (status === "connecting" || status === "reconnecting") setAgoraConnectionState("connecting");
-						else if (status === "failed") setAgoraConnectionState("error");
-					},
-					onAutoplayBlocked: () => {
-						if (!isSubscribed) return;
-						setAutoplayBlocked(true);
-						setViewerSoundMuted(true);
-					}
-				}, currentUser);
+				} else startWebRtcViewerFallback();
 			} catch (err) {
 				console.warn("[Live Media] Connection notice:", err?.message || err);
 				if (isSubscribed) setAgoraConnectionState("error");
@@ -114339,6 +118644,18 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		const unsubRemote = agoraRtcService.onRemoteTrack((remoteHost) => {
 			if (!isSubscribed) return;
 			try {
+				if (remoteHost.videoTrack || remoteHost.audioTrack) {
+					hasAgoraTrack = true;
+					if (agoraFallbackTimer) {
+						clearTimeout(agoraFallbackTimer);
+						agoraFallbackTimer = null;
+					}
+					if (webrtcFallbackStarted) {
+						webrtcMediaService.stopLive();
+						webrtcFallbackStarted = false;
+					}
+					setMediaTransport("agora");
+				}
 				if (remoteHost.videoTrack && remotePlayerContainerRef.current) {
 					agoraRtcService.playRemoteVideo(remoteHost.uid, remotePlayerContainerRef.current);
 					setHasRemoteAgoraStream(true);
@@ -114364,13 +118681,18 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		});
 		const unsubUserLeft = agoraRtcService.onUserLeft((leftUid) => {
 			if (!isSubscribed) return;
-			if (String(leftUid) === String(stream.host.id) && !isActualHost) {
+			if (String(leftUid) === String(stream.host.id) && !isActualHost && mediaTransportRef.current === "agora") {
+				hasAgoraTrack = false;
 				setHasRemoteAgoraStream(false);
 				showToast("Host temporarily disconnected from media stream");
 			}
 		});
 		return () => {
 			isSubscribed = false;
+			if (agoraFallbackTimer) {
+				clearTimeout(agoraFallbackTimer);
+				agoraFallbackTimer = null;
+			}
 			unsubRemote();
 			unsubAutoplay();
 			unsubUserLeft();
@@ -114477,8 +118799,12 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			const nextLikesOptimistic = streamLikes + 1;
 			setStreamLikes(nextLikesOptimistic);
 			updateFirestoreLiveLikes(stream.id, nextLikesOptimistic);
-			liveAndRoomService.sendLiveHeart(stream.id, currentUser.id, 1).then((nextTotal) => {
-				if (nextTotal > 0) setStreamLikes(nextTotal);
+			liveAndRoomService.sendLiveHeart(stream.id, currentUser.id, 1, {
+				host: stream.host,
+				title: stream.title,
+				category: stream.category
+			}).then((nextTotal) => {
+				if (nextTotal > 0) setStreamLikes((prev) => Math.max(prev, nextTotal));
 			});
 			if (activePKSession) {
 				const targetHostId = side === "left" ? activePKSession.host1.user.id : activePKSession.host2.user.id;
@@ -114491,6 +118817,26 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			side
 		};
 	};
+	const handleQuickHeart = () => {
+		if (!isActualHost && blockedByUserIdsRef.current.has(stream.host.id)) {
+			showToast("You cannot interact with this live stream.");
+			return;
+		}
+		const xPercent = 65 + Math.random() * 20;
+		const yPercent = 58 + Math.random() * 18;
+		triggerHeartAnimation(xPercent, yPercent, "left");
+		const nextLikesOptimistic = streamLikes + 1;
+		setStreamLikes(nextLikesOptimistic);
+		updateFirestoreLiveLikes(stream.id, nextLikesOptimistic);
+		liveAndRoomService.sendLiveHeart(stream.id, currentUser.id, 1, {
+			host: stream.host,
+			title: stream.title,
+			category: stream.category
+		}).then((nextTotal) => {
+			if (nextTotal > 0) setStreamLikes((prev) => Math.max(prev, nextTotal));
+		});
+		if (activePKSession) pkService.sendPKLike(activePKSession.id, activePKSession.host1.user.id, 1, xPercent, yPercent);
+	};
 	const handleSendMessage = async (e, customText) => {
 		if (e) e.preventDefault();
 		const textToSend = (customText || inputMessage).trim();
@@ -114501,24 +118847,34 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		}
 		setInputMessage("");
 		setShowEmojiPicker(false);
-		let finalMsg = null;
-		try {
-			const backendSaved = await liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend);
-			finalMsg = backendSaved;
-			sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, backendSaved.id);
-		} catch (err) {
+		const msgId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+		const optimisticMsg = {
+			id: msgId,
+			senderId: currentUser.id,
+			senderName: currentUser.name,
+			senderAvatar: currentUser.avatar,
+			text: textToSend,
+			timestamp: "Now",
+			isHost: isActualHost
+		};
+		setMessages((prev) => prev.some((m) => m.id === msgId) ? prev : [...prev.slice(-79), optimisticMsg]);
+		const streamMeta = {
+			host: stream.host,
+			title: stream.title,
+			category: stream.category
+		};
+		const [fsResult, backendResult] = await Promise.all([sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, msgId).catch(() => null), liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend, msgId, streamMeta).catch((err) => {
 			const errMsg = String(err?.message || err || "");
-			if (/block|403|forbidden/i.test(errMsg)) {
-				showToast("You are blocked from commenting in this live stream.");
-				return;
-			}
-			const fallbackId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-			finalMsg = await sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, fallbackId);
+			if (/block|403|forbidden/i.test(errMsg)) return { blocked: true };
+			return null;
+		})]);
+		if (backendResult && "blocked" in backendResult) {
+			setMessages((prev) => prev.filter((m) => m.id !== msgId));
+			showToast("You are blocked from commenting in this live stream.");
+			return;
 		}
-		if (finalMsg) {
-			const msgToAdd = finalMsg;
-			setMessages((prev) => prev.some((m) => m.id === msgToAdd.id) ? prev : [...prev, msgToAdd]);
-		} else {
+		if (!fsResult && !backendResult) {
+			setMessages((prev) => prev.filter((m) => m.id !== msgId));
 			showToast("Could not send message. Please check your connection.");
 			setInputMessage(textToSend);
 		}
@@ -115302,17 +119658,40 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 											setIsMuted(false);
 											setViewerSoundMuted(false);
 											setAutoplayBlocked(false);
-											if (mediaTransport === "webrtc" || mediaTransport === "connecting") webrtcMediaService.requestOfferFromHost();
-											else {
-												const existing = agoraRtcService.getRemoteHosts()[0];
-												if (existing?.videoTrack && remotePlayerContainerRef.current) {
+											const existing = agoraRtcService.getRemoteHosts()[0];
+											if (existing && (existing.videoTrack || existing.audioTrack)) {
+												setMediaTransport("agora");
+												if (existing.videoTrack && remotePlayerContainerRef.current) {
 													agoraRtcService.playRemoteVideo(existing.uid, remotePlayerContainerRef.current);
 													setHasRemoteAgoraStream(true);
 													setRemoteHostIsCameraOn(true);
 												}
+												if (existing.audioTrack) setHasRemoteAgoraStream(true);
 												agoraRtcService.setSpeakerMuted(false);
 												agoraRtcService.resumeRemoteAudio();
-											}
+											} else if (webrtcMediaService.isLiveViewerActive(stream.id)) webrtcMediaService.requestOfferFromHost();
+											else webrtcMediaService.startLiveViewer(stream.id, currentUser.id, stream.host.id, {
+												onRemoteStream: (remoteStream) => {
+													setMediaTransport("webrtc");
+													setRemoteWebRtcStream(remoteStream);
+													setHasRemoteAgoraStream(true);
+													const hasActiveVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled);
+													setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
+													setAgoraConnected(true);
+													setAgoraConnectionState("connected");
+													agoraRtcService.leaveChannel().catch(() => {});
+												},
+												onStatusChange: (status) => {
+													if (status === "connected") {
+														setAgoraConnected(true);
+														setAgoraConnectionState("connected");
+													} else if (status === "connecting" || status === "reconnecting") setAgoraConnectionState("connecting");
+												},
+												onAutoplayBlocked: () => {
+													setAutoplayBlocked(true);
+													setViewerSoundMuted(true);
+												}
+											}, currentUser);
 											if (remoteWebRtcVideoRef.current) {
 												remoteWebRtcVideoRef.current.muted = false;
 												remoteWebRtcVideoRef.current.play().catch(() => {});
@@ -115689,9 +120068,19 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3 h-3" })
 								}) : null]
 							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								onClick: handleQuickHeart,
+								className: "relative w-10 h-10 rounded-full bg-gradient-to-tr from-[#FF2E93] to-[#F328D5] flex items-center justify-center text-white shadow-lg shadow-pink-500/40 active:scale-90 transition-all shrink-0",
+								title: "Send Heart",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-4.5 h-4.5 fill-white text-white" }), streamLikes > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "absolute -top-1.5 -right-1 px-1.5 py-0.2 rounded-full bg-black/80 border border-pink-400/50 text-[9px] font-black text-pink-200 font-mono",
+									children: streamLikes > 999 ? `${(streamLikes / 1e3).toFixed(1)}k` : streamLikes
+								})]
+							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => onOpenGiftShop(stream.host),
-								className: "w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/50 active:scale-95 transition-all animate-pulse",
+								className: "w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/50 active:scale-95 transition-all animate-pulse shrink-0",
 								title: "Send Gift",
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-5 h-5 text-white stroke-[2.2]" })
 							}),
@@ -118183,6 +122572,8 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 	const [hasMic, setHasMic] = (0, import_react.useState)(false);
 	const [audioVolumeLevel, setAudioVolumeLevel] = (0, import_react.useState)(0);
 	const [isFlippingCamera, setIsFlippingCamera] = (0, import_react.useState)(false);
+	const [isStartingLive, setIsStartingLive] = (0, import_react.useState)(false);
+	const isStartingLiveRef = (0, import_react.useRef)(false);
 	const videoPreviewRef = (0, import_react.useRef)(null);
 	const streamRef = (0, import_react.useRef)(null);
 	const cameraMetaRef = (0, import_react.useRef)({
@@ -118337,6 +122728,7 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 	};
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		if (isStartingLiveRef.current) return;
 		if (!auth.currentUser || !currentUser.id || currentUser.id === "guest") {
 			setError("Please sign in first to start a live broadcast.");
 			return;
@@ -118345,6 +122737,8 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 			setError("Please enter a live stream title");
 			return;
 		}
+		isStartingLiveRef.current = true;
+		setIsStartingLive(true);
 		let liveStreamToHandoff = streamRef.current;
 		const hasLiveVideo = Boolean(liveStreamToHandoff?.getVideoTracks().some((t) => t.readyState === "live"));
 		const hasLiveAudio = Boolean(liveStreamToHandoff?.getAudioTracks().some((t) => t.readyState === "live"));
@@ -118373,6 +122767,8 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 				setMediaPermissionError(permBlocked ? "Camera & Microphone are blocked in Android Settings. Tap Open Settings to enable them." : "Camera & Microphone permission is required before starting video live. Tap Allow Camera & Mic or switch Cam OFF for Audio Mode.");
 				setError(permBlocked ? "Please allow Camera & Microphone in Phone Settings, then tap Start Live again." : "Camera & Microphone access was denied. Please tap Allow Camera & Mic (or turn Cam OFF for Voice Live).");
 				setIsRequestingMedia(false);
+				isStartingLiveRef.current = false;
+				setIsStartingLive(false);
 				return;
 			} finally {
 				setIsRequestingMedia(false);
@@ -118384,6 +122780,8 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 			const permBlocked = Boolean(micErr?.permanentlyDenied);
 			setIsPermanentlyDenied(permBlocked);
 			setError(permBlocked ? "Microphone is blocked in Phone Settings. Open Settings to allow Microphone." : "Microphone permission was denied. Please allow Microphone access to broadcast voice.");
+			isStartingLiveRef.current = false;
+			setIsStartingLive(false);
 			return;
 		}
 		if (audioAnalyserRef.current) {
@@ -118723,8 +123121,9 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 							className: "pt-4",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								type: "submit",
-								className: "w-full py-4 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-extrabold text-sm shadow-xl shadow-[#F328D5]/30 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Start Live" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2.5 h-2.5 rounded-full bg-white animate-ping" })]
+								disabled: isStartingLive,
+								className: `w-full py-4 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-extrabold text-sm shadow-xl shadow-[#F328D5]/30 transition-all flex items-center justify-center gap-2 ${isStartingLive ? "opacity-70 cursor-not-allowed" : "hover:opacity-95 active:scale-98"}`,
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isStartingLive ? "Starting Live..." : "Start Live" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2.5 h-2.5 rounded-full bg-white animate-ping" })]
 							})
 						})
 					]
@@ -123756,134 +128155,6 @@ async function equipAchievementBadges(userId, badgeIds) {
 		};
 	}
 }
-// src/services/storageService.ts
-async function compressImageToDataUrl(file, maxDimension, quality = .82) {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(/* @__PURE__ */ new Error("Failed to read selected image."));
-		reader.onload = () => {
-			const src = String(reader.result || "");
-			if (typeof Image === "undefined" || typeof document === "undefined") {
-				resolve(src);
-				return;
-			}
-			const img = new Image();
-			img.onload = () => {
-				const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
-				const width = Math.max(1, Math.round((img.width || maxDimension) * scale));
-				const height = Math.max(1, Math.round((img.height || maxDimension) * scale));
-				const canvas = document.createElement("canvas");
-				canvas.width = width;
-				canvas.height = height;
-				const ctx = canvas.getContext("2d");
-				if (!ctx) {
-					resolve(src);
-					return;
-				}
-				ctx.drawImage(img, 0, 0, width, height);
-				resolve(canvas.toDataURL("image/jpeg", quality));
-			};
-			img.onerror = () => resolve(src);
-			img.src = src;
-		};
-		reader.readAsDataURL(file);
-	});
-}
-/**
-* Upload a profile or cover image to Firebase Storage (with resilient backend fallback)
-*/
-async function uploadUserImage(file, folder, onProgress) {
-	const user = auth.currentUser;
-	const maxDim = folder === "covers" ? 1200 : 512;
-	if (user) try {
-		const fileType = file.type || "image/jpeg";
-		const ext = fileType.includes("png") ? "png" : fileType.includes("webp") ? "webp" : "jpg";
-		const fileName = `${folder}_${user.uid}_${Date.now()}.${ext}`;
-		const storageRef = ref(storage, `users/${user.uid}/${folder}/${fileName}`);
-		const storageUrl = await new Promise((resolve, reject) => {
-			const timeoutId = setTimeout(() => reject(/* @__PURE__ */ new Error("Firebase Storage upload timed out")), 12e3);
-			const uploadTask = uploadBytesResumable(storageRef, file, {
-				contentType: fileType,
-				customMetadata: {
-					userId: user.uid,
-					uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
-				}
-			});
-			uploadTask.on("state_changed", (snapshot) => {
-				const progress = snapshot.totalBytes > 0 ? snapshot.bytesTransferred / snapshot.totalBytes * 100 : 25;
-				onProgress?.(Math.round(progress), snapshot);
-			}, (error) => {
-				clearTimeout(timeoutId);
-				reject(error);
-			}, async () => {
-				clearTimeout(timeoutId);
-				try {
-					resolve(await getDownloadURL(uploadTask.snapshot.ref));
-				} catch (urlErr) {
-					reject(urlErr);
-				}
-			});
-		});
-		if (storageUrl) return storageUrl;
-	} catch (storageErr) {
-		console.warn("[Firebase Storage] Falling back to backend media upload:", storageErr);
-	}
-	onProgress?.(45, {});
-	const dataUrl = await compressImageToDataUrl(file, maxDim, .78);
-	try {
-		const res = await apiFetch("/api/media/upload", {
-			method: "POST",
-			body: JSON.stringify({
-				dataUrl,
-				folder
-			})
-		});
-		if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
-			const data = await res.json();
-			if (data.url) {
-				onProgress?.(100, {});
-				return data.url;
-			}
-		}
-	} catch (apiErr) {
-		console.warn("[Media Upload] Backend fallback notice:", apiErr);
-	}
-	onProgress?.(100, {});
-	return dataUrl;
-}
-/**
-* Upload a short video to Firebase Storage
-*/
-async function uploadPostVideo(videoFile, onProgress) {
-	const user = auth.currentUser;
-	if (!user) throw new Error("Authentication required to upload videos.");
-	const fileType = videoFile.type || "video/mp4";
-	const ext = fileType.includes("webm") ? "webm" : "mp4";
-	const fileName = `video_${user.uid}_${Date.now()}.${ext}`;
-	const storageRef = ref(storage, `videos/${user.uid}/${fileName}`);
-	return new Promise((resolve, reject) => {
-		const uploadTask = uploadBytesResumable(storageRef, videoFile, {
-			contentType: fileType,
-			customMetadata: {
-				userId: user.uid,
-				uploadedAt: (/* @__PURE__ */ new Date()).toISOString()
-			}
-		});
-		uploadTask.on("state_changed", (snapshot) => {
-			const progress = snapshot.bytesTransferred / snapshot.totalBytes * 100;
-			onProgress?.(Math.round(progress), snapshot);
-		}, (error) => {
-			console.error("[Firebase Storage] Video upload error:", error);
-			reject(error);
-		}, async () => {
-			try {
-				resolve(await getDownloadURL(uploadTask.snapshot.ref));
-			} catch (urlErr) {
-				reject(urlErr);
-			}
-		});
-	});
-}
 // src/services/profileModuleService.ts
 var COUNTRY_OPTIONS = [
 	{
@@ -126626,7 +130897,7 @@ var BlockedUsersModal = ({ isOpen, onClose, blockedUsers, onUnblock }) => {
 	});
 };
 // src/components/screens/ProfileScreen.tsx
-var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUsers = [], blockedByUserIds = [], onBlockUser, onUnblockUser, onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, onOpenAdminPanel, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift }) => {
+var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUsers = [], blockedByUserIds = [], onBlockUser, onUnblockUser, onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, onOpenAdminPanel, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift, onOpenAccountSwitcher }) => {
 	const isOwner = !viewingUser || viewingUser.id === currentUser.id;
 	const activeUser = isOwner ? currentUser : viewingUser;
 	const [activeTab, setActiveTab] = (0, import_react.useState)("public");
@@ -127272,6 +131543,13 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUser
 													className: "absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-[9px] font-black text-white flex items-center justify-center border border-[#090611]",
 													children: blockedUsers.length > 99 ? "99+" : blockedUsers.length
 												})]
+											}),
+											isOwner && onOpenAccountSwitcher && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: onOpenAccountSwitcher,
+												"aria-label": "Switch Account",
+												title: "Switch Account",
+												className: "min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-[#fe2c55]/30 backdrop-blur-md border border-white/15 hover:border-[#fe2c55]/50 flex items-center justify-center text-white active:scale-95 transition-all",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRightLeft, { className: "w-4 h-4 text-[#25f4ee]" })
 											}),
 											isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 												onClick: () => onNavigate("settings"),
@@ -128074,21 +132352,85 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUser
 	});
 };
 // src/components/screens/SettingsScreen.tsx
-var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser }) => {
+var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
 	const [darkMode, setDarkMode] = (0, import_react.useState)(true);
+	const [showOnlineStatus, setShowOnlineStatus] = (0, import_react.useState)(true);
+	const [allowDirectMessages, setAllowDirectMessages] = (0, import_react.useState)("everyone");
 	const [cacheSize, setCacheSize] = (0, import_react.useState)("12.5MB");
 	const [language, setLanguage] = (0, import_react.useState)("English");
 	const [showLanguageModal, setShowLanguageModal] = (0, import_react.useState)(false);
+	const [showSecurityModal, setShowSecurityModal] = (0, import_react.useState)(false);
+	const [showPrivacyModal, setShowPrivacyModal] = (0, import_react.useState)(false);
+	const [showDeleteAccountModal, setShowDeleteAccountModal] = (0, import_react.useState)(false);
+	const [deleteReason, setDeleteReason] = (0, import_react.useState)("");
+	const [isDeletingAccount, setIsDeletingAccount] = (0, import_react.useState)(false);
+	const [isLinkingGoogle, setIsLinkingGoogle] = (0, import_react.useState)(false);
+	const [linkedProviders, setLinkedProviders] = (0, import_react.useState)(() => getLinkedAuthProviders());
 	const [isBlockedModalOpen, setIsBlockedModalOpen] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
+	const savedAccountsCount = getSavedDeviceAccounts().length;
+	(0, import_react.useEffect)(() => {
+		const uid = auth.currentUser?.uid || currentUser.id;
+		if (!uid || uid === "user_current_01") return;
+		loadUserSettingsFromFirestore(uid).then((settings) => {
+			setNotifications(settings.notificationsEnabled);
+			setDarkMode(settings.darkMode);
+			setLanguage(settings.language);
+			setShowOnlineStatus(settings.showOnlineStatus);
+			setAllowDirectMessages(settings.allowDirectMessages);
+		});
+		const unsub = subscribeUserSettings(uid, (settings) => {
+			setNotifications(settings.notificationsEnabled);
+			setDarkMode(settings.darkMode);
+			setLanguage(settings.language);
+			setShowOnlineStatus(settings.showOnlineStatus);
+			setAllowDirectMessages(settings.allowDirectMessages);
+		});
+		return () => unsub();
+	}, [currentUser.id]);
+	const persistSetting = (partial) => {
+		const uid = auth.currentUser?.uid;
+		if (uid) saveUserSettingsToFirestore(uid, partial).catch(() => {});
+	};
 	const showToast = (msg) => {
 		setToastMessage(msg);
-		setTimeout(() => setToastMessage(null), 2500);
+		setTimeout(() => setToastMessage(null), 2800);
 	};
 	const handleClearCache = () => {
 		setCacheSize("0.0MB");
 		showToast("App cache successfully cleared! 12.5MB freed.");
+	};
+	const handleLinkGoogle = async () => {
+		setIsLinkingGoogle(true);
+		try {
+			const updated = await linkGoogleAccount();
+			setLinkedProviders(updated);
+			showToast("Google sign-in linked to your permanent Lenzo account!");
+		} catch (err) {
+			showToast(err?.message || "Could not link Google account.");
+		} finally {
+			setIsLinkingGoogle(false);
+		}
+	};
+	const handleConfirmDeleteAccount = async () => {
+		if (isDeletingAccount) return;
+		setIsDeletingAccount(true);
+		try {
+			await submitAccountDeletionRequest(deleteReason || "User requested account deletion");
+			if (auth.currentUser) {
+				await auth.currentUser.delete();
+				showToast("Your account was permanently deleted.");
+				setShowDeleteAccountModal(false);
+				setTimeout(() => onLogout(), 1e3);
+			}
+		} catch (err) {
+			if (err?.code === "auth/requires-recent-login") showToast("Deletion request logged. For security, please log out and log in again to complete immediate deletion.");
+			else showToast(err?.message || "Deletion request logged. Please re-authenticate to finalize.");
+			setShowDeleteAccountModal(false);
+		} finally {
+			setIsDeletingAccount(false);
+		}
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "w-full pb-20 sm:pb-12 animate-fade-in select-none",
@@ -128096,7 +132438,7 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 			className: "max-w-2xl mx-auto px-3.5 sm:px-6 pt-3 space-y-4",
 			children: [
 				toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-bounce",
+					className: "fixed top-16 left-1/2 -translate-x-1/2 z-[140] bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 max-w-[90vw] text-center",
 					children: toastMessage
 				}),
 				showLanguageModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -128120,8 +132462,9 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 								].map((lang) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => {
 										setLanguage(lang);
+										persistSetting({ language: lang });
 										setShowLanguageModal(false);
-										showToast(`Language set to ${lang}`);
+										showToast(`Language saved to cloud: ${lang}`);
 									},
 									className: `w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors ${language === lang ? "bg-[#8B20FF] text-white" : "bg-[#211333] text-[#B9AECF] hover:text-white"}`,
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: lang }), language === lang && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4" })]
@@ -128131,6 +132474,210 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 								onClick: () => setShowLanguageModal(false),
 								className: "w-full py-2 rounded-xl bg-white/10 text-white text-xs font-bold",
 								children: "Close"
+							})
+						]
+					})
+				}),
+				showSecurityModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "bg-[#160C25] border border-white/15 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-base font-extrabold text-white flex items-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-5 h-5 text-[#8B20FF]" }), "Account Security & Identity"]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => setShowSecurityModal(false),
+								className: "w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-2.5 text-xs",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[10px] font-bold text-[#B9AECF] uppercase",
+										children: "Permanent Firebase UID"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-mono text-white truncate",
+											children: auth.currentUser?.uid || currentUser.id
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => {
+												navigator.clipboard?.writeText(auth.currentUser?.uid || currentUser.id).catch(() => {});
+												showToast("Permanent UID copied!");
+											},
+											className: "p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3.5 h-3.5" })
+										})]
+									})]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "grid grid-cols-2 gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[10px] text-[#B9AECF] block",
+											children: "Lenzo ID"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-mono font-bold text-white",
+											children: currentUser.displayId
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[10px] text-[#B9AECF] block",
+											children: "Firebase Project"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-mono font-bold text-emerald-300 truncate block",
+											children: FIREBASE_RUNTIME_INFO.projectId
+										})]
+									})]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[10px] font-bold text-[#B9AECF] uppercase block",
+											children: "Linked Sign-In Providers"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "flex flex-wrap gap-1.5",
+											children: linkedProviders.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[#B9AECF]",
+												children: "Session sign-in active"
+											}) : linkedProviders.map((p) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-[11px]",
+												children: p === "google.com" ? "Google Account" : p === "password" ? "Email & Password" : p
+											}, p))
+										}),
+										!linkedProviders.includes("google.com") && auth.currentUser && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											disabled: isLinkingGoogle,
+											onClick: () => void handleLinkGoogle(),
+											className: "mt-1 w-full py-2.5 rounded-xl bg-white text-black font-bold text-xs flex items-center justify-center gap-2 hover:bg-white/90 disabled:opacity-50",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Link2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isLinkingGoogle ? "Linking Google..." : "Link Google Sign-In to This UID" })]
+										})
+									]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[#B9AECF]",
+										children: "Firebase App Check"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: `font-bold text-[11px] ${FIREBASE_RUNTIME_INFO.appCheckEnabled ? "text-emerald-400" : "text-amber-300"}`,
+										children: FIREBASE_RUNTIME_INFO.appCheckEnabled ? "Active" : "Ready (Site Key Pending)"
+									})]
+								})
+							]
+						})]
+					})
+				}),
+				showPrivacyModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "bg-[#160C25] border border-white/15 rounded-3xl p-5 max-w-sm w-full space-y-4",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+									className: "text-base font-extrabold text-white flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-4 h-4 text-[#8B20FF]" }), "Privacy Settings"]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => setShowPrivacyModal(false),
+									className: "w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-bold text-white",
+									children: "Show Online Status"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[10px] text-[#B9AECF]",
+									children: "Allow others to see when you are active"
+								})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => {
+										const next = !showOnlineStatus;
+										setShowOnlineStatus(next);
+										persistSetting({ showOnlineStatus: next });
+										showToast("Privacy setting synced");
+									},
+									className: `w-11 h-6 rounded-full transition-colors relative p-0.5 ${showOnlineStatus ? "bg-[#8B20FF]" : "bg-[#211333]"}`,
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-5 h-5 rounded-full bg-white transition-transform ${showOnlineStatus ? "translate-x-5" : "translate-x-0"}` })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-bold text-white",
+									children: "Who can send direct messages"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "grid grid-cols-3 gap-1.5",
+									children: [
+										"everyone",
+										"followers",
+										"nobody"
+									].map((opt) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											setAllowDirectMessages(opt);
+											persistSetting({ allowDirectMessages: opt });
+											showToast(`Messages allowed from: ${opt}`);
+										},
+										className: `py-2 rounded-xl text-[11px] font-bold capitalize border transition-colors ${allowDirectMessages === opt ? "bg-[#8B20FF] border-[#F328D5] text-white" : "bg-white/[0.04] border-white/10 text-[#B9AECF]"}`,
+										children: opt
+									}, opt))
+								})]
+							})
+						]
+					})
+				}),
+				showDeleteAccountModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "bg-[#160C25] border border-rose-500/40 rounded-3xl p-5 max-w-sm w-full space-y-3.5 shadow-2xl",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TriangleAlert, { className: "w-6 h-6" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+								className: "text-base font-extrabold text-white text-center",
+								children: "Delete Account Permanently?"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] text-center leading-relaxed",
+								children: "This logs an official deletion request and permanently deletes your Firebase Auth credentials. This action cannot be undone."
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+								rows: 2,
+								placeholder: "Optional reason for leaving...",
+								value: deleteReason,
+								onChange: (e) => setDeleteReason(e.target.value),
+								maxLength: 250,
+								className: "w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder-[#B9AECF]/50 outline-none"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled: isDeletingAccount,
+									onClick: () => setShowDeleteAccountModal(false),
+									className: "flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold",
+									children: "Cancel"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled: isDeletingAccount,
+									onClick: () => void handleConfirmDeleteAccount(),
+									className: "flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold disabled:opacity-50",
+									children: isDeletingAccount ? "Deleting..." : "Delete Forever"
+								})]
 							})
 						]
 					})
@@ -128149,6 +132696,31 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "space-y-2 pt-2",
 					children: [
+						onOpenAccountSwitcher && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							onClick: onOpenAccountSwitcher,
+							className: "flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-[#fe2c55]/15 via-[#160C25] to-[#25f4ee]/10 hover:opacity-95 border border-[#fe2c55]/35 transition-all cursor-pointer group shadow-md",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-8 h-8 rounded-xl bg-gradient-to-tr from-[#fe2c55] to-[#8B20FF] text-white flex items-center justify-center shadow-sm",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRightLeft, { className: "w-4 h-4" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-sm font-black text-white flex items-center gap-1.5",
+									children: ["Switch Account", /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-[#25f4ee] font-mono",
+										children: [
+											savedAccountsCount,
+											"/",
+											5,
+											" SAVED"
+										]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#B9AECF] block",
+									children: "Manage up to 5 accounts on this device with isolated data"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#25f4ee] group-hover:translate-x-1 transition-transform" })]
+						}),
 						onOpenWallet && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							onClick: onOpenWallet,
 							className: "flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#F328D5]/15 to-[#8B20FF]/15 hover:opacity-95 border border-amber-400/40 transition-all cursor-pointer group shadow-md",
@@ -128190,14 +132762,20 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#FFC84A] group-hover:translate-x-1 transition-transform" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast("Two-factor authentication and mobile binding verified."),
+							onClick: () => {
+								setLinkedProviders(getLinkedAuthProviders());
+								setShowSecurityModal(true);
+							},
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-5 h-5 text-[#8B20FF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-sm font-semibold text-white",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Shield, { className: "w-5 h-5 text-[#8B20FF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-sm font-semibold text-white block",
 									children: "Account Security"
-								})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#B9AECF]",
+									children: "Permanent UID, Linked Providers & App Check"
+								})] })]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -128210,8 +132788,10 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => {
-									setNotifications(!notifications);
-									showToast(!notifications ? "Notifications enabled" : "Notifications paused");
+									const next = !notifications;
+									setNotifications(next);
+									persistSetting({ notificationsEnabled: next });
+									showToast(next ? "Notifications enabled (saved)" : "Notifications paused (saved)");
 								},
 								className: `w-11 h-6 rounded-full transition-colors relative p-0.5 ${notifications ? "bg-[#F328D5]" : "bg-[#211333]"}`,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-5 h-5 rounded-full bg-white transition-transform ${notifications ? "translate-x-5" : "translate-x-0"}` })
@@ -128244,15 +132824,17 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: () => {
-									setDarkMode(!darkMode);
-									showToast("Midnight dark theme is active for optimal OLED viewing");
+									const next = !darkMode;
+									setDarkMode(next);
+									persistSetting({ darkMode: next });
+									showToast("Theme preference synced to your account");
 								},
 								className: `w-11 h-6 rounded-full transition-colors relative p-0.5 ${darkMode ? "bg-[#8B20FF]" : "bg-[#211333]"}`,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-5 h-5 rounded-full bg-white transition-transform ${darkMode ? "translate-x-5" : "translate-x-0"}` })
 							})]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast("Stealth mode, stream visibility, and message permissions."),
+							onClick: () => setShowPrivacyModal(true),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
@@ -128289,7 +132871,7 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 							}
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast("Lenzo Party Live v1.0.0 (Android Production Build com.lenzoparty.app)"),
+							onClick: () => showToast(`Lenzo Party Live v1.0.0 (${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
@@ -128301,7 +132883,7 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 								className: "flex items-center gap-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-xs text-[#B9AECF]",
-									children: "v1.0.0 (Android)"
+									children: "v1.0.0 (Web & Android)"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 							})]
 						}),
@@ -128331,21 +132913,7 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 						className: "w-full py-3.5 rounded-2xl bg-[#211333] hover:bg-rose-950/40 border border-rose-500/30 hover:border-rose-500 text-rose-400 font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Log Out" })]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						onClick: async () => {
-							if (window.confirm("Are you sure you want to delete your Lenzo Party Live account? This action is permanent and cannot be undone.")) try {
-								const { auth } = await __vitePreload(async () => {
-									const { auth } = await Promise.resolve().then(() => firebase_exports);
-									return { auth };
-								}, void 0);
-								if (auth.currentUser) {
-									await auth.currentUser.delete();
-									showToast("Your account was permanently deleted.");
-									setTimeout(() => onLogout(), 1200);
-								}
-							} catch (e) {
-								showToast(e?.message || "Please log in again before deleting your account.");
-							}
-						},
+						onClick: () => setShowDeleteAccountModal(true),
 						className: "w-full py-2.5 rounded-xl bg-transparent hover:bg-rose-950/20 text-rose-500/70 hover:text-rose-400 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Delete Account" })]
 					})]
@@ -128355,32 +132923,100 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 	});
 };
 // src/components/screens/VideoFeedScreen.tsx
-var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUploadClick, onUpdateVideo, activeGiftCelebration }) => {
+function isPlayableVideoUrl(url) {
+	if (!url) return false;
+	const lower = url.toLowerCase();
+	if (lower.startsWith("blob:")) return true;
+	if (/\.(mp4|webm|mov|m4v|ogg|m3u8)(\?|$)/i.test(lower)) return true;
+	if (lower.includes("firebasestorage") && (lower.includes("video") || lower.includes("reels%2f"))) return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
+	return false;
+}
+function formatCompactCount(num) {
+	if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
+	if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+	return String(Math.max(0, num));
+}
+var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUploadClick, onUpdateVideo, onDeleteVideo, hasMoreVideos = false, isLoadingMore = false, onLoadMoreVideos, activeGiftCelebration }) => {
 	const [feedVideos, setFeedVideos] = (0, import_react.useState)(videos);
 	const [activeTab, setActiveTab] = (0, import_react.useState)("foryou");
 	const [activeVideoIndex, setActiveVideoIndex] = (0, import_react.useState)(0);
 	(0, import_react.useEffect)(() => {
-		setFeedVideos(videos);
-		setActiveVideoIndex(0);
+		setFeedVideos((prev) => {
+			const currentId = prev[activeVideoIndex]?.id;
+			if (currentId) {
+				const nextIdx = videos.findIndex((v) => v.id === currentId);
+				if (nextIdx >= 0 && nextIdx !== activeVideoIndex) setActiveVideoIndex(nextIdx);
+				else if (nextIdx === -1 && activeVideoIndex >= videos.length) setActiveVideoIndex(Math.max(0, videos.length - 1));
+			} else if (videos.length > 0) setActiveVideoIndex(0);
+			return videos;
+		});
 	}, [videos]);
 	const [isMuted, setIsMuted] = (0, import_react.useState)(false);
 	const [floatingHearts, setFloatingHearts] = (0, import_react.useState)([]);
 	const [showComments, setShowComments] = (0, import_react.useState)(false);
 	const [comments, setComments] = (0, import_react.useState)([]);
 	const [commentInput, setCommentInput] = (0, import_react.useState)("");
+	const [isPostingComment, setIsPostingComment] = (0, import_react.useState)(false);
+	const [showDeleteConfirm, setShowDeleteConfirm] = (0, import_react.useState)(false);
+	const [isDeleting, setIsDeleting] = (0, import_react.useState)(false);
+	const [showReportModal, setShowReportModal] = (0, import_react.useState)(false);
+	const [reportReason, setReportReason] = (0, import_react.useState)("Inappropriate content");
+	const [reportDetails, setReportDetails] = (0, import_react.useState)("");
+	const [isSubmittingReport, setIsSubmittingReport] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const lastTapRef = (0, import_react.useRef)(0);
+	const videoRef = (0, import_react.useRef)(null);
+	const touchStartY = (0, import_react.useRef)(null);
+	const viewedIdsRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
 	const currentVideo = feedVideos[activeVideoIndex] || feedVideos[0];
+	const isCurrentVideoPlayable = isPlayableVideoUrl(currentVideo?.videoUrl);
+	const isOwnVideo = Boolean(currentVideo && (currentVideo.creatorUid === currentUser.id || currentVideo.creator?.id === currentUser.id));
 	const [isPlaying, setIsPlaying] = (0, import_react.useState)(true);
 	const [playbackProgress, setPlaybackProgress] = (0, import_react.useState)(0);
 	const [isEndOfFeed, setIsEndOfFeed] = (0, import_react.useState)(false);
-	const touchStartY = (0, import_react.useRef)(null);
 	const showToast = (msg) => {
 		setToastMessage(msg);
-		setTimeout(() => setToastMessage(null), 2500);
+		setTimeout(() => setToastMessage(null), 2600);
 	};
 	(0, import_react.useEffect)(() => {
-		if (!currentVideo || !isPlaying || isEndOfFeed) return;
+		if (!currentVideo || isEndOfFeed) return;
+		if (!viewedIdsRef.current.has(currentVideo.id)) {
+			viewedIdsRef.current.add(currentVideo.id);
+			recordReelView(currentVideo.id, currentUser.id, currentVideo.sourceCollection);
+		}
+		setPlaybackProgress(0);
+		setIsPlaying(true);
+	}, [
+		currentVideo?.id,
+		currentUser.id,
+		isEndOfFeed
+	]);
+	(0, import_react.useEffect)(() => {
+		if (!showComments || !currentVideo) return;
+		const unsub = subscribeReelComments(currentVideo.id, (list) => {
+			setComments(list);
+		});
+		return () => unsub();
+	}, [showComments, currentVideo?.id]);
+	(0, import_react.useEffect)(() => {
+		const el = videoRef.current;
+		if (!el || !isCurrentVideoPlayable || isEndOfFeed) return;
+		el.muted = isMuted;
+		if (isPlaying) el.play().catch(() => {
+			el.muted = true;
+			setIsMuted(true);
+			el.play().catch(() => {});
+		});
+		else el.pause();
+	}, [
+		isPlaying,
+		isMuted,
+		currentVideo?.id,
+		isCurrentVideoPlayable,
+		isEndOfFeed
+	]);
+	(0, import_react.useEffect)(() => {
+		if (!currentVideo || !isPlaying || isEndOfFeed || isCurrentVideoPlayable) return;
 		setPlaybackProgress(0);
 		const progressInterval = setInterval(() => {
 			setPlaybackProgress((prev) => {
@@ -128401,7 +133037,8 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 		activeVideoIndex,
 		isPlaying,
 		isEndOfFeed,
-		feedVideos.length
+		feedVideos.length,
+		isCurrentVideoPlayable
 	]);
 	const triggerHeartAtCoord = (x, y) => {
 		const id = Date.now() + Math.random();
@@ -128414,20 +133051,20 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			setFloatingHearts((prev) => prev.filter((h) => h.id !== id));
 		}, 1800);
 	};
-	const handleDoubleTap = (e) => {
+	const handleVideoSurfaceTap = (e) => {
 		const now = Date.now();
-		if (now - lastTapRef.current < 350) {
+		if (now - lastTapRef.current < 320) {
 			const rect = e.currentTarget.getBoundingClientRect();
 			const x = (e.clientX - rect.left) / rect.width * 100;
 			const y = (e.clientY - rect.top) / rect.height * 100;
 			triggerHeartAtCoord(x, y);
-			if (!currentVideo.isLiked) toggleLike();
+			if (currentVideo && !currentVideo.isLiked) toggleLike();
 			lastTapRef.current = 0;
 		} else {
 			lastTapRef.current = now;
 			setTimeout(() => {
-				if (Date.now() - lastTapRef.current >= 340) setIsPlaying((p) => !p);
-			}, 350);
+				if (Date.now() - lastTapRef.current >= 310) setIsPlaying((p) => !p);
+			}, 320);
 		}
 	};
 	const handleTouchStart = (e) => {
@@ -128436,23 +133073,34 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 	const handleTouchEnd = (e) => {
 		if (touchStartY.current === null) return;
 		const diffY = touchStartY.current - e.changedTouches[0].clientY;
-		if (diffY > 40) handleScrollNext();
-		else if (diffY < -40) handleScrollPrev();
+		if (diffY > 45) handleScrollNext();
+		else if (diffY < -45) handleScrollPrev();
 		touchStartY.current = null;
 	};
-	const toggleLike = () => {
+	const toggleLike = async () => {
 		const v = currentVideo;
 		if (!v) return;
-		const isNowLiked = !v.isLiked;
-		const updatedCount = isNowLiked ? v.likesCount + 1 : Math.max(0, v.likesCount - 1);
-		const updatedVideo = {
+		const optimisticLiked = !v.isLiked;
+		const optimisticCount = optimisticLiked ? v.likesCount + 1 : Math.max(0, v.likesCount - 1);
+		const optimisticVideo = {
 			...v,
-			isLiked: isNowLiked,
-			likesCount: updatedCount
+			isLiked: optimisticLiked,
+			likesCount: optimisticCount
 		};
-		setFeedVideos((prev) => prev.map((item, i) => i === activeVideoIndex ? updatedVideo : item));
-		onUpdateVideo?.(updatedVideo);
-		showToast(isNowLiked ? "❤️ Liked video!" : "💔 Removed like");
+		setFeedVideos((prev) => prev.map((item) => item.id === v.id ? optimisticVideo : item));
+		onUpdateVideo?.(optimisticVideo);
+		try {
+			const result = await toggleReelLike(v, currentUser.id);
+			const syncedVideo = {
+				...v,
+				isLiked: result.liked,
+				likesCount: typeof result.likesCount === "number" ? result.likesCount : optimisticCount
+			};
+			setFeedVideos((prev) => prev.map((item) => item.id === v.id ? syncedVideo : item));
+			onUpdateVideo?.(syncedVideo);
+		} catch {
+			showToast("Could not sync like right now.");
+		}
 	};
 	const toggleRepost = () => {
 		const v = currentVideo;
@@ -128464,26 +133112,89 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			isReposted: isNowReposted,
 			repostsCount: updatedCount
 		};
-		setFeedVideos((prev) => prev.map((item, i) => i === activeVideoIndex ? updatedVideo : item));
+		setFeedVideos((prev) => prev.map((item) => item.id === v.id ? updatedVideo : item));
 		onUpdateVideo?.(updatedVideo);
-		showToast(isNowReposted ? "🔁 Video reposted to your profile!" : "Undo repost");
+		showToast(isNowReposted ? "Reel reposted!" : "Repost removed");
 	};
-	const handleAddComment = (e) => {
+	const handleShareReel = async () => {
+		if (!currentVideo) return;
+		const shareUrl = `${window.location.origin}/?reel=${currentVideo.id}`;
+		try {
+			if (navigator.share) await navigator.share({
+				title: `${currentVideo.creator.name} on Lenzo Party`,
+				text: currentVideo.description,
+				url: shareUrl
+			});
+			else if (navigator.clipboard) {
+				await navigator.clipboard.writeText(shareUrl);
+				showToast("Reel link copied to clipboard!");
+			}
+			await incrementReelShare(currentVideo.id, currentVideo.sourceCollection);
+			setFeedVideos((prev) => prev.map((item) => item.id === currentVideo.id ? {
+				...item,
+				sharesCount: (item.sharesCount || 0) + 1
+			} : item));
+		} catch {}
+	};
+	const handleAddComment = async (e) => {
 		if (e) e.preventDefault();
-		if (!commentInput.trim()) return;
-		setComments((prev) => [{
-			id: `c_${Date.now()}`,
-			user: currentUser.name,
-			avatar: currentUser.avatar,
-			text: commentInput.trim(),
-			time: "Just now",
-			likes: 0
-		}, ...prev]);
-		setCommentInput("");
-		setFeedVideos((prev) => prev.map((v, i) => i === activeVideoIndex ? {
-			...v,
-			commentsCount: v.commentsCount + 1
-		} : v));
+		if (!commentInput.trim() || !currentVideo || isPostingComment) return;
+		setIsPostingComment(true);
+		try {
+			await addReelComment({
+				reelId: currentVideo.id,
+				user: currentUser,
+				text: commentInput.trim(),
+				sourceCollection: currentVideo.sourceCollection
+			});
+			setCommentInput("");
+			setFeedVideos((prev) => prev.map((v) => v.id === currentVideo.id ? {
+				...v,
+				commentsCount: (v.commentsCount || 0) + 1
+			} : v));
+		} catch (err) {
+			showToast(err?.message || "Failed to post comment.");
+		} finally {
+			setIsPostingComment(false);
+		}
+	};
+	const handleConfirmDeleteReel = async () => {
+		if (!currentVideo || !isOwnVideo || isDeleting) return;
+		setIsDeleting(true);
+		try {
+			await deleteOwnReel(currentVideo);
+			const deletedId = currentVideo.id;
+			setFeedVideos((prev) => prev.filter((item) => item.id !== deletedId));
+			onDeleteVideo?.(deletedId);
+			setShowDeleteConfirm(false);
+			setActiveVideoIndex((idx) => Math.max(0, Math.min(idx, feedVideos.length - 2)));
+			showToast("Reel permanently deleted from Storage & Feed.");
+		} catch (err) {
+			showToast(err?.message || "Failed to delete reel.");
+		} finally {
+			setIsDeleting(false);
+		}
+	};
+	const handleSubmitReport = async (e) => {
+		e.preventDefault();
+		if (!currentVideo || isSubmittingReport) return;
+		setIsSubmittingReport(true);
+		try {
+			await submitContentReport({
+				targetType: "reel",
+				targetId: currentVideo.id,
+				targetOwnerUid: currentVideo.creatorUid || currentVideo.creator.id,
+				reason: reportReason,
+				details: reportDetails
+			});
+			setShowReportModal(false);
+			setReportDetails("");
+			showToast("Report submitted. Thank you for keeping Lenzo Party safe.");
+		} catch (err) {
+			showToast(err?.message || "Could not submit report.");
+		} finally {
+			setIsSubmittingReport(false);
+		}
 	};
 	const handleScrollNext = () => {
 		if (isEndOfFeed) {
@@ -128492,6 +133203,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			return;
 		}
 		if (activeVideoIndex < feedVideos.length - 1) setActiveVideoIndex(activeVideoIndex + 1);
+		else if (hasMoreVideos && onLoadMoreVideos) onLoadMoreVideos();
 		else setIsEndOfFeed(true);
 	};
 	const handleScrollPrev = () => {
@@ -128510,16 +133222,16 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
 				className: "text-lg font-extrabold text-white font-display",
-				children: "No Videos Yet"
+				children: "No Reels Yet"
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 				className: "text-xs text-[#B9AECF] mt-1 max-w-xs",
-				children: "Videos uploaded by creators will appear here in real time."
+				children: "Reels uploaded by creators to Firebase Storage appear here in real time."
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 				onClick: onUploadClick,
 				className: "mt-5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg active:scale-95 transition-transform flex items-center gap-1.5",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), "Upload Video"]
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), "Upload Reel"]
 			})
 		]
 	});
@@ -128528,28 +133240,6 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 		onTouchEnd: handleTouchEnd,
 		className: "relative w-full h-[calc(100vh-64px)] md:h-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col justify-between p-6 text-center",
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute inset-0 pointer-events-none",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-gradient-to-tr from-[#8B20FF]/25 via-[#F328D5]/20 to-transparent rounded-full blur-[100px]" }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "absolute top-1/4 left-1/5 text-amber-400 text-lg animate-ping",
-						children: "⭐"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "absolute top-1/3 right-1/4 text-pink-400 text-xl animate-pulse",
-						children: "✨"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "absolute bottom-1/3 left-1/4 text-cyan-400 text-sm animate-bounce",
-						children: "🌟"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "absolute bottom-1/4 right-1/5 text-purple-400 text-lg animate-pulse",
-						children: "⭐"
-					})
-				]
-			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "relative z-30 flex items-center justify-between pt-safe",
 				children: [
@@ -128574,49 +133264,38 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "relative z-20 flex flex-col items-center my-auto space-y-5 max-w-sm mx-auto",
 				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-tr from-[#3B82F6]/20 via-[#8B20FF]/30 to-[#F328D5]/20 border-2 border-[#8B20FF] p-4 flex flex-col items-center justify-center text-white shadow-[0_0_35px_rgba(139,32,255,0.45)] group",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "w-full h-4 rounded-t-lg bg-gradient-to-r from-white/30 via-white/70 to-white/30 flex justify-between px-1 items-center mb-2",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 bg-[#8B20FF] rounded-full" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 bg-[#F328D5] rounded-full" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 bg-[#3B82F6] rounded-full" })
-							]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "relative w-28 h-28 rounded-3xl bg-gradient-to-tr from-[#3B82F6]/20 via-[#8B20FF]/30 to-[#F328D5]/20 border-2 border-[#8B20FF] p-4 flex flex-col items-center justify-center text-white shadow-[0_0_35px_rgba(139,32,255,0.45)]",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-lg",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-6 h-6 fill-white ml-0.5" })
-						})]
+						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
 						className: "text-2xl font-black text-white font-display tracking-tight mb-2",
-						children: "Video Ended"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+						children: "You're All Caught Up"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 						className: "text-xs text-[#B9AECF] leading-relaxed",
-						children: [
-							"Swipe up for next video ",
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("br", {}),
-							"or check more videos"
-						]
+						children: "Load more reels or replay from the top."
 					})] }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: () => {
-							setIsEndOfFeed(false);
-							setActiveVideoIndex(0);
-						},
-						className: "w-full py-3 rounded-full bg-gradient-to-r from-[#8B20FF] via-[#a825e6] to-[#F328D5] hover:opacity-95 text-white font-extrabold text-sm shadow-lg shadow-[#8B20FF]/30 active:scale-95 transition-all",
-						children: "Explore More"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						onClick: () => {
-							setIsEndOfFeed(false);
-							setActiveVideoIndex(0);
-						},
-						className: "flex flex-col items-center cursor-pointer text-white/60 hover:text-white pt-2 animate-bounce",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-xl",
-							children: "˄"
-						})
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "w-full space-y-2.5",
+						children: [hasMoreVideos && onLoadMoreVideos && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: () => {
+								setIsEndOfFeed(false);
+								onLoadMoreVideos();
+							},
+							disabled: isLoadingMore,
+							className: "w-full py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-extrabold text-sm flex items-center justify-center gap-2",
+							children: [isLoadingMore && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "w-4 h-4 animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Load More Reels" })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: () => {
+								setIsEndOfFeed(false);
+								setActiveVideoIndex(0);
+							},
+							className: "w-full py-3 rounded-full bg-gradient-to-r from-[#8B20FF] via-[#a825e6] to-[#F328D5] hover:opacity-95 text-white font-extrabold text-sm shadow-lg shadow-[#8B20FF]/30 active:scale-95 transition-all",
+							children: "Replay Feed"
+						})]
 					})
 				]
 			}),
@@ -128629,7 +133308,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 		className: "relative w-full h-[calc(100vh-64px)] md:h-screen bg-black overflow-hidden select-none animate-fade-in flex flex-col justify-between",
 		children: [
 			toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none",
+				className: "absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none whitespace-nowrap",
 				children: toastMessage
 			}),
 			activeGiftCelebration && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -128656,7 +133335,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 							children: [
 								"+",
 								activeGiftCelebration.gift.coins * activeGiftCelebration.quantity,
-								" Coins Gift Support 💖"
+								" Coins Gift Support"
 							]
 						})]
 					})]
@@ -128669,7 +133348,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 						onClick: handleScrollPrev,
 						disabled: activeVideoIndex === 0,
 						className: `w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-opacity ${activeVideoIndex === 0 ? "opacity-30 cursor-not-allowed" : "hover:bg-black/60"}`,
-						title: "Previous Video",
+						title: "Previous Reel",
 						children: "‹"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -128684,29 +133363,49 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 							children: "Following"
 						})]
 					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: () => showToast("Search videos and creators..."),
-						className: "w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-colors",
-						title: "Search Videos",
-						children: "🔍"
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-1.5",
+						children: [isCurrentVideoPlayable && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: () => setIsMuted((m) => !m),
+							className: "w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-colors",
+							title: isMuted ? "Unmute" : "Mute",
+							children: isMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: onUploadClick,
+							className: "w-9 h-9 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-md active:scale-95 transition-transform",
+							title: "Upload Reel",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4 stroke-[3]" })
+						})]
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				onDoubleClick: handleDoubleTap,
-				onClick: handleDoubleTap,
-				className: "relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer",
+				onClick: handleVideoSurfaceTap,
+				className: "relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer bg-black",
 				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					isCurrentVideoPlayable ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("video", {
+						ref: videoRef,
 						src: currentVideo.videoUrl,
+						poster: currentVideo.thumbnailUrl && currentVideo.thumbnailUrl !== currentVideo.videoUrl ? currentVideo.thumbnailUrl : void 0,
+						autoPlay: true,
+						loop: true,
+						playsInline: true,
+						muted: isMuted,
+						onTimeUpdate: (e) => {
+							const el = e.currentTarget;
+							if (el.duration && Number.isFinite(el.duration) && el.duration > 0) setPlaybackProgress(Math.min(100, el.currentTime / el.duration * 100));
+						},
+						className: "w-full h-full object-cover"
+					}, currentVideo.id) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+						src: currentVideo.thumbnailUrl || currentVideo.videoUrl,
 						alt: currentVideo.description,
 						className: "w-full h-full object-cover filter brightness-95"
 					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/85 pointer-events-none" }),
 					!isPlaying && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "absolute inset-0 flex items-center justify-center pointer-events-none z-20",
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/20 animate-scale-in",
+							className: "w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/20",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-8 h-8 fill-white ml-1" })
 						})
 					}),
@@ -128726,7 +133425,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 								handleScrollPrev();
 							},
 							disabled: activeVideoIndex === 0,
-							className: "w-10 h-10 rounded-full bg-black/60 border border-white/15 flex items-center justify-center text-white hover:bg-[#8B20FF]",
+							className: "w-10 h-10 rounded-full bg-black/60 border border-white/15 flex items-center justify-center text-white hover:bg-[#8B20FF] disabled:opacity-35",
 							children: "▲"
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: (e) => {
@@ -128740,88 +133439,106 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute right-3.5 bottom-24 sm:bottom-28 z-30 flex flex-col items-center gap-4 pointer-events-auto",
+				className: "absolute right-3.5 bottom-24 sm:bottom-28 z-30 flex flex-col items-center gap-3.5 pointer-events-auto",
 				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "relative mb-1",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							onClick: () => onSelectUser(currentVideo.creator),
 							className: "cursor-pointer hover:scale-105 transition-transform",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
 								avatar: currentVideo.creator.avatar,
 								name: currentVideo.creator.name,
-								level: currentVideo.creator.level || 12,
+								level: currentVideo.creator.level || 0,
 								size: "md"
 							})
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: () => showToast(`Followed ${currentVideo.creator.name}!`),
-							className: "absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-[#F328D5] to-[#8B20FF] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform",
-							title: "Follow Creator",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 stroke-[3]" })
-						})]
+						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						onClick: toggleLike,
+						onClick: () => void toggleLike(),
 						className: "flex flex-col items-center group active:scale-75 transition-transform",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: `w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${currentVideo.isLiked ? "text-rose-500" : "text-white"}`,
+							className: `w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center transition-colors ${currentVideo.isLiked ? "text-rose-500" : "text-white"}`,
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: `w-6 h-6 ${currentVideo.isLiked ? "fill-rose-500 stroke-rose-500" : "stroke-[2]"}` })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-[11px] font-bold text-white mt-1 shadow-sm font-mono",
-							children: [(currentVideo.likesCount / 1e3).toFixed(1), "K"]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[11px] font-bold text-white mt-1 font-mono",
+							children: formatCompactCount(currentVideo.likesCount)
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						onClick: () => setShowComments(true),
 						className: "flex flex-col items-center group active:scale-75 transition-transform",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white",
+							className: "w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center text-white",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-6 h-6 stroke-[2]" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-[11px] font-bold text-white mt-1 shadow-sm font-mono",
-							children: [(currentVideo.commentsCount / 1e3).toFixed(1), "K"]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[11px] font-bold text-white mt-1 font-mono",
+							children: formatCompactCount(currentVideo.commentsCount)
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						onClick: toggleRepost,
 						className: "flex flex-col items-center group active:scale-75 transition-transform",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: `w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${currentVideo.isReposted ? "text-[#06B6D4]" : "text-white"}`,
+							className: `w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center transition-colors ${currentVideo.isReposted ? "text-[#06B6D4]" : "text-white"}`,
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Repeat2, { className: "w-6 h-6 stroke-[2]" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-[11px] font-bold text-white mt-1 shadow-sm font-mono",
-							children: [(currentVideo.repostsCount / 1e3).toFixed(1), "K"]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[11px] font-bold text-white mt-1 font-mono",
+							children: formatCompactCount(currentVideo.repostsCount)
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						onClick: () => onOpenGiftShop(currentVideo.creator),
 						className: "flex flex-col items-center group active:scale-75 transition-transform",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-11 h-11 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/40 animate-pulse",
+							className: "w-11 h-11 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/40",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-5 h-5 stroke-[2.2]" })
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-[11px] font-bold text-[#FFC84A] mt-1 shadow-sm",
+							className: "text-[11px] font-bold text-[#FFC84A] mt-1",
 							children: "Gift"
 						})]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						onClick: () => showToast("Video link copied to clipboard!"),
+						onClick: () => void handleShareReel(),
 						className: "flex flex-col items-center group active:scale-75 transition-transform",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white",
+							className: "w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center text-white",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Share2, { className: "w-5 h-5 stroke-[2]" })
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-[11px] font-bold text-white mt-1 shadow-sm",
-							children: "Share"
+							className: "text-[11px] font-bold text-white mt-1 font-mono",
+							children: formatCompactCount(currentVideo.sharesCount || 0)
+						})]
+					}),
+					isOwnVideo ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: () => setShowDeleteConfirm(true),
+						className: "flex flex-col items-center group active:scale-75 transition-transform",
+						title: "Delete Your Reel",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-full bg-rose-600/35 hover:bg-rose-600/60 backdrop-blur-md border border-rose-400/40 flex items-center justify-center text-rose-200",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] font-bold text-rose-300 mt-1",
+							children: "Delete"
+						})]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: () => setShowReportModal(true),
+						className: "flex flex-col items-center group active:scale-75 transition-transform",
+						title: "Report Reel",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-10 h-10 rounded-full bg-black/45 hover:bg-amber-500/25 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/75 hover:text-amber-300",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flag, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] font-bold text-white/70 mt-1",
+							children: "Report"
 						})]
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "relative z-30 p-4 pb-6 max-w-lg pointer-events-auto",
+				className: "relative z-30 p-4 pb-6 pr-20 max-w-lg pointer-events-auto",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2 mb-2",
+						className: "flex items-center gap-2 mb-2 flex-wrap",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								onClick: () => onSelectUser(currentVideo.creator),
@@ -128832,15 +133549,14 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 								className: "text-xs text-[#B9AECF] font-mono",
 								children: currentVideo.creator.username
 							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => showToast(`Followed ${currentVideo.creator.name}!`),
-								className: "px-3 py-0.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-bold shadow",
-								children: "Follow"
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "inline-flex items-center gap-1 text-[10px] text-white/70 bg-black/40 px-2 py-0.5 rounded-full border border-white/10",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3 h-3" }), formatCompactCount(currentVideo.viewsCount || 0)]
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-						className: "text-xs text-white/90 line-clamp-2 leading-relaxed mb-2 drop-shadow",
+						className: "text-xs text-white/95 line-clamp-2 leading-relaxed mb-2 drop-shadow",
 						children: currentVideo.description
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -128851,10 +133567,18 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 						}, tag))
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2 text-xs text-white/80",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music, { className: "w-3.5 h-3.5 text-[#F328D5] animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-[11px] font-mono truncate max-w-xs",
-							children: currentVideo.musicTitle
+						className: "flex items-center justify-between gap-2 text-xs text-white/80",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music, { className: "w-3.5 h-3.5 text-[#F328D5] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] font-mono truncate",
+								children: currentVideo.musicTitle
+							})]
+						}), hasMoreVideos && onLoadMoreVideos && activeVideoIndex >= feedVideos.length - 2 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							onClick: onLoadMoreVideos,
+							disabled: isLoadingMore,
+							className: "shrink-0 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-[10px] font-bold text-white",
+							children: isLoadingMore ? "Loading..." : "Load More"
 						})]
 					})
 				]
@@ -128862,7 +133586,7 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "absolute bottom-0 left-0 right-0 z-30 h-1 bg-white/20",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] transition-all duration-200 shadow-[0_0_8px_#F328D5]",
+					className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] transition-all duration-150 shadow-[0_0_8px_#F328D5]",
 					style: { width: `${playbackProgress}%` }
 				})
 			}),
@@ -128888,54 +133612,141 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "flex-1 overflow-y-auto space-y-3 py-3 pr-1 no-scrollbar",
-							children: comments.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							children: comments.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "h-full flex flex-col items-center justify-center text-center text-xs text-[#B9AECF]",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { children: "No comments yet. Be the first to share a thought!" })
+							}) : comments.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-start gap-3 text-xs",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-										src: c.avatar,
-										alt: c.user,
-										className: "w-8 h-8 rounded-full object-cover shrink-0"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex-1",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "font-bold text-white",
-												children: c.user
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-[10px] text-[#B9AECF]",
-												children: c.time
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-white/90 mt-0.5",
-											children: c.text
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: c.user.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+									alt: c.user.name,
+									className: "w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex-1 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-bold text-white truncate",
+											children: c.user.name
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[10px] text-[#B9AECF]",
+											children: c.timestamp
 										})]
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										className: "flex flex-col items-center text-[#B9AECF] hover:text-rose-400",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[9px]",
-											children: c.likes
-										})]
-									})
-								]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-white/90 mt-0.5 break-words",
+										children: c.text
+									})]
+								})]
 							}, c.id))
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
-							onSubmit: handleAddComment,
+							onSubmit: (e) => void handleAddComment(e),
 							className: "flex items-center gap-2 pt-2 border-t border-white/[0.08]",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 								type: "text",
 								placeholder: "Add a comment...",
 								value: commentInput,
 								onChange: (e) => setCommentInput(e.target.value),
+								maxLength: 400,
 								className: "flex-1 bg-black/50 border border-white/15 rounded-full px-4 py-2 text-xs text-white placeholder-[#B9AECF] outline-none focus:border-[#F328D5]"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								type: "submit",
-								disabled: !commentInput.trim(),
+								disabled: !commentInput.trim() || isPostingComment,
 								className: "px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold disabled:opacity-40",
-								children: "Post"
+								children: isPostingComment ? "..." : "Post"
+							})]
+						})
+					]
+				})
+			}),
+			showDeleteConfirm && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full max-w-xs bg-[#160C25] border border-rose-500/35 rounded-3xl p-5 text-center space-y-3.5 shadow-2xl",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-5 h-5" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+							className: "text-base font-extrabold text-white",
+							children: "Delete This Reel?"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-[#B9AECF] leading-relaxed",
+							children: "This will permanently remove the video and thumbnail from Firebase Storage and Firestore."
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex gap-2 pt-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isDeleting,
+								onClick: () => setShowDeleteConfirm(false),
+								className: "flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold",
+								children: "Cancel"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isDeleting,
+								onClick: () => void handleConfirmDeleteReel(),
+								className: "flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold disabled:opacity-50",
+								children: isDeleting ? "Deleting..." : "Delete"
+							})]
+						})
+					]
+				})
+			}),
+			showReportModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+					onSubmit: (e) => void handleSubmitReport(e),
+					className: "w-full max-w-sm bg-[#160C25] border border-white/15 rounded-3xl p-5 space-y-3.5 shadow-2xl",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", {
+								className: "text-base font-extrabold text-white flex items-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flag, { className: "w-4 h-4 text-amber-400" }), "Report Reel"]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => setShowReportModal(false),
+								className: "text-white/60 hover:text-white",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-1.5",
+							children: [
+								"Inappropriate content",
+								"Spam or scam",
+								"Harassment or hate speech",
+								"Copyright violation"
+							].map((reason) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => setReportReason(reason),
+								className: `w-full text-left px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${reportReason === reason ? "bg-[#8B20FF]/30 border-[#F328D5] text-white" : "bg-white/[0.04] border-white/10 text-[#B9AECF]"}`,
+								children: reason
+							}, reason))
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+							rows: 2,
+							placeholder: "Optional details...",
+							value: reportDetails,
+							onChange: (e) => setReportDetails(e.target.value),
+							maxLength: 300,
+							className: "w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder-[#B9AECF]/50 outline-none"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => setShowReportModal(false),
+								className: "flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold",
+								children: "Cancel"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "submit",
+								disabled: isSubmittingReport,
+								className: "flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold disabled:opacity-50",
+								children: isSubmittingReport ? "Submitting..." : "Submit Report"
 							})]
 						})
 					]
@@ -128945,9 +133756,10 @@ var VideoFeedScreen = ({ videos, currentUser, onOpenGiftShop, onSelectUser, onUp
 	});
 };
 // src/components/screens/UploadVideoScreen.tsx
+var MAX_REEL_FILE_BYTES = 104857600;
 var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, onUploadSuccess }) => {
 	const [selectedFile, setSelectedFile] = (0, import_react.useState)(initialFile || null);
-	const [previewUrl, setPreviewUrl] = (0, import_react.useState)(initialVideoUrl || "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&auto=format&fit=crop&q=80");
+	const [previewUrl, setPreviewUrl] = (0, import_react.useState)(initialVideoUrl || "");
 	const [caption, setCaption] = (0, import_react.useState)("");
 	const [hashtags, setHashtags] = (0, import_react.useState)([
 		"#party",
@@ -128958,6 +133770,7 @@ var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, o
 	const [privacy, setPrivacy] = (0, import_react.useState)("public");
 	const [isUploading, setIsUploading] = (0, import_react.useState)(false);
 	const [uploadProgress, setUploadProgress] = (0, import_react.useState)(0);
+	const [uploadStage, setUploadStage] = (0, import_react.useState)("Preparing upload...");
 	const [errorMessage, setErrorMessage] = (0, import_react.useState)(null);
 	const [isMuted, setIsMuted] = (0, import_react.useState)(false);
 	const videoPlayerRef = (0, import_react.useRef)(null);
@@ -128967,8 +133780,18 @@ var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, o
 		if (initialFile) setSelectedFile(initialFile);
 	}, [initialVideoUrl, initialFile]);
 	const handleFileChange = (e) => {
+		setErrorMessage(null);
 		if (e.target.files && e.target.files[0]) {
 			const file = e.target.files[0];
+			const mime = (file.type || "").toLowerCase();
+			if (mime && !mime.startsWith("video/")) {
+				setErrorMessage("Please select a valid video file (MP4, WebM, or MOV).");
+				return;
+			}
+			if (file.size > MAX_REEL_FILE_BYTES) {
+				setErrorMessage("Video is larger than 100 MB. Please select a smaller clip.");
+				return;
+			}
 			setSelectedFile(file);
 			const url = URL.createObjectURL(file);
 			setPreviewUrl(url);
@@ -128986,66 +133809,63 @@ var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, o
 	};
 	const handleSubmit = async (e) => {
 		e.preventDefault();
-		if (!caption.trim()) {
-			setErrorMessage("Please enter a caption for your video.");
+		setErrorMessage(null);
+		if (!selectedFile) {
+			setErrorMessage("Please select a video file to upload to Lenzo Reels.");
+			fileInputRef.current?.click();
 			return;
 		}
+		if (!caption.trim()) {
+			setErrorMessage("Please enter a caption for your reel.");
+			return;
+		}
+		setIsUploading(true);
+		setUploadProgress(5);
+		setUploadStage("Uploading video & generating thumbnail...");
 		try {
-			let finalVideoUrl = previewUrl;
-			if (selectedFile) {
-				setUploadProgress(10);
-				finalVideoUrl = await uploadPostVideo(selectedFile, (pct) => {
-					setUploadProgress(Math.max(10, Math.round(pct)));
-				});
-			} else setUploadProgress(75);
-			const fullDescription = `${caption.trim()} ${hashtags.join(" ")}`;
-			const isPrivate = privacy === "private";
-			let realDocId = `vid_${Date.now()}`;
-			try {
-				realDocId = await createFirestoreVideo({
-					videoUrl: finalVideoUrl,
-					thumbnailUrl: finalVideoUrl,
-					description: fullDescription,
-					musicTitle: `${currentUser.name} - Original Sound 🎵`,
-					isPrivate
-				});
-			} catch (firestoreErr) {
-				console.warn("[Firestore] Post document fallback notice:", firestoreErr);
-			}
-			setUploadProgress(100);
-			const newVideoObj = {
-				id: realDocId,
+			const reelId = generateReelId();
+			const uploaded = await uploadReelVideoAndThumbnail({
+				reelId,
+				videoFile: selectedFile,
+				onProgress: (pct) => {
+					setUploadProgress(Math.max(5, Math.min(92, Math.round(pct))));
+					if (pct >= 88) setUploadStage("Saving thumbnail & publishing to feed...");
+				}
+			});
+			setUploadProgress(96);
+			setUploadStage("Saving reel metadata to Firestore...");
+			const createdReel = await createReelDocument({
+				reelId,
 				creator: currentUser,
-				videoUrl: finalVideoUrl,
-				thumbnailUrl: finalVideoUrl,
-				description: fullDescription,
-				musicTitle: `${currentUser.name} - Original Sound 🎵`,
+				videoUrl: uploaded.videoUrl,
+				videoStoragePath: uploaded.videoStoragePath,
+				thumbnailUrl: uploaded.thumbnailUrl,
+				thumbnailStoragePath: uploaded.thumbnailStoragePath,
+				caption: caption.trim(),
 				hashtags,
-				likesCount: 0,
-				commentsCount: 0,
-				sharesCount: 0,
-				repostsCount: 0,
-				isLiked: false,
-				isReposted: false,
-				createdAt: "Just now",
-				privacy
-			};
+				visibility: privacy,
+				musicTitle: `${currentUser.name} - Original Sound`
+			});
+			setUploadProgress(100);
+			setUploadStage("Published!");
 			setTimeout(() => {
 				setIsUploading(false);
-				onUploadSuccess(newVideoObj);
-			}, 350);
+				onUploadSuccess(createdReel);
+			}, 300);
 		} catch (err) {
+			console.error("[Reel Upload Error]:", err);
 			setIsUploading(false);
-			setErrorMessage(err.message || "Failed to upload video");
+			setUploadProgress(0);
+			setErrorMessage(err?.message || "Failed to upload reel. Please check your connection and try again.");
 		}
 	};
-	const isBlobOrVideoUrl = previewUrl.startsWith("blob:") || previewUrl.endsWith(".mp4") || previewUrl.endsWith(".webm");
+	const isBlobOrVideoUrl = Boolean(previewUrl) && (previewUrl.startsWith("blob:") || previewUrl.endsWith(".mp4") || previewUrl.endsWith(".webm") || previewUrl.endsWith(".mov") || previewUrl.includes("firebasestorage"));
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "min-h-screen w-full bg-[#080413] text-white flex flex-col justify-between p-4 sm:p-6 select-none animate-fade-in font-sans",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 			ref: fileInputRef,
 			type: "file",
-			accept: "video/*",
+			accept: "video/mp4,video/webm,video/quicktime,video/*",
 			onChange: handleFileChange,
 			className: "hidden"
 		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -129095,19 +133915,24 @@ var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, o
 							muted: isMuted,
 							controls: true,
 							className: "w-full h-full object-contain bg-black"
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "relative w-full h-full",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-								src: previewUrl,
-								alt: "Video thumbnail",
-								className: "w-full h-full object-cover filter brightness-90"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "absolute inset-0 bg-black/40 flex items-center justify-center",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-14 h-14 rounded-full bg-[#FA26A0]/80 backdrop-blur-md flex items-center justify-center text-white shadow-xl shadow-pink-900/40",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-6 h-6 fill-white ml-0.5" })
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => fileInputRef.current?.click(),
+							className: "w-full h-full flex flex-col items-center justify-center gap-2.5 bg-[#140D20] hover:bg-[#1b122b] transition-colors px-6 text-center",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-14 h-14 rounded-full bg-[#FA26A0]/20 border border-[#FA26A0]/40 flex items-center justify-center text-[#FA26A0]",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Video, { className: "w-6 h-6" })
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-sm font-bold text-white",
+									children: "Tap to Select Reel Video"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] text-[#9E97AA]",
+									children: "MP4, WebM, or MOV · Max 100 MB"
 								})
-							})]
+							]
 						})
 					})]
 				}),
@@ -129199,7 +134024,7 @@ var UploadVideoScreen = ({ currentUser, initialVideoUrl, initialFile, onClose, o
 								className: "space-y-1.5 animate-fade-in",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-center justify-between text-xs text-[#FA26A0] font-bold",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Uploading video to Lenzo Party Live..." }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: uploadStage }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 										className: "font-mono",
 										children: [uploadProgress, "%"]
 									})]
@@ -135286,6 +140111,203 @@ var NotificationsModal = ({ isOpen, onClose, onMarkAllRead }) => {
 		})
 	});
 };
+// src/components/profile/AccountSwitcherModal.tsx
+var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onAddAccount }) => {
+	const [accounts, setAccounts] = (0, import_react.useState)([]);
+	const [confirmRemoveUid, setConfirmRemoveUid] = (0, import_react.useState)(null);
+	const [switchingUid, setSwitchingUid] = (0, import_react.useState)(null);
+	(0, import_react.useEffect)(() => {
+		if (isOpen) {
+			setAccounts(getSavedDeviceAccounts());
+			setConfirmRemoveUid(null);
+			setSwitchingUid(null);
+		}
+	}, [isOpen, currentUser.id]);
+	if (!isOpen) return null;
+	const isAtLimit = accounts.length >= 5;
+	const handleRemoveFromDevice = (uid) => {
+		const updated = removeAccountFromDevice(uid);
+		setAccounts(updated);
+		setConfirmRemoveUid(null);
+	};
+	const handleSwitch = (account) => {
+		if (account.uid === currentUser.id) return;
+		setSwitchingUid(account.uid);
+		onSwitchAccount(account);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "w-full max-w-md bg-[#12121a] border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-5 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-[#fe2c55]/15 via-[#161623] to-[#25f4ee]/10",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-9 h-9 rounded-2xl bg-gradient-to-br from-[#fe2c55] to-[#7c3aed] flex items-center justify-center shadow-lg shadow-[#fe2c55]/25",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRightLeft, { className: "w-4 h-4 text-white" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							className: "text-base font-black text-white tracking-tight",
+							children: "Switch Account"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							className: "text-[11px] text-white/55 font-medium",
+							children: [
+								accounts.length,
+								" / ",
+								5,
+								" Saved Accounts on This Device"
+							]
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						onClick: onClose,
+						className: "w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-white/75 transition-colors",
+						"aria-label": "Close Account Switcher",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "px-5 pt-3 pb-1",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-emerald-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[11px] text-emerald-200/85 leading-relaxed",
+							children: "Every account keeps its permanent Firebase UID, coins, VIP tier, level, and inventory isolated and preserved. Passwords are never stored on device."
+						})]
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex-1 overflow-y-auto px-5 py-3 space-y-2.5",
+					children: accounts.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-10 text-center space-y-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-sm font-bold text-white/75",
+							children: "No saved accounts yet"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-white/45",
+							children: "Sign in with up to 5 Lenzo Party accounts to switch seamlessly."
+						})]
+					}) : accounts.map((account) => {
+						const isActive = account.uid === currentUser.id;
+						const isConfirmingRemove = confirmRemoveUid === account.uid;
+						const isBusy = switchingUid === account.uid;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: `rounded-2xl p-3.5 border transition-all ${isActive ? "bg-gradient-to-r from-[#fe2c55]/15 via-white/[0.05] to-[#25f4ee]/10 border-[#fe2c55]/40" : "bg-white/[0.03] border-white/10 hover:bg-white/[0.06]"}`,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative shrink-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+											src: account.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
+											alt: account.name,
+											className: "w-12 h-12 rounded-full object-cover border-2 border-white/15"
+										}), isActive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#12121a] flex items-center justify-center",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3 h-3 text-white" })
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex-1 min-w-0",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 flex-wrap",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-sm font-bold text-white truncate",
+													children: account.name
+												}), isActive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-black uppercase tracking-wider",
+													children: "Active"
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs text-white/65 truncate",
+												children: account.username
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-2 mt-1 flex-wrap",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-[10px] text-white/45 truncate max-w-[165px]",
+														children: account.email
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-white/75 flex items-center gap-1",
+														children: account.authProvider === "google" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-2.5 h-2.5 text-[#25f4ee]" }), " Google"] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-2.5 h-2.5 text-[#fe2c55]" }), " Email"] })
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+														className: "text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-200",
+														children: ["Lv.", account.level]
+													})
+												]
+											})
+										]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5 shrink-0",
+										children: [!isActive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => handleSwitch(account),
+											disabled: Boolean(switchingUid),
+											className: "px-3 py-1.5 rounded-xl bg-[#fe2c55] hover:bg-[#e5254b] text-white text-xs font-black transition-all active:scale-95 disabled:opacity-50",
+											children: isBusy ? "Switching..." : "Switch"
+										}), !isActive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setConfirmRemoveUid(isConfirmingRemove ? null : account.uid),
+											className: "w-8 h-8 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-400 flex items-center justify-center transition-colors",
+											title: "Remove from device",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3.5 h-3.5" })
+										})]
+									})
+								]
+							}), isConfirmingRemove && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-3 pt-3 border-t border-white/10 flex items-center justify-between gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[11px] text-white/65 leading-snug",
+									children: "Remove from this device only? Your Firebase account & data stay completely safe."
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-1.5 shrink-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => setConfirmRemoveUid(null),
+										className: "px-2.5 py-1 rounded-lg bg-white/10 text-white/75 text-[11px] font-semibold",
+										children: "Cancel"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => handleRemoveFromDevice(account.uid),
+										className: "px-2.5 py-1 rounded-lg bg-red-500 text-white text-[11px] font-bold",
+										children: "Remove"
+									})]
+								})]
+							})]
+						}, account.uid);
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "p-5 border-t border-white/10 bg-[#0d0d14] space-y-2.5",
+					children: isAtLimit ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-4 h-4 text-amber-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							className: "text-xs text-amber-200 leading-relaxed",
+							children: [
+								"Maximum ",
+								5,
+								" accounts saved on this device. Remove an inactive account above to add another."
+							]
+						})]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						onClick: onAddAccount,
+						className: "w-full py-3.5 rounded-2xl bg-white text-black hover:bg-white/90 font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }),
+							"Add Account (",
+							accounts.length,
+							"/",
+							5,
+							")"
+						]
+					})
+				})
+			]
+		})
+	});
+};
 // src/App.tsx
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
@@ -135318,9 +140340,19 @@ function App() {
 	const [levelUpData, setLevelUpData] = (0, import_react.useState)(null);
 	const [isSearchOpen, setIsSearchOpen] = (0, import_react.useState)(false);
 	const [isNotificationsOpen, setIsNotificationsOpen] = (0, import_react.useState)(false);
+	const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = (0, import_react.useState)(false);
+	const [authScreenMode, setAuthScreenMode] = (0, import_react.useState)("login");
+	const [authPrefillEmail, setAuthPrefillEmail] = (0, import_react.useState)(void 0);
 	const [viewingProfileUser, setViewingProfileUser] = (0, import_react.useState)(null);
 	const [navigatingProfileUser, setNavigatingProfileUser] = (0, import_react.useState)(null);
 	const [activeChatUser, setActiveChatUser] = (0, import_react.useState)(null);
+	const [firestoreReels, setFirestoreReels] = (0, import_react.useState)([]);
+	const [legacyPostVideos, setLegacyPostVideos] = (0, import_react.useState)([]);
+	const [extraPagedReels, setExtraPagedReels] = (0, import_react.useState)([]);
+	const [reelsLastDoc, setReelsLastDoc] = (0, import_react.useState)(null);
+	const [hasMoreReels, setHasMoreReels] = (0, import_react.useState)(false);
+	const [isLoadingMoreReels, setIsLoadingMoreReels] = (0, import_react.useState)(false);
+	const previousAuthUidRef = (0, import_react.useRef)(auth.currentUser?.uid || null);
 	const [blockedUsers, setBlockedUsers] = (0, import_react.useState)([]);
 	const [blockedByUserIds, setBlockedByUserIds] = (0, import_react.useState)([]);
 	const [appToast, setAppToast] = (0, import_react.useState)(null);
@@ -135652,17 +140684,42 @@ function App() {
 		currentScreen
 	]);
 	const [authenticatedUid, setAuthenticatedUid] = (0, import_react.useState)(auth.currentUser?.uid || null);
+	const resetUserScopedTransientState = () => {
+		setBlockedUsers([]);
+		setBlockedByUserIds([]);
+		setConversations([]);
+		setActiveLiveStream(null);
+		setActiveAudioRoom(null);
+		setActivePKSession(null);
+		setIncomingPKInvite(null);
+		setPkWinnerSession(null);
+		setViewingProfileUser(null);
+		setNavigatingProfileUser(null);
+		setActiveChatUser(null);
+		setLevelUpData(null);
+		setExtraPagedReels([]);
+		setReelsLastDoc(null);
+		setHasMoreReels(false);
+	};
 	(0, import_react.useEffect)(() => {
 		const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-			setAuthenticatedUid(firebaseUser ? firebaseUser.uid : null);
+			const nextUid = firebaseUser ? firebaseUser.uid : null;
+			if (previousAuthUidRef.current !== nextUid) {
+				resetUserScopedTransientState();
+				previousAuthUidRef.current = nextUid;
+			}
+			setAuthenticatedUid(nextUid);
 			if (firebaseUser) {
 				liveAndRoomService.setCurrentUser(firebaseUser.uid);
+				setAuthScreenMode("login");
+				setAuthPrefillEmail(void 0);
 				setCurrentScreen((prev) => prev === "auth" ? "home" : prev);
 				try {
 					const profile = await fetchCurrentFirestoreProfile(firebaseUser.uid);
 					if (profile) {
 						setCurrentUser(profile);
 						saveStoredUserProfile(profile);
+						rememberAuthenticatedAccount(profile, firebaseUser.providerData.some((p) => p.providerId === "google.com") ? "google" : "password");
 						liveAndRoomService.syncUser(profile);
 					}
 				} catch (e) {
@@ -135674,15 +140731,24 @@ function App() {
 	}, []);
 	(0, import_react.useEffect)(() => {
 		let active = true;
+		const dedupeLiveStreamsByHost = (items) => {
+			const sorted = [...items].filter((s) => s?.id && !endedLiveIdsRef.current.has(s.id) && s.isLive !== false).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+			const byHost = /* @__PURE__ */ new Map();
+			for (const s of sorted) {
+				const hostKey = s.host?.id || s.id;
+				if (!byHost.has(hostKey)) byHost.set(hostKey, s);
+			}
+			return Array.from(byHost.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
+		};
 		const upsertStream = (incoming) => {
 			if (!incoming?.id || endedLiveIdsRef.current.has(incoming.id)) return;
 			backendLiveIdsRef.current.add(incoming.id);
 			setLiveStreams((prev) => {
-				if (prev.some((s) => s.id === incoming.id)) return prev.map((s) => s.id === incoming.id ? {
+				const merged = prev.some((s) => s.id === incoming.id) ? prev.map((s) => s.id === incoming.id ? {
 					...s,
 					...incoming
-				} : s);
-				return [incoming, ...prev];
+				} : s) : [incoming, ...prev];
+				return dedupeLiveStreamsByHost(merged);
 			});
 			setActiveLiveStream((prev) => prev && prev.id === incoming.id ? {
 				...prev,
@@ -135721,7 +140787,7 @@ function App() {
 				streams.forEach((s) => {
 					if (!endedLiveIdsRef.current.has(s.id)) mergedMap.set(s.id, s);
 				});
-				return Array.from(mergedMap.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
+				return dedupeLiveStreamsByHost(Array.from(mergedMap.values()));
 			});
 			setPartyRooms((prev) => {
 				const mergedMap = /* @__PURE__ */ new Map();
@@ -135911,7 +140977,12 @@ function App() {
 						} else merged.set(existing.id, existing);
 					}
 				});
-				return Array.from(merged.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
+				const byHost = /* @__PURE__ */ new Map();
+				Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)).forEach((s) => {
+					const hostKey = s.host?.id || s.id;
+					if (!byHost.has(hostKey)) byHost.set(hostKey, s);
+				});
+				return Array.from(byHost.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
 			});
 		});
 		const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
@@ -135935,8 +141006,16 @@ function App() {
 				return Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
 			});
 		});
+		const unsubReels = subscribeReelsFeed(authenticatedUid, 12, (snapshot) => {
+			setFirestoreReels(snapshot.reels);
+			setReelsLastDoc(snapshot.lastDoc);
+			setHasMoreReels(snapshot.hasMore);
+		});
 		const unsubVideos = subscribeFirestoreVideos((remoteVideos) => {
-			setVideos(remoteVideos);
+			setLegacyPostVideos(remoteVideos.map((v) => ({
+				...v,
+				sourceCollection: "posts"
+			})));
 		});
 		return () => {
 			unsubUserDoc();
@@ -135945,14 +141024,49 @@ function App() {
 			unsubLevels();
 			unsubStreams();
 			unsubRooms();
+			unsubReels();
 			unsubVideos();
 		};
 	}, [authenticatedUid]);
+	(0, import_react.useEffect)(() => {
+		const byId = /* @__PURE__ */ new Map();
+		[
+			...firestoreReels,
+			...extraPagedReels,
+			...legacyPostVideos
+		].forEach((item) => {
+			if (!item?.id) return;
+			if (!byId.has(item.id)) byId.set(item.id, item);
+		});
+		const merged = Array.from(byId.values()).sort((a, b) => (b.createdAtMillis || Date.parse(b.createdAt) || 0) - (a.createdAtMillis || Date.parse(a.createdAt) || 0));
+		setVideos(merged);
+	}, [
+		firestoreReels,
+		extraPagedReels,
+		legacyPostVideos
+	]);
+	const handleLoadMoreReels = async () => {
+		if (!reelsLastDoc || isLoadingMoreReels || !hasMoreReels) return;
+		setIsLoadingMoreReels(true);
+		try {
+			const nextPage = await fetchMoreReels(reelsLastDoc, authenticatedUid, 12);
+			if (nextPage.reels.length > 0) setExtraPagedReels((prev) => {
+				const existingIds = new Set(prev.map((r) => r.id));
+				return [...prev, ...nextPage.reels.filter((r) => !existingIds.has(r.id))];
+			});
+			setReelsLastDoc(nextPage.lastDoc);
+			setHasMoreReels(nextPage.hasMore);
+		} finally {
+			setIsLoadingMoreReels(false);
+		}
+	};
 	const handleSplashComplete = () => {
 		if (auth.currentUser || authenticatedUid) setCurrentScreen("home");
 		else setCurrentScreen("auth");
 	};
 	const handleAuthSuccess = (profile) => {
+		setAuthScreenMode("login");
+		setAuthPrefillEmail(void 0);
 		setCurrentUser(profile);
 		saveStoredUserProfile(profile);
 		liveAndRoomService.setCurrentUser(profile.id);
@@ -135965,15 +141079,57 @@ function App() {
 		} catch (e) {
 			console.warn("Logout notice:", e);
 		}
+		resetUserScopedTransientState();
 		setAuthenticatedUid(null);
 		liveAndRoomService.setCurrentUser(null);
 		setCurrentUser(CURRENT_USER);
 		try {
 			localStorage.removeItem("lenzo_party_user_profile_v3");
 		} catch (_) {}
+		setAuthScreenMode("login");
+		setAuthPrefillEmail(void 0);
 		setCurrentScreen("auth");
-		setActiveLiveStream(null);
-		setActiveAudioRoom(null);
+	};
+	const handleSwitchAccount = async (targetAccount) => {
+		setIsAccountSwitcherOpen(false);
+		try {
+			await logoutUser();
+		} catch (e) {
+			console.warn("Account switch sign-out notice:", e);
+		}
+		resetUserScopedTransientState();
+		setAuthenticatedUid(null);
+		liveAndRoomService.setCurrentUser(null);
+		try {
+			localStorage.removeItem("lenzo_party_user_profile_v3");
+		} catch (_) {}
+		if (targetAccount.authProvider === "google") try {
+			const result = await signInWithGoogle({
+				loginHint: targetAccount.email,
+				forceAccountPicker: true
+			});
+			if (result?.profile) {
+				handleAuthSuccess(result.profile);
+				showAppToast(`Switched to ${result.profile.name}`);
+			}
+		} catch (err) {
+			setAuthScreenMode("login");
+			setAuthPrefillEmail(void 0);
+			setCurrentScreen("auth");
+			showAppToast(err?.message || "Select your Google account to complete switching.");
+		}
+		else {
+			setAuthScreenMode("login");
+			setAuthPrefillEmail(targetAccount.email);
+			setCurrentScreen("auth");
+			showAppToast(`Enter password for ${targetAccount.email} to switch account.`);
+		}
+	};
+	const handleAddAccount = () => {
+		setIsAccountSwitcherOpen(false);
+		setAuthScreenMode("add_account");
+		setAuthPrefillEmail(void 0);
+		setCurrentScreen("auth");
 	};
 	const handleSelectLive = (stream) => {
 		if (stream.host.id !== currentUser.id && isBlockedRelationship(stream.host.id)) {
@@ -136041,7 +141197,16 @@ function App() {
 			},
 			isLive: true
 		};
-		setLiveStreams((prev) => [finalStream, ...prev.filter((s) => s.id !== finalStream.id)]);
+		setLiveStreams((prev) => {
+			prev.forEach((old) => {
+				if (old.id !== finalStream.id && old.host?.id === activeUid) {
+					endedLiveIdsRef.current.add(old.id);
+					backendLiveIdsRef.current.delete(old.id);
+					endFirestoreLiveStream(old.id).catch(() => {});
+				}
+			});
+			return [finalStream, ...prev.filter((s) => s.id !== finalStream.id && s.host?.id !== activeUid)];
+		});
 		setActiveLiveStream(finalStream);
 		setCurrentScreen("live_active");
 		liveAndRoomService.fetchTopBroadcasters().then(({ broadcasters }) => setTopBroadcasters(broadcasters)).catch(() => {});
@@ -136358,7 +141523,18 @@ function App() {
 	if (currentScreen === "splash") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SplashScreen, { onComplete: handleSplashComplete });
 	if (currentScreen === "auth") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AuthScreen, {
 		onSuccess: handleAuthSuccess,
-		onSkip: () => setCurrentScreen("home")
+		onSkip: () => {
+			setAuthScreenMode("login");
+			setAuthPrefillEmail(void 0);
+			setCurrentScreen("home");
+		},
+		mode: authScreenMode,
+		prefillEmail: authPrefillEmail,
+		onCancelAddAccount: () => {
+			setAuthScreenMode("login");
+			setAuthPrefillEmail(void 0);
+			setCurrentScreen("profile");
+		}
 	});
 	if (currentScreen === "live_active" && activeLiveStream) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "relative w-full h-screen bg-black",
@@ -136659,6 +141835,15 @@ function App() {
 							onUpdateVideo: (updated) => {
 								setVideos((prev) => prev.map((v) => v.id === updated.id ? updated : v));
 							},
+							onDeleteVideo: (deletedId) => {
+								setFirestoreReels((prev) => prev.filter((v) => v.id !== deletedId));
+								setExtraPagedReels((prev) => prev.filter((v) => v.id !== deletedId));
+								setLegacyPostVideos((prev) => prev.filter((v) => v.id !== deletedId));
+								setVideos((prev) => prev.filter((v) => v.id !== deletedId));
+							},
+							hasMoreVideos: hasMoreReels,
+							isLoadingMore: isLoadingMoreReels,
+							onLoadMoreVideos: handleLoadMoreReels,
 							activeGiftCelebration
 						}),
 						currentScreen === "upload_video" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UploadVideoScreen, {
@@ -136711,16 +141896,26 @@ function App() {
 							userVideos: videos,
 							onSelectVideo: (_v) => setCurrentScreen("videos"),
 							onOpenUploadVideo: handleOpenPlusUpload,
-							onDeleteVideo: (id) => setVideos((prev) => prev.filter((v) => v.id !== id)),
+							onDeleteVideo: async (id) => {
+								const target = videos.find((v) => v.id === id);
+								if (target && (target.creatorUid === currentUser.id || target.creator.id === currentUser.id)) await deleteOwnReel(target).catch(() => {});
+								setFirestoreReels((prev) => prev.filter((v) => v.id !== id));
+								setExtraPagedReels((prev) => prev.filter((v) => v.id !== id));
+								setLegacyPostVideos((prev) => prev.filter((v) => v.id !== id));
+								setVideos((prev) => prev.filter((v) => v.id !== id));
+							},
+							onOpenAccountSwitcher: () => setIsAccountSwitcherOpen(true),
 							blockedUsers,
 							blockedByUserIds,
 							onBlockUser: handleBlockUser,
 							onUnblockUser: handleUnblockUser
 						}),
 						currentScreen === "settings" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SettingsScreen, {
+							currentUser,
 							onNavigate: (s) => setCurrentScreen(s),
 							onLogout: handleLogout,
 							onOpenWallet: () => setIsWalletOpen(true),
+							onOpenAccountSwitcher: () => setIsAccountSwitcherOpen(true),
 							isAdmin: Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === "yaquoobe@gmail.com"),
 							onOpenAdminProgression: () => setIsAdminProgressionOpen(true),
 							blockedUsers,
@@ -136917,6 +142112,13 @@ function App() {
 					setPkWinnerSession(null);
 					setCurrentScreen("profile");
 				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AccountSwitcherModal, {
+				isOpen: isAccountSwitcherOpen,
+				currentUser,
+				onClose: () => setIsAccountSwitcherOpen(false),
+				onSwitchAccount: handleSwitchAccount,
+				onAddAccount: handleAddAccount
 			}),
 			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",

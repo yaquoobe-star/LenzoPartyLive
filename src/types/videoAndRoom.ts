@@ -3,8 +3,11 @@ import { UserProfile, GiftItem } from './index';
 export interface VideoItem {
   id: string;
   creator: UserProfile;
+  creatorUid?: string;
   videoUrl: string; // Video stream / MP4 or visual stream
+  videoStoragePath?: string;
   thumbnailUrl: string;
+  thumbnailStoragePath?: string;
   description: string;
   musicTitle?: string;
   hashtags: string[];
@@ -17,8 +20,11 @@ export interface VideoItem {
   isSaved?: boolean;
   isReposted?: boolean;
   createdAt: string;
+  createdAtMillis?: number;
   privacy?: 'public' | 'friends' | 'private';
   isPrivate?: boolean;
+  processingStatus?: 'uploading' | 'processing' | 'ready' | 'failed';
+  sourceCollection?: 'reels' | 'posts';
   contentType?: 'video' | 'post';
 }
 

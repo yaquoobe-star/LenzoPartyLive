@@ -26,30 +26,55 @@ import {
   loginWithEmail, 
   resetPassword, 
   resendVerification,
+  fetchCurrentFirestoreProfile,
   FIREBASE_AUTH_SETTINGS_URL,
   DEFAULT_AVATARS 
 } from '../../services/authService';
+import {
+  SavedDeviceAccount,
+  MAX_SAVED_ACCOUNTS,
+  getLastLoggedInAccount,
+  getSavedDeviceAccounts,
+  canAddAnotherDeviceAccount,
+} from '../../services/accountSwitcherService';
+import { auth } from '../../firebase';
 import { UserProfile } from '../../types';
 
-export type AuthSubScreen = 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification';
+export type AuthSubScreen = 'welcome_back' | 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification';
 
 interface AuthScreenProps {
   onSuccess: (profile: UserProfile) => void;
   onSkip?: () => void;
   initialSubScreen?: AuthSubScreen;
+  mode?: 'login' | 'add_account';
+  prefillEmail?: string;
+  onCancelAddAccount?: () => void;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ 
   onSuccess, 
   onSkip, 
-  initialSubScreen = 'welcome' 
+  initialSubScreen,
+  mode = 'login',
+  prefillEmail,
+  onCancelAddAccount,
 }) => {
+  const [savedAccounts, setSavedAccounts] = useState<SavedDeviceAccount[]>(() => getSavedDeviceAccounts());
+  const [lastAccount, setLastAccount] = useState<SavedDeviceAccount | null>(() => getLastLoggedInAccount());
+
+  const computedInitialSubScreen: AuthSubScreen = (() => {
+    if (initialSubScreen) return initialSubScreen;
+    if (prefillEmail) return 'login';
+    if (mode !== 'add_account' && lastAccount) return 'welcome_back';
+    return 'welcome';
+  })();
+
   // Navigation between authentication sub-screens
-  const [subScreen, setSubScreen] = useState<AuthSubScreen>(initialSubScreen);
+  const [subScreen, setSubScreen] = useState<AuthSubScreen>(computedInitialSubScreen);
 
   // Form Fields State
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(prefillEmail || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(DEFAULT_AVATARS[0]);
@@ -75,6 +100,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Registered user email state for verification screen
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
+
+  useEffect(() => {
+    setSavedAccounts(getSavedDeviceAccounts());
+    setLastAccount(getLastLoggedInAccount());
+  }, [mode]);
+
+  useEffect(() => {
+    if (prefillEmail) {
+      setEmail(prefillEmail);
+      setSubScreen('login');
+    }
+  }, [prefillEmail]);
+
+  const isDeviceAccountLimitReached = mode === 'add_account' && !canAddAnotherDeviceAccount();
 
   // Clear messages when switching views
   const navigateTo = (screen: AuthSubScreen) => {
@@ -107,21 +146,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   }, [onSuccess]);
 
   // 1. REAL GOOGLE AUTHENTICATION FLOW
-  const handleGoogleAuth = async () => {
+  const handleGoogleAuth = async (loginHint?: string) => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
     setUnauthorizedHost(null);
     try {
-      const authResult = await signInWithGoogle();
+      const authResult = await signInWithGoogle(
+        loginHint ? { loginHint, forceAccountPicker: true } : { forceAccountPicker: true }
+      );
       if (!authResult) {
         // Full page redirect was initiated (e.g., popup blocked or mobile browser)
         return;
       }
       const { profile } = authResult;
-      setSuccessMessage(`Welcome to Lenzo Party Live, ${profile.name}! ✨`);
+      setSuccessMessage(`Welcome to Lenzo Party Live, ${profile.name}!`);
       setTimeout(() => {
         onSuccess(profile);
-      }, 500);
+      }, 450);
     } catch (err: any) {
       if (err?.code === 'auth/unauthorized-domain' || err?.unauthorizedDomain) {
         const host = err.unauthorizedDomain || (typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com');
@@ -130,6 +171,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setErrorMessage(err.message || 'Google Authentication failed. Please try again.');
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  // 1B. CONTINUE AS SAVED / LAST LOGGED-IN ACCOUNT (ALWAYS VERIFIED THROUGH FIREBASE AUTH)
+  const handleContinueAsSavedAccount = async (account: SavedDeviceAccount) => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    // If Firebase already has a live verified session matching this UID, restore it immediately
+    if (auth.currentUser && auth.currentUser.uid === account.uid) {
+      setIsLoading(true);
+      try {
+        const profile = await fetchCurrentFirestoreProfile(account.uid);
+        if (profile) {
+          setSuccessMessage(`Welcome back, ${profile.name}!`);
+          setTimeout(() => onSuccess(profile), 350);
+          return;
+        }
+      } catch {
+        // Fall through to provider sign-in
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    if (account.authProvider === 'google') {
+      await handleGoogleAuth(account.email);
+    } else {
+      setEmail(account.email);
+      setPassword('');
+      navigateTo('login');
     }
   };
 
@@ -294,17 +366,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         </svg>
       </div>
 
-      {/* Top Bar with Guest / Skip Option */}
-      <div className="absolute top-4 right-4 z-20">
-        {onSkip && (
-          <button
-            type="button"
-            onClick={onSkip}
-            className="text-xs text-[#B9AECF] hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-all backdrop-blur-md active:scale-95"
-          >
-            Explore as Guest ›
-          </button>
-        )}
+      {/* Top Bar with Add-Account Back Button & Guest / Skip Option */}
+      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
+        <div>
+          {mode === 'add_account' && onCancelAddAccount && (
+            <button
+              type="button"
+              onClick={onCancelAddAccount}
+              className="text-xs text-white bg-white/10 hover:bg-white/15 px-3.5 py-1.5 rounded-full border border-white/15 transition-all backdrop-blur-md active:scale-95 flex items-center gap-1.5 font-bold"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Return to App</span>
+            </button>
+          )}
+        </div>
+        <div>
+          {onSkip && mode !== 'add_account' && (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="text-xs text-[#B9AECF] hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-all backdrop-blur-md active:scale-95"
+            >
+              Explore as Guest ›
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Central Glassmorphic Card Container */}
@@ -375,6 +461,74 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         )}
 
         {/* ========================================================
+            SCREEN 0: LAST LOGGED-IN ACCOUNT ("WELCOME BACK" CARD)
+           ======================================================== */}
+        {subScreen === 'welcome_back' && lastAccount && (
+          <div className="flex flex-col items-center text-center animate-fade-in">
+            <div className="mb-4 scale-100">
+              <LenzoLogo size="lg" showTagline={false} />
+            </div>
+
+            <span className="text-[11px] font-black tracking-[0.22em] text-[#FFC84A] uppercase mb-1">
+              WELCOME BACK
+            </span>
+            <p className="text-xs text-[#B9AECF] mb-5">
+              Last time you logged in as:
+            </p>
+
+            {/* Saved Account Identity Card */}
+            <div className="w-full p-4 rounded-2xl bg-white/[0.04] border border-white/15 mb-6 flex items-center gap-3.5 text-left">
+              <img
+                src={lastAccount.avatar || DEFAULT_AVATARS[0]}
+                alt={lastAccount.name}
+                className="w-14 h-14 rounded-full object-cover border-2 border-[#F328D5] shadow-lg shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-white truncate">{lastAccount.name}</p>
+                <p className="text-xs text-[#FFC84A] font-semibold truncate">{lastAccount.username}</p>
+                <p className="text-[11px] text-[#B9AECF] truncate mt-0.5">{lastAccount.email}</p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-white/10 text-white/80 uppercase">
+                    {lastAccount.authProvider === 'google' ? 'Google Account' : 'Email Account'}
+                  </span>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-[#8B20FF]/30 text-purple-200">
+                    Lv.{lastAccount.level}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full space-y-3">
+              <button
+                type="button"
+                onClick={() => handleContinueAsSavedAccount(lastAccount)}
+                disabled={isGoogleLoading || isLoading}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-black text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isGoogleLoading || isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>CONTINUE AS THIS ACCOUNT</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo('welcome')}
+                disabled={isGoogleLoading || isLoading}
+                className="w-full py-3.5 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs sm:text-sm transition-all active:scale-98"
+              >
+                USE ANOTHER ACCOUNT
+              </button>
+            </div>
+
+            <p className="mt-5 text-[10px] text-[#B9AECF]/65 leading-relaxed">
+              Verified via Firebase Authentication. Your permanent UID, coins, VIP tier, and inventory are preserved automatically.
+            </p>
+          </div>
+        )}
+
+        {/* ========================================================
             SCREEN 1: WELCOME / LOGIN CHOICE SCREEN
            ======================================================== */}
         {subScreen === 'welcome' && (
@@ -385,14 +539,62 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </div>
 
             <h1 className="text-2xl font-black text-white font-display tracking-tight mb-2">
-              Live Stream & Party
+              {mode === 'add_account' ? 'Add Lenzo Account' : 'Live Stream & Party'}
             </h1>
-            <p className="text-xs text-[#B9AECF] max-w-xs mb-6 leading-relaxed">
-              Join thousands of broadcasters in real-time video, multi-seat voice rooms, and high-energy PK battles!
+            <p className="text-xs text-[#B9AECF] max-w-xs mb-5 leading-relaxed">
+              {mode === 'add_account'
+                ? `Sign in with another account to save it on this device (${savedAccounts.length}/${MAX_SAVED_ACCOUNTS} used).`
+                : 'Join thousands of broadcasters in real-time video, multi-seat voice rooms, and high-energy PK battles!'}
             </p>
 
+            {isDeviceAccountLimitReached && (
+              <div className="w-full mb-4 p-3 rounded-2xl bg-amber-500/15 border border-amber-400/35 text-amber-200 text-xs text-left leading-relaxed">
+                You already have {MAX_SAVED_ACCOUNTS} accounts saved on this device. Remove one in Switch Account if you want to save a new slot.
+              </div>
+            )}
+
+            {/* Quick-pick saved device accounts when choosing another account */}
+            {mode !== 'add_account' && savedAccounts.length > 0 && (
+              <div className="w-full mb-5 text-left">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#B9AECF]">
+                    Saved on this device ({savedAccounts.length}/{MAX_SAVED_ACCOUNTS})
+                  </span>
+                  {lastAccount && (
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('welcome_back')}
+                      className="text-[10px] font-bold text-[#FFC84A] hover:underline"
+                    >
+                      Last Account ›
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  {savedAccounts.map((acc) => (
+                    <button
+                      key={acc.uid}
+                      type="button"
+                      onClick={() => handleContinueAsSavedAccount(acc)}
+                      className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 transition-colors"
+                    >
+                      <img
+                        src={acc.avatar || DEFAULT_AVATARS[0]}
+                        alt={acc.name}
+                        className="w-7 h-7 rounded-full object-cover border border-white/20"
+                      />
+                      <div className="text-left max-w-[115px]">
+                        <p className="text-[11px] font-bold text-white truncate">{acc.name}</p>
+                        <p className="text-[9px] text-[#B9AECF] truncate">{acc.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Feature Pills */}
-            <div className="grid grid-cols-3 gap-2 w-full mb-7">
+            <div className="grid grid-cols-3 gap-2 w-full mb-6">
               <div className="flex flex-col items-center p-2 rounded-2xl bg-white/[0.04] border border-white/[0.08]">
                 <Radio className="w-4 h-4 text-[#F328D5] mb-1" />
                 <span className="text-[10px] font-bold text-white">Solo Live</span>
@@ -415,7 +617,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               {/* Continue with Google */}
               <button
                 type="button"
-                onClick={handleGoogleAuth}
+                onClick={() => handleGoogleAuth()}
                 disabled={isGoogleLoading || isLoading}
                 className="w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs sm:text-sm shadow-xl flex items-center justify-center gap-3 transition-all active:scale-98 disabled:opacity-50"
               >
@@ -659,7 +861,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             {/* Google alternative */}
             <button
               type="button"
-              onClick={handleGoogleAuth}
+              onClick={() => handleGoogleAuth()}
               disabled={isGoogleLoading}
               className="w-full py-2.5 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3 transition-colors active:scale-98"
             >
@@ -794,7 +996,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             {/* Google alternative */}
             <button
               type="button"
-              onClick={handleGoogleAuth}
+              onClick={() => handleGoogleAuth()}
               disabled={isGoogleLoading}
               className="w-full py-2.5 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3 transition-colors active:scale-98"
             >

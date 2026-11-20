@@ -51,6 +51,8 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
   const [hasMic, setHasMic] = useState(false);
   const [audioVolumeLevel, setAudioVolumeLevel] = useState<number>(0);
   const [isFlippingCamera, setIsFlippingCamera] = useState(false);
+  const [isStartingLive, setIsStartingLive] = useState(false);
+  const isStartingLiveRef = useRef(false);
 
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -244,6 +246,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isStartingLiveRef.current) return;
     if (!auth.currentUser || !currentUser.id || currentUser.id === 'guest') {
       setError('Please sign in first to start a live broadcast.');
       return;
@@ -252,6 +255,8 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       setError('Please enter a live stream title');
       return;
     }
+    isStartingLiveRef.current = true;
+    setIsStartingLive(true);
 
     // Acquire real Camera & Mic INSIDE this direct user tap (Android/WebView requires user gesture)
     // and hand the live MediaStream straight into ActiveLiveScreen without closing/re-opening hardware.
@@ -296,6 +301,8 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
             : 'Camera & Microphone access was denied. Please tap Allow Camera & Mic (or turn Cam OFF for Voice Live).'
         );
         setIsRequestingMedia(false);
+        isStartingLiveRef.current = false;
+        setIsStartingLive(false);
         return;
       } finally {
         setIsRequestingMedia(false);
@@ -312,6 +319,8 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
             ? 'Microphone is blocked in Phone Settings. Open Settings to allow Microphone.'
             : 'Microphone permission was denied. Please allow Microphone access to broadcast voice.'
         );
+        isStartingLiveRef.current = false;
+        setIsStartingLive(false);
         return;
       }
     }
@@ -654,9 +663,12 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
           <div className="pt-4">
             <button
               type="submit"
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-extrabold text-sm shadow-xl shadow-[#F328D5]/30 hover:opacity-95 active:scale-98 transition-all flex items-center justify-center gap-2"
+              disabled={isStartingLive}
+              className={`w-full py-4 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-extrabold text-sm shadow-xl shadow-[#F328D5]/30 transition-all flex items-center justify-center gap-2 ${
+                isStartingLive ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-95 active:scale-98'
+              }`}
             >
-              <span>Start Live</span>
+              <span>{isStartingLive ? 'Starting Live...' : 'Start Live'}</span>
               <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
             </button>
           </div>

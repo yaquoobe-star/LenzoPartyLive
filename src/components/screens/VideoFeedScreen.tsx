@@ -1,22 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Heart, 
-  MessageCircle, 
-  Share2, 
-  Repeat2, 
-  Gift, 
-  Music, 
-  Sparkles, 
-  X, 
-  Send, 
-  Check, 
-  Volume2, 
-  VolumeX, 
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  Repeat2,
+  Gift,
+  Music,
+  X,
+  Volume2,
+  VolumeX,
   Plus,
-  Play
+  Play,
+  Trash2,
+  Flag,
+  Eye,
+  Loader2,
 } from 'lucide-react';
-import { VideoItem, UserProfile, GiftItem } from '../../types';
+import { VideoItem, UserProfile, GiftItem, VideoComment } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
+import {
+  toggleReelLike,
+  subscribeReelComments,
+  addReelComment,
+  recordReelView,
+  incrementReelShare,
+  deleteOwnReel,
+  submitContentReport,
+} from '../../services/reelService';
 
 interface VideoFeedScreenProps {
   videos: VideoItem[];
@@ -25,6 +35,10 @@ interface VideoFeedScreenProps {
   onSelectUser: (user: UserProfile) => void;
   onUploadClick: () => void;
   onUpdateVideo?: (updatedVideo: VideoItem) => void;
+  onDeleteVideo?: (videoId: string) => void;
+  hasMoreVideos?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMoreVideos?: () => void;
   activeGiftCelebration?: {
     gift: GiftItem;
     sender: string;
@@ -39,6 +53,23 @@ interface FloatingHeart {
   y: number;
 }
 
+function isPlayableVideoUrl(url?: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.startsWith('blob:')) return true;
+  if (/\.(mp4|webm|mov|m4v|ogg|m3u8)(\?|$)/i.test(lower)) return true;
+  if (lower.includes('firebasestorage') && (lower.includes('video') || lower.includes('reels%2f'))) {
+    return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
+  }
+  return false;
+}
+
+function formatCompactCount(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return String(Math.max(0, num));
+}
+
 export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   videos,
   currentUser,
@@ -46,49 +77,119 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   onSelectUser,
   onUploadClick,
   onUpdateVideo,
+  onDeleteVideo,
+  hasMoreVideos = false,
+  isLoadingMore = false,
+  onLoadMoreVideos,
   activeGiftCelebration,
 }) => {
   const [feedVideos, setFeedVideos] = useState<VideoItem[]>(videos);
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
 
-  // Sync feed when videos prop updates (e.g. after upload)
+  // Sync feed when videos prop updates without jarring index resets if current video still exists
   useEffect(() => {
-    setFeedVideos(videos);
-    setActiveVideoIndex(0);
+    setFeedVideos((prev) => {
+      const currentId = prev[activeVideoIndex]?.id;
+      if (currentId) {
+        const nextIdx = videos.findIndex((v) => v.id === currentId);
+        if (nextIdx >= 0 && nextIdx !== activeVideoIndex) {
+          setActiveVideoIndex(nextIdx);
+        } else if (nextIdx === -1 && activeVideoIndex >= videos.length) {
+          setActiveVideoIndex(Math.max(0, videos.length - 1));
+        }
+      } else if (videos.length > 0) {
+        setActiveVideoIndex(0);
+      }
+      return videos;
+    });
   }, [videos]);
+
   const [isMuted, setIsMuted] = useState(false);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
-  
-  // Comment drawer state
+
+  // Persisted Comments drawer state
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<Array<{ id: string; user: string; avatar: string; text: string; time: string; likes: number }>>([]);
+  const [comments, setComments] = useState<VideoComment[]>([]);
   const [commentInput, setCommentInput] = useState('');
+  const [isPostingComment, setIsPostingComment] = useState(false);
+
+  // Delete & Report modals
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Inappropriate content');
+  const [reportDetails, setReportDetails] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const lastTapRef = useRef<number>(0);
-  const currentVideo = feedVideos[activeVideoIndex] || feedVideos[0];
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const touchStartY = useRef<number | null>(null);
+  const viewedIdsRef = useRef<Set<string>>(new Set());
 
-  // Playback timer & progress
+  const currentVideo = feedVideos[activeVideoIndex] || feedVideos[0];
+  const isCurrentVideoPlayable = isPlayableVideoUrl(currentVideo?.videoUrl);
+  const isOwnVideo = Boolean(
+    currentVideo &&
+      (currentVideo.creatorUid === currentUser.id || currentVideo.creator?.id === currentUser.id)
+  );
+
+  // Playback state
   const [isPlaying, setIsPlaying] = useState(true);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isEndOfFeed, setIsEndOfFeed] = useState(false);
-  const touchStartY = useRef<number | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+    setTimeout(() => setToastMessage(null), 2600);
   };
 
-  // Continuous automatic video progression and auto-advance
+  // Deduplicated Firestore view tracking whenever active reel changes
   useEffect(() => {
-    if (!currentVideo || !isPlaying || isEndOfFeed) return;
+    if (!currentVideo || isEndOfFeed) return;
+    if (!viewedIdsRef.current.has(currentVideo.id)) {
+      viewedIdsRef.current.add(currentVideo.id);
+      void recordReelView(currentVideo.id, currentUser.id, currentVideo.sourceCollection);
+    }
+    setPlaybackProgress(0);
+    setIsPlaying(true);
+  }, [currentVideo?.id, currentUser.id, isEndOfFeed]);
 
+  // Real-time Firestore comments subscription when drawer is open
+  useEffect(() => {
+    if (!showComments || !currentVideo) return;
+    const unsub = subscribeReelComments(currentVideo.id, (list) => {
+      setComments(list);
+    });
+    return () => unsub();
+  }, [showComments, currentVideo?.id]);
+
+  // Real HTML5 <video> play/pause sync
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !isCurrentVideoPlayable || isEndOfFeed) return;
+    el.muted = isMuted;
+    if (isPlaying) {
+      el.play().catch(() => {
+        // Mobile browsers may require muted autoplay on first play
+        el.muted = true;
+        setIsMuted(true);
+        el.play().catch(() => {});
+      });
+    } else {
+      el.pause();
+    }
+  }, [isPlaying, isMuted, currentVideo?.id, isCurrentVideoPlayable, isEndOfFeed]);
+
+  // Fallback timer ONLY for legacy static image posts (real videos drive progress via onTimeUpdate)
+  useEffect(() => {
+    if (!currentVideo || !isPlaying || isEndOfFeed || isCurrentVideoPlayable) return;
     setPlaybackProgress(0);
     const progressInterval = setInterval(() => {
       setPlaybackProgress((prev) => {
         if (prev >= 100) {
-          // Video finished: auto advance to next video or end-of-feed
           if (activeVideoIndex < feedVideos.length - 1) {
             setActiveVideoIndex((i) => i + 1);
             return 0;
@@ -97,12 +198,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
             return 100;
           }
         }
-        return prev + 2.5; // ~8 seconds simulated video length
+        return prev + 2.5;
       });
     }, 200);
-
     return () => clearInterval(progressInterval);
-  }, [activeVideoIndex, isPlaying, isEndOfFeed, feedVideos.length]);
+  }, [activeVideoIndex, isPlaying, isEndOfFeed, feedVideos.length, isCurrentVideoPlayable]);
 
   const triggerHeartAtCoord = (x: number, y: number) => {
     const id = Date.now() + Math.random();
@@ -112,28 +212,24 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     }, 1800);
   };
 
-  const handleDoubleTap = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleVideoSurfaceTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const now = Date.now();
-    if (now - lastTapRef.current < 350) {
+    if (now - lastTapRef.current < 320) {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
-
       triggerHeartAtCoord(x, y);
-
-      // Toggle like state if not already liked
-      if (!currentVideo.isLiked) {
-        toggleLike();
+      if (currentVideo && !currentVideo.isLiked) {
+        void toggleLike();
       }
       lastTapRef.current = 0;
     } else {
       lastTapRef.current = now;
-      // Single tap toggles play/pause
       setTimeout(() => {
-        if (Date.now() - lastTapRef.current >= 340) {
+        if (Date.now() - lastTapRef.current >= 310) {
           setIsPlaying((p) => !p);
         }
-      }, 350);
+      }, 320);
     }
   };
 
@@ -145,30 +241,40 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartY.current === null) return;
     const diffY = touchStartY.current - e.changedTouches[0].clientY;
-    if (diffY > 40) {
-      handleScrollNext(); // swipe up
-    } else if (diffY < -40) {
-      handleScrollPrev(); // swipe down
+    if (diffY > 45) {
+      handleScrollNext();
+    } else if (diffY < -45) {
+      handleScrollPrev();
     }
     touchStartY.current = null;
   };
 
-  const toggleLike = () => {
+  const toggleLike = async () => {
     const v = currentVideo;
     if (!v) return;
-    const isNowLiked = !v.isLiked;
-    const updatedCount = isNowLiked ? v.likesCount + 1 : Math.max(0, v.likesCount - 1);
-    const updatedVideo: VideoItem = {
+    const optimisticLiked = !v.isLiked;
+    const optimisticCount = optimisticLiked ? v.likesCount + 1 : Math.max(0, v.likesCount - 1);
+    const optimisticVideo: VideoItem = {
       ...v,
-      isLiked: isNowLiked,
-      likesCount: updatedCount,
+      isLiked: optimisticLiked,
+      likesCount: optimisticCount,
     };
 
-    setFeedVideos((prev) =>
-      prev.map((item, i) => (i === activeVideoIndex ? updatedVideo : item))
-    );
-    onUpdateVideo?.(updatedVideo);
-    showToast(isNowLiked ? '❤️ Liked video!' : '💔 Removed like');
+    setFeedVideos((prev) => prev.map((item) => (item.id === v.id ? optimisticVideo : item)));
+    onUpdateVideo?.(optimisticVideo);
+
+    try {
+      const result = await toggleReelLike(v, currentUser.id);
+      const syncedVideo: VideoItem = {
+        ...v,
+        isLiked: result.liked,
+        likesCount: typeof result.likesCount === 'number' ? result.likesCount : optimisticCount,
+      };
+      setFeedVideos((prev) => prev.map((item) => (item.id === v.id ? syncedVideo : item)));
+      onUpdateVideo?.(syncedVideo);
+    } catch {
+      showToast('Could not sync like right now.');
+    }
   };
 
   const toggleRepost = () => {
@@ -181,34 +287,98 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       isReposted: isNowReposted,
       repostsCount: updatedCount,
     };
-
-    setFeedVideos((prev) =>
-      prev.map((item, i) => (i === activeVideoIndex ? updatedVideo : item))
-    );
+    setFeedVideos((prev) => prev.map((item) => (item.id === v.id ? updatedVideo : item)));
     onUpdateVideo?.(updatedVideo);
-    showToast(isNowReposted ? '🔁 Video reposted to your profile!' : 'Undo repost');
+    showToast(isNowReposted ? 'Reel reposted!' : 'Repost removed');
   };
 
-  const handleAddComment = (e?: React.FormEvent) => {
+  const handleShareReel = async () => {
+    if (!currentVideo) return;
+    const shareUrl = `${window.location.origin}/?reel=${currentVideo.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${currentVideo.creator.name} on Lenzo Party`,
+          text: currentVideo.description,
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('Reel link copied to clipboard!');
+      }
+      await incrementReelShare(currentVideo.id, currentVideo.sourceCollection);
+      setFeedVideos((prev) =>
+        prev.map((item) =>
+          item.id === currentVideo.id ? { ...item, sharesCount: (item.sharesCount || 0) + 1 } : item
+        )
+      );
+    } catch {
+      // User dismissed native share sheet
+    }
+  };
+
+  const handleAddComment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!commentInput.trim()) return;
-
-    setComments((prev) => [
-      {
-        id: `c_${Date.now()}`,
-        user: currentUser.name,
-        avatar: currentUser.avatar,
+    if (!commentInput.trim() || !currentVideo || isPostingComment) return;
+    setIsPostingComment(true);
+    try {
+      await addReelComment({
+        reelId: currentVideo.id,
+        user: currentUser,
         text: commentInput.trim(),
-        time: 'Just now',
-        likes: 0
-      },
-      ...prev
-    ]);
-    setCommentInput('');
+        sourceCollection: currentVideo.sourceCollection,
+      });
+      setCommentInput('');
+      setFeedVideos((prev) =>
+        prev.map((v) =>
+          v.id === currentVideo.id ? { ...v, commentsCount: (v.commentsCount || 0) + 1 } : v
+        )
+      );
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to post comment.');
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
 
-    setFeedVideos((prev) =>
-      prev.map((v, i) => (i === activeVideoIndex ? { ...v, commentsCount: v.commentsCount + 1 } : v))
-    );
+  const handleConfirmDeleteReel = async () => {
+    if (!currentVideo || !isOwnVideo || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteOwnReel(currentVideo);
+      const deletedId = currentVideo.id;
+      setFeedVideos((prev) => prev.filter((item) => item.id !== deletedId));
+      onDeleteVideo?.(deletedId);
+      setShowDeleteConfirm(false);
+      setActiveVideoIndex((idx) => Math.max(0, Math.min(idx, feedVideos.length - 2)));
+      showToast('Reel permanently deleted from Storage & Feed.');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to delete reel.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentVideo || isSubmittingReport) return;
+    setIsSubmittingReport(true);
+    try {
+      await submitContentReport({
+        targetType: 'reel',
+        targetId: currentVideo.id,
+        targetOwnerUid: currentVideo.creatorUid || currentVideo.creator.id,
+        reason: reportReason,
+        details: reportDetails,
+      });
+      setShowReportModal(false);
+      setReportDetails('');
+      showToast('Report submitted. Thank you for keeping Lenzo Party safe.');
+    } catch (err: any) {
+      showToast(err?.message || 'Could not submit report.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   const handleScrollNext = () => {
@@ -219,6 +389,8 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     }
     if (activeVideoIndex < feedVideos.length - 1) {
       setActiveVideoIndex(activeVideoIndex + 1);
+    } else if (hasMoreVideos && onLoadMoreVideos) {
+      onLoadMoreVideos();
     } else {
       setIsEndOfFeed(true);
     }
@@ -241,40 +413,29 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
         <div className="w-16 h-16 rounded-2xl bg-[#160C25] border border-white/10 flex items-center justify-center mb-4">
           <Play className="w-7 h-7 text-[#F328D5]" />
         </div>
-        <h2 className="text-lg font-extrabold text-white font-display">No Videos Yet</h2>
+        <h2 className="text-lg font-extrabold text-white font-display">No Reels Yet</h2>
         <p className="text-xs text-[#B9AECF] mt-1 max-w-xs">
-          Videos uploaded by creators will appear here in real time.
+          Reels uploaded by creators to Firebase Storage appear here in real time.
         </p>
         <button
           onClick={onUploadClick}
           className="mt-5 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg active:scale-95 transition-transform flex items-center gap-1.5"
         >
           <Plus className="w-4 h-4" />
-          Upload Video
+          Upload Reel
         </button>
       </div>
     );
   }
 
-  // If at the end of the feed, render the Video Ended Screen matching reference image #8
+  // End of Feed Screen
   if (isEndOfFeed) {
     return (
-      <div 
+      <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col justify-between p-6 text-center"
       >
-        {/* Background cosmic glow and star particles */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-gradient-to-tr from-[#8B20FF]/25 via-[#F328D5]/20 to-transparent rounded-full blur-[100px]" />
-          {/* Floating starry decorations matching screen #8 */}
-          <div className="absolute top-1/4 left-1/5 text-amber-400 text-lg animate-ping">⭐</div>
-          <div className="absolute top-1/3 right-1/4 text-pink-400 text-xl animate-pulse">✨</div>
-          <div className="absolute bottom-1/3 left-1/4 text-cyan-400 text-sm animate-bounce">🌟</div>
-          <div className="absolute bottom-1/4 right-1/5 text-purple-400 text-lg animate-pulse">⭐</div>
-        </div>
-
-        {/* Top Header */}
         <div className="relative z-30 flex items-center justify-between pt-safe">
           <button
             onClick={() => setIsEndOfFeed(false)}
@@ -282,7 +443,6 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           >
             ‹
           </button>
-          
           <div className="flex items-center bg-black/40 backdrop-blur-md border border-white/15 rounded-full p-1">
             <span className="px-4 py-1.5 rounded-full text-xs font-black bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white">
               For You
@@ -291,21 +451,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
               Following
             </span>
           </div>
-
           <div className="w-9 h-9" />
         </div>
 
-        {/* Center Clapperboard & Video Ended matching reference screen #8 */}
         <div className="relative z-20 flex flex-col items-center my-auto space-y-5 max-w-sm mx-auto">
-          {/* Neon Clapperboard Card */}
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-tr from-[#3B82F6]/20 via-[#8B20FF]/30 to-[#F328D5]/20 border-2 border-[#8B20FF] p-4 flex flex-col items-center justify-center text-white shadow-[0_0_35px_rgba(139,32,255,0.45)] group">
-            {/* Clapper stripes top bar */}
-            <div className="w-full h-4 rounded-t-lg bg-gradient-to-r from-white/30 via-white/70 to-white/30 flex justify-between px-1 items-center mb-2">
-              <span className="w-2 h-2 bg-[#8B20FF] rounded-full" />
-              <span className="w-2 h-2 bg-[#F328D5] rounded-full" />
-              <span className="w-2 h-2 bg-[#3B82F6] rounded-full" />
-            </div>
-            
+          <div className="relative w-28 h-28 rounded-3xl bg-gradient-to-tr from-[#3B82F6]/20 via-[#8B20FF]/30 to-[#F328D5]/20 border-2 border-[#8B20FF] p-4 flex flex-col items-center justify-center text-white shadow-[0_0_35px_rgba(139,32,255,0.45)]">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-lg">
               <Play className="w-6 h-6 fill-white ml-0.5" />
             </div>
@@ -313,34 +463,36 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
           <div>
             <h2 className="text-2xl font-black text-white font-display tracking-tight mb-2">
-              Video Ended
+              You're All Caught Up
             </h2>
             <p className="text-xs text-[#B9AECF] leading-relaxed">
-              Swipe up for next video <br />
-              or check more videos
+              Load more reels or replay from the top.
             </p>
           </div>
 
-          {/* Explore More Button matching reference */}
-          <button
-            onClick={() => {
-              setIsEndOfFeed(false);
-              setActiveVideoIndex(0);
-            }}
-            className="w-full py-3 rounded-full bg-gradient-to-r from-[#8B20FF] via-[#a825e6] to-[#F328D5] hover:opacity-95 text-white font-extrabold text-sm shadow-lg shadow-[#8B20FF]/30 active:scale-95 transition-all"
-          >
-            Explore More
-          </button>
-
-          {/* Animated chevron up indicator */}
-          <div 
-            onClick={() => {
-              setIsEndOfFeed(false);
-              setActiveVideoIndex(0);
-            }}
-            className="flex flex-col items-center cursor-pointer text-white/60 hover:text-white pt-2 animate-bounce"
-          >
-            <span className="text-xl">˄</span>
+          <div className="w-full space-y-2.5">
+            {hasMoreVideos && onLoadMoreVideos && (
+              <button
+                onClick={() => {
+                  setIsEndOfFeed(false);
+                  onLoadMoreVideos();
+                }}
+                disabled={isLoadingMore}
+                className="w-full py-3 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-white font-extrabold text-sm flex items-center justify-center gap-2"
+              >
+                {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Load More Reels</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setIsEndOfFeed(false);
+                setActiveVideoIndex(0);
+              }}
+              className="w-full py-3 rounded-full bg-gradient-to-r from-[#8B20FF] via-[#a825e6] to-[#F328D5] hover:opacity-95 text-white font-extrabold text-sm shadow-lg shadow-[#8B20FF]/30 active:scale-95 transition-all"
+            >
+              Replay Feed
+            </button>
           </div>
         </div>
 
@@ -350,14 +502,14 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   }
 
   return (
-    <div 
+    <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-black overflow-hidden select-none animate-fade-in flex flex-col justify-between"
     >
       {/* Toast */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none whitespace-nowrap">
           {toastMessage}
         </div>
       )}
@@ -374,14 +526,14 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
                 {activeGiftCelebration.sender} sent {activeGiftCelebration.quantity}x {activeGiftCelebration.gift.name}!
               </span>
               <span className="text-xs text-[#FFC84A] font-bold">
-                +{activeGiftCelebration.gift.coins * activeGiftCelebration.quantity} Coins Gift Support 💖
+                +{activeGiftCelebration.gift.coins * activeGiftCelebration.quantity} Coins Gift Support
               </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Top Header matching reference screen #4: (< For You Following [Search]) */}
+      {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-4 pt-safe pointer-events-auto">
         <button
           onClick={handleScrollPrev}
@@ -389,12 +541,12 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           className={`w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-opacity ${
             activeVideoIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-black/60'
           }`}
-          title="Previous Video"
+          title="Previous Reel"
         >
           ‹
         </button>
 
-        {/* Segmented Tab: For You / Following */}
+        {/* Segmented Tab */}
         <div className="flex items-center bg-black/40 backdrop-blur-md border border-white/15 rounded-full p-1 shadow-lg">
           <button
             onClick={() => setActiveTab('foryou')}
@@ -418,34 +570,68 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           </button>
         </div>
 
-        <button
-          onClick={() => showToast('Search videos and creators...')}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-          title="Search Videos"
-        >
-          🔍
-        </button>
+        <div className="flex items-center gap-1.5">
+          {isCurrentVideoPlayable && (
+            <button
+              onClick={() => setIsMuted((m) => !m)}
+              className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+          )}
+          <button
+            onClick={onUploadClick}
+            className="w-9 h-9 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-md active:scale-95 transition-transform"
+            title="Upload Reel"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+          </button>
+        </div>
       </div>
 
-      {/* Video Content Container with Double-tap Detection */}
-      <div 
-        onDoubleClick={handleDoubleTap}
-        onClick={handleDoubleTap}
-        className="relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer"
+      {/* Real Video / Media Player Container */}
+      <div
+        onClick={handleVideoSurfaceTap}
+        className="relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer bg-black"
       >
-        <img
-          src={currentVideo.videoUrl}
-          alt={currentVideo.description}
-          className="w-full h-full object-cover filter brightness-95"
-        />
+        {isCurrentVideoPlayable ? (
+          <video
+            key={currentVideo.id}
+            ref={videoRef}
+            src={currentVideo.videoUrl}
+            poster={
+              currentVideo.thumbnailUrl && currentVideo.thumbnailUrl !== currentVideo.videoUrl
+                ? currentVideo.thumbnailUrl
+                : undefined
+            }
+            autoPlay
+            loop
+            playsInline
+            muted={isMuted}
+            onTimeUpdate={(e) => {
+              const el = e.currentTarget;
+              if (el.duration && Number.isFinite(el.duration) && el.duration > 0) {
+                setPlaybackProgress(Math.min(100, (el.currentTime / el.duration) * 100));
+              }
+            }}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img
+            src={currentVideo.thumbnailUrl || currentVideo.videoUrl}
+            alt={currentVideo.description}
+            className="w-full h-full object-cover filter brightness-95"
+          />
+        )}
 
         {/* Ambient Overlays for Readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/85 pointer-events-none" />
 
         {/* Play/Pause state indicator */}
         {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/20 animate-scale-in">
+            <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
               <Play className="w-8 h-8 fill-white ml-1" />
             </div>
           </div>
@@ -462,17 +648,23 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           </div>
         ))}
 
-        {/* Up / Down Navigation Controls for Desktop/Web scrolling */}
+        {/* Desktop Up/Down controls */}
         <div className="hidden md:flex flex-col gap-2 absolute right-24 top-1/2 -translate-y-1/2 z-30">
           <button
-            onClick={(e) => { e.stopPropagation(); handleScrollPrev(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleScrollPrev();
+            }}
             disabled={activeVideoIndex === 0}
-            className="w-10 h-10 rounded-full bg-black/60 border border-white/15 flex items-center justify-center text-white hover:bg-[#8B20FF]"
+            className="w-10 h-10 rounded-full bg-black/60 border border-white/15 flex items-center justify-center text-white hover:bg-[#8B20FF] disabled:opacity-35"
           >
             ▲
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); handleScrollNext(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleScrollNext();
+            }}
             className="w-10 h-10 rounded-full bg-black/60 border border-white/15 flex items-center justify-center text-white hover:bg-[#F328D5]"
           >
             ▼
@@ -480,43 +672,39 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
         </div>
       </div>
 
-      {/* Right Action Floating Column (Like, Comment, Repost, Gift, Share) matching reference image */}
-      <div className="absolute right-3.5 bottom-24 sm:bottom-28 z-30 flex flex-col items-center gap-4 pointer-events-auto">
-        {/* Creator Avatar with Follow '+' button */}
+      {/* Right Action Floating Column */}
+      <div className="absolute right-3.5 bottom-24 sm:bottom-28 z-30 flex flex-col items-center gap-3.5 pointer-events-auto">
+        {/* Creator Avatar */}
         <div className="relative mb-1">
-          <div 
+          <div
             onClick={() => onSelectUser(currentVideo.creator)}
             className="cursor-pointer hover:scale-105 transition-transform"
           >
             <AvatarWithFrame
               avatar={currentVideo.creator.avatar}
               name={currentVideo.creator.name}
-              level={currentVideo.creator.level || 12}
+              level={currentVideo.creator.level || 0}
               size="md"
             />
           </div>
-
-          <button
-            onClick={() => showToast(`Followed ${currentVideo.creator.name}!`)}
-            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-[#F328D5] to-[#8B20FF] text-white flex items-center justify-center shadow-md active:scale-90 transition-transform"
-            title="Follow Creator"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-          </button>
         </div>
 
         {/* Like Button */}
         <button
-          onClick={toggleLike}
+          onClick={() => void toggleLike()}
           className="flex flex-col items-center group active:scale-75 transition-transform"
         >
-          <div className={`w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${
-            currentVideo.isLiked ? 'text-rose-500' : 'text-white'
-          }`}>
-            <Heart className={`w-6 h-6 ${currentVideo.isLiked ? 'fill-rose-500 stroke-rose-500' : 'stroke-[2]'}`} />
+          <div
+            className={`w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center transition-colors ${
+              currentVideo.isLiked ? 'text-rose-500' : 'text-white'
+            }`}
+          >
+            <Heart
+              className={`w-6 h-6 ${currentVideo.isLiked ? 'fill-rose-500 stroke-rose-500' : 'stroke-[2]'}`}
+            />
           </div>
-          <span className="text-[11px] font-bold text-white mt-1 shadow-sm font-mono">
-            {(currentVideo.likesCount / 1000).toFixed(1)}K
+          <span className="text-[11px] font-bold text-white mt-1 font-mono">
+            {formatCompactCount(currentVideo.likesCount)}
           </span>
         </button>
 
@@ -525,11 +713,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           onClick={() => setShowComments(true)}
           className="flex flex-col items-center group active:scale-75 transition-transform"
         >
-          <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
+          <div className="w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
             <MessageCircle className="w-6 h-6 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-bold text-white mt-1 shadow-sm font-mono">
-            {(currentVideo.commentsCount / 1000).toFixed(1)}K
+          <span className="text-[11px] font-bold text-white mt-1 font-mono">
+            {formatCompactCount(currentVideo.commentsCount)}
           </span>
         </button>
 
@@ -538,13 +726,15 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           onClick={toggleRepost}
           className="flex flex-col items-center group active:scale-75 transition-transform"
         >
-          <div className={`w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${
-            currentVideo.isReposted ? 'text-[#06B6D4]' : 'text-white'
-          }`}>
+          <div
+            className={`w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center transition-colors ${
+              currentVideo.isReposted ? 'text-[#06B6D4]' : 'text-white'
+            }`}
+          >
             <Repeat2 className="w-6 h-6 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-bold text-white mt-1 shadow-sm font-mono">
-            {(currentVideo.repostsCount / 1000).toFixed(1)}K
+          <span className="text-[11px] font-bold text-white mt-1 font-mono">
+            {formatCompactCount(currentVideo.repostsCount)}
           </span>
         </button>
 
@@ -553,48 +743,68 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           onClick={() => onOpenGiftShop(currentVideo.creator)}
           className="flex flex-col items-center group active:scale-75 transition-transform"
         >
-          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/40 animate-pulse">
+          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] flex items-center justify-center text-white shadow-lg shadow-[#F328D5]/40">
             <Gift className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <span className="text-[11px] font-bold text-[#FFC84A] mt-1 shadow-sm">
-            Gift
-          </span>
+          <span className="text-[11px] font-bold text-[#FFC84A] mt-1">Gift</span>
         </button>
 
         {/* Share Button */}
         <button
-          onClick={() => showToast('Video link copied to clipboard!')}
+          onClick={() => void handleShareReel()}
           className="flex flex-col items-center group active:scale-75 transition-transform"
         >
-          <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
+          <div className="w-11 h-11 rounded-full bg-black/45 backdrop-blur-md border border-white/15 flex items-center justify-center text-white">
             <Share2 className="w-5 h-5 stroke-[2]" />
           </div>
-          <span className="text-[11px] font-bold text-white mt-1 shadow-sm">
-            Share
+          <span className="text-[11px] font-bold text-white mt-1 font-mono">
+            {formatCompactCount(currentVideo.sharesCount || 0)}
           </span>
         </button>
+
+        {/* Owner Delete OR Viewer Report Button */}
+        {isOwnVideo ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex flex-col items-center group active:scale-75 transition-transform"
+            title="Delete Your Reel"
+          >
+            <div className="w-10 h-10 rounded-full bg-rose-600/35 hover:bg-rose-600/60 backdrop-blur-md border border-rose-400/40 flex items-center justify-center text-rose-200">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-bold text-rose-300 mt-1">Delete</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="flex flex-col items-center group active:scale-75 transition-transform"
+            title="Report Reel"
+          >
+            <div className="w-10 h-10 rounded-full bg-black/45 hover:bg-amber-500/25 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/75 hover:text-amber-300">
+              <Flag className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] font-bold text-white/70 mt-1">Report</span>
+          </button>
+        )}
       </div>
 
       {/* Bottom Creator Meta & Description */}
-      <div className="relative z-30 p-4 pb-6 max-w-lg pointer-events-auto">
-        <div className="flex items-center gap-2 mb-2">
-          <span 
+      <div className="relative z-30 p-4 pb-6 pr-20 max-w-lg pointer-events-auto">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span
             onClick={() => onSelectUser(currentVideo.creator)}
             className="text-sm font-black text-white hover:underline cursor-pointer"
           >
             {currentVideo.creator.name}
           </span>
           <span className="text-xs text-[#B9AECF] font-mono">{currentVideo.creator.username}</span>
-
-          <button
-            onClick={() => showToast(`Followed ${currentVideo.creator.name}!`)}
-            className="px-3 py-0.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-bold shadow"
-          >
-            Follow
-          </button>
+          <span className="inline-flex items-center gap-1 text-[10px] text-white/70 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
+            <Eye className="w-3 h-3" />
+            {formatCompactCount(currentVideo.viewsCount || 0)}
+          </span>
         </div>
 
-        <p className="text-xs text-white/90 line-clamp-2 leading-relaxed mb-2 drop-shadow">
+        <p className="text-xs text-white/95 line-clamp-2 leading-relaxed mb-2 drop-shadow">
           {currentVideo.description}
         </p>
 
@@ -607,26 +817,36 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           ))}
         </div>
 
-        {/* Music ticker */}
-        <div className="flex items-center gap-2 text-xs text-white/80">
-          <Music className="w-3.5 h-3.5 text-[#F328D5] animate-spin" />
-          <span className="text-[11px] font-mono truncate max-w-xs">{currentVideo.musicTitle}</span>
+        {/* Music ticker + Pagination badge */}
+        <div className="flex items-center justify-between gap-2 text-xs text-white/80">
+          <div className="flex items-center gap-2 min-w-0">
+            <Music className="w-3.5 h-3.5 text-[#F328D5] shrink-0" />
+            <span className="text-[11px] font-mono truncate">{currentVideo.musicTitle}</span>
+          </div>
+          {hasMoreVideos && onLoadMoreVideos && activeVideoIndex >= feedVideos.length - 2 && (
+            <button
+              onClick={onLoadMoreVideos}
+              disabled={isLoadingMore}
+              className="shrink-0 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-[10px] font-bold text-white"
+            >
+              {isLoadingMore ? 'Loading...' : 'Load More'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Video Progress Scrubber Bar matching reference screen #4 */}
+      {/* Video Progress Scrubber Bar */}
       <div className="absolute bottom-0 left-0 right-0 z-30 h-1 bg-white/20">
-        <div 
-          className="h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] transition-all duration-200 shadow-[0_0_8px_#F328D5]"
+        <div
+          className="h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] transition-all duration-150 shadow-[0_0_8px_#F328D5]"
           style={{ width: `${playbackProgress}%` }}
         />
       </div>
 
-      {/* Slide-Up Comments Drawer */}
+      {/* Slide-Up Persisted Comments Drawer */}
       {showComments && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg bg-[#160C25] border-t border-white/15 rounded-t-3xl p-4 sm:p-5 h-[65vh] flex flex-col justify-between shadow-2xl">
-            {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <span className="text-sm font-bold text-white flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-[#F328D5]" />
@@ -637,44 +857,160 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
               </button>
             </div>
 
-            {/* Comments List */}
             <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 no-scrollbar">
-              {comments.map((c) => (
-                <div key={c.id} className="flex items-start gap-3 text-xs">
-                  <img src={c.avatar} alt={c.user} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{c.user}</span>
-                      <span className="text-[10px] text-[#B9AECF]">{c.time}</span>
-                    </div>
-                    <p className="text-white/90 mt-0.5">{c.text}</p>
-                  </div>
-                  <button className="flex flex-col items-center text-[#B9AECF] hover:text-rose-400">
-                    <Heart className="w-3.5 h-3.5" />
-                    <span className="text-[9px]">{c.likes}</span>
-                  </button>
+              {comments.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-xs text-[#B9AECF]">
+                  <p>No comments yet. Be the first to share a thought!</p>
                 </div>
-              ))}
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-3 text-xs">
+                    <img
+                      src={
+                        c.user.avatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
+                      }
+                      alt={c.user.name}
+                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white truncate">{c.user.name}</span>
+                        <span className="text-[10px] text-[#B9AECF]">{c.timestamp}</span>
+                      </div>
+                      <p className="text-white/90 mt-0.5 break-words">{c.text}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
-            {/* Comment Form */}
-            <form onSubmit={handleAddComment} className="flex items-center gap-2 pt-2 border-t border-white/[0.08]">
+            <form
+              onSubmit={(e) => void handleAddComment(e)}
+              className="flex items-center gap-2 pt-2 border-t border-white/[0.08]"
+            >
               <input
                 type="text"
                 placeholder="Add a comment..."
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
+                maxLength={400}
                 className="flex-1 bg-black/50 border border-white/15 rounded-full px-4 py-2 text-xs text-white placeholder-[#B9AECF] outline-none focus:border-[#F328D5]"
               />
               <button
                 type="submit"
-                disabled={!commentInput.trim()}
+                disabled={!commentInput.trim() || isPostingComment}
                 className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold disabled:opacity-40"
               >
-                Post
+                {isPostingComment ? '...' : 'Post'}
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Owner Delete Reel Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-xs bg-[#160C25] border border-rose-500/35 rounded-3xl p-5 text-center space-y-3.5 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h4 className="text-base font-extrabold text-white">Delete This Reel?</h4>
+            <p className="text-xs text-[#B9AECF] leading-relaxed">
+              This will permanently remove the video and thumbnail from Firebase Storage and Firestore.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => void handleConfirmDeleteReel()}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Reel Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <form
+            onSubmit={(e) => void handleSubmitReport(e)}
+            className="w-full max-w-sm bg-[#160C25] border border-white/15 rounded-3xl p-5 space-y-3.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h4 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Flag className="w-4 h-4 text-amber-400" />
+                Report Reel
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="text-white/60 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              {[
+                'Inappropriate content',
+                'Spam or scam',
+                'Harassment or hate speech',
+                'Copyright violation',
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setReportReason(reason)}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                    reportReason === reason
+                      ? 'bg-[#8B20FF]/30 border-[#F328D5] text-white'
+                      : 'bg-white/[0.04] border-white/10 text-[#B9AECF]'
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              rows={2}
+              placeholder="Optional details..."
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              maxLength={300}
+              className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder-[#B9AECF]/50 outline-none"
+            />
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingReport}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold disabled:opacity-50"
+              >
+                {isSubmittingReport ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
