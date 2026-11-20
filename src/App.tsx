@@ -29,6 +29,7 @@ import {
   FirestoreUserData,
 } from './services/authService';
 import { androidBridge } from './utils/androidBridge';
+import { ensureNativeMediaPermissions } from './utils/mediaDeviceHelper';
 import { 
   subscribeFirestoreLiveStreams, 
   subscribeFirestorePartyRooms, 
@@ -158,7 +159,7 @@ export default function App() {
         const parsed = new URL(rawUrl, 'https://lenzoparty.com');
         const pathMatch = parsed.pathname.match(/^\/u\/([^/?#]+)/i);
         const usernameParam = parsed.searchParams.get('u') || (pathMatch ? decodeURIComponent(pathMatch[1]) : null);
-        const userParam = parsed.searchParams.get('user');
+        const userParam = parsed.searchParams.get('profile') || parsed.searchParams.get('user');
 
         if (usernameParam || userParam) {
           const cleanUsername = usernameParam ? `@${usernameParam.replace(/^@/, '')}`.toLowerCase() : null;
@@ -745,12 +746,38 @@ export default function App() {
     endedLiveIdsRef.current.delete(newStream.id);
     backendLiveIdsRef.current.add(newStream.id);
 
-    let confirmedStream = newStream;
-    try {
-      confirmedStream = await liveAndRoomService.startLiveStream(newStream);
-    } catch (err) {
-      console.warn('[Backend] Live stream start notice:', err);
-    }
+    const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+      new Promise<T>((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            resolve(fallback);
+          }
+        }, ms);
+        promise
+          .then((val) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve(val);
+            }
+          })
+          .catch(() => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve(fallback);
+            }
+          });
+      });
+
+    const [confirmedStream] = await Promise.all([
+      withTimeout(liveAndRoomService.startLiveStream(newStream), 3000, newStream),
+      createFirestoreLiveStream(newStream).catch((err) => {
+        console.warn('[Firestore] Live stream creation notice:', err);
+      }),
+    ]);
 
     setLiveStreams((prev) => [confirmedStream, ...prev.filter((s) => s.id !== confirmedStream.id)]);
     setActiveLiveStream(confirmedStream);
@@ -760,12 +787,6 @@ export default function App() {
       .fetchTopBroadcasters()
       .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
       .catch(() => {});
-
-    try {
-      await createFirestoreLiveStream(confirmedStream);
-    } catch (err) {
-      console.warn('[Firestore] Live stream creation notice:', err);
-    }
   };
 
   // Handler: End Live Stream permanently (removes from feed, Firestore, refreshes rankings)
@@ -785,27 +806,47 @@ export default function App() {
       .catch(() => {});
   };
 
-  // Handler: Create Newly Created Audio Room (Sync with Backend FIRST to avoid join/chat races, then Firestore)
+  // Handler: Create Newly Created Audio Room (Create Firestore & Backend in parallel with 3s cap)
   const handleCreateRoom = async (newRoom: PartyRoom) => {
     endedRoomIdsRef.current.delete(newRoom.id);
     backendRoomIdsRef.current.add(newRoom.id);
 
-    let confirmedRoom = newRoom;
-    try {
-      confirmedRoom = await liveAndRoomService.createPartyRoom(newRoom);
-    } catch (err) {
-      console.warn('[Backend] Party room creation notice:', err);
-    }
+    const backendPromise = new Promise<PartyRoom>((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          resolve(newRoom);
+        }
+      }, 3000);
+      liveAndRoomService
+        .createPartyRoom(newRoom)
+        .then((res) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(res);
+          }
+        })
+        .catch(() => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(newRoom);
+          }
+        });
+    });
+
+    const [confirmedRoom] = await Promise.all([
+      backendPromise,
+      createFirestorePartyRoom(newRoom).catch((err) => {
+        console.warn('[Firestore] Party room creation notice:', err);
+      }),
+    ]);
 
     setPartyRooms((prev) => [confirmedRoom, ...prev.filter((r) => r.id !== confirmedRoom.id)]);
     setActiveAudioRoom(confirmedRoom);
     setCurrentScreen('audio_room');
-
-    try {
-      await createFirestorePartyRoom(confirmedRoom);
-    } catch (err) {
-      console.warn('[Firestore] Party room creation notice:', err);
-    }
   };
 
   // Handlers for Mic Button & Plus Button workflows
@@ -836,16 +877,33 @@ export default function App() {
     if (auth.currentUser) {
       try {
         const userRef = doc(db, 'users', auth.currentUser.uid);
-        await updateDoc(userRef, {
-          fullName: updated.name,
-          username: updated.username || '',
-          profileImage: updated.avatar,
-          coverImage: updated.coverImage || '',
-          bio: updated.bio || '',
+        const payload: Record<string, any> = {
+          fullName: updated.name.slice(0, 60),
+          username: (updated.username || '').slice(0, 40),
+          bio: (updated.bio || '').slice(0, 300),
           gender: updated.gender || 'unspecified',
-          country: updated.country || 'Global',
-          birthday: updated.birthday || '',
-        });
+          country: (updated.country || 'Global').slice(0, 64),
+          birthday: (updated.birthday || '').slice(0, 32),
+          showGender: updated.showGender ?? true,
+          showAge: updated.showAge ?? true,
+          showOnlineStatus: updated.showOnlineStatus ?? true,
+          equippedBadges: Array.isArray(updated.equippedBadges) ? updated.equippedBadges.slice(0, 3) : [],
+          agencyId: updated.agencyId || '',
+          agencyName: updated.agencyName || '',
+          agencyCode: updated.agencyCode || '',
+          agencyLogo: updated.agencyLogo || '',
+          agencyRole: updated.agencyRole || '',
+          agencyStatus: updated.agencyStatus || 'none',
+          crewName: updated.crewName || '',
+          crewBadge: updated.crewBadge || '',
+        };
+        if (updated.avatar && updated.avatar.length <= 1500) {
+          payload.profileImage = updated.avatar;
+        }
+        if (typeof updated.coverImage === 'string' && updated.coverImage.length <= 1500) {
+          payload.coverImage = updated.coverImage;
+        }
+        await updateDoc(userRef, payload);
       } catch (err) {
         console.warn('[Firestore] Profile update notice:', err);
       }
@@ -1229,8 +1287,14 @@ export default function App() {
           }
           setCurrentScreen(screen);
         }}
-        onOpenCreateLive={() => setCurrentScreen('create_live')}
-        onOpenCreateRoom={() => setCurrentScreen('create_room')}
+        onOpenCreateLive={() => {
+          void ensureNativeMediaPermissions({ video: true, audio: true });
+          setCurrentScreen('create_live');
+        }}
+        onOpenCreateRoom={() => {
+          void ensureNativeMediaPermissions({ video: false, audio: true });
+          setCurrentScreen('create_room');
+        }}
         onOpenWallet={() => setIsWalletOpen(true)}
         onOpenGiftShop={() => {
           setGiftRecipient(null);
@@ -1361,6 +1425,8 @@ export default function App() {
                 setCurrentScreen('videos');
               }}
               onUploadSuccess={(newVideo) => {
+                const existingStored = profileService.getStoredVideos().filter((v) => v.id !== newVideo.id);
+                profileService.saveStoredVideos([newVideo, ...existingStored]);
                 setVideos([newVideo, ...videos]);
                 setStagedVideoData(null);
                 setCurrentScreen('videos');
@@ -1395,8 +1461,8 @@ export default function App() {
               onOpenWallet={() => setIsWalletOpen(true)}
               onOpenVIP={() => setIsLevelVIPOpen(true)}
               onOpenLevelVIP={() => setIsLevelVIPOpen(true)}
-              userVideos={videos.filter(v => v.creator.id === (navigatingProfileUser?.id || currentUser.id) || v.creator.name === (navigatingProfileUser?.name || currentUser.name))}
-              onSelectVideo={(v) => setCurrentScreen('videos')}
+              userVideos={videos}
+              onSelectVideo={(_v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
               onDeleteVideo={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
             />
@@ -1433,8 +1499,14 @@ export default function App() {
       <MicSelectionModal
         isOpen={isMicSelectionOpen}
         onClose={() => setIsMicSelectionOpen(false)}
-        onSelectGoLive={() => setCurrentScreen('create_live')}
-        onSelectCreateRoom={() => setCurrentScreen('create_room')}
+        onSelectGoLive={() => {
+          void ensureNativeMediaPermissions({ video: true, audio: true });
+          setCurrentScreen('create_live');
+        }}
+        onSelectCreateRoom={() => {
+          void ensureNativeMediaPermissions({ video: false, audio: true });
+          setCurrentScreen('create_room');
+        }}
       />
 
       {/* 2. Plus (+) Button Selection Modal: Dedicated to Video Upload only (1. CAMERA, 2. GALLERY) */}

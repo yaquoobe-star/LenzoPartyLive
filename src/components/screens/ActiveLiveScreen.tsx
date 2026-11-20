@@ -46,6 +46,10 @@ import { LevelBadge } from '../common/LevelBadge';
 import { pkService } from '../../utils/pkService';
 import { 
   acquireRealDeviceCamera, 
+  consumeStagedLiveStream,
+  isNativeAndroidApp,
+  openNativeAppSettings,
+  setNativeLiveAudioMode,
   stopMediaStream, 
   createAudioAnalyser, 
   AudioAnalyserController 
@@ -53,6 +57,17 @@ import {
 import { agoraRtcService } from '../../utils/agoraRtcService';
 import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
+import {
+  heartbeatFirestoreLiveViewer,
+  joinFirestoreLiveViewer,
+  leaveFirestoreLiveViewer,
+  sendFirestoreLiveComment,
+  subscribeFirestoreLiveComments,
+  subscribeFirestoreLiveStreamDoc,
+  subscribeFirestoreLiveViewers,
+  updateFirestoreLiveLikes,
+  updateFirestoreLiveViewerCount,
+} from '../../services/firestoreRealtimeService';
 import { getUserLevelProgress } from '../../utils/levelSystem';
 
 interface ActiveLiveScreenProps {
@@ -223,39 +238,145 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
   };
 
-  // Real-time stream join, 15s heartbeat, WebSocket comments/likes/entry banners & exit cleanup
+  // Real-time stream join, 15s heartbeat, WebSocket + Firestore comments/likes/viewers/entry banners & exit cleanup
   useEffect(() => {
     let active = true;
+    let streamDocEverExisted = false;
+    const initialKnownViewerIds = new Set<string>([currentUser.id]);
+    let fsViewersInitialized = false;
+
     liveAndRoomService.setCurrentUser(currentUser.id);
     liveAndRoomService.subscribeLive(stream.id, currentUser.id);
+
+    // Always write real-time presence to Cloud Firestore (works even when Railway API is 502)
+    void joinFirestoreLiveViewer(stream.id, currentUser, isActualHost);
 
     liveAndRoomService
       .joinLiveStream(stream.id, currentUser)
       .then((res) => {
         if (!active) return;
         if (res.stream) {
-          setLiveViewerCount(res.stream.numericViewers ?? 0);
+          setLiveViewerCount((prev) => Math.max(prev, res.stream?.numericViewers ?? 0));
           if (typeof res.stream.likesCount === 'number') {
-            setStreamLikes(res.stream.likesCount);
+            setStreamLikes((prev) => Math.max(prev, res.stream!.likesCount || 0));
           }
         }
-        if (Array.isArray(res.viewers)) {
-          setViewersList(res.viewers);
-          setViewersTotalCount(res.viewers.length);
+        if (Array.isArray(res.viewers) && res.viewers.length > 0) {
+          setViewersList((prev) => {
+            const byId = new Map<string, LiveViewerInfo>();
+            prev.forEach((v) => byId.set(v.userId, v));
+            res.viewers!.forEach((v) => byId.set(v.userId, v));
+            const merged = Array.from(byId.values());
+            setViewersTotalCount(merged.length);
+            return merged;
+          });
         } else {
           loadLiveViewers(1, false);
         }
-        if (Array.isArray(res.comments)) {
-          setMessages(res.comments);
+        if (Array.isArray(res.comments) && res.comments.length > 0) {
+          setMessages((prev) => {
+            const seen = new Set(prev.map((m) => m.id));
+            const next = [...prev];
+            res.comments!.forEach((m) => {
+              if (!seen.has(m.id)) {
+                seen.add(m.id);
+                next.push(m);
+              }
+            });
+            return next.slice(-80);
+          });
         }
       })
       .catch((err) => {
-        console.warn('[ActiveLive] Join notice:', err?.message || err);
-        loadLiveViewers(1, false);
+        console.warn('[ActiveLive] Backend join fallback to Firestore:', err?.message || err);
       });
+
+    // Cloud Firestore real-time viewers subscription (keeps viewer count, top avatars & join notices live 24/7)
+    const unsubFsViewers = subscribeFirestoreLiveViewers(stream.id, (fsViewers) => {
+      if (!active) return;
+
+      if (!fsViewersInitialized) {
+        fsViewersInitialized = true;
+        fsViewers.forEach((v) => initialKnownViewerIds.add(v.userId));
+      } else {
+        fsViewers.forEach((v) => {
+          if (!initialKnownViewerIds.has(v.userId) && v.userId !== currentUser.id) {
+            initialKnownViewerIds.add(v.userId);
+            const now = Date.now();
+            const lastShown = seenEntriesRef.current.get(v.userId) || 0;
+            if (now - lastShown > 10000) {
+              seenEntriesRef.current.set(v.userId, now);
+              setEntryNotice({ id: `${v.userId}_${now}`, name: v.name || 'Viewer' });
+              setMessages((prev) => [
+                ...prev.slice(-79),
+                {
+                  id: `join_fs_${v.userId}_${now}`,
+                  senderId: v.userId,
+                  senderName: v.name || 'Viewer',
+                  senderAvatar: v.avatar || '',
+                  text: 'joined the live',
+                  timestamp: 'Now',
+                  isSystem: true,
+                },
+              ]);
+              if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
+              entryTimerRef.current = setTimeout(() => setEntryNotice(null), 3500);
+            }
+            if (isActualHost && mediaTransportRef.current === 'webrtc') {
+              webrtcMediaService.sendOfferToViewer(v.userId);
+            }
+          }
+        });
+      }
+
+      setViewersList(fsViewers);
+      setViewersTotalCount(fsViewers.length);
+      setLiveViewerCount(fsViewers.length);
+
+      if (isActualHost) {
+        void updateFirestoreLiveViewerCount(stream.id, fsViewers.length);
+      }
+    });
+
+    // Cloud Firestore real-time comments subscription
+    const unsubFsComments = subscribeFirestoreLiveComments(stream.id, (fsComments) => {
+      if (!active || fsComments.length === 0) return;
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const merged = [...prev];
+        let changed = false;
+        fsComments.forEach((m) => {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            merged.push(m);
+            changed = true;
+          }
+        });
+        return changed ? merged.slice(-80) : prev;
+      });
+    });
+
+    // Cloud Firestore parent stream doc listener (syncs likes & host end-stream event)
+    const unsubFsStreamDoc = subscribeFirestoreLiveStreamDoc(stream.id, (exists, data) => {
+      if (!active) return;
+      if (exists) {
+        streamDocEverExisted = true;
+        if (typeof data?.likesCount === 'number') {
+          setStreamLikes((prev) => Math.max(prev, data.likesCount));
+        }
+      } else if (streamDocEverExisted && !isActualHost) {
+        showToast('Live broadcast has ended');
+        webrtcMediaService.stopLive();
+        agoraRtcService.leaveChannel().catch(() => {});
+        setTimeout(() => {
+          if (active) onClose();
+        }, 1500);
+      }
+    });
 
     const heartbeat = setInterval(() => {
       liveAndRoomService.sendLiveHeartbeat(stream.id, currentUser.id);
+      void heartbeatFirestoreLiveViewer(stream.id, currentUser, isActualHost);
     }, 15000);
 
     const unsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
@@ -383,9 +504,13 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       clearInterval(heartbeat);
       if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
       unsubscribeWs();
+      unsubFsViewers();
+      unsubFsComments();
+      unsubFsStreamDoc();
       liveAndRoomService.unsubscribeLive();
       if (!isActualHost) {
         liveAndRoomService.leaveLiveStream(stream.id, currentUser.id);
+        void leaveFirestoreLiveViewer(stream.id);
       }
     };
   }, [stream.id, currentUser.id, isActualHost]);
@@ -664,12 +789,43 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       try {
         setAgoraConnectionState('connecting');
         setMediaTransport('connecting');
+        void setNativeLiveAudioMode(true);
 
-        // 1. For Host: acquire camera & mic FIRST before publishing (eliminates double getUserMedia race)
+        // 1. For Host: FIRST consume pre-acquired hardware stream handed off from CreateLiveScreen tap
+        //    (avoids Android NotReadableError hardware camera lock and guarantees instant real camera feed!)
         let acquiredStream: MediaStream | null = mediaStreamRef.current;
-        if (role === 'host' && isCameraOn && !acquiredStream) {
-          acquiredStream = await startCamera(isFrontCamera);
-          if (!isSubscribed) return;
+        let effectiveCameraOn = isCameraOn;
+        let effectiveFront = isFrontCamera;
+        let effectiveMicMuted = isMicMuted;
+
+        if (role === 'host' && !acquiredStream) {
+          const staged = consumeStagedLiveStream();
+          if (staged && staged.stream.getTracks().some((t) => t.readyState === 'live')) {
+            acquiredStream = staged.stream;
+            mediaStreamRef.current = staged.stream;
+            effectiveCameraOn = staged.isCameraOn;
+            effectiveFront = staged.isFront;
+            effectiveMicMuted = !staged.isMicOn;
+
+            setIsCameraOn(staged.isCameraOn);
+            setIsFrontCamera(staged.isFront);
+            setIsMicMuted(!staged.isMicOn);
+            setCameraLabel(staged.label);
+            setIsRealBackCamera(staged.isRealBackCamera);
+            setHasWebcamStream(staged.isCameraOn && staged.stream.getVideoTracks().length > 0);
+            setCameraPermissionDenied(false);
+
+            if (videoElementRef.current && staged.isCameraOn) {
+              videoElementRef.current.srcObject = staged.stream;
+              videoElementRef.current.play().catch(() => {});
+            }
+            if (staged.hasAudio) {
+              audioAnalyserControllerRef.current = createAudioAnalyser(staged.stream);
+            }
+          } else if (isCameraOn) {
+            acquiredStream = await startCamera(isFrontCamera);
+            if (!isSubscribed) return;
+          }
         }
 
         const config = await agoraRtcService.getAgoraConfig();
@@ -693,9 +849,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 userAccount: currentUser.id,
                 role,
                 token: tokenData.token,
-                enableVideo: isCameraOn && Boolean(acquiredStream || !cameraPermissionDenied),
-                enableAudio: !isMicMuted,
-                isFront: isFrontCamera,
+                enableVideo: effectiveCameraOn && Boolean(acquiredStream || !cameraPermissionDenied),
+                enableAudio: !effectiveMicMuted,
+                isFront: effectiveFront,
                 mediaStream: acquiredStream,
               });
 
@@ -749,33 +905,41 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           setAgoraConnected(true);
           setAgoraConnectionState('connected');
         } else {
-          webrtcMediaService.startLiveViewer(stream.id, currentUser.id, stream.host.id, {
-            onRemoteStream: (remoteStream) => {
-              if (!isSubscribed) return;
-              setRemoteWebRtcStream(remoteStream);
-              setHasRemoteAgoraStream(true);
-              const hasActiveVideo = remoteStream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled);
-              setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
-              setAgoraConnected(true);
-              setAgoraConnectionState('connected');
-            },
-            onStatusChange: (status) => {
-              if (!isSubscribed) return;
-              if (status === 'connected') {
+          webrtcMediaService.startLiveViewer(
+            stream.id,
+            currentUser.id,
+            stream.host.id,
+            {
+              onRemoteStream: (remoteStream) => {
+                if (!isSubscribed) return;
+                setRemoteWebRtcStream(remoteStream);
+                setHasRemoteAgoraStream(true);
+                const hasActiveVideo = remoteStream
+                  .getVideoTracks()
+                  .some((t) => t.readyState === 'live' && t.enabled);
+                setRemoteHostIsCameraOn(hasActiveVideo || remoteStream.getVideoTracks().length > 0);
                 setAgoraConnected(true);
                 setAgoraConnectionState('connected');
-              } else if (status === 'connecting' || status === 'reconnecting') {
-                setAgoraConnectionState('connecting');
-              } else if (status === 'failed') {
-                setAgoraConnectionState('error');
-              }
+              },
+              onStatusChange: (status) => {
+                if (!isSubscribed) return;
+                if (status === 'connected') {
+                  setAgoraConnected(true);
+                  setAgoraConnectionState('connected');
+                } else if (status === 'connecting' || status === 'reconnecting') {
+                  setAgoraConnectionState('connecting');
+                } else if (status === 'failed') {
+                  setAgoraConnectionState('error');
+                }
+              },
+              onAutoplayBlocked: () => {
+                if (!isSubscribed) return;
+                setAutoplayBlocked(true);
+                setViewerSoundMuted(true);
+              },
             },
-            onAutoplayBlocked: () => {
-              if (!isSubscribed) return;
-              setAutoplayBlocked(true);
-              setViewerSoundMuted(true);
-            },
-          });
+            currentUser
+          );
         }
       } catch (err: any) {
         console.warn('[Live Media] Connection notice:', err?.message || err);
@@ -832,6 +996,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       unsubUserLeft();
       webrtcMediaService.stopLive();
       agoraRtcService.leaveChannel().catch(() => {});
+      void setNativeLiveAudioMode(false);
       if (audioAnalyserControllerRef.current) {
         audioAnalyserControllerRef.current.cleanup();
         audioAnalyserControllerRef.current = null;
@@ -936,7 +1101,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       const yPercent = Math.max(10, Math.min(88, ((clientY - rect.top) / rect.height) * 100));
 
       triggerHeartAnimation(xPercent, yPercent, side);
-      setStreamLikes((prev) => prev + 1);
+      const nextLikesOptimistic = streamLikes + 1;
+      setStreamLikes(nextLikesOptimistic);
+      void updateFirestoreLiveLikes(stream.id, nextLikesOptimistic);
       liveAndRoomService.sendLiveHeart(stream.id, currentUser.id, 1).then((nextTotal) => {
         if (nextTotal > 0) setStreamLikes(nextTotal);
       });
@@ -950,7 +1117,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
   };
 
-  // Send Message (Real-time backend comment sync + 429 rate-limit handling)
+  // Send Message (Dual-transport with exact ID dedup: Backend -> Firestore mirror, or direct Firestore fallback on 502)
   const handleSendMessage = async (e?: React.FormEvent, customText?: string) => {
     if (e) e.preventDefault();
     const textToSend = (customText || inputMessage).trim();
@@ -959,11 +1126,28 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     setInputMessage('');
     setShowEmojiPicker(false);
 
+    let finalMsg: ChatMessage | null = null;
     try {
-      const saved = await liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend);
-      setMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev : [...prev, saved]));
-    } catch (err: any) {
-      showToast(err?.message || 'Could not send message');
+      const backendSaved = await liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend);
+      finalMsg = backendSaved;
+      // Mirror with the exact same ID to Firestore so no duplicate appears
+      void sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, backendSaved.id);
+    } catch {
+      const fallbackId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      finalMsg = await sendFirestoreLiveComment(
+        stream.id,
+        currentUser,
+        textToSend,
+        isActualHost,
+        fallbackId
+      );
+    }
+
+    if (finalMsg) {
+      const msgToAdd = finalMsg;
+      setMessages((prev) => (prev.some((m) => m.id === msgToAdd.id) ? prev : [...prev, msgToAdd]));
+    } else {
+      showToast('Could not send message. Please check your connection.');
       setInputMessage(textToSend);
     }
   };
@@ -1621,6 +1805,19 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                         <span>{cameraPermissionDenied ? 'Allow Camera & Mic' : 'Activate Camera & Mic'}</span>
                       </button>
 
+                      {cameraPermissionDenied && isNativeAndroidApp() && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void openNativeAppSettings();
+                          }}
+                          className="px-4 py-2.5 rounded-full bg-amber-500/25 hover:bg-amber-500/35 border border-amber-400/40 text-amber-200 text-xs font-bold transition-all"
+                        >
+                          Open Phone Settings
+                        </button>
+                      )}
+
                       {cameraPermissionDenied && (
                         <button
                           type="button"
@@ -1780,7 +1977,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (mediaTransport === 'webrtc') {
+                      setIsMuted(false);
+                      setViewerSoundMuted(false);
+                      setAutoplayBlocked(false);
+                      if (mediaTransport === 'webrtc' || mediaTransport === 'connecting') {
                         webrtcMediaService.requestOfferFromHost();
                       } else {
                         const existing = agoraRtcService.getRemoteHosts()[0];
@@ -1789,9 +1989,14 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                           setHasRemoteAgoraStream(true);
                           setRemoteHostIsCameraOn(true);
                         }
+                        agoraRtcService.setSpeakerMuted(false);
                         agoraRtcService.resumeRemoteAudio();
                       }
-                      showToast('Refreshing live stream feed...');
+                      if (remoteWebRtcVideoRef.current) {
+                        remoteWebRtcVideoRef.current.muted = false;
+                        remoteWebRtcVideoRef.current.play().catch(() => {});
+                      }
+                      showToast('Reconnecting real-time live feed...');
                     }}
                     className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
                   >

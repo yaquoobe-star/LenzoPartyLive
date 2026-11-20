@@ -19,7 +19,10 @@ import { auth } from '../../firebase';
 import { LiveStream, UserProfile } from '../../types';
 import { 
   acquireRealDeviceCamera, 
-  ensureNativeMediaPermissions,
+  acquireRealMicrophone,
+  isNativeAndroidApp,
+  openNativeAppSettings,
+  setStagedLiveStream,
   stopMediaStream, 
   createAudioAnalyser, 
   AudioAnalyserController 
@@ -51,6 +54,10 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
 
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraMetaRef = useRef<{ label: string; isRealBackCamera: boolean }>({
+    label: 'Front Camera',
+    isRealBackCamera: false,
+  });
   const audioAnalyserRef = useRef<AudioAnalyserController | null>(null);
   const volumeRafRef = useRef<number | null>(null);
 
@@ -60,6 +67,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const [mediaPermissionError, setMediaPermissionError] = useState<string | null>(null);
+  const [isPermanentlyDenied, setIsPermanentlyDenied] = useState<boolean>(false);
   const [isRequestingMedia, setIsRequestingMedia] = useState(false);
 
   const sampleCovers = [
@@ -99,6 +107,10 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       });
 
       streamRef.current = result.stream;
+      cameraMetaRef.current = {
+        label: result.label,
+        isRealBackCamera: result.isRealBackCamera,
+      };
       result.stream.getAudioTracks().forEach((t) => {
         t.enabled = isMicOn;
       });
@@ -110,6 +122,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       setHasWebcam(isCameraPreviewOn && result.stream.getVideoTracks().length > 0);
       setHasMic(result.hasAudio && isMicOn);
       setMediaPermissionError(null);
+      setIsPermanentlyDenied(false);
 
       if (result.hasAudio && isMicOn) {
         const controller = createAudioAnalyser(result.stream);
@@ -120,18 +133,36 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       console.warn('Real camera/mic preview acquisition error:', err);
       setHasWebcam(false);
       setHasMic(false);
-      const errMsg =
-        err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
-          ? 'Camera & Microphone permission denied. Tap below to allow access.'
+      const permBlocked = Boolean(err?.permanentlyDenied);
+      setIsPermanentlyDenied(permBlocked);
+      const errMsg = permBlocked
+        ? 'Camera & Microphone are blocked in Android Settings. Tap Open Settings -> Permissions -> Allow Camera & Microphone.'
+        : err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+          ? 'Camera & Microphone permission denied. Tap below to allow real device access.'
           : err?.name === 'NotFoundError'
             ? 'No camera or microphone detected on this device.'
-            : 'Tap below to allow Camera & Microphone access.';
+            : 'Tap below to connect your real Camera & Microphone.';
       setMediaPermissionError(errMsg);
       return false;
     } finally {
       setIsRequestingMedia(false);
     }
   };
+
+  // Auto-retry camera & mic when user returns from Android App Settings or Browser Permission Bar
+  useEffect(() => {
+    const onResume = () => {
+      if (document.visibilityState === 'visible' && isCameraPreviewOn && !streamRef.current) {
+        void startPreview(isFrontCamera);
+      }
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    return () => {
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+    };
+  }, [isCameraPreviewOn, isFrontCamera]);
 
   // Bind acquired MediaStream as soon as <video> mounts (fixes black preview race!)
   useEffect(() => {
@@ -222,29 +253,92 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       return;
     }
 
-    // Explicitly trigger Camera & Mic permission prompt inside this user tap if not granted yet
-    if ((isCameraPreviewOn || isMicOn) && !hasWebcam) {
+    // Acquire real Camera & Mic INSIDE this direct user tap (Android/WebView requires user gesture)
+    // and hand the live MediaStream straight into ActiveLiveScreen without closing/re-opening hardware.
+    let liveStreamToHandoff: MediaStream | null = streamRef.current;
+    const hasLiveVideo = Boolean(
+      liveStreamToHandoff?.getVideoTracks().some((t) => t.readyState === 'live')
+    );
+    const hasLiveAudio = Boolean(
+      liveStreamToHandoff?.getAudioTracks().some((t) => t.readyState === 'live')
+    );
+
+    if (isCameraPreviewOn && !hasLiveVideo) {
+      setIsRequestingMedia(true);
       try {
-        await ensureNativeMediaPermissions({ video: isCameraPreviewOn, audio: isMicOn });
-        if (navigator.mediaDevices?.getUserMedia) {
-          const permProbe = await navigator.mediaDevices.getUserMedia({
-            video: isCameraPreviewOn ? { facingMode: isFrontCamera ? 'user' : 'environment' } : false,
-            audio: isMicOn,
-          });
-          stopMediaStream(permProbe);
-        }
-      } catch (permErr) {
-        console.warn('[CreateLive] Permission probe notice:', permErr);
+        const acquired = await acquireRealDeviceCamera({
+          isFront: isFrontCamera,
+          enableAudio: isMicOn,
+          idealWidth: 1280,
+          idealHeight: 720,
+        });
+        liveStreamToHandoff = acquired.stream;
+        cameraMetaRef.current = {
+          label: acquired.label,
+          isRealBackCamera: acquired.isRealBackCamera,
+        };
+        setHasWebcam(acquired.stream.getVideoTracks().length > 0);
+        setHasMic(acquired.hasAudio && isMicOn);
+        setMediaPermissionError(null);
+        setIsPermanentlyDenied(false);
+      } catch (permErr: any) {
+        console.warn('[CreateLive] Camera acquisition on Start Live:', permErr);
+        const permBlocked = Boolean(permErr?.permanentlyDenied);
+        setIsPermanentlyDenied(permBlocked);
+        setMediaPermissionError(
+          permBlocked
+            ? 'Camera & Microphone are blocked in Android Settings. Tap Open Settings to enable them.'
+            : 'Camera & Microphone permission is required before starting video live. Tap Allow Camera & Mic or switch Cam OFF for Audio Mode.'
+        );
+        setError(
+          permBlocked
+            ? 'Please allow Camera & Microphone in Phone Settings, then tap Start Live again.'
+            : 'Camera & Microphone access was denied. Please tap Allow Camera & Mic (or turn Cam OFF for Voice Live).'
+        );
+        setIsRequestingMedia(false);
+        return;
+      } finally {
+        setIsRequestingMedia(false);
+      }
+    } else if (!isCameraPreviewOn && isMicOn && !hasLiveAudio) {
+      try {
+        liveStreamToHandoff = await acquireRealMicrophone();
+      } catch (micErr: any) {
+        console.warn('[CreateLive] Mic acquisition on Start Live:', micErr);
+        const permBlocked = Boolean(micErr?.permanentlyDenied);
+        setIsPermanentlyDenied(permBlocked);
+        setError(
+          permBlocked
+            ? 'Microphone is blocked in Phone Settings. Open Settings to allow Microphone.'
+            : 'Microphone permission was denied. Please allow Microphone access to broadcast voice.'
+        );
+        return;
       }
     }
 
-    // Release preview hardware handles cleanly before ActiveLiveScreen mounts camera & RTC
+    // Disconnect only the preview WebAudio analyser; preserve the live hardware MediaStream tracks!
     if (audioAnalyserRef.current) {
       audioAnalyserRef.current.cleanup();
       audioAnalyserRef.current = null;
     }
-    if (streamRef.current) {
-      stopMediaStream(streamRef.current);
+
+    if (liveStreamToHandoff) {
+      liveStreamToHandoff.getAudioTracks().forEach((t) => {
+        t.enabled = isMicOn;
+      });
+      liveStreamToHandoff.getVideoTracks().forEach((t) => {
+        t.enabled = isCameraPreviewOn;
+      });
+      setStagedLiveStream({
+        stream: liveStreamToHandoff,
+        isFront: isFrontCamera,
+        isCameraOn: isCameraPreviewOn && liveStreamToHandoff.getVideoTracks().length > 0,
+        isMicOn,
+        label: cameraMetaRef.current.label,
+        isRealBackCamera: cameraMetaRef.current.isRealBackCamera,
+        hasAudio: liveStreamToHandoff.getAudioTracks().length > 0,
+      });
+      // Detach from streamRef so unmount cleanup does NOT stop the handed-off live tracks
       streamRef.current = null;
     }
 
@@ -417,17 +511,30 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
                   <p className="text-[11px] font-bold text-white mb-2 max-w-xs">
                     {mediaPermissionError || 'Camera & Microphone permission is required for live video.'}
                   </p>
-                  <button
-                    type="button"
-                    disabled={isRequestingMedia}
-                    onClick={() => {
-                      void startPreview(isFrontCamera);
-                    }}
-                    className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg shadow-[#F328D5]/40 flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>{isRequestingMedia ? 'Requesting Access...' : 'Allow Camera & Mic'}</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isRequestingMedia}
+                      onClick={() => {
+                        void startPreview(isFrontCamera);
+                      }}
+                      className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-extrabold shadow-lg shadow-[#F328D5]/40 flex items-center gap-1.5 active:scale-95 transition-all"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{isRequestingMedia ? 'Connecting Camera & Mic...' : 'Allow Camera & Mic'}</span>
+                    </button>
+                    {(isPermanentlyDenied || isNativeAndroidApp()) && mediaPermissionError && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openNativeAppSettings();
+                        }}
+                        className="px-3.5 py-2 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs font-bold active:scale-95 transition-all"
+                      >
+                        Open Phone Settings
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

@@ -35,6 +35,9 @@ import {
 } from '../../types';
 import {
   acquireRealMicrophone,
+  isNativeAndroidApp,
+  openNativeAppSettings,
+  setNativeLiveAudioMode,
   stopMediaStream,
   createAudioAnalyser,
   AudioAnalyserController,
@@ -42,6 +45,15 @@ import {
 import { agoraRtcService } from '../../utils/agoraRtcService';
 import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
+import {
+  joinFirestoreRoomParticipant,
+  leaveFirestoreRoomParticipant,
+  sendFirestoreRoomMessage,
+  subscribeFirestoreRoomMessages,
+  subscribeFirestoreRoomParticipants,
+  updateFirestoreRoomParticipantCount,
+  updateFirestoreRoomParticipantState,
+} from '../../services/firestoreRealtimeService';
 import { roomService } from '../../utils/roomService';
 
 interface AudioRoomScreenProps {
@@ -177,12 +189,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (room.seatRequests) setSeatRequests(room.seatRequests);
   }, [room.id]);
 
-  // Real-Time Backend & WebSocket Room Lifecycle (15s Heartbeat + Strict Real-Time Participants Only)
+  // Real-Time Backend, WebSocket & Cloud Firestore Room Lifecycle (15s Heartbeat + Strict Real-Time Participants Only)
   useEffect(() => {
     let active = true;
     hasExplicitlyLeftRef.current = false;
+    const knownParticipantIds = new Set<string>([currentUser.id]);
+    let fsParticipantsInitialized = false;
+
     liveAndRoomService.setCurrentUser(currentUser.id);
     liveAndRoomService.subscribeRoom(room.id, currentUser.id);
+
+    // Register real-time participant presence in Cloud Firestore (works even when Railway API is 502)
+    void joinFirestoreRoomParticipant(
+      room.id,
+      currentUser,
+      isRoomHost,
+      seatsRef.current.some((s) => s?.id === currentUser.id)
+    );
 
     const applyServerRoomState = (nextRoom: PartyRoom) => {
       setSeats(normalizeSeats(nextRoom.seats, nextRoom.maxSeats || maxSeats));
@@ -193,16 +216,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       setIsAllowJoin(nextRoom.allowJoin !== false);
       if (nextRoom.announcement !== undefined) setRoomAnnouncement(nextRoom.announcement);
       if (typeof nextRoom.numericParticipants === 'number') {
-        setParticipantTotal(nextRoom.numericParticipants);
+        setParticipantTotal((prev) => Math.max(prev, nextRoom.numericParticipants || 0));
       }
       onUpdateRoom?.(nextRoom);
     };
 
     const refreshRealTimeParticipants = () => {
       liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((res) => {
-        if (!active) return;
-        setParticipantsList(res.participants);
-        setParticipantTotal(res.totalCount);
+        if (!active || res.participants.length === 0) return;
+        setParticipantsList((prev) => {
+          const map = new Map<string, LiveViewerInfo>();
+          prev.forEach((p) => map.set(p.userId, p));
+          res.participants.forEach((p) => map.set(p.userId, p));
+          const merged = Array.from(map.values());
+          setParticipantTotal(merged.length);
+          return merged;
+        });
       });
     };
 
@@ -213,9 +242,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (res.room) {
           applyServerRoomState(res.room);
         }
-        if (Array.isArray(res.participants)) {
-          setParticipantsList(res.participants);
-          setParticipantTotal(res.participants.length);
+        if (Array.isArray(res.participants) && res.participants.length > 0) {
+          setParticipantsList((prev) => {
+            const map = new Map<string, LiveViewerInfo>();
+            prev.forEach((p) => map.set(p.userId, p));
+            res.participants!.forEach((p) => map.set(p.userId, p));
+            const merged = Array.from(map.values());
+            setParticipantTotal(merged.length);
+            return merged;
+          });
         } else {
           refreshRealTimeParticipants();
         }
@@ -229,26 +264,101 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             }))
           );
         }
-        if (Array.isArray(res.messages)) {
-          setActivities(
-            res.messages.map((m) => ({
+        if (Array.isArray(res.messages) && res.messages.length > 0) {
+          setActivities((prev) => {
+            const seen = new Set(prev.map((a) => a.id));
+            const next = [...prev];
+            res.messages.forEach((m) => {
+              if (!seen.has(m.id)) {
+                seen.add(m.id);
+                next.push({
+                  id: m.id,
+                  name: m.senderName,
+                  avatar: m.senderAvatar,
+                  text: m.text,
+                  isHost: m.isHost,
+                  type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
+                });
+              }
+            });
+            return next.slice(-60);
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('[AudioRoom] Backend join fallback to Firestore:', err?.message || err);
+      });
+
+    // Cloud Firestore real-time participants subscription
+    const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (fsParticipants) => {
+      if (!active) return;
+      if (!fsParticipantsInitialized) {
+        fsParticipantsInitialized = true;
+        fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
+      } else {
+        fsParticipants.forEach((p) => {
+          if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
+            knownParticipantIds.add(p.userId);
+            const now = Date.now();
+            const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
+            if (now - lastSeen > 10000) {
+              seenPartyEntriesRef.current.set(p.userId, now);
+              setPartyEntryNotice({ id: `entry_fs_${p.userId}_${now}`, name: p.name || 'Viewer' });
+              if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
+              partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
+              setActivities((prev) => [
+                ...prev.slice(-49),
+                {
+                  id: `join_fs_${p.userId}_${now}`,
+                  name: p.name || 'Viewer',
+                  avatar: p.avatar || '',
+                  text: 'joined the party room',
+                  isHost: Boolean(p.isHost),
+                  type: 'join',
+                },
+              ]);
+              setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
+            }
+          }
+        });
+      }
+      setParticipantsList(fsParticipants);
+      setParticipantTotal(fsParticipants.length);
+      if (isRoomHost) {
+        void updateFirestoreRoomParticipantCount(room.id, fsParticipants.length);
+      }
+    });
+
+    // Cloud Firestore real-time room messages subscription
+    const unsubFsMessages = subscribeFirestoreRoomMessages(room.id, (fsMessages) => {
+      if (!active || fsMessages.length === 0) return;
+      setActivities((prev) => {
+        const seen = new Set(prev.map((a) => a.id));
+        const next = [...prev];
+        let changed = false;
+        fsMessages.forEach((m) => {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            next.push({
               id: m.id,
               name: m.senderName,
               avatar: m.senderAvatar,
               text: m.text,
               isHost: m.isHost,
               type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
-            }))
-          );
-        }
-      })
-      .catch((err) => {
-        console.warn('[AudioRoom] Join notice:', err?.message || err);
-        refreshRealTimeParticipants();
+            });
+            changed = true;
+          }
+        });
+        return changed ? next.slice(-60) : prev;
       });
+    });
 
     const heartbeatInterval = setInterval(() => {
       liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
+      void updateFirestoreRoomParticipantState(room.id, {
+        isSpeaker: seatsRef.current.some((s) => s?.id === currentUser.id),
+      });
     }, 15000);
 
     const unsubWs = liveAndRoomService.addEventListener((event, payload) => {
@@ -407,9 +517,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       clearInterval(heartbeatInterval);
       if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
       unsubWs();
+      unsubFsParticipants();
+      unsubFsMessages();
       liveAndRoomService.unsubscribeRoom();
       if (!hasExplicitlyLeftRef.current) {
         liveAndRoomService.leavePartyRoom(room.id, currentUser.id);
+        void leaveFirestoreRoomParticipant(room.id);
       }
     };
   }, [room.id, currentUser.id, isRoomHost]);
@@ -425,6 +538,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       try {
         setAgoraVoiceState('connecting');
         setVoiceTransport('connecting');
+        void setNativeLiveAudioMode(true);
 
         let localMicStream: MediaStream | null = realMicStreamRef.current;
         if (initiallySeated && !localMicStream) {
@@ -543,6 +657,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       unsubVolumes();
       webrtcMediaService.stopPartyVoice();
       agoraRtcService.leaveChannel().catch(() => {});
+      void setNativeLiveAudioMode(false);
     };
   }, [room.id, currentUser.id]);
 
@@ -640,6 +755,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         }
         setRealMicVolume(0);
       }
+      void updateFirestoreRoomParticipantState(room.id, { isSpeaker: isCurrentlySeated });
     };
 
     syncSeatRole();
@@ -748,7 +864,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       realMicStreamRef.current = null;
     }
     await agoraRtcService.leaveChannel().catch(() => {});
-    await liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
+    await Promise.all([
+      liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}),
+      leaveFirestoreRoomParticipant(room.id).catch(() => {}),
+    ]);
     onClose();
   };
 
@@ -1001,26 +1120,43 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setInputMessage('');
     setShowEmojiPicker(false);
 
+    let saved: {
+      id: string;
+      senderName: string;
+      senderAvatar: string;
+      text: string;
+      isHost?: boolean;
+    } | null = null;
+
     try {
-      const saved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
+      const backendSaved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
+      saved = backendSaved;
+      void sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id);
+    } catch {
+      const fallbackId = `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId);
+    }
+
+    if (saved) {
+      const msgToAdd = saved;
       setActivities((prev) =>
-        prev.some((a) => a.id === saved.id)
+        prev.some((a) => a.id === msgToAdd.id)
           ? prev
           : [
               ...prev,
               {
-                id: saved.id,
-                name: saved.senderName,
-                avatar: saved.senderAvatar,
-                text: saved.text,
-                isHost: saved.isHost,
+                id: msgToAdd.id,
+                name: msgToAdd.senderName,
+                avatar: msgToAdd.senderAvatar,
+                text: msgToAdd.text,
+                isHost: msgToAdd.isHost,
                 type: 'chat',
               },
             ]
       );
       setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
-    } catch (err: any) {
-      showToast(err?.message || 'Could not send message');
+    } else {
+      showToast('Could not send message. Please check your connection.');
       setInputMessage(text);
     }
   };
@@ -1284,7 +1420,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         )}
 
         {isCurrentlySeated && micPermissionDenied && (
-          <div className="max-w-md mx-auto w-full flex justify-center">
+          <div className="max-w-md mx-auto w-full flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
               onClick={() => void handleRetryPartyMic()}
@@ -1293,6 +1429,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               <Mic className="w-3.5 h-3.5" />
               <span>Allow Microphone Access to Speak</span>
             </button>
+            {isNativeAndroidApp() && (
+              <button
+                type="button"
+                onClick={() => void openNativeAppSettings()}
+                className="px-3.5 py-1.5 rounded-full bg-amber-500/25 border border-amber-400/40 text-amber-200 text-xs font-bold active:scale-95 transition-all"
+              >
+                Open Phone Settings
+              </button>
+            )}
           </div>
         )}
 

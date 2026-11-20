@@ -2,9 +2,22 @@ import { UserProfile, VideoItem } from '../types';
 import { CURRENT_USER } from '../data/mockData';
 import { apiFetch } from './apiConfig';
 import { auth, db } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { FirestoreUserData, mapFirestoreUserToProfile } from '../services/authService';
-import { syncFirestoreFollow } from '../services/firestoreService';
+import {
+  fetchFirestoreVideos,
+  syncFirestoreFollow,
+  toggleLikeVideo as toggleFirestoreLikeVideo,
+} from '../services/firestoreService';
 
 const LOCAL_STORAGE_PROFILE_KEY = 'lenzo_party_user_profile_v3';
 const LOCAL_STORAGE_FOLLOWING_KEY = 'lenzo_party_following_v2';
@@ -44,7 +57,7 @@ class ProfileService {
     }
   }
 
-  private getStoredLikedVideoIds(): Set<string> {
+  getStoredLikedVideoIds(): Set<string> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_LIKED_VIDEOS_KEY);
       if (raw) return new Set(JSON.parse(raw));
@@ -62,7 +75,7 @@ class ProfileService {
     }
   }
 
-  private getStoredSavedVideoIds(): Set<string> {
+  getStoredSavedVideoIds(): Set<string> {
     try {
       const raw = localStorage.getItem(LOCAL_STORAGE_SAVED_VIDEOS_KEY);
       if (raw) return new Set(JSON.parse(raw));
@@ -108,18 +121,19 @@ class ProfileService {
   }
 
   /**
-   * Fetch user profile from shared Cloud Firestore first, then backend API or local cache
+   * Fetch user profile from Cloud Firestore first, then Express resolve/user API, then local cache
    */
-  async getUserProfile(userId: string): Promise<UserProfile> {
+  async getUserProfile(userIdOrHandle: string): Promise<UserProfile> {
     const followingSet = this.getStoredFollowingIds();
+    const cleaned = (userIdOrHandle || '').trim();
 
-    if (auth.currentUser && userId && /^[a-zA-Z0-9_-]{1,128}$/.test(userId)) {
+    if (auth.currentUser && cleaned && /^[a-zA-Z0-9_-]{1,128}$/.test(cleaned)) {
       try {
-        const snap = await getDoc(doc(db, 'users', userId));
+        const snap = await getDoc(doc(db, 'users', cleaned));
         if (snap.exists()) {
           const profile = mapFirestoreUserToProfile(
             snap.data() as FirestoreUserData,
-            userId === auth.currentUser.uid ? auth.currentUser : null
+            cleaned === auth.currentUser.uid ? auth.currentUser : null
           );
           return {
             ...profile,
@@ -132,7 +146,7 @@ class ProfileService {
     }
 
     try {
-      const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}`);
+      const res = await apiFetch(`/api/users/resolve/${encodeURIComponent(cleaned)}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (data.user) {
@@ -146,7 +160,7 @@ class ProfileService {
       // Backend unreachable or offline
     }
 
-    if (userId === this.currentUserId || userId === auth.currentUser?.uid) {
+    if (cleaned === this.currentUserId || cleaned === auth.currentUser?.uid) {
       const stored = localStorage.getItem(LOCAL_STORAGE_PROFILE_KEY);
       if (stored) {
         return { ...CURRENT_USER, ...JSON.parse(stored) };
@@ -156,10 +170,11 @@ class ProfileService {
 
     return {
       ...CURRENT_USER,
-      id: userId,
-      name: 'User',
-      username: `@user_${userId.slice(0, 6)}`,
-      isFollowing: followingSet.has(userId),
+      id: cleaned || 'unknown',
+      displayId: (cleaned || 'USER00').slice(0, 8).toUpperCase(),
+      name: 'Lenzo Creator',
+      username: `@${(cleaned || 'user').replace(/^@/, '').slice(0, 14)}`,
+      isFollowing: followingSet.has(cleaned),
     };
   }
 
@@ -173,7 +188,9 @@ class ProfileService {
     }
 
     try {
-      const res = await apiFetch(`/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`);
+      const res = await apiFetch(
+        `/api/users/check_username?username=${encodeURIComponent(clean)}&userId=${encodeURIComponent(currentUserId)}`
+      );
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         return await res.json();
       }
@@ -185,7 +202,7 @@ class ProfileService {
   }
 
   /**
-   * Update profile across Cloud Firestore (shared Web + Android), Railway backend API, and local cache
+   * Update profile across Cloud Firestore (shared Web + Android), Express backend API, and local cache
    */
   async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
     const targetUid = auth.currentUser?.uid || userId;
@@ -204,12 +221,34 @@ class ProfileService {
           fsUpdates.fullName = updates.name.trim().slice(0, 60);
         }
         if (typeof updates.username === 'string') fsUpdates.username = updates.username.slice(0, 40);
-        if (typeof updates.avatar === 'string') fsUpdates.profileImage = updates.avatar.slice(0, 1500);
-        if (typeof updates.coverImage === 'string') fsUpdates.coverImage = updates.coverImage.slice(0, 1500);
+        if (typeof updates.avatar === 'string' && updates.avatar.length <= 1500) {
+          fsUpdates.profileImage = updates.avatar;
+        }
+        if (typeof updates.coverImage === 'string' && updates.coverImage.length <= 1500) {
+          fsUpdates.coverImage = updates.coverImage;
+        }
         if (typeof updates.bio === 'string') fsUpdates.bio = updates.bio.slice(0, 300);
         if (typeof updates.gender === 'string') fsUpdates.gender = updates.gender.slice(0, 24);
         if (typeof updates.country === 'string') fsUpdates.country = updates.country.slice(0, 64);
         if (typeof updates.birthday === 'string') fsUpdates.birthday = updates.birthday.slice(0, 32);
+        if (typeof updates.showGender === 'boolean') fsUpdates.showGender = updates.showGender;
+        if (typeof updates.showAge === 'boolean') fsUpdates.showAge = updates.showAge;
+        if (typeof updates.showOnlineStatus === 'boolean') fsUpdates.showOnlineStatus = updates.showOnlineStatus;
+        if (Array.isArray(updates.equippedBadges)) {
+          fsUpdates.equippedBadges = updates.equippedBadges.slice(0, 3);
+        }
+        if (typeof updates.agencyId === 'string') fsUpdates.agencyId = updates.agencyId;
+        if (typeof updates.agencyName === 'string') fsUpdates.agencyName = updates.agencyName;
+        if (typeof updates.agencyCode === 'string') fsUpdates.agencyCode = updates.agencyCode;
+        if (typeof updates.agencyLogo === 'string') fsUpdates.agencyLogo = updates.agencyLogo;
+        if (typeof updates.agencyRole === 'string' || updates.agencyRole === undefined) {
+          if ('agencyRole' in updates) fsUpdates.agencyRole = updates.agencyRole || '';
+        }
+        if (typeof updates.agencyStatus === 'string') fsUpdates.agencyStatus = updates.agencyStatus;
+        if (typeof updates.crewName === 'string') fsUpdates.crewName = updates.crewName;
+        if (typeof updates.crewBadge === 'string') fsUpdates.crewBadge = updates.crewBadge;
+        if (Array.isArray(updates.savedVideoIds)) fsUpdates.savedVideoIds = updates.savedVideoIds.slice(0, 200);
+        if (Array.isArray(updates.likedVideoIds)) fsUpdates.likedVideoIds = updates.likedVideoIds.slice(0, 200);
 
         if (Object.keys(fsUpdates).length > 0) {
           await updateDoc(doc(db, 'users', targetUid), fsUpdates);
@@ -240,49 +279,137 @@ class ProfileService {
   }
 
   /**
-   * Get Followers List for user from backend API (no fake list fallback)
+   * Fetch real Followers List from Cloud Firestore `follows` collection + Express backend
    */
   async getFollowers(userId: string): Promise<FollowListMember[]> {
     const followingSet = this.getStoredFollowingIds();
+    const mapById = new Map<string, FollowListMember>();
+
+    if (auth.currentUser && userId) {
+      try {
+        const q = query(collection(db, 'follows'), where('followingId', '==', userId));
+        const snap = await getDocs(q);
+        const followerIds = snap.docs
+          .map((d) => String(d.data().followerId || ''))
+          .filter(Boolean);
+
+        const profiles = await Promise.all(
+          followerIds.slice(0, 50).map(async (fid) => {
+            try {
+              const uSnap = await getDoc(doc(db, 'users', fid));
+              if (!uSnap.exists()) return null;
+              const u = mapFirestoreUserToProfile(uSnap.data() as FirestoreUserData, null);
+              return {
+                id: u.id,
+                name: u.name,
+                username: u.username || `@${u.displayId}`,
+                avatar: u.avatar,
+                bio: u.bio || '',
+                level: u.level,
+                isVIP: u.isVIP,
+                isFollowing: followingSet.has(u.id),
+              } as FollowListMember;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        for (const p of profiles) {
+          if (p) mapById.set(p.id, p);
+        }
+      } catch {
+        // Continue to API
+      }
+    }
+
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/followers`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (Array.isArray(data.followers)) {
-          return data.followers.map((f: FollowListMember) => ({
-            ...f,
-            isFollowing: followingSet.has(f.id) || !!f.isFollowing,
-          }));
+          for (const f of data.followers as FollowListMember[]) {
+            if (!mapById.has(f.id)) {
+              mapById.set(f.id, {
+                ...f,
+                isFollowing: followingSet.has(f.id) || !!f.isFollowing,
+              });
+            }
+          }
         }
       }
     } catch {
       // Backend unavailable
     }
 
-    return [];
+    return Array.from(mapById.values());
   }
 
   /**
-   * Get Following List for user from backend API (no fake list fallback)
+   * Fetch real Following List from Cloud Firestore `follows` collection + Express backend
    */
   async getFollowing(userId: string): Promise<FollowListMember[]> {
+    const mapById = new Map<string, FollowListMember>();
+
+    if (auth.currentUser && userId) {
+      try {
+        const q = query(collection(db, 'follows'), where('followerId', '==', userId));
+        const snap = await getDocs(q);
+        const followingIds = snap.docs
+          .map((d) => String(d.data().followingId || ''))
+          .filter(Boolean);
+
+        const profiles = await Promise.all(
+          followingIds.slice(0, 50).map(async (tid) => {
+            try {
+              const uSnap = await getDoc(doc(db, 'users', tid));
+              if (!uSnap.exists()) return null;
+              const u = mapFirestoreUserToProfile(uSnap.data() as FirestoreUserData, null);
+              return {
+                id: u.id,
+                name: u.name,
+                username: u.username || `@${u.displayId}`,
+                avatar: u.avatar,
+                bio: u.bio || '',
+                level: u.level,
+                isVIP: u.isVIP,
+                isFollowing: true,
+              } as FollowListMember;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        for (const p of profiles) {
+          if (p) mapById.set(p.id, p);
+        }
+      } catch {
+        // Continue to API
+      }
+    }
+
     try {
       const res = await apiFetch(`/api/users/${encodeURIComponent(userId)}/following`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         if (Array.isArray(data.following)) {
-          return data.following;
+          for (const f of data.following as FollowListMember[]) {
+            if (!mapById.has(f.id)) {
+              mapById.set(f.id, { ...f, isFollowing: true });
+            }
+          }
         }
       }
     } catch {
       // Backend unavailable
     }
 
-    return [];
+    return Array.from(mapById.values());
   }
 
   /**
-   * Follow / Unfollow User synced across backend + Firestore follows graph
+   * Follow / Unfollow User synced across Firestore follows graph + backend API
    */
   async toggleFollow(
     targetUserId: string,
@@ -305,7 +432,10 @@ class ProfileService {
     this.saveStoredFollowingIds(followingSet);
 
     if (auth.currentUser && currentUserId === auth.currentUser.uid) {
-      syncFirestoreFollow(currentUserId, targetUserId, willFollow).catch(() => {});
+      await syncFirestoreFollow(currentUserId, targetUserId, willFollow).catch(() => {});
+      updateDoc(doc(db, 'users', currentUserId), {
+        followingCount: followingSet.size,
+      }).catch(() => {});
     }
 
     try {
@@ -319,7 +449,7 @@ class ProfileService {
         return {
           isFollowing: willFollow,
           targetFollowersCount: typeof data.targetFollowersCount === 'number' ? data.targetFollowersCount : 0,
-          myFollowingCount: typeof data.followerFollowingCount === 'number' ? data.followerFollowingCount : followingSet.size,
+          myFollowingCount: typeof data.myFollowingCount === 'number' ? data.myFollowingCount : followingSet.size,
         };
       }
     } catch {
@@ -333,69 +463,129 @@ class ProfileService {
     };
   }
 
-  async getUserVideoTabs(
+  /**
+   * Load all 5 profile content buckets (Public, Private, Saved, Posts, Liked)
+   * Merges Firestore `posts`, passed `feedVideos`, and local custom uploads.
+   * Strictly enforces owner-only authorization on `privateVideos` and `savedVideos`.
+   */
+  async getUserContentTabs(
     profileOwnerId: string,
-    viewerId: string
+    viewerId: string,
+    feedVideos: VideoItem[] = [],
+    ownerSavedIds: string[] = [],
+    ownerLikedIds: string[] = []
   ): Promise<{
     publicVideos: VideoItem[];
     privateVideos: VideoItem[];
-    likedVideos: VideoItem[];
     savedVideos: VideoItem[];
+    posts: VideoItem[];
+    likedVideos: VideoItem[];
+    totalLikesReceived: number;
   }> {
-    const isOwner = profileOwnerId === viewerId;
-    const allVideos = this.getStoredVideos();
-    const likedIds = this.getStoredLikedVideoIds();
-    const savedIds = this.getStoredSavedVideoIds();
+    const isOwner = Boolean(profileOwnerId && viewerId && profileOwnerId === viewerId);
+
+    const videoMap = new Map<string, VideoItem>();
+    for (const v of this.getStoredVideos()) {
+      if (v && v.id) videoMap.set(v.id, v);
+    }
+    for (const v of feedVideos) {
+      if (v && v.id) videoMap.set(v.id, { ...videoMap.get(v.id), ...v });
+    }
+
+    if (auth.currentUser) {
+      try {
+        const fsVideos = await fetchFirestoreVideos();
+        for (const v of fsVideos) {
+          if (v && v.id) {
+            const normalizedPrivacy = v.isPrivate ? 'private' : (v.privacy || 'public');
+            videoMap.set(v.id, {
+              ...videoMap.get(v.id),
+              ...v,
+              privacy: normalizedPrivacy,
+              isPrivate: normalizedPrivacy === 'private',
+            });
+          }
+        }
+      } catch {
+        // Use merged local + feed videos
+      }
+    }
+
+    const allVideos = Array.from(videoMap.values());
+    const likedIds = new Set<string>([
+      ...Array.from(this.getStoredLikedVideoIds()),
+      ...(isOwner ? ownerLikedIds : []),
+    ]);
+    const savedIds = new Set<string>([
+      ...Array.from(this.getStoredSavedVideoIds()),
+      ...(isOwner ? ownerSavedIds : []),
+    ]);
+
+    const decorate = (v: VideoItem): VideoItem => {
+      const isPriv = v.privacy === 'private' || v.isPrivate === true;
+      return {
+        ...v,
+        privacy: isPriv ? 'private' : (v.privacy || 'public'),
+        isPrivate: isPriv,
+        viewsCount: v.viewsCount || 0,
+        likesCount: v.likesCount || 0,
+        commentsCount: v.commentsCount || 0,
+        isLiked: likedIds.has(v.id) || Boolean(v.isLiked),
+        isSaved: savedIds.has(v.id) || Boolean(v.isSaved),
+      };
+    };
+
+    const isItemPrivate = (v: VideoItem) => v.privacy === 'private' || v.isPrivate === true;
+    const isOwnedByProfile = (v: VideoItem) => v.creator?.id === profileOwnerId;
 
     const publicVideos = allVideos
-      .filter((v) => v.creator.id === profileOwnerId && v.privacy !== 'private')
-      .map((v) => ({
-        ...v,
-        viewsCount: v.viewsCount || 0,
-        isLiked: likedIds.has(v.id),
-        isSaved: savedIds.has(v.id),
-      }));
+      .filter((v) => isOwnedByProfile(v) && !isItemPrivate(v) && v.contentType !== 'post')
+      .map(decorate);
 
+    // STRICT AUTHORIZATION: Private content is NEVER exposed to non-owners
     const privateVideos = isOwner
-      ? allVideos
-          .filter((v) => v.creator.id === profileOwnerId && v.privacy === 'private')
-          .map((v) => ({
-            ...v,
-            viewsCount: v.viewsCount || 0,
-            isLiked: likedIds.has(v.id),
-            isSaved: savedIds.has(v.id),
-          }))
+      ? allVideos.filter((v) => isOwnedByProfile(v) && isItemPrivate(v)).map(decorate)
       : [];
 
-    const likedVideos = allVideos
-      .filter((v) => likedIds.has(v.id))
-      .map((v) => ({
-        ...v,
-        viewsCount: v.viewsCount || 0,
-        isLiked: true,
-        isSaved: savedIds.has(v.id),
-      }));
+    const posts = allVideos
+      .filter((v) => isOwnedByProfile(v) && (!isItemPrivate(v) || isOwner))
+      .map(decorate);
 
     const savedVideos = isOwner
       ? allVideos
-          .filter((v) => savedIds.has(v.id))
-          .map((v) => ({
-            ...v,
-            viewsCount: v.viewsCount || 0,
-            isLiked: likedIds.has(v.id),
-            isSaved: true,
-          }))
+          .filter((v) => savedIds.has(v.id) && (!isItemPrivate(v) || isOwnedByProfile(v)))
+          .map(decorate)
       : [];
+
+    const likedVideos = allVideos
+      .filter((v) => likedIds.has(v.id) && !isItemPrivate(v))
+      .map(decorate);
+
+    const totalLikesReceived = allVideos
+      .filter((v) => isOwnedByProfile(v))
+      .reduce((sum, v) => sum + (v.likesCount || 0), 0);
 
     return {
       publicVideos,
       privateVideos,
-      likedVideos,
       savedVideos,
+      posts,
+      likedVideos,
+      totalLikesReceived,
     };
   }
 
-  async toggleLikeVideo(videoId: string, _userId: string): Promise<{ isLiked: boolean; newCount: number }> {
+  async getUserVideoTabs(profileOwnerId: string, viewerId: string) {
+    const res = await this.getUserContentTabs(profileOwnerId, viewerId);
+    return {
+      publicVideos: res.publicVideos,
+      privateVideos: res.privateVideos,
+      likedVideos: res.likedVideos,
+      savedVideos: res.savedVideos,
+    };
+  }
+
+  async toggleLikeVideo(videoId: string, userId: string): Promise<{ isLiked: boolean; newCount: number }> {
     const likedSet = this.getStoredLikedVideoIds();
     const wasLiked = likedSet.has(videoId);
     const willLike = !wasLiked;
@@ -408,10 +598,10 @@ class ProfileService {
     this.saveStoredLikedVideoIds(likedSet);
 
     const videos = this.getStoredVideos();
-    let newCount = 0;
+    let newCount = willLike ? 1 : 0;
     const updated = videos.map((v) => {
       if (v.id === videoId) {
-        newCount = Math.max(0, v.likesCount + (willLike ? 1 : -1));
+        newCount = Math.max(0, (v.likesCount || 0) + (willLike ? 1 : -1));
         return {
           ...v,
           likesCount: newCount,
@@ -422,10 +612,17 @@ class ProfileService {
     });
     this.saveStoredVideos(updated);
 
+    if (auth.currentUser && auth.currentUser.uid === userId) {
+      toggleFirestoreLikeVideo(videoId, willLike).catch(() => {});
+      updateDoc(doc(db, 'users', userId), {
+        likedVideoIds: Array.from(likedSet).slice(0, 200),
+      }).catch(() => {});
+    }
+
     return { isLiked: willLike, newCount };
   }
 
-  async toggleSaveVideo(videoId: string): Promise<boolean> {
+  async toggleSaveVideo(videoId: string, userId?: string): Promise<boolean> {
     const savedSet = this.getStoredSavedVideoIds();
     const wasSaved = savedSet.has(videoId);
     const willSave = !wasSaved;
@@ -446,7 +643,54 @@ class ProfileService {
     });
     this.saveStoredVideos(updated);
 
+    const uid = userId || auth.currentUser?.uid;
+    if (auth.currentUser && uid && auth.currentUser.uid === uid) {
+      updateDoc(doc(db, 'users', uid), {
+        savedVideoIds: Array.from(savedSet).slice(0, 200),
+      }).catch(() => {});
+    }
+
     return willSave;
+  }
+
+  async toggleVideoPrivacy(videoId: string, userId: string, nextPrivacy: 'public' | 'private'): Promise<boolean> {
+    const isPriv = nextPrivacy === 'private';
+    const videos = this.getStoredVideos().map((v) =>
+      v.id === videoId ? { ...v, privacy: nextPrivacy, isPrivate: isPriv } : v
+    );
+    this.saveStoredVideos(videos);
+
+    if (auth.currentUser && auth.currentUser.uid === userId) {
+      updateDoc(doc(db, 'posts', videoId), { isPrivate: isPriv }).catch(() => {});
+    }
+
+    try {
+      await apiFetch(`/api/videos/${encodeURIComponent(videoId)}/privacy`, {
+        method: 'PATCH',
+        body: JSON.stringify({ privacy: nextPrivacy, userId }),
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return true;
+  }
+
+  async deleteUserVideo(videoId: string, userId: string): Promise<void> {
+    const filtered = this.getStoredVideos().filter((v) => v.id !== videoId);
+    this.saveStoredVideos(filtered);
+
+    if (auth.currentUser && auth.currentUser.uid === userId) {
+      deleteDoc(doc(db, 'posts', videoId)).catch(() => {});
+    }
+
+    try {
+      await apiFetch(`/api/videos/${encodeURIComponent(videoId)}?userId=${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // Non-blocking
+    }
   }
 
   calculateTotalLikes(userId: string): number {
@@ -463,7 +707,7 @@ class ProfileService {
       !window.location.origin.includes('localhost')
         ? window.location.origin
         : 'https://lenzoparty.com';
-    return `${origin}/?u=${encodeURIComponent(cleanUsername)}`;
+    return `${origin}/?profile=${encodeURIComponent(user.id)}&u=${encodeURIComponent(cleanUsername)}`;
   }
 }
 

@@ -62,6 +62,22 @@ export interface FirestoreUserData {
   gender?: 'female' | 'male' | 'other' | 'unspecified';
   country?: string;
   birthday?: string;
+  showGender?: boolean;
+  showAge?: boolean;
+  showOnlineStatus?: boolean;
+  equippedBadges?: string[];
+  agencyId?: string;
+  agencyName?: string;
+  agencyCode?: string;
+  agencyLogo?: string;
+  agencyRole?: 'member' | 'host' | 'manager' | 'founder';
+  agencyStatus?: 'none' | 'pending' | 'active';
+  crewName?: string;
+  crewBadge?: string;
+  savedVideoIds?: string[];
+  likedVideoIds?: string[];
+  liveSessionsHosted?: number;
+  loginStreakDays?: number;
   accountStatus: 'active' | 'suspended' | 'pending';
 }
 
@@ -109,6 +125,24 @@ export function mapFirestoreUserToProfile(
     gender: data.gender || 'unspecified',
     country: data.country || '',
     birthday: data.birthday || '',
+    isOnline: data.isOnline ?? true,
+    showGender: data.showGender ?? true,
+    showAge: data.showAge ?? true,
+    showOnlineStatus: data.showOnlineStatus ?? true,
+    equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges : [],
+    agencyId: data.agencyId || '',
+    agencyName: data.agencyName || '',
+    agencyCode: data.agencyCode || '',
+    agencyLogo: data.agencyLogo || '',
+    agencyRole: data.agencyRole,
+    agencyStatus: data.agencyStatus || (data.agencyId ? 'active' : 'none'),
+    crewName: data.crewName || '',
+    crewBadge: data.crewBadge || '',
+    savedVideoIds: Array.isArray(data.savedVideoIds) ? data.savedVideoIds : [],
+    likedVideoIds: Array.isArray(data.likedVideoIds) ? data.likedVideoIds : [],
+    liveSessionsHosted: data.liveSessionsHosted || 0,
+    loginStreakDays: data.loginStreakDays || 1,
+    createdAt: data.createdAt,
     isFollowing: false,
   };
 }

@@ -5,7 +5,6 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import agoraTokenPkg from 'agora-token';
 
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
@@ -64,6 +63,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Platform');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Permissions-Policy', 'camera=*, microphone=*, autoplay=*, display-capture=*');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -2092,7 +2092,30 @@ app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
     birthday: '',
   };
 
-  const { name, username, bio, avatar, coverImage, gender, country, birthday } = req.body;
+  const {
+    name,
+    username,
+    bio,
+    avatar,
+    coverImage,
+    gender,
+    country,
+    birthday,
+    showGender,
+    showAge,
+    showOnlineStatus,
+    equippedBadges,
+    agencyId,
+    agencyName,
+    agencyCode,
+    agencyLogo,
+    agencyRole,
+    agencyStatus,
+    crewName,
+    crewBadge,
+    savedVideoIds,
+    likedVideoIds,
+  } = req.body;
 
   if (username) {
     const clean = String(username).toLowerCase().trim().replace(/^@/, '');
@@ -2106,11 +2129,25 @@ app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
 
   if (name) existing.name = sanitizeText(name, 60);
   if (typeof bio === 'string') existing.bio = sanitizeText(bio, 300);
-  if (avatar) existing.avatar = avatar;
-  if (coverImage) existing.coverImage = coverImage;
+  if (typeof avatar === 'string' && avatar.length <= 1500) existing.avatar = avatar;
+  if (typeof coverImage === 'string' && coverImage.length <= 1500) existing.coverImage = coverImage;
   if (gender) existing.gender = gender;
-  if (country) existing.country = country;
-  if (birthday) existing.birthday = birthday;
+  if (typeof country === 'string') existing.country = sanitizeText(country, 64);
+  if (typeof birthday === 'string') existing.birthday = sanitizeText(birthday, 32);
+  if (typeof showGender === 'boolean') existing.showGender = showGender;
+  if (typeof showAge === 'boolean') existing.showAge = showAge;
+  if (typeof showOnlineStatus === 'boolean') existing.showOnlineStatus = showOnlineStatus;
+  if (Array.isArray(equippedBadges)) existing.equippedBadges = equippedBadges.slice(0, 3).map(String);
+  if (typeof agencyId === 'string') existing.agencyId = sanitizeText(agencyId, 64);
+  if (typeof agencyName === 'string') existing.agencyName = sanitizeText(agencyName, 64);
+  if (typeof agencyCode === 'string') existing.agencyCode = sanitizeText(agencyCode, 32);
+  if (typeof agencyLogo === 'string') existing.agencyLogo = agencyLogo.slice(0, 500);
+  if (typeof agencyRole === 'string') existing.agencyRole = agencyRole;
+  if (typeof agencyStatus === 'string') existing.agencyStatus = agencyStatus;
+  if (typeof crewName === 'string') existing.crewName = sanitizeText(crewName, 48);
+  if (typeof crewBadge === 'string') existing.crewBadge = sanitizeText(crewBadge, 24);
+  if (Array.isArray(savedVideoIds)) existing.savedVideoIds = savedVideoIds.slice(0, 200).map(String);
+  if (Array.isArray(likedVideoIds)) existing.likedVideoIds = likedVideoIds.slice(0, 200).map(String);
 
   serverUsers.set(userId, existing);
 
@@ -2130,6 +2167,366 @@ app.put('/api/users/:id', (req: AuthenticatedRequest, res: Response) => {
       likesCount: formatCompactCount(totalLikes),
     },
   });
+});
+
+app.get('/api/users/resolve/:identifier', (req: Request, res: Response) => {
+  const raw = decodeURIComponent(req.params.identifier || '').trim();
+  const lower = raw.toLowerCase();
+  const cleanHandle = lower.replace(/^@/, '');
+
+  let found = serverUsers.get(raw);
+  if (!found) {
+    for (const u of serverUsers.values()) {
+      const uHandle = (u.username || '').toLowerCase().replace(/^@/, '');
+      if (
+        u.id === raw ||
+        (u.displayId && u.displayId.toLowerCase() === lower) ||
+        (uHandle && uHandle === cleanHandle)
+      ) {
+        found = u;
+        break;
+      }
+    }
+  }
+
+  if (!found) {
+    return res.status(404).json({ error: 'Profile not found.' });
+  }
+
+  const followers = userFollowersMap.get(found.id) || new Set();
+  const following = userFollowingMap.get(found.id) || new Set();
+  const userVideosList = serverVideos.filter((v) => v.creator?.id === found.id);
+  const totalLikes = userVideosList.reduce((acc, v) => acc + (v.likesCount || 0), 0);
+
+  res.json({
+    user: {
+      ...found,
+      followersCount: followers.size,
+      fansCount: formatCompactCount(followers.size),
+      followingCount: following.size,
+      totalLikes,
+      likesCount: formatCompactCount(totalLikes),
+    },
+  });
+});
+
+// --- MEDIA UPLOAD FALLBACK (FOR PROFILE AVATAR & COVER PHOTO WHEN STORAGE IS UNAVAILABLE) ---
+const uploadedMediaStore = new Map<string, { mimeType: string; buffer: Buffer; ownerId: string; createdAt: number }>();
+
+app.post('/api/media/upload', (req: AuthenticatedRequest, res: Response) => {
+  const { dataUrl, folder } = req.body || {};
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'Valid base64 image dataUrl required.' });
+  }
+  const match = dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
+  if (!match) {
+    return res.status(400).json({ error: 'Unsupported image format. Use PNG, JPG, or WEBP.' });
+  }
+  const mimeType = match[1].toLowerCase();
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 5 * 1024 * 1024) {
+    return res.status(413).json({ error: 'Image must be 5MB or smaller.' });
+  }
+  const mediaId = `med_${folder === 'covers' ? 'cov' : 'avt'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  uploadedMediaStore.set(mediaId, {
+    mimeType,
+    buffer,
+    ownerId: req.firebaseUser?.uid || 'anon',
+    createdAt: Date.now(),
+  });
+  // Keep memory bounded to latest 200 uploads
+  if (uploadedMediaStore.size > 200) {
+    const oldestKey = uploadedMediaStore.keys().next().value;
+    if (oldestKey) uploadedMediaStore.delete(oldestKey);
+  }
+  res.json({ success: true, url: `/api/media/${mediaId}`, mediaId });
+});
+
+app.get('/api/media/:mediaId', (req: Request, res: Response) => {
+  const item = uploadedMediaStore.get(req.params.mediaId);
+  if (!item) {
+    return res.status(404).json({ error: 'Media not found.' });
+  }
+  res.setHeader('Content-Type', item.mimeType);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(item.buffer);
+});
+
+// --- VIDEO PRIVACY & DELETE MANAGEMENT (OWNER-ONLY) ---
+app.patch('/api/videos/:videoId/privacy', (req: AuthenticatedRequest, res: Response) => {
+  const { videoId } = req.params;
+  const { privacy, userId } = req.body || {};
+  const requesterId = req.firebaseUser?.uid || userId;
+  const idx = serverVideos.findIndex((v) => v.id === videoId);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Video not found.' });
+  }
+  if (serverVideos[idx].creator?.id !== requesterId) {
+    return res.status(403).json({ error: 'Only the creator can change video privacy.' });
+  }
+  const nextPrivacy = privacy === 'private' ? 'private' : 'public';
+  serverVideos[idx] = {
+    ...serverVideos[idx],
+    privacy: nextPrivacy,
+    isPrivate: nextPrivacy === 'private',
+  };
+  res.json({ success: true, video: serverVideos[idx] });
+});
+
+app.delete('/api/videos/:videoId', (req: AuthenticatedRequest, res: Response) => {
+  const { videoId } = req.params;
+  const requesterId = req.firebaseUser?.uid || String(req.query.userId || '');
+  const idx = serverVideos.findIndex((v) => v.id === videoId);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Video not found.' });
+  }
+  if (requesterId && serverVideos[idx].creator?.id !== requesterId) {
+    return res.status(403).json({ error: 'Only the creator can delete this video.' });
+  }
+  serverVideos.splice(idx, 1);
+  res.json({ success: true });
+});
+
+// --- AGENCY & CREW MANAGEMENT SYSTEM ---
+interface ServerAgencyRecord {
+  id: string;
+  name: string;
+  code: string;
+  logo: string;
+  description: string;
+  crewName: string;
+  crewBadge: string;
+  founderId: string;
+  founderName: string;
+  commissionRate: number;
+  region: string;
+  isVerified: boolean;
+  members: Array<{
+    id: string;
+    name: string;
+    username: string;
+    avatar: string;
+    role: 'member' | 'host' | 'manager' | 'founder';
+    level: number;
+    joinedAt: string;
+  }>;
+  createdAt: string;
+}
+
+const serverAgencies = new Map<string, ServerAgencyRecord>();
+
+const DEFAULT_OFFICIAL_AGENCIES: ServerAgencyRecord[] = [
+  {
+    id: 'ag_lenzo_official',
+    name: 'Lenzo Royal Talent',
+    code: 'LENZO01',
+    logo: '👑',
+    description: 'Official Lenzo Party Live partner agency supporting rising solo broadcasters and party hosts.',
+    crewName: 'Royal Pulse',
+    crewBadge: 'ROYAL',
+    founderId: 'system_lenzo',
+    founderName: 'Lenzo HQ',
+    commissionRate: 12,
+    region: 'Global',
+    isVerified: true,
+    members: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'ag_velvet_voice',
+    name: 'Velvet Voice Network',
+    code: 'VELVET8',
+    logo: '🎙️',
+    description: 'Dedicated voice party room guild focused on nightly music sessions, talk shows, and PK battles.',
+    crewName: 'Velvet Squad',
+    crewBadge: 'VELVET',
+    founderId: 'system_lenzo',
+    founderName: 'Lenzo HQ',
+    commissionRate: 10,
+    region: 'South Asia & MENA',
+    isVerified: true,
+    members: [],
+    createdAt: '2026-01-05T00:00:00.000Z',
+  },
+  {
+    id: 'ag_nova_creators',
+    name: 'Nova Starlight Agency',
+    code: 'NOVA99',
+    logo: '✨',
+    description: 'Creator growth accelerator for short-video talent, dance hosts, and weekend tournament streamers.',
+    crewName: 'Nova Crew',
+    crewBadge: 'NOVA',
+    founderId: 'system_lenzo',
+    founderName: 'Lenzo HQ',
+    commissionRate: 15,
+    region: 'International',
+    isVerified: true,
+    members: [],
+    createdAt: '2026-01-12T00:00:00.000Z',
+  },
+];
+
+for (const ag of DEFAULT_OFFICIAL_AGENCIES) {
+  serverAgencies.set(ag.id, ag);
+}
+
+app.get('/api/agencies', (req: Request, res: Response) => {
+  const q = String(req.query.q || '').toLowerCase().trim();
+  const list = Array.from(serverAgencies.values())
+    .filter((ag) => {
+      if (!q) return true;
+      return (
+        ag.name.toLowerCase().includes(q) ||
+        ag.code.toLowerCase().includes(q) ||
+        ag.crewName.toLowerCase().includes(q) ||
+        ag.region.toLowerCase().includes(q)
+      );
+    })
+    .map((ag) => ({
+      ...ag,
+      membersCount: ag.members.length,
+    }));
+  res.json({ agencies: list });
+});
+
+app.post('/api/agencies/create', (req: AuthenticatedRequest, res: Response) => {
+  const { name, description, crewName, crewBadge, region, logo, user } = req.body || {};
+  const founderId = req.firebaseUser?.uid || user?.id;
+  if (!founderId) {
+    return res.status(401).json({ error: 'Authentication required to create an agency.' });
+  }
+  const cleanName = sanitizeText(name || '', 50);
+  if (cleanName.length < 3) {
+    return res.status(400).json({ error: 'Agency name must be at least 3 characters.' });
+  }
+  const cleanCode = (cleanName.replace(/[^A-Za-z0-9]/g, '').slice(0, 5).toUpperCase() || 'LNZ') + Math.floor(10 + Math.random() * 89);
+  const agencyId = `ag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const record: ServerAgencyRecord = {
+    id: agencyId,
+    name: cleanName,
+    code: cleanCode,
+    logo: sanitizeText(logo || '⚡', 8),
+    description: sanitizeText(description || 'Creator & live host agency on Lenzo Party Live.', 220),
+    crewName: sanitizeText(crewName || `${cleanName} Crew`, 40),
+    crewBadge: sanitizeText((crewBadge || cleanName.slice(0, 6)).toUpperCase(), 10),
+    founderId,
+    founderName: sanitizeText(user?.name || 'Founder', 50),
+    commissionRate: 10,
+    region: sanitizeText(region || 'Global', 40),
+    isVerified: false,
+    members: [
+      {
+        id: founderId,
+        name: sanitizeText(user?.name || 'Founder', 50),
+        username: user?.username || `@${founderId.slice(0, 6)}`,
+        avatar: user?.avatar || '',
+        role: 'founder',
+        level: Number(user?.level || 1),
+        joinedAt: new Date().toISOString(),
+      },
+    ],
+    createdAt: new Date().toISOString(),
+  };
+
+  // Remove user from any prior agency
+  for (const ag of serverAgencies.values()) {
+    ag.members = ag.members.filter((m) => m.id !== founderId);
+  }
+  serverAgencies.set(agencyId, record);
+
+  const existingUser = serverUsers.get(founderId);
+  if (existingUser) {
+    existingUser.agencyId = record.id;
+    existingUser.agencyName = record.name;
+    existingUser.agencyCode = record.code;
+    existingUser.agencyLogo = record.logo;
+    existingUser.agencyRole = 'founder';
+    existingUser.agencyStatus = 'active';
+    existingUser.crewName = record.crewName;
+    existingUser.crewBadge = record.crewBadge;
+  }
+
+  res.json({ success: true, agency: { ...record, membersCount: record.members.length } });
+});
+
+app.post('/api/agencies/join', (req: AuthenticatedRequest, res: Response) => {
+  const { agencyId, code, user } = req.body || {};
+  const memberId = req.firebaseUser?.uid || user?.id;
+  if (!memberId) {
+    return res.status(401).json({ error: 'Authentication required to join an agency.' });
+  }
+
+  let target: ServerAgencyRecord | undefined;
+  if (agencyId) {
+    target = serverAgencies.get(String(agencyId));
+  } else if (code) {
+    const cleanCode = String(code).trim().toUpperCase();
+    for (const ag of serverAgencies.values()) {
+      if (ag.code.toUpperCase() === cleanCode) {
+        target = ag;
+        break;
+      }
+    }
+  }
+
+  if (!target) {
+    return res.status(404).json({ error: 'Agency not found. Check the Agency ID or invite code.' });
+  }
+
+  // Remove from any other agency
+  for (const ag of serverAgencies.values()) {
+    ag.members = ag.members.filter((m) => m.id !== memberId);
+  }
+
+  target.members.push({
+    id: memberId,
+    name: sanitizeText(user?.name || 'Creator', 50),
+    username: user?.username || `@${memberId.slice(0, 6)}`,
+    avatar: user?.avatar || '',
+    role: 'host',
+    level: Number(user?.level || 1),
+    joinedAt: new Date().toISOString(),
+  });
+
+  const existingUser = serverUsers.get(memberId);
+  if (existingUser) {
+    existingUser.agencyId = target.id;
+    existingUser.agencyName = target.name;
+    existingUser.agencyCode = target.code;
+    existingUser.agencyLogo = target.logo;
+    existingUser.agencyRole = 'host';
+    existingUser.agencyStatus = 'active';
+    existingUser.crewName = target.crewName;
+    existingUser.crewBadge = target.crewBadge;
+  }
+
+  res.json({ success: true, agency: { ...target, membersCount: target.members.length } });
+});
+
+app.post('/api/agencies/leave', (req: AuthenticatedRequest, res: Response) => {
+  const { userId } = req.body || {};
+  const memberId = req.firebaseUser?.uid || userId;
+  if (!memberId) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  for (const ag of serverAgencies.values()) {
+    ag.members = ag.members.filter((m) => m.id !== memberId);
+  }
+
+  const existingUser = serverUsers.get(memberId);
+  if (existingUser) {
+    existingUser.agencyId = '';
+    existingUser.agencyName = '';
+    existingUser.agencyCode = '';
+    existingUser.agencyLogo = '';
+    existingUser.agencyRole = undefined;
+    existingUser.agencyStatus = 'none';
+    existingUser.crewName = '';
+    existingUser.crewBadge = '';
+  }
+
+  res.json({ success: true });
 });
 
 app.get('/api/users/:id/followers', (req: Request, res: Response) => {
@@ -2685,6 +3082,55 @@ app.put('/api/admin/ranking-config', (req: AuthenticatedRequest, res: Response) 
   res.json({ success: true, config: rankingConfig });
 });
 
+// --- WEBRTC ICE / TURN SERVERS ENDPOINT (FOR 4G/5G NAT TRAVERSAL) ---
+app.get('/api/rtc/ice-servers', (_req: Request, res: Response) => {
+  const iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+  ];
+
+  // Include operator-configured TURN relay if provided via Railway env vars
+  const turnUrls = (process.env.TURN_URLS || '')
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
+  if (turnUrls.length > 0) {
+    iceServers.push({
+      urls: turnUrls,
+      ...(process.env.TURN_USERNAME ? { username: process.env.TURN_USERNAME } : {}),
+      ...(process.env.TURN_CREDENTIAL ? { credential: process.env.TURN_CREDENTIAL } : {}),
+    });
+  } else {
+    // Reliable public Metered OpenRelay fallback for 4G symmetric CGNAT devices
+    iceServers.push(
+      {
+        urls: 'turn:global.relay.metered.ca:80',
+        username: 'e8dd65b92f6dde43c885f6f7',
+        credential: 'uWdWNmkhvyqTWjsm',
+      },
+      {
+        urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+        username: 'e8dd65b92f6dde43c885f6f7',
+        credential: 'uWdWNmkhvyqTWjsm',
+      },
+      {
+        urls: 'turn:global.relay.metered.ca:443',
+        username: 'e8dd65b92f6dde43c885f6f7',
+        credential: 'uWdWNmkhvyqTWjsm',
+      },
+      {
+        urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+        username: 'e8dd65b92f6dde43c885f6f7',
+        credential: 'uWdWNmkhvyqTWjsm',
+      }
+    );
+  }
+
+  res.json({ iceServers });
+});
+
 // --- AGORA RTC TOKEN GENERATION & CONFIG ENDPOINTS ---
 app.get('/api/agora/config', (_req: Request, res: Response) => {
   const appId = process.env.AGORA_APP_ID || '';
@@ -2721,10 +3167,11 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
 
   try {
     const rtcRole = role === 'broadcaster' || role === 'host' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
-    const expirationTimeInSeconds = 3600; // 1 hour token
+    const expirationTimeInSeconds = 3600; // 1 hour token & privilege duration
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+    const expiresAt = currentTimestamp + expirationTimeInSeconds;
 
+    // agora-token v2 expects relative durations in seconds for BOTH tokenExpire and privilegeExpire
     const token = RtcTokenBuilder.buildTokenWithUserAccount(
       appId,
       appCertificate,
@@ -2732,7 +3179,7 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
       String(uid || '0'),
       rtcRole,
       expirationTimeInSeconds,
-      privilegeExpiredTs
+      expirationTimeInSeconds
     );
 
     res.json({
@@ -2743,7 +3190,7 @@ app.post('/api/agora/token', (req: Request, res: Response) => {
       channelName,
       uid: String(uid || '0'),
       role,
-      expiresAt: privilegeExpiredTs,
+      expiresAt,
     });
   } catch (err: any) {
     console.error('Error generating Agora RTC token:', err);
@@ -2785,6 +3232,7 @@ async function startServer() {
       });
     }
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: 'spa'

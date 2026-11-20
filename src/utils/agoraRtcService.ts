@@ -113,31 +113,38 @@ class AgoraRtcService {
   }
 
   /**
-   * Fetch Agora Configuration from backend
+   * Fetch Agora Configuration from backend (with fast 4s timeout so fallback never hangs)
    */
   async getAgoraConfig(): Promise<{ configured: boolean; appId: string }> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
     try {
-      const res = await apiFetch('/api/agora/config');
+      const res = await apiFetch('/api/agora/config', { signal: controller.signal });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         return await res.json();
       }
     } catch (e) {
       console.warn('Failed to fetch Agora config:', e);
+    } finally {
+      clearTimeout(timeoutId);
     }
     return { configured: false, appId: '' };
   }
 
   /**
-   * Fetch secure RTC Token from server-side token generator
+   * Fetch secure RTC Token from server-side token generator (with fast 4s timeout)
    */
   async requestRtcToken(
     channelName: string,
     userAccount: string,
     role: 'broadcaster' | 'audience'
   ): Promise<{ token: string | null; appId: string; configured: boolean; error?: string }> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
     try {
       const res = await apiFetch('/api/agora/token', {
         method: 'POST',
+        signal: controller.signal,
         body: JSON.stringify({
           channelName,
           uid: userAccount,
@@ -145,15 +152,17 @@ class AgoraRtcService {
         }),
       });
 
-      if (!res.headers.get('content-type')?.includes('application/json')) {
+      if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) {
         return { token: null, appId: '', configured: false, error: 'Agora token API endpoint unavailable' };
       }
 
       const data = await res.json();
       return data;
     } catch (err: any) {
-      console.error('Failed to request Agora RTC token:', err);
-      return { token: null, appId: '', configured: false, error: err.message };
+      console.warn('Failed to request Agora RTC token:', err?.message || err);
+      return { token: null, appId: '', configured: false, error: err?.message || 'Timeout' };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

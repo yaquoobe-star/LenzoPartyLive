@@ -18,6 +18,8 @@ export interface VideoItem {
   isReposted?: boolean;
   createdAt: string;
   privacy?: 'public' | 'friends' | 'private';
+  isPrivate?: boolean;
+  contentType?: 'video' | 'post';
 }
 
 export interface VideoComment {

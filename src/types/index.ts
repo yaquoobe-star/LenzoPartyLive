@@ -64,8 +64,81 @@ export interface UserProfile {
   gender?: 'female' | 'male' | 'other' | 'unspecified';
   country?: string;
   birthday?: string;
+  isOnline?: boolean;
+  showGender?: boolean;
+  showAge?: boolean;
+  showOnlineStatus?: boolean;
   isFollowing?: boolean;
   equippedVipFrame?: number;
+  equippedBadges?: string[];
+  agencyId?: string;
+  agencyName?: string;
+  agencyCode?: string;
+  agencyLogo?: string;
+  agencyRole?: 'member' | 'host' | 'manager' | 'founder';
+  agencyStatus?: 'none' | 'pending' | 'active';
+  crewName?: string;
+  crewBadge?: string;
+  savedVideoIds?: string[];
+  likedVideoIds?: string[];
+  liveSessionsHosted?: number;
+  loginStreakDays?: number;
+  createdAt?: string;
+}
+
+export interface AgencyInfo {
+  id: string;
+  name: string;
+  code: string;
+  logo: string;
+  description: string;
+  crewName: string;
+  crewBadge: string;
+  founderId: string;
+  founderName: string;
+  commissionRate: number;
+  region: string;
+  isVerified: boolean;
+  membersCount: number;
+  members: Array<{
+    id: string;
+    name: string;
+    username: string;
+    avatar: string;
+    role: 'member' | 'host' | 'manager' | 'founder';
+    level: number;
+    joinedAt: string;
+  }>;
+  createdAt: string;
+}
+
+export interface ProfileBadgeDefinition {
+  id: string;
+  name: string;
+  category: 'creator' | 'gifting' | 'social' | 'agency' | 'milestone';
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+  description: string;
+  requirementText: string;
+  iconKey: 'award' | 'gem' | 'flame' | 'zap' | 'crown' | 'heart' | 'shield' | 'sparkles';
+  accentFrom: string;
+  accentTo: string;
+  isEarned: boolean;
+  isEquipped: boolean;
+  progressCurrent: number;
+  progressTarget: number;
+}
+
+export interface AchievementItem {
+  id: string;
+  title: string;
+  category: 'creator' | 'social' | 'wealth' | 'live' | 'community';
+  description: string;
+  rewardLabel: string;
+  progressCurrent: number;
+  progressTarget: number;
+  progressPercent: number;
+  isUnlocked: boolean;
+  tier: 'starter' | 'rising' | 'elite' | 'legend';
 }
 
 

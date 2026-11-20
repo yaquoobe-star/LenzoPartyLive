@@ -6,12 +6,47 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
+export interface NativeMediaPermissionsResult {
+  camera: boolean;
+  microphone: boolean;
+  cameraPermanentlyDenied?: boolean;
+  microphonePermanentlyDenied?: boolean;
+}
+
 interface MediaPermissionsPluginInterface {
-  checkMediaPermissions(): Promise<{ camera: boolean; microphone: boolean }>;
-  requestMediaPermissions(options: { video: boolean; audio: boolean }): Promise<{ camera: boolean; microphone: boolean }>;
+  checkMediaPermissions(): Promise<NativeMediaPermissionsResult>;
+  requestMediaPermissions(options: { video: boolean; audio: boolean }): Promise<NativeMediaPermissionsResult>;
+  openAppSettings(): Promise<{ opened: boolean }>;
+  setCommunicationAudioMode(options: { enabled: boolean }): Promise<void>;
 }
 
 const NativeMediaPermissions = registerPlugin<MediaPermissionsPluginInterface>('MediaPermissions');
+
+export function isNativeAndroidApp(): boolean {
+  return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+export async function openNativeAppSettings(): Promise<boolean> {
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      await NativeMediaPermissions.openAppSettings();
+      return true;
+    } catch (err) {
+      console.warn('[MediaPermissions] openAppSettings warning:', err);
+    }
+  }
+  return false;
+}
+
+export async function setNativeLiveAudioMode(enabled: boolean): Promise<void> {
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      await NativeMediaPermissions.setCommunicationAudioMode({ enabled });
+    } catch {
+      // ignore if unsupported
+    }
+  }
+}
 
 /**
  * Request native Android runtime CAMERA / RECORD_AUDIO permissions before calling getUserMedia.
@@ -20,7 +55,7 @@ const NativeMediaPermissions = registerPlugin<MediaPermissionsPluginInterface>('
 export async function ensureNativeMediaPermissions(options: {
   video: boolean;
   audio: boolean;
-}): Promise<{ camera: boolean; microphone: boolean }> {
+}): Promise<NativeMediaPermissionsResult> {
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
       return await NativeMediaPermissions.requestMediaPermissions({
@@ -31,7 +66,68 @@ export async function ensureNativeMediaPermissions(options: {
       console.warn('[MediaPermissions] Native permission request warning:', err);
     }
   }
-  return { camera: options.video, microphone: options.audio };
+  return {
+    camera: options.video,
+    microphone: options.audio,
+    cameraPermanentlyDenied: false,
+    microphonePermanentlyDenied: false,
+  };
+}
+
+function isPermissionError(err: any): boolean {
+  const name = String(err?.name || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return (
+    name === 'NotAllowedError' ||
+    name === 'PermissionDeniedError' ||
+    name === 'SecurityError' ||
+    msg.includes('permission denied') ||
+    msg.includes('permission dismissed') ||
+    msg.includes('not allowed')
+  );
+}
+
+export interface StagedLiveMedia {
+  stream: MediaStream;
+  isFront: boolean;
+  isCameraOn: boolean;
+  isMicOn: boolean;
+  label: string;
+  isRealBackCamera: boolean;
+  hasAudio: boolean;
+  stagedAt: number;
+}
+
+let stagedLiveMedia: StagedLiveMedia | null = null;
+
+/**
+ * Hand off an already-acquired hardware camera & mic MediaStream from CreateLiveScreen
+ * directly to ActiveLiveScreen without closing/re-opening the camera (avoids NotReadableError on Android).
+ */
+export function setStagedLiveStream(media: Omit<StagedLiveMedia, 'stagedAt'> | null): void {
+  if (stagedLiveMedia && stagedLiveMedia.stream !== media?.stream) {
+    stopMediaStream(stagedLiveMedia.stream);
+  }
+  stagedLiveMedia = media ? { ...media, stagedAt: Date.now() } : null;
+}
+
+export function consumeStagedLiveStream(): StagedLiveMedia | null {
+  const current = stagedLiveMedia;
+  stagedLiveMedia = null;
+  if (!current) return null;
+  const hasLiveTracks = current.stream.getTracks().some((t) => t.readyState === 'live');
+  if (!hasLiveTracks) {
+    stopMediaStream(current.stream);
+    return null;
+  }
+  return current;
+}
+
+export function clearStagedLiveStream(): void {
+  if (stagedLiveMedia) {
+    stopMediaStream(stagedLiveMedia.stream);
+    stagedLiveMedia = null;
+  }
 }
 
 export interface CameraDeviceInfo {
@@ -127,9 +223,26 @@ export async function acquireRealDeviceCamera(options: {
   }
 
   // Explicitly request Android runtime CAMERA + RECORD_AUDIO permissions first on native APK
-  await ensureNativeMediaPermissions({ video: true, audio: enableAudio });
+  const nativePerm = await ensureNativeMediaPermissions({ video: true, audio: enableAudio });
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    if (!nativePerm.camera) {
+      const deniedErr: any = new Error(
+        nativePerm.cameraPermanentlyDenied
+          ? 'Camera permission is disabled in Android Settings. Tap Open Settings to allow Camera & Microphone.'
+          : 'Camera permission was denied. Tap Allow Camera & Mic to connect your real camera.'
+      );
+      deniedErr.name = 'NotAllowedError';
+      deniedErr.permanentlyDenied = Boolean(
+        nativePerm.cameraPermanentlyDenied || nativePerm.microphonePermanentlyDenied
+      );
+      throw deniedErr;
+    }
+  }
 
-  const audioConstraint = enableAudio
+  const shouldRequestAudio =
+    enableAudio && (!(typeof window !== 'undefined' && Capacitor.isNativePlatform()) || nativePerm.microphone);
+
+  const audioConstraint = shouldRequestAudio
     ? {
         echoCancellation: true,
         noiseSuppression: true,
@@ -161,6 +274,7 @@ export async function acquireRealDeviceCamera(options: {
       isRealBackCamera = true;
       activeLabel = 'Back Camera';
     } catch (err) {
+      if (isPermissionError(err)) throw err;
       lastError = err;
     }
 
@@ -178,6 +292,7 @@ export async function acquireRealDeviceCamera(options: {
         isRealBackCamera = true;
         activeLabel = backCamera.label || 'Back Camera';
       } catch (err) {
+        if (isPermissionError(err)) throw err;
         lastError = err;
       }
     }
@@ -196,22 +311,24 @@ export async function acquireRealDeviceCamera(options: {
         isRealBackCamera = true;
         activeLabel = 'Back Camera';
       } catch (err) {
+        if (isPermissionError(err)) throw err;
         lastError = err;
       }
     }
 
-    // Strategy 4: Fallback to any available camera + audio, then video-only
+    // Strategy 4: Fallback to any available camera + audio, then video-only (only for non-permission errors)
     if (!stream) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: enableAudio ? true : false,
+          audio: shouldRequestAudio ? true : false,
         });
         isRealBackCamera = allCameras.length > 1;
         activeLabel = 'Camera';
       } catch (err) {
+        if (isPermissionError(err)) throw err;
         lastError = err;
-        if (enableAudio) {
+        if (shouldRequestAudio) {
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
@@ -225,7 +342,7 @@ export async function acquireRealDeviceCamera(options: {
   } else {
     // -------------------------------------------------------------------
     // TARGET: FRONT / USER CAMERA
-    // Call facingMode: 'user' + audio FIRST so permission dialog triggers immediately!
+    // Single atomic getUserMedia({ video, audio }) so OS/Browser asks once & connects both!
     // -------------------------------------------------------------------
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -238,27 +355,25 @@ export async function acquireRealDeviceCamera(options: {
       });
       activeLabel = 'Front Camera';
     } catch (err) {
+      if (isPermissionError(err)) throw err;
       lastError = err;
-      // Fallback 1: Simple constraints { video: true, audio: true }
+      // Fallback 1 (constraint/hardware errors only): Simple constraints { video: true, audio: true }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: enableAudio ? true : false,
+          audio: shouldRequestAudio ? true : false,
         });
         activeLabel = 'Default Camera';
       } catch (errSimple) {
+        if (isPermissionError(errSimple)) throw errSimple;
         lastError = errSimple;
-        // Fallback 2: If microphone caused failure, try video-only so camera still opens
-        if (enableAudio) {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: false,
-            });
-            activeLabel = 'Camera (Video Only)';
-          } catch (errVideoOnly) {
-            throw errVideoOnly;
-          }
+        // Fallback 2: If microphone hardware missing, try video-only
+        if (shouldRequestAudio) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          activeLabel = 'Camera (Video Only)';
         } else {
           throw errSimple;
         }
@@ -290,7 +405,17 @@ export async function acquireRealMicrophone(): Promise<MediaStream> {
   }
 
   // Explicitly request Android runtime RECORD_AUDIO permission first on native APK
-  await ensureNativeMediaPermissions({ video: false, audio: true });
+  const nativePerm = await ensureNativeMediaPermissions({ video: false, audio: true });
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform() && !nativePerm.microphone) {
+    const deniedErr: any = new Error(
+      nativePerm.microphonePermanentlyDenied
+        ? 'Microphone permission is disabled in Android Settings. Tap Open Settings to allow Microphone.'
+        : 'Microphone permission was denied. Tap Allow Microphone to speak.'
+    );
+    deniedErr.name = 'NotAllowedError';
+    deniedErr.permanentlyDenied = Boolean(nativePerm.microphonePermanentlyDenied);
+    throw deniedErr;
+  }
 
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -302,7 +427,7 @@ export async function acquireRealMicrophone(): Promise<MediaStream> {
       video: false,
     });
   } catch (err: any) {
-    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+    if (isPermissionError(err)) {
       throw err;
     }
     // Retry with minimal audio constraint for older Android WebViews
