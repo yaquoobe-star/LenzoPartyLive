@@ -90,6 +90,8 @@ interface ActiveLiveScreenProps {
   activePKSession?: PKMatchSession | null;
   onForfeitPK?: () => void;
   onRematchPK?: () => void;
+  blockedUserIds?: string[];
+  blockedByUserIds?: string[];
 }
 
 interface BurstParticle {
@@ -133,9 +135,40 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   activePKSession,
   onForfeitPK,
   onRematchPK,
+  blockedUserIds = [],
+  blockedByUserIds = [],
 }) => {
   // Permission rule: user is stream creator / live broadcast owner
   const isActualHost = currentUser.id === stream.host.id;
+  const blockedUserIdsRef = useRef<Set<string>>(new Set(blockedUserIds));
+  const blockedByUserIdsRef = useRef<Set<string>>(new Set(blockedByUserIds));
+
+  useEffect(() => {
+    blockedUserIdsRef.current = new Set(blockedUserIds);
+    if (isActualHost && blockedUserIds.length > 0) {
+      const blockedSet = blockedUserIdsRef.current;
+      setViewersList((prev) => {
+        const filtered = prev.filter((v) => !blockedSet.has(v.userId));
+        if (filtered.length !== prev.length) {
+          setViewersTotalCount(filtered.length);
+          setLiveViewerCount(filtered.length);
+        }
+        return filtered;
+      });
+      setMessages((prev) => prev.filter((m) => !blockedSet.has(m.senderId)));
+    }
+  }, [blockedUserIds, isActualHost]);
+
+  useEffect(() => {
+    blockedByUserIdsRef.current = new Set(blockedByUserIds);
+    if (!isActualHost && blockedByUserIds.includes(stream.host.id)) {
+      webrtcMediaService.stopLive();
+      agoraRtcService.leaveChannel().catch(() => {});
+      void leaveFirestoreLiveViewer(stream.id);
+      onClose();
+    }
+  }, [blockedByUserIds, isActualHost, stream.host.id, stream.id, onClose]);
+
   const [isHostMode, setIsHostMode] = useState<boolean>(isActualHost); // Only true if current user is the actual live owner
 
   // Host Hardware & Stream Controls
@@ -291,12 +324,26 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         }
       })
       .catch((err) => {
-        console.warn('[ActiveLive] Backend join fallback to Firestore:', err?.message || err);
+        const msg = String(err?.message || err || '');
+        if (!isActualHost && /block|403|forbidden/i.test(msg)) {
+          showToast('You cannot join or interact with this live stream.');
+          webrtcMediaService.stopLive();
+          agoraRtcService.leaveChannel().catch(() => {});
+          void leaveFirestoreLiveViewer(stream.id);
+          setTimeout(() => {
+            if (active) onClose();
+          }, 900);
+          return;
+        }
+        console.warn('[ActiveLive] Backend join fallback to Firestore:', msg);
       });
 
     // Cloud Firestore real-time viewers subscription (keeps viewer count, top avatars & join notices live 24/7)
-    const unsubFsViewers = subscribeFirestoreLiveViewers(stream.id, (fsViewers) => {
+    const unsubFsViewers = subscribeFirestoreLiveViewers(stream.id, (rawFsViewers) => {
       if (!active) return;
+      const fsViewers = isActualHost
+        ? rawFsViewers.filter((v) => !blockedUserIdsRef.current.has(v.userId))
+        : rawFsViewers;
 
       if (!fsViewersInitialized) {
         fsViewersInitialized = true;
@@ -349,6 +396,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         const merged = [...prev];
         let changed = false;
         fsComments.forEach((m) => {
+          if (isActualHost && blockedUserIdsRef.current.has(m.senderId)) return;
           if (!seen.has(m.id)) {
             seen.add(m.id);
             merged.push(m);
@@ -383,27 +431,56 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }, 15000);
 
     const unsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
-      if (!active || payload?.streamId !== stream.id) return;
+      if (!active) return;
+
+      if (
+        event === 'user:blocked_by' &&
+        !isActualHost &&
+        payload?.blockerId === stream.host.id
+      ) {
+        showToast('You have been blocked by the host.');
+        webrtcMediaService.stopLive();
+        agoraRtcService.leaveChannel().catch(() => {});
+        void leaveFirestoreLiveViewer(stream.id);
+        setTimeout(() => {
+          if (active) onClose();
+        }, 700);
+        return;
+      }
+
+      if (payload?.streamId !== stream.id) return;
 
       if (event === 'live:sync_state') {
         if (payload.stream && typeof payload.stream.numericViewers === 'number') {
           setLiveViewerCount(payload.stream.numericViewers);
         }
         if (Array.isArray(payload.viewers)) {
-          setViewersList(payload.viewers);
-          setViewersTotalCount(payload.viewers.length);
+          const filtered = isActualHost
+            ? payload.viewers.filter((v: LiveViewerInfo) => !blockedUserIdsRef.current.has(v.userId))
+            : payload.viewers;
+          setViewersList(filtered);
+          setViewersTotalCount(filtered.length);
         }
         if (Array.isArray(payload.comments)) {
-          setMessages(payload.comments);
+          const filteredComments = isActualHost
+            ? payload.comments.filter((m: ChatMessage) => !blockedUserIdsRef.current.has(m.senderId))
+            : payload.comments;
+          setMessages(filteredComments);
         }
       } else if (event === 'live:viewer_joined') {
         if (typeof payload.numericViewers === 'number') {
           setLiveViewerCount(payload.numericViewers);
         }
         const joinedViewer: LiveViewerInfo | undefined = payload.viewer;
+        if (isActualHost && joinedViewer?.userId && blockedUserIdsRef.current.has(joinedViewer.userId)) {
+          return;
+        }
         if (Array.isArray(payload.viewers)) {
-          setViewersList(payload.viewers);
-          setViewersTotalCount(payload.viewers.length);
+          const filtered = isActualHost
+            ? payload.viewers.filter((v: LiveViewerInfo) => !blockedUserIdsRef.current.has(v.userId))
+            : payload.viewers;
+          setViewersList(filtered);
+          setViewersTotalCount(filtered.length);
         } else if (joinedViewer?.userId) {
           setViewersList((prev) => {
             const next = [
@@ -451,6 +528,21 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           }
         }
       } else if (event === 'live:viewer_left' || event === 'live:viewer_count_updated') {
+        if (
+          event === 'live:viewer_left' &&
+          !isActualHost &&
+          payload.reason === 'blocked' &&
+          payload.userId === currentUser.id
+        ) {
+          showToast('You have been blocked by the host.');
+          webrtcMediaService.stopLive();
+          agoraRtcService.leaveChannel().catch(() => {});
+          void leaveFirestoreLiveViewer(stream.id);
+          setTimeout(() => {
+            if (active) onClose();
+          }, 700);
+          return;
+        }
         if (typeof payload.numericViewers === 'number') {
           setLiveViewerCount(payload.numericViewers);
         }
@@ -466,6 +558,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         }
       } else if (event === 'live:comment' && payload.message) {
         const incoming: ChatMessage = payload.message;
+        if (isActualHost && blockedUserIdsRef.current.has(incoming.senderId)) {
+          return;
+        }
         setMessages((prev) =>
           prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]
         );
@@ -1126,6 +1221,11 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     const textToSend = (customText || inputMessage).trim();
     if (!textToSend) return;
 
+    if (!isActualHost && blockedByUserIdsRef.current.has(stream.host.id)) {
+      showToast('You cannot interact with this live stream.');
+      return;
+    }
+
     setInputMessage('');
     setShowEmojiPicker(false);
 
@@ -1135,7 +1235,12 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       finalMsg = backendSaved;
       // Mirror with the exact same ID to Firestore so no duplicate appears
       void sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, backendSaved.id);
-    } catch {
+    } catch (err: any) {
+      const errMsg = String(err?.message || err || '');
+      if (/block|403|forbidden/i.test(errMsg)) {
+        showToast('You are blocked from commenting in this live stream.');
+        return;
+      }
       const fallbackId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       finalMsg = await sendFirestoreLiveComment(
         stream.id,

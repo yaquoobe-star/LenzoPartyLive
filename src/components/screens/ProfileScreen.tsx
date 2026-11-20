@@ -34,6 +34,8 @@ import {
   LayoutGrid,
   ShieldCheck,
   Users,
+  Ban,
+  ShieldAlert,
 } from 'lucide-react';
 
 import { UserProfile, ScreenType, VideoItem, Conversation } from '../../types';
@@ -59,6 +61,8 @@ import { FollowersListModal } from '../profile/FollowersListModal';
 import { BadgeVaultModal } from '../profile/BadgeVaultModal';
 import { AchievementsModal } from '../profile/AchievementsModal';
 import { AgencyCenterModal } from '../profile/AgencyCenterModal';
+import { BlockedUsersModal } from '../profile/BlockedUsersModal';
+import { BlockedUserRecord, blockUser as blockUserService, unblockUser as unblockUserService } from '../../services/blockService';
 import { profileService } from '../../utils/profileService';
 import { uploadUserImage } from '../../services/storageService';
 import {
@@ -72,6 +76,10 @@ interface ProfileScreenProps {
   currentUser: UserProfile;
   viewingUser?: UserProfile | null;
   conversations?: Conversation[];
+  blockedUsers?: BlockedUserRecord[];
+  blockedByUserIds?: string[];
+  onBlockUser?: (target: UserProfile) => Promise<void> | void;
+  onUnblockUser?: (targetUserId: string, targetName?: string) => Promise<void> | void;
   onUpdateProfile: (updated: UserProfile) => void;
   onNavigate: (screen: ScreenType) => void;
   onOpenWallet: () => void;
@@ -94,6 +102,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   currentUser,
   viewingUser,
   conversations = [],
+  blockedUsers = [],
+  blockedByUserIds = [],
+  onBlockUser,
+  onUnblockUser,
   onUpdateProfile,
   onNavigate,
   onOpenWallet,
@@ -123,6 +135,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [isAgencyModalOpen, setIsAgencyModalOpen] = useState(false);
   const [agencyModalMode, setAgencyModalMode] = useState<'center' | 'join' | 'create'>('center');
+  const [isBlockedUsersModalOpen, setIsBlockedUsersModalOpen] = useState(false);
+  const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
+  const [isBlockBusy, setIsBlockBusy] = useState(false);
+
+  const isTargetBlockedByMe = useMemo(
+    () => !isOwner && blockedUsers.some((b) => b.blockedUserId === activeUser.id),
+    [isOwner, blockedUsers, activeUser.id]
+  );
+  const isCurrentUserBlockedByTarget = useMemo(
+    () => !isOwner && blockedByUserIds.includes(activeUser.id),
+    [isOwner, blockedByUserIds, activeUser.id]
+  );
+  const isInteractionBlocked = isTargetBlockedByMe || isCurrentUserBlockedByTarget;
 
   // Direct Cover & Avatar Upload State
   const [uploadingMedia, setUploadingMedia] = useState<{ type: 'avatar' | 'cover'; progress: number } | null>(null);
@@ -335,6 +360,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const handleToggleFollow = async () => {
     if (isOwner) return;
+    if (isInteractionBlocked) {
+      showToast(
+        isTargetBlockedByMe
+          ? `Unblock ${activeUser.name} first to follow them.`
+          : 'You cannot interact with this profile.'
+      );
+      return;
+    }
     try {
       const res = await profileService.toggleFollow(activeUser.id, currentUser.id);
       setIsFollowingTarget(res.isFollowing);
@@ -346,6 +379,42 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       showToast(res.isFollowing ? `Following ${activeUser.name}` : `Unfollowed ${activeUser.name}`);
     } catch (err: any) {
       showToast(err?.message || 'Could not update follow status.');
+    }
+  };
+
+  const handleConfirmBlockTarget = async () => {
+    if (isOwner || isBlockBusy) return;
+    setIsBlockBusy(true);
+    try {
+      if (onBlockUser) {
+        await onBlockUser(activeUser);
+      } else {
+        await blockUserService({ blockerId: currentUser.id, targetUser: activeUser });
+      }
+      setIsFollowingTarget(false);
+      setShowBlockConfirmModal(false);
+      showToast(`${activeUser.name} has been blocked. They can no longer join your streams, rooms, or message you.`);
+    } catch {
+      showToast('Could not block user right now.');
+    } finally {
+      setIsBlockBusy(false);
+    }
+  };
+
+  const handleUnblockTarget = async (targetId: string, targetName: string) => {
+    if (isBlockBusy) return;
+    setIsBlockBusy(true);
+    try {
+      if (onUnblockUser) {
+        await onUnblockUser(targetId, targetName);
+      } else {
+        await unblockUserService({ blockerId: currentUser.id, targetUserId: targetId });
+      }
+      showToast(`${targetName} has been unblocked.`);
+    } catch {
+      showToast('Could not unblock user right now.');
+    } finally {
+      setIsBlockBusy(false);
     }
   };
 
@@ -600,6 +669,57 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         }}
       />
 
+      {/* Owner Blocked Users Management Modal */}
+      {isOwner && (
+        <BlockedUsersModal
+          isOpen={isBlockedUsersModalOpen}
+          onClose={() => setIsBlockedUsersModalOpen(false)}
+          blockedUsers={blockedUsers}
+          onUnblock={(uid, uname) => handleUnblockTarget(uid, uname)}
+        />
+      )}
+
+      {/* Block User Confirmation Dialog */}
+      {!isOwner && showBlockConfirmModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => !isBlockBusy && setShowBlockConfirmModal(false)}
+        >
+          <div
+            className="w-full max-w-xs bg-[#140B24] border border-rose-500/35 rounded-3xl p-5 text-center space-y-3.5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/35 text-rose-400 flex items-center justify-center mx-auto">
+              <Ban className="w-5 h-5" />
+            </div>
+            <h4 className="text-base font-extrabold text-white">
+              Block {activeUser.name}?
+            </h4>
+            <p className="text-xs text-[#C4B8DE] leading-relaxed">
+              They will be immediately removed and prevented from joining your live streams, entering your party rooms, commenting, gifting, or sending you direct messages.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                disabled={isBlockBusy}
+                onClick={() => setShowBlockConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBlockBusy}
+                onClick={() => void handleConfirmBlockTarget()}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold disabled:opacity-50"
+              >
+                {isBlockBusy ? 'Blocking...' : 'Block User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {videoToDelete && (
         <div
@@ -816,6 +936,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
                 {isOwner && (
                   <button
+                    onClick={() => setIsBlockedUsersModalOpen(true)}
+                    aria-label="Blocked Users"
+                    title="Manage Blocked Users"
+                    className="relative min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-rose-500/25 backdrop-blur-md border border-white/15 hover:border-rose-400/45 flex items-center justify-center text-white active:scale-95 transition-all"
+                  >
+                    <Ban className="w-4 h-4 text-rose-300" />
+                    {blockedUsers.length > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-[9px] font-black text-white flex items-center justify-center border border-[#090611]">
+                        {blockedUsers.length > 99 ? '99+' : blockedUsers.length}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {isOwner && (
+                  <button
                     onClick={() => onNavigate('settings')}
                     aria-label="Settings"
                     className="min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
@@ -916,28 +1052,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={handleToggleFollow}
-                    className={`h-10 px-4 rounded-xl text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all ${
-                      isFollowingTarget
-                        ? 'bg-white/12 hover:bg-white/20 text-white border border-white/15'
-                        : 'bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-[#8B20FF]/25'
-                    }`}
-                  >
-                    {isFollowingTarget ? (
-                      <>
-                        <UserCheck className="w-4 h-4 text-emerald-400" />
-                        <span>Following</span>
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4" />
-                        <span>Follow</span>
-                      </>
-                    )}
-                  </button>
+                  {!isInteractionBlocked && (
+                    <button
+                      onClick={handleToggleFollow}
+                      className={`h-10 px-4 rounded-xl text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all ${
+                        isFollowingTarget
+                          ? 'bg-white/12 hover:bg-white/20 text-white border border-white/15'
+                          : 'bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-[#8B20FF]/25'
+                      }`}
+                    >
+                      {isFollowingTarget ? (
+                        <>
+                          <UserCheck className="w-4 h-4 text-emerald-400" />
+                          <span>Following</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-4 h-4" />
+                          <span>Follow</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
-                  {onSendMessage && (
+                  {onSendMessage && !isInteractionBlocked && (
                     <button
                       onClick={() => onSendMessage(activeUser)}
                       aria-label="Message"
@@ -947,7 +1085,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     </button>
                   )}
 
-                  {onSendGift && (
+                  {onSendGift && !isInteractionBlocked && (
                     <button
                       onClick={() => onSendGift(activeUser)}
                       aria-label="Send Gift"
@@ -956,10 +1094,59 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       <Gift className="w-4 h-4" />
                     </button>
                   )}
+
+                  {isTargetBlockedByMe ? (
+                    <button
+                      type="button"
+                      disabled={isBlockBusy}
+                      onClick={() => void handleUnblockTarget(activeUser.id, activeUser.name)}
+                      className="h-10 px-3.5 rounded-xl bg-rose-500/20 hover:bg-emerald-500/20 border border-rose-400/50 hover:border-emerald-400/50 text-rose-200 hover:text-emerald-200 text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>{isBlockBusy ? 'Updating...' : 'Unblock'}</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowBlockConfirmModal(true)}
+                      aria-label="Block User"
+                      title={`Block ${activeUser.name}`}
+                      className="h-10 px-3 rounded-xl bg-[#1B1030] hover:bg-rose-600/25 border border-white/10 hover:border-rose-400/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                    >
+                      <Ban className="w-3.5 h-3.5" />
+                      <span>Block</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </div>
+
+          {/* Blocked Status Notice Banner when viewing a blocked user or blocked by them */}
+          {!isOwner && isInteractionBlocked && (
+            <div className="px-4 sm:px-6 mt-3">
+              <div className="rounded-2xl bg-rose-950/50 border border-rose-500/40 px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                  <p className="text-xs text-rose-100 leading-snug">
+                    {isTargetBlockedByMe
+                      ? `You have blocked ${activeUser.name}. They cannot interact with your streams, party rooms, or messages.`
+                      : `You cannot follow, message, or interact with ${activeUser.name}.`}
+                  </p>
+                </div>
+                {isTargetBlockedByMe && (
+                  <button
+                    type="button"
+                    disabled={isBlockBusy}
+                    onClick={() => void handleUnblockTarget(activeUser.id, activeUser.name)}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold shrink-0"
+                  >
+                    Unblock
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ====================================================================

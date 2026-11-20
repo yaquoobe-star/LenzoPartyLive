@@ -54,6 +54,7 @@ import {
   pinChatMessage, 
   starChatMessage 
 } from '../../services/firestoreService';
+import { BlockedUserRecord, blockedRecordToUserProfile } from '../../services/blockService';
 
 interface MessagesScreenProps {
   currentUser: UserProfile;
@@ -63,6 +64,10 @@ interface MessagesScreenProps {
   onOpenGiftShop: (recipient: UserProfile) => void;
   activeChatUser?: UserProfile | null;
   onCloseChat?: () => void;
+  blockedUsers?: BlockedUserRecord[];
+  blockedByUserIds?: string[];
+  onBlockUser?: (user: UserProfile) => Promise<void> | void;
+  onUnblockUser?: (userId: string, targetName?: string) => Promise<void> | void;
 }
 
 type TabKey = 'all' | 'personal' | 'groups' | 'requests' | 'archived' | 'blocked';
@@ -77,6 +82,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   onOpenGiftShop,
   activeChatUser: initialActiveUser,
   onCloseChat,
+  blockedUsers: persistedBlockedRecords = [],
+  blockedByUserIds = [],
+  onBlockUser,
+  onUnblockUser,
 }) => {
   // Navigation & Tabs
   const [activeTab, setActiveTab] = useState<TabKey>('all');
@@ -145,7 +154,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   // Message Requests & Blocked States
   const [messageRequests, setMessageRequests] = useState<Conversation[]>([]);
 
-  const [blockedUsers, setBlockedUsers] = useState<UserProfile[]>([]);
+  const [localBlockedUsers, setLocalBlockedUsers] = useState<UserProfile[]>([]);
+
+  const blockedUsers: UserProfile[] = persistedBlockedRecords.length > 0 || onBlockUser
+    ? persistedBlockedRecords.map(blockedRecordToUserProfile)
+    : localBlockedUsers;
+
+  const blockedUserIdSet = new Set(blockedUsers.map((u) => u.id));
+  const blockedByIdSet = new Set(blockedByUserIds);
+
+  const activeDirectUserId =
+    selectedConversation && selectedConversation.type !== 'group'
+      ? selectedConversation.user.id
+      : null;
+  const isSelectedBlockedByMe = Boolean(activeDirectUserId && blockedUserIdSet.has(activeDirectUserId));
+  const isSelectedBlockedMe = Boolean(activeDirectUserId && blockedByIdSet.has(activeDirectUserId));
+  const isSelectedChatBlocked = isSelectedBlockedByMe || isSelectedBlockedMe;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +188,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !selectedConversation) return;
+    if (isSelectedChatBlocked) {
+      setCallToast(
+        isSelectedBlockedByMe
+          ? 'Unblock this user to send messages.'
+          : 'You cannot send messages to this user.'
+      );
+      setTimeout(() => setCallToast(null), 2600);
+      return;
+    }
 
     if (editingMessageId) {
       // Edit existing message
@@ -198,13 +231,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setInputText('');
     setReplyingTo(null);
 
-    // Save to Firestore backend
+    // Save to Firestore backend (with recipientId for direct-chat security rule enforcement)
     await sendChatMessage(selectedConversation.id, {
       text: newMsg.text,
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
       senderVip: currentUser.vipLevel,
+      recipientId: activeDirectUserId || undefined,
       type: 'text',
       replyTo: replyingTo || undefined,
     });
@@ -221,6 +255,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
   // Voice Note Handlers
   const handleStartVoiceRecord = () => {
+    if (isSelectedChatBlocked) return;
     setIsRecordingVoice(true);
     setRecordingSeconds(0);
     recordingTimerRef.current = setInterval(() => {
@@ -231,7 +266,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const handleStopAndSendVoice = async () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     setIsRecordingVoice(false);
-    if (!selectedConversation) return;
+    if (!selectedConversation || isSelectedChatBlocked) return;
 
     const duration = Math.max(recordingSeconds, 2);
     const waveform = Array.from({ length: 16 }, () => Math.floor(Math.random() * 65) + 35);
@@ -257,6 +292,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
+      recipientId: activeDirectUserId || undefined,
       type: 'voice',
       voiceDuration: duration,
       voiceWaveform: waveform,
@@ -271,7 +307,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
   // Media Attachment Sender
   const handleSendMedia = async (type: 'image' | 'video' | 'file' | 'room_invite') => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || isSelectedChatBlocked) return;
     setIsAttachmentOpen(false);
 
     let mediaUrl = 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80';
@@ -303,6 +339,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
         senderId: currentUser.id,
         senderName: currentUser.name,
         senderAvatar: currentUser.avatar,
+        recipientId: activeDirectUserId || undefined,
         type: 'room_invite',
         roomInvite: inviteMsg.roomInvite,
       });
@@ -328,6 +365,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
+      recipientId: activeDirectUserId || undefined,
       type,
       mediaUrl,
     });
@@ -417,13 +455,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setMessageRequests((prev) => prev.filter((r) => r.id !== reqId));
   };
 
-  const handleBlockFromRequest = (req: Conversation) => {
+  const handleBlockFromRequest = async (req: Conversation) => {
     setMessageRequests((prev) => prev.filter((r) => r.id !== req.id));
-    setBlockedUsers((prev) => [...prev, req.user]);
+    if (onBlockUser) {
+      await onBlockUser(req.user);
+    } else {
+      setLocalBlockedUsers((prev) =>
+        prev.some((u) => u.id === req.user.id) ? prev : [...prev, req.user]
+      );
+    }
   };
 
-  const handleUnblockUser = (userId: string) => {
-    setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+  const handleUnblockUser = async (userId: string, userName?: string) => {
+    if (onUnblockUser) {
+      await onUnblockUser(userId, userName);
+    } else {
+      setLocalBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+    }
   };
 
   // Create Group Chat
@@ -465,9 +513,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setSelectedConversation(newConv);
   };
 
-  // Tab Filtering
+  // Tab Filtering (excludes blocked direct threads from All/Personal inbox)
   const getFilteredConversations = () => {
     return conversationsList.filter((conv) => {
+      if (conv.type !== 'group') {
+        const uid = conv.user?.id;
+        if (uid && (blockedUserIdSet.has(uid) || blockedByIdSet.has(uid))) {
+          return false;
+        }
+      }
+
       // Search filter
       const matchesSearch = !searchQuery || 
         (conv.type === 'group' 
@@ -635,33 +690,66 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
               {/* Chat Header Actions */}
               <div className="flex items-center gap-1 sm:gap-2">
-                <button 
-                  onClick={() => onOpenGiftShop(selectedConversation.user)}
-                  className="p-2 rounded-xl bg-gradient-to-r from-[#F328D5]/20 to-[#8B20FF]/20 text-[#F328D5] hover:bg-[#F328D5]/30 transition-colors"
-                  title="Send Gift"
-                >
-                  <Sparkles className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => {
-                    setCallToast('Audio call request sent.');
-                    setTimeout(() => setCallToast(null), 2500);
-                  }}
-                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  title="Audio Call"
-                >
-                  <Phone className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => {
-                    setCallToast('Video call request sent.');
-                    setTimeout(() => setCallToast(null), 2500);
-                  }}
-                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  title="Video Call"
-                >
-                  <Video className="w-4 h-4" />
-                </button>
+                {!isSelectedChatBlocked && (
+                  <>
+                    <button 
+                      onClick={() => onOpenGiftShop(selectedConversation.user)}
+                      className="p-2 rounded-xl bg-gradient-to-r from-[#F328D5]/20 to-[#8B20FF]/20 text-[#F328D5] hover:bg-[#F328D5]/30 transition-colors"
+                      title="Send Gift"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setCallToast('Audio call request sent.');
+                        setTimeout(() => setCallToast(null), 2500);
+                      }}
+                      className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                      title="Audio Call"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setCallToast('Video call request sent.');
+                        setTimeout(() => setCallToast(null), 2500);
+                      }}
+                      className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+                      title="Video Call"
+                    >
+                      <Video className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                {selectedConversation.type !== 'group' && selectedConversation.user.id !== currentUser.id && (
+                  <button
+                    onClick={async () => {
+                      if (isSelectedBlockedByMe) {
+                        await handleUnblockUser(selectedConversation.user.id, selectedConversation.user.name);
+                        setCallToast(`Unblocked ${selectedConversation.user.name}`);
+                      } else if (onBlockUser) {
+                        await onBlockUser(selectedConversation.user);
+                        setCallToast(`Blocked ${selectedConversation.user.name}`);
+                      } else {
+                        setLocalBlockedUsers((prev) =>
+                          prev.some((u) => u.id === selectedConversation.user.id)
+                            ? prev
+                            : [...prev, selectedConversation.user]
+                        );
+                        setCallToast(`Blocked ${selectedConversation.user.name}`);
+                      }
+                      setTimeout(() => setCallToast(null), 2500);
+                    }}
+                    className={`p-2 rounded-xl transition-colors ${
+                      isSelectedBlockedByMe
+                        ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                        : 'bg-rose-500/15 text-rose-300 hover:bg-rose-500/25'
+                    }`}
+                    title={isSelectedBlockedByMe ? 'Unblock User' : 'Block User'}
+                  >
+                    <UserX className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1014,78 +1102,99 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               </div>
             )}
 
-            {/* A6. Input Bar (WhatsApp-style with Voice Recorder & Send) */}
-            <div className="p-3 bg-[#170e28] border-t border-white/[0.08] flex items-center gap-2">
-              {isRecordingVoice ? (
-                // Voice Recording Live Bar
-                <div className="flex-1 flex items-center justify-between px-3 py-2 rounded-2xl bg-rose-950/40 border border-rose-500/40">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
-                    <span className="text-xs font-bold text-rose-300">
-                      Recording 0:{recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleCancelVoiceRecord}
-                      className="px-2.5 py-1 rounded-lg bg-white/10 text-xs text-gray-300 hover:text-white"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleStopAndSendVoice}
-                      className="p-1.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
+            {/* A6. Input Bar (or Blocked Status Banner) */}
+            {isSelectedChatBlocked ? (
+              <div className="p-3.5 bg-rose-950/35 border-t border-rose-500/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <UserX className="w-4 h-4 text-rose-400 shrink-0" />
+                  <p className="text-xs text-rose-200 font-medium truncate">
+                    {isSelectedBlockedByMe
+                      ? `You blocked ${selectedConversation.user.name}. Unblock to message or interact.`
+                      : 'You cannot message or interact with this user.'}
+                  </p>
                 </div>
-              ) : (
-                // Standard Chat Text Input Form
-                <>
+                {isSelectedBlockedByMe && (
                   <button
-                    onClick={() => setIsAttachmentOpen(!isAttachmentOpen)}
-                    className="p-2 rounded-full hover:bg-white/10 text-[#A59AB8] hover:text-white transition-colors"
+                    onClick={() => handleUnblockUser(selectedConversation.user.id, selectedConversation.user.name)}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/15 transition-colors"
                   >
-                    <Paperclip className="w-5 h-5" />
+                    Unblock
                   </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-[#170e28] border-t border-white/[0.08] flex items-center gap-2">
+                {isRecordingVoice ? (
+                  // Voice Recording Live Bar
+                  <div className="flex-1 flex items-center justify-between px-3 py-2 rounded-2xl bg-rose-950/40 border border-rose-500/40">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
+                      <span className="text-xs font-bold text-rose-300">
+                        Recording 0:{recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleCancelVoiceRecord}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 text-xs text-gray-300 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleStopAndSendVoice}
+                        className="p-1.5 rounded-lg bg-rose-500 text-white hover:bg-rose-600"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Standard Chat Text Input Form
+                  <>
+                    <button
+                      onClick={() => setIsAttachmentOpen(!isAttachmentOpen)}
+                      className="p-2 rounded-full hover:bg-white/10 text-[#A59AB8] hover:text-white transition-colors"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </button>
 
-                  <form onSubmit={handleSendMessage} className="flex-1 flex items-center relative">
-                    <input
-                      type="text"
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder="Type a message..."
-                      className="w-full bg-[#201337] border border-white/10 rounded-2xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-[#786c8f] focus:outline-none focus:border-[#F328D5] transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setInputText((prev) => prev + ' 💕')}
-                      className="absolute right-3 text-[#A59AB8] hover:text-white"
-                    >
-                      <Smile className="w-4 h-4" />
-                    </button>
-                  </form>
+                    <form onSubmit={handleSendMessage} className="flex-1 flex items-center relative">
+                      <input
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        placeholder="Type a message..."
+                        className="w-full bg-[#201337] border border-white/10 rounded-2xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-[#786c8f] focus:outline-none focus:border-[#F328D5] transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setInputText((prev) => prev + ' 💕')}
+                        className="absolute right-3 text-[#A59AB8] hover:text-white"
+                      >
+                        <Smile className="w-4 h-4" />
+                      </button>
+                    </form>
 
-                  {inputText.trim() ? (
-                    <button
-                      onClick={() => handleSendMessage()}
-                      className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleStartVoiceRecord}
-                      className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-[#F328D5] transition-colors"
-                      title="Hold to record voice message"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                    {inputText.trim() ? (
+                      <button
+                        onClick={() => handleSendMessage()}
+                        className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleStartVoiceRecord}
+                        className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-[#F328D5] transition-colors"
+                        title="Hold to record voice message"
+                      >
+                        <Mic className="w-5 h-5" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           /* VIEW B: Conversations / Message Requests / Blocked Tabs */
@@ -1183,7 +1292,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                         </div>
                       </div>
                       <button
-                        onClick={() => handleUnblockUser(u.id)}
+                        onClick={() => handleUnblockUser(u.id, u.name)}
                         className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-colors"
                       >
                         Unblock

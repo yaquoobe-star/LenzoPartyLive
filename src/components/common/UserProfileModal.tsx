@@ -20,28 +20,41 @@ import { LevelBadge } from './LevelBadge';
 
 interface UserProfileModalProps {
   user: UserProfile | null;
+  currentUserId?: string;
   isOpen: boolean;
+  isBlocked?: boolean;
+  isBlockedByTarget?: boolean;
   onClose: () => void;
   onToggleFollow: (userId: string) => void;
   onSendMessage: (user: UserProfile) => void;
   onSendGift: (user: UserProfile) => void;
   onViewFullProfile?: (user: UserProfile) => void;
+  onBlockUser?: (user: UserProfile) => Promise<void> | void;
+  onUnblockUser?: (userId: string, userName?: string) => Promise<void> | void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   user,
+  currentUserId,
   isOpen,
+  isBlocked: isBlockedProp = false,
+  isBlockedByTarget = false,
   onClose,
   onToggleFollow,
   onSendMessage,
   onSendGift,
   onViewFullProfile,
+  onBlockUser,
+  onUnblockUser,
 }) => {
   const [reportSuccess, setReportSuccess] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   if (!isOpen || !user) return null;
+
+  const isSelf = Boolean(currentUserId && currentUserId === user.id);
+  const interactionBlocked = isBlockedProp || isBlockedByTarget;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -58,20 +71,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     setTimeout(() => setReportSuccess(false), 3000);
   };
 
-  const handleBlock = () => {
-    setIsBlocked(!isBlocked);
-    showToast(!isBlocked ? `${user.name} has been blocked.` : `${user.name} has been unblocked.`);
+  const handleBlockToggle = async () => {
+    if (isSelf || blockBusy) return;
+    setBlockBusy(true);
+    try {
+      if (isBlockedProp) {
+        if (onUnblockUser) await onUnblockUser(user.id, user.name);
+        showToast(`${user.name} has been unblocked.`);
+      } else {
+        if (onBlockUser) await onBlockUser(user);
+        showToast(`${user.name} blocked. They cannot interact with your streams, rooms, or messages.`);
+      }
+    } finally {
+      setBlockBusy(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div 
         className="w-full max-w-sm bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Toast Alert */}
         {toastMessage && (
-          <div className="absolute top-4 left-4 right-4 z-50 bg-[#8B20FF] text-white text-xs font-semibold py-2 px-3 rounded-xl shadow-lg shadow-[#8B20FF]/50 text-center animate-bounce">
+          <div className="absolute top-4 left-4 right-4 z-50 bg-[#8B20FF] text-white text-xs font-semibold py-2 px-3 rounded-xl shadow-lg shadow-[#8B20FF]/50 text-center">
             {toastMessage}
           </div>
         )}
@@ -122,13 +146,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <span className="text-xs text-[#B9AECF] font-mono">ID: {user.displayId}</span>
           </div>
 
-
           <p className="text-xs text-white/80 line-clamp-2 max-w-xs mb-4">
             {user.bio || 'Living life on Lenzo Party Live! Connect with me on streams.'}
           </p>
 
           {/* Followers / Following Stats */}
-          <div className="grid grid-cols-3 gap-2 w-full py-2.5 px-3 rounded-2xl bg-[#211333] border border-white/[0.06] mb-5">
+          <div className="grid grid-cols-3 gap-2 w-full py-2.5 px-3 rounded-2xl bg-[#211333] border border-white/[0.06] mb-4">
             <div className="flex flex-col items-center">
               <span className="text-sm font-extrabold text-white font-mono">{user.fansCount}</span>
               <span className="text-[10px] text-[#B9AECF]">Fans</span>
@@ -143,42 +166,53 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           </div>
 
+          {/* Blocked Status Warning */}
+          {!isSelf && interactionBlocked && (
+            <div className="w-full mb-4 px-3 py-2 rounded-xl bg-rose-950/60 border border-rose-500/40 text-[11px] font-semibold text-rose-200">
+              {isBlockedProp
+                ? `You blocked ${user.name}. Unblock to interact again.`
+                : `You cannot interact with ${user.name}.`}
+            </div>
+          )}
+
           {/* Primary Action Buttons: Follow, Message, Gift */}
-          <div className="grid grid-cols-3 gap-2 w-full mb-4">
-            <button
-              onClick={() => onToggleFollow(user.id)}
-              className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                user.isFollowing
-                  ? 'bg-white/10 text-white hover:bg-white/15'
-                  : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
-              }`}
-            >
-              {user.isFollowing ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-              <span>{user.isFollowing ? 'Following' : 'Follow'}</span>
-            </button>
+          {!isSelf && !interactionBlocked && (
+            <div className="grid grid-cols-3 gap-2 w-full mb-4">
+              <button
+                onClick={() => onToggleFollow(user.id)}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                  user.isFollowing
+                    ? 'bg-white/10 text-white hover:bg-white/15'
+                    : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
+                }`}
+              >
+                {user.isFollowing ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                <span>{user.isFollowing ? 'Following' : 'Follow'}</span>
+              </button>
 
-            <button
-              onClick={() => {
-                onClose();
-                onSendMessage(user);
-              }}
-              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#211333] hover:bg-[#2c1745] border border-white/10 text-white text-xs font-bold transition-all active:scale-95"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-[#F328D5]" />
-              <span>Chat</span>
-            </button>
+              <button
+                onClick={() => {
+                  onClose();
+                  onSendMessage(user);
+                }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#211333] hover:bg-[#2c1745] border border-white/10 text-white text-xs font-bold transition-all active:scale-95"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-[#F328D5]" />
+                <span>Chat</span>
+              </button>
 
-            <button
-              onClick={() => {
-                onClose();
-                onSendGift(user);
-              }}
-              className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-bold transition-all active:scale-95 shadow-md shadow-[#FFC84A]/20"
-            >
-              <Gift className="w-3.5 h-3.5" />
-              <span>Gift</span>
-            </button>
-          </div>
+              <button
+                onClick={() => {
+                  onClose();
+                  onSendGift(user);
+                }}
+                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-bold transition-all active:scale-95 shadow-md shadow-[#FFC84A]/20"
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span>Gift</span>
+              </button>
+            </div>
+          )}
 
           {onViewFullProfile && (
             <button
@@ -202,20 +236,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <Share2 className="w-3.5 h-3.5" />
               <span>Share</span>
             </button>
-            <button 
-              onClick={handleReport}
-              className="flex items-center gap-1 hover:text-amber-400 transition-colors"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Report</span>
-            </button>
-            <button 
-              onClick={handleBlock}
-              className={`flex items-center gap-1 transition-colors ${isBlocked ? 'text-rose-400 font-bold' : 'hover:text-rose-400'}`}
-            >
-              <Ban className="w-3.5 h-3.5" />
-              <span>{isBlocked ? 'Unblock' : 'Block'}</span>
-            </button>
+            {!isSelf && (
+              <button 
+                onClick={handleReport}
+                className={`flex items-center gap-1 transition-colors ${reportSuccess ? 'text-amber-300 font-bold' : 'hover:text-amber-400'}`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>{reportSuccess ? 'Reported' : 'Report'}</span>
+              </button>
+            )}
+            {!isSelf && (
+              <button 
+                disabled={blockBusy}
+                onClick={() => void handleBlockToggle()}
+                className={`flex items-center gap-1 transition-colors disabled:opacity-50 ${isBlockedProp ? 'text-rose-400 font-bold' : 'hover:text-rose-400'}`}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>{blockBusy ? '...' : isBlockedProp ? 'Unblock' : 'Block'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

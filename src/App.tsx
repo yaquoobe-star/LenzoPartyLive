@@ -46,6 +46,13 @@ import {
   subscribeUserWallet,
   subscribeUserEarnings,
 } from './services/walletService';
+import {
+  BlockedUserRecord,
+  blockUser,
+  unblockUser,
+  subscribeBlockedByMe,
+  subscribeBlockedMe,
+} from './services/blockService';
 
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
@@ -149,6 +156,124 @@ export default function App() {
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
   const [navigatingProfileUser, setNavigatingProfileUser] = useState<UserProfile | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<UserProfile | null>(null);
+
+  // User Blocking State (Real-time Firestore + Backend Sync)
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
+  const [blockedByUserIds, setBlockedByUserIds] = useState<string[]>([]);
+  const [appToast, setAppToast] = useState<string | null>(null);
+  const appToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showAppToast = (msg: string) => {
+    setAppToast(msg);
+    if (appToastTimerRef.current) clearTimeout(appToastTimerRef.current);
+    appToastTimerRef.current = setTimeout(() => setAppToast(null), 3200);
+  };
+
+  const blockedUserIds = blockedUsers.map((b) => b.blockedUserId);
+  const isBlockedByMe = (userId?: string | null) =>
+    Boolean(userId && blockedUserIds.includes(userId));
+  const isBlockedByTarget = (userId?: string | null) =>
+    Boolean(userId && blockedByUserIds.includes(userId));
+  const isBlockedRelationship = (userId?: string | null) =>
+    isBlockedByMe(userId) || isBlockedByTarget(userId);
+
+  // Subscribe to current user's blocked list & users who blocked current user
+  useEffect(() => {
+    const uid = currentUser?.id;
+    if (!uid) {
+      setBlockedUsers([]);
+      setBlockedByUserIds([]);
+      return;
+    }
+
+    const unsubByMe = subscribeBlockedByMe(uid, (records) => {
+      setBlockedUsers(records);
+    });
+    const unsubBlockedMe = subscribeBlockedMe(uid, (ids) => {
+      setBlockedByUserIds(ids);
+    });
+
+    // Also react immediately to real-time WebSocket block/unblock push events
+    const unsubWsBlocks = liveAndRoomService.addEventListener((event, payload) => {
+      if (event === 'user:blocked_by' && payload?.blockerId) {
+        setBlockedByUserIds((prev) =>
+          prev.includes(payload.blockerId) ? prev : [...prev, payload.blockerId]
+        );
+      } else if (event === 'user:unblocked_by' && payload?.blockerId) {
+        setBlockedByUserIds((prev) => prev.filter((id) => id !== payload.blockerId));
+      }
+    });
+
+    return () => {
+      unsubByMe();
+      unsubBlockedMe();
+      unsubWsBlocks();
+    };
+  }, [currentUser?.id]);
+
+  // Real-time ejection if the host of an active live stream or party room blocks the current user
+  useEffect(() => {
+    if (
+      activeLiveStream &&
+      activeLiveStream.host.id !== currentUser.id &&
+      blockedByUserIds.includes(activeLiveStream.host.id)
+    ) {
+      setActiveLiveStream(null);
+      setActivePKSession(null);
+      setCurrentScreen('home');
+      showAppToast('You can no longer view or interact with this live stream.');
+    }
+  }, [activeLiveStream, blockedByUserIds, currentUser.id]);
+
+  useEffect(() => {
+    if (
+      activeAudioRoom &&
+      activeAudioRoom.host.id !== currentUser.id &&
+      blockedByUserIds.includes(activeAudioRoom.host.id)
+    ) {
+      setActiveAudioRoom(null);
+      setCurrentScreen('rooms');
+      showAppToast('You can no longer access or interact with this party room.');
+    }
+  }, [activeAudioRoom, blockedByUserIds, currentUser.id]);
+
+  const handleBlockUser = async (target: UserProfile) => {
+    if (!target?.id || target.id === currentUser.id) return;
+    const res = await blockUser({
+      blockerId: currentUser.id,
+      targetUser: target,
+    });
+    if (res.record) {
+      const record = res.record;
+      setBlockedUsers((prev) => [
+        record,
+        ...prev.filter((item) => item.blockedUserId !== target.id),
+      ]);
+    }
+    // Clear follow flags locally when blocking
+    setViewingProfileUser((prev) =>
+      prev && prev.id === target.id ? { ...prev, isFollowing: false } : prev
+    );
+    setNavigatingProfileUser((prev) =>
+      prev && prev.id === target.id ? { ...prev, isFollowing: false } : prev
+    );
+    setLiveStreams((prev) =>
+      prev.map((s) =>
+        s.host.id === target.id ? { ...s, host: { ...s.host, isFollowing: false } } : s
+      )
+    );
+    showAppToast(`Blocked ${target.name}. They can no longer interact with your streams, rooms, or messages.`);
+  };
+
+  const handleUnblockUser = async (targetUserId: string, targetName?: string) => {
+    if (!targetUserId) return;
+    await unblockUser({
+      blockerId: currentUser.id,
+      targetUserId,
+    });
+    setBlockedUsers((prev) => prev.filter((item) => item.blockedUserId !== targetUserId));
+    showAppToast(`Unblocked ${targetName || 'user'}.`);
+  };
 
   // PK Battle Real-Time States
   const [isPKInviteModalOpen, setIsPKInviteModalOpen] = useState(false);
@@ -778,12 +903,28 @@ export default function App() {
 
   // Handler: Select & Open a Live Stream
   const handleSelectLive = (stream: LiveStream) => {
+    if (stream.host.id !== currentUser.id && isBlockedRelationship(stream.host.id)) {
+      showAppToast(
+        isBlockedByMe(stream.host.id)
+          ? `Unblock ${stream.host.name} to view their live stream.`
+          : 'You cannot join or interact with this live stream.'
+      );
+      return;
+    }
     setActiveLiveStream(stream);
     setCurrentScreen('live_active');
   };
 
   // Handler: Select & Open an Audio Party Room
   const handleSelectRoom = (room: PartyRoom) => {
+    if (room.host.id !== currentUser.id && isBlockedRelationship(room.host.id)) {
+      showAppToast(
+        isBlockedByMe(room.host.id)
+          ? `Unblock ${room.host.name} to join their party room.`
+          : 'You cannot join or interact with this party room.'
+      );
+      return;
+    }
     setActiveAudioRoom(room);
     setCurrentScreen('audio_room');
   };
@@ -1016,6 +1157,15 @@ export default function App() {
 
   // Handler: Send Gift
   const handleSendGift = async (gift: GiftItem, quantity: number, recipient: UserProfile) => {
+    if (recipient.id !== currentUser.id && isBlockedRelationship(recipient.id)) {
+      setIsGiftShopOpen(false);
+      showAppToast(
+        isBlockedByMe(recipient.id)
+          ? `Unblock ${recipient.name} to send gifts.`
+          : 'You cannot send gifts to this user.'
+      );
+      return;
+    }
     const cost = gift.coins * quantity;
     if (currentUser.coins >= cost) {
       // Optimistic update for sender
@@ -1190,6 +1340,10 @@ export default function App() {
 
   // Handler: Toggle Follow User
   const handleToggleFollow = async (userId: string) => {
+    if (userId !== currentUser.id && isBlockedRelationship(userId)) {
+      showAppToast('Cannot follow a blocked user.');
+      return;
+    }
     try {
       const result = await profileService.toggleFollow(userId, currentUser.id);
       syncFirestoreFollow(currentUser.id, userId, result.isFollowing).catch(() => {});
@@ -1223,10 +1377,26 @@ export default function App() {
 
   // Handler: Jump to Direct Message with a User
   const handleSendMessageToUser = (user: UserProfile) => {
+    if (user.id !== currentUser.id && isBlockedRelationship(user.id)) {
+      showAppToast(
+        isBlockedByMe(user.id)
+          ? `Unblock ${user.name} to send messages.`
+          : 'You cannot send messages to this user.'
+      );
+      return;
+    }
     setViewingProfileUser(null);
     setActiveChatUser(user);
     setCurrentScreen('messages');
   };
+
+  // Filter out streams and party rooms hosted by users who blocked the current user
+  const visibleLiveStreams = liveStreams.filter(
+    (s) => s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id)
+  );
+  const visiblePartyRooms = partyRooms.filter(
+    (r) => r.host.id === currentUser.id || !blockedByUserIds.includes(r.host.id)
+  );
 
   // Derived unread count and top hosts
   const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
@@ -1270,6 +1440,8 @@ export default function App() {
           activePKSession={activePKSession}
           onForfeitPK={handleForfeitPK}
           onRematchPK={() => setIsPKInviteModalOpen(true)}
+          blockedUserIds={blockedUserIds}
+          blockedByUserIds={blockedByUserIds}
         />
         {/* Supporting Modals when inside live stream */}
         <GiftShopModal
@@ -1312,6 +1484,7 @@ export default function App() {
         />
         <UserProfileModal
           user={viewingProfileUser}
+          currentUserId={currentUser.id}
           isOpen={!!viewingProfileUser}
           onClose={() => setViewingProfileUser(null)}
           onToggleFollow={handleToggleFollow}
@@ -1320,6 +1493,10 @@ export default function App() {
             setGiftRecipient(u);
             setIsGiftShopOpen(true);
           }}
+          isBlocked={isBlockedByMe(viewingProfileUser?.id)}
+          isBlockedByTarget={isBlockedByTarget(viewingProfileUser?.id)}
+          onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
           onViewFullProfile={(u) => {
             setViewingProfileUser(null);
             setActiveLiveStream(null);
@@ -1334,6 +1511,11 @@ export default function App() {
           currentUser={currentUser}
           onRechargeSuccess={handleRechargeSuccess}
         />
+        {appToast && (
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
+            {appToast}
+          </div>
+        )}
       </div>
     );
   }
@@ -1373,6 +1555,8 @@ export default function App() {
           onSelectUser={(u) => setViewingProfileUser(u)}
           onOpenPK={handleOpenPKFromNav}
           activeGiftCelebration={activeGiftCelebration}
+          blockedUserIds={blockedUserIds}
+          blockedByUserIds={blockedByUserIds}
         />
         {/* Supporting Modals when inside audio room */}
         <GiftShopModal
@@ -1386,6 +1570,7 @@ export default function App() {
         />
         <UserProfileModal
           user={viewingProfileUser}
+          currentUserId={currentUser.id}
           isOpen={!!viewingProfileUser}
           onClose={() => setViewingProfileUser(null)}
           onToggleFollow={handleToggleFollow}
@@ -1394,6 +1579,10 @@ export default function App() {
             setGiftRecipient(u);
             setIsGiftShopOpen(true);
           }}
+          isBlocked={isBlockedByMe(viewingProfileUser?.id)}
+          isBlockedByTarget={isBlockedByTarget(viewingProfileUser?.id)}
+          onBlockUser={handleBlockUser}
+          onUnblockUser={handleUnblockUser}
           onViewFullProfile={(u) => {
             setViewingProfileUser(null);
             setActiveAudioRoom(null);
@@ -1407,6 +1596,11 @@ export default function App() {
           currentUser={currentUser}
           onRechargeSuccess={handleRechargeSuccess}
         />
+        {appToast && (
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
+            {appToast}
+          </div>
+        )}
       </div>
     );
   }
@@ -1449,8 +1643,8 @@ export default function App() {
         <main className="flex-1 w-full">
           {currentScreen === 'home' && (
             <HomeScreen
-              liveStreams={liveStreams}
-              partyRooms={partyRooms}
+              liveStreams={visibleLiveStreams}
+              partyRooms={visiblePartyRooms}
               topHosts={topHostsList}
               topBroadcasters={topBroadcasters}
               onSelectLive={handleSelectLive}
@@ -1469,7 +1663,7 @@ export default function App() {
 
           {(currentScreen === 'party' || currentScreen === 'rooms') && (
             <RoomsScreen
-              partyRooms={partyRooms}
+              partyRooms={visiblePartyRooms}
               onSelectRoom={handleSelectRoom}
               onNavigate={(s) => setCurrentScreen(s)}
               onOpenCreateRoom={() => setCurrentScreen('create_room')}
@@ -1532,6 +1726,10 @@ export default function App() {
               }}
               activeChatUser={activeChatUser}
               onCloseChat={() => setActiveChatUser(null)}
+              blockedUsers={blockedUsers}
+              blockedByUserIds={blockedByUserIds}
+              onBlockUser={handleBlockUser}
+              onUnblockUser={handleUnblockUser}
             />
           )}
 
@@ -1609,6 +1807,10 @@ export default function App() {
               onSelectVideo={(_v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
               onDeleteVideo={(id) => setVideos((prev) => prev.filter((v) => v.id !== id))}
+              blockedUsers={blockedUsers}
+              blockedByUserIds={blockedByUserIds}
+              onBlockUser={handleBlockUser}
+              onUnblockUser={handleUnblockUser}
             />
           )}
 
@@ -1619,6 +1821,8 @@ export default function App() {
               onOpenWallet={() => setIsWalletOpen(true)}
               isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
               onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
+              blockedUsers={blockedUsers}
+              onUnblockUser={handleUnblockUser}
             />
           )}
 
@@ -1787,8 +1991,8 @@ export default function App() {
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
-        liveStreams={liveStreams}
-        partyRooms={partyRooms}
+        liveStreams={visibleLiveStreams}
+        partyRooms={visiblePartyRooms}
         users={topHostsList}
         onSelectLive={handleSelectLive}
         onSelectRoom={handleSelectRoom}
@@ -1805,6 +2009,7 @@ export default function App() {
       {/* 8. User / Host Profile Detail Modal */}
       <UserProfileModal
         user={viewingProfileUser}
+        currentUserId={currentUser.id}
         isOpen={!!viewingProfileUser}
         onClose={() => setViewingProfileUser(null)}
         onToggleFollow={handleToggleFollow}
@@ -1813,6 +2018,10 @@ export default function App() {
           setGiftRecipient(u);
           setIsGiftShopOpen(true);
         }}
+        isBlocked={isBlockedByMe(viewingProfileUser?.id)}
+        isBlockedByTarget={isBlockedByTarget(viewingProfileUser?.id)}
+        onBlockUser={handleBlockUser}
+        onUnblockUser={handleUnblockUser}
         onViewFullProfile={(u) => {
           setViewingProfileUser(null);
           setNavigatingProfileUser(u);
@@ -1842,6 +2051,13 @@ export default function App() {
           setCurrentScreen('profile');
         }}
       />
+
+      {/* Global Toast Feedback Banner */}
+      {appToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
+          {appToast}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { liveAndRoomService } from '../services/liveAndRoomService';
 import {
+  clearFirestorePartyPeerSignals,
   FirestoreLiveViewerDoc,
   FirestoreRoomParticipantDoc,
   subscribeFirestoreLiveViewerDoc,
@@ -46,6 +47,7 @@ interface LiveViewerCallbacks {
 
 interface PartyVoiceCallbacks {
   onRemoteSpeakersChange?: (speakerIds: string[]) => void;
+  onRemoteVolume?: (peerId: string, level: number) => void;
   onStatusChange?: (status: WebRtcConnectionStatus) => void;
   onAutoplayBlocked?: () => void;
 }
@@ -105,15 +107,22 @@ class WebRtcMediaService {
   private partyRoomId: string | null = null;
   private partyUserId: string | null = null;
   private partyIsSpeaker = false;
+  private partyStartedAt = 0;
   private partyLocalStream: MediaStream | null = null;
+  private partyKnownPeers = new Map<string, { isSpeaker: boolean }>();
+  private partyPendingOfferPeers = new Set<string>();
   private partyPeers = new Map<string, RTCPeerConnection>();
   private partyPendingIce = new Map<string, RTCIceCandidateInit[]>();
   private partySeenRemoteIce = new Map<string, Set<string>>();
   private partyOutboundIce = new Map<string, RTCIceCandidateInit[]>();
+  private partyOutboundSdp = new Map<string, RTCSessionDescriptionInit>();
   private partyIceFlushTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private partyHandledSignalKeys = new Map<string, string>();
+  private partyHandledOfferSessions = new Map<string, string>();
+  private partyHandledAnswerSessions = new Map<string, string>();
   private partyPeerSessions = new Map<string, string>();
   private partyRemoteAudioEls = new Map<string, HTMLAudioElement>();
+  private partyRemoteAnalysers = new Map<string, { ctx: AudioContext; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }>();
+  private partyVolumeTimer: ReturnType<typeof setInterval> | null = null;
   private partySpeakerMuted = false;
   private partyCallbacks: PartyVoiceCallbacks | null = null;
   private partyUnsubscribeWs: (() => void) | null = null;
@@ -839,6 +848,51 @@ class WebRtcMediaService {
   // 3. PARTY ROOM REAL-TIME VOICE MESH (over WS + Firestore Failover)
   // ============================================================================
 
+  private hasLivePartyAudioTrack(): boolean {
+    if (!this.partyLocalStream) return false;
+    return this.partyLocalStream.getAudioTracks().some((t) => t.readyState === 'live');
+  }
+
+  private shouldInitiatePartyOffer(peerId: string, peerIsSpeaker: boolean): boolean {
+    if (!this.partyIsSpeaker) return false;
+    if (!peerIsSpeaker) return true;
+    return String(this.partyUserId || '') > peerId;
+  }
+
+  private isPartyPeerHealthy(peerId: string): boolean {
+    const pc = this.partyPeers.get(peerId);
+    if (!pc) return false;
+    if (pc.connectionState === 'connected' || pc.connectionState === 'connecting') {
+      return true;
+    }
+    if (pc.signalingState === 'have-local-offer' && pc.iceConnectionState !== 'failed' && pc.iceConnectionState !== 'closed') {
+      return true;
+    }
+    return false;
+  }
+
+  private maybeInitiatePartyPeer(peerId: string, peerIsSpeaker: boolean, forceRenegotiate = false) {
+    if (!this.partyRoomId || !this.partyUserId || !peerId || peerId === this.partyUserId) return;
+    this.partyKnownPeers.set(peerId, { isSpeaker: peerIsSpeaker });
+
+    if (!this.shouldInitiatePartyOffer(peerId, peerIsSpeaker)) {
+      return;
+    }
+
+    // Do NOT send a silent/trackless offer while speaker mic is still being acquired!
+    if (!this.hasLivePartyAudioTrack()) {
+      this.partyPendingOfferPeers.add(peerId);
+      return;
+    }
+
+    if (!forceRenegotiate && this.isPartyPeerHealthy(peerId)) {
+      return;
+    }
+
+    this.partyPendingOfferPeers.delete(peerId);
+    void this.createPartyOffer(peerId);
+  }
+
   public startPartyVoice(
     roomId: string,
     userId: string,
@@ -857,10 +911,36 @@ class WebRtcMediaService {
     this.partyRoomId = roomId;
     this.partyUserId = userId;
     this.partyIsSpeaker = isSpeaker;
+    this.partyStartedAt = Date.now();
     this.partyLocalStream = localAudioStream;
     this.partyCallbacks = callbacks;
 
+    // Clear any stale rtcSignals left from a previous session in this room
+    void clearFirestorePartyPeerSignals(roomId);
+
     callbacks.onStatusChange?.('connected');
+
+    // Poll remote WebRTC audio analysers so viewer UI lights up speaking rings for Host & Speakers
+    this.partyVolumeTimer = setInterval(() => {
+      if (!this.partyRoomId || this.partyRemoteAnalysers.size === 0) return;
+      this.partyRemoteAnalysers.forEach((entry, peerId) => {
+        try {
+          entry.analyser.getByteTimeDomainData(entry.data);
+          let sumSq = 0;
+          for (let i = 0; i < entry.data.length; i++) {
+            const v = (entry.data[i] - 128) / 128;
+            sumSq += v * v;
+          }
+          const rms = Math.sqrt(sumSq / entry.data.length);
+          const level = Math.min(100, Math.round(rms * 320));
+          if (level > 6) {
+            this.partyCallbacks?.onRemoteVolume?.(peerId, level);
+          }
+        } catch {
+          // ignore
+        }
+      });
+    }, 180);
 
     // 1. WebSocket signaling listener
     this.partyUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
@@ -870,15 +950,12 @@ class WebRtcMediaService {
 
       if (event === 'webrtc:room_peer_ready') {
         const peerIsSpeaker = Boolean(payload.isSpeaker);
+        this.partyKnownPeers.set(fromUserId, { isSpeaker: peerIsSpeaker });
         if (!this.partyIsSpeaker && !peerIsSpeaker) return;
 
-        const shouldInitiate =
-          (this.partyIsSpeaker && !peerIsSpeaker) ||
-          (this.partyIsSpeaker && peerIsSpeaker && String(this.partyUserId) > fromUserId);
-
-        if (shouldInitiate) {
-          void this.createPartyOffer(fromUserId);
-        } else if (peerIsSpeaker && !this.partyIsSpeaker) {
+        if (this.shouldInitiatePartyOffer(fromUserId, peerIsSpeaker)) {
+          this.maybeInitiatePartyPeer(fromUserId, peerIsSpeaker, false);
+        } else if (peerIsSpeaker && !this.partyIsSpeaker && !this.isPartyPeerHealthy(fromUserId)) {
           liveAndRoomService.sendSignal({
             signalType: 'webrtc:room_listener_hello',
             fromUserId: this.partyUserId!,
@@ -888,16 +965,19 @@ class WebRtcMediaService {
           });
         }
       } else if (event === 'webrtc:room_listener_hello') {
+        this.partyKnownPeers.set(fromUserId, { isSpeaker: false });
         if (this.partyIsSpeaker) {
-          void this.createPartyOffer(fromUserId);
+          this.maybeInitiatePartyPeer(fromUserId, false, false);
         }
       } else if (event === 'webrtc:room_offer' && payload.sdp) {
         void this.handlePartyOffer(fromUserId, payload.sdp, payload.sessionId);
       } else if (event === 'webrtc:room_answer' && payload.sdp) {
-        void this.handlePartyAnswer(fromUserId, payload.sdp);
+        void this.handlePartyAnswer(fromUserId, payload.sdp, payload.sessionId);
       } else if (event === 'webrtc:room_ice' && payload.candidate) {
-        void this.handlePartyIce(fromUserId, payload.candidate);
+        void this.handlePartyIce(fromUserId, payload.candidate, payload.sessionId);
       } else if (event === 'webrtc:room_peer_left') {
+        this.partyKnownPeers.delete(fromUserId);
+        this.partyPendingOfferPeers.delete(fromUserId);
         this.closePartyPeer(fromUserId);
       }
     });
@@ -911,42 +991,41 @@ class WebRtcMediaService {
         if (!peerId || peerId === this.partyUserId) return;
 
         const peerIsSpeaker = Boolean(pDoc.isSpeaker);
-        const existingPc = this.partyPeers.get(peerId);
+        this.partyKnownPeers.set(peerId, { isSpeaker: peerIsSpeaker });
 
-        // Initiate if we are the deterministic initiator and have no active connection yet
-        const shouldInitiate =
-          (this.partyIsSpeaker && !peerIsSpeaker) ||
-          (this.partyIsSpeaker && peerIsSpeaker && String(this.partyUserId) > peerId);
-
-        if (
-          shouldInitiate &&
-          (!existingPc || existingPc.connectionState === 'failed' || existingPc.connectionState === 'closed')
-        ) {
-          void this.createPartyOffer(peerId);
+        // Initiate cleanly if we are speaker & deterministic initiator and peer isn't already connecting/connected
+        if (this.shouldInitiatePartyOffer(peerId, peerIsSpeaker)) {
+          this.maybeInitiatePartyPeer(peerId, peerIsSpeaker, false);
         }
 
-        // Check if this peer wrote a signaling envelope addressed to us
+        // Check if this peer wrote a fresh signaling envelope addressed to us
         const envelope = pDoc.rtcSignals?.[this.partyUserId!];
         if (!envelope) return;
 
-        const sigKey = `${envelope.type || ''}_${envelope.sessionId || ''}_${envelope.updatedAt || 0}`;
-        if (envelope.type === 'offer' && envelope.sdp) {
-          const handledKey = `offer_${envelope.sessionId || ''}`;
-          if (this.partyHandledSignalKeys.get(peerId) !== handledKey) {
-            this.partyHandledSignalKeys.set(peerId, handledKey);
-            void this.handlePartyOffer(peerId, envelope.sdp, envelope.sessionId);
+        // Ignore stale signals left over from long before we joined this room
+        if (typeof envelope.updatedAt === 'number' && envelope.updatedAt < this.partyStartedAt - 15000) {
+          return;
+        }
+
+        if (envelope.type === 'offer' && envelope.sdp && envelope.sdp.sdp) {
+          const offerSession = String(envelope.sessionId || `fs_off_${envelope.updatedAt || 0}`);
+          if (this.partyHandledOfferSessions.get(peerId) !== offerSession) {
+            void this.handlePartyOffer(peerId, envelope.sdp, offerSession);
           }
-        } else if (envelope.type === 'answer' && envelope.sdp) {
-          const handledKey = `answer_${envelope.sessionId || ''}`;
-          if (this.partyHandledSignalKeys.get(peerId) !== handledKey) {
-            this.partyHandledSignalKeys.set(peerId, handledKey);
-            void this.handlePartyAnswer(peerId, envelope.sdp);
+        } else if (envelope.type === 'answer' && envelope.sdp && envelope.sdp.sdp) {
+          const answerSession = String(envelope.sessionId || '');
+          const expectedSession = this.partyPeerSessions.get(peerId) || '';
+          if (
+            (!answerSession || !expectedSession || answerSession === expectedSession) &&
+            this.partyHandledAnswerSessions.get(peerId) !== (answerSession || 'default')
+          ) {
+            void this.handlePartyAnswer(peerId, envelope.sdp, answerSession);
           }
         }
 
-        if (Array.isArray(envelope.ice) && envelope.ice.length > 0 && sigKey) {
+        if (Array.isArray(envelope.ice) && envelope.ice.length > 0) {
           for (const cand of envelope.ice) {
-            void this.handlePartyIce(peerId, cand);
+            void this.handlePartyIce(peerId, cand, envelope.sessionId);
           }
         }
       });
@@ -964,16 +1043,19 @@ class WebRtcMediaService {
         return;
       }
       this.announcePartyPresence();
-    }, 2500);
+    }, 3000);
   }
 
   public updatePartySpeakerRole(isSpeaker: boolean, localAudioStream: MediaStream | null) {
     if (!this.partyRoomId || !this.partyUserId) return;
     const roleChanged = this.partyIsSpeaker !== isSpeaker;
+    const hadLiveTrack = this.hasLivePartyAudioTrack();
     this.partyIsSpeaker = isSpeaker;
     this.partyLocalStream = localAudioStream;
+    const nowHasLiveTrack = this.hasLivePartyAudioTrack();
 
     if (!isSpeaker) {
+      this.partyPendingOfferPeers.clear();
       this.partyPeers.forEach((pc, peerId) => {
         pc.getSenders().forEach((sender) => {
           if (sender.track) {
@@ -984,26 +1066,49 @@ class WebRtcMediaService {
             }
           }
         });
-        if (roleChanged) {
+        // Keep receiving audio from other speakers, only close connections to non-speaking listeners
+        const peerMeta = this.partyKnownPeers.get(peerId);
+        if (roleChanged && !peerMeta?.isSpeaker) {
           this.closePartyPeer(peerId);
         }
       });
-    } else if (localAudioStream) {
-      const audioTrack = localAudioStream.getAudioTracks()[0];
+    } else if (localAudioStream && nowHasLiveTrack) {
+      const audioTrack = localAudioStream.getAudioTracks().find((t) => t.readyState === 'live');
       if (audioTrack) {
+        // 1. Update or renegotiate any existing peers
         this.partyPeers.forEach((pc, peerId) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
           if (sender) {
-            sender.replaceTrack(audioTrack).catch(() => {});
+            sender.replaceTrack(audioTrack).catch(() => {
+              void this.createPartyOffer(peerId);
+            });
           } else {
-            pc.addTrack(audioTrack, localAudioStream);
+            // Peer existed without an outbound audio track — renegotiate cleanly with fresh offer!
             void this.createPartyOffer(peerId);
           }
         });
+
+        // 2. Push fresh offers to EVERY known listener/peer in the room that doesn't have an active connection yet!
+        this.partyKnownPeers.forEach((meta, peerId) => {
+          if (this.shouldInitiatePartyOffer(peerId, meta.isSpeaker)) {
+            if (!this.partyPeers.has(peerId) || !hadLiveTrack || roleChanged) {
+              this.maybeInitiatePartyPeer(peerId, meta.isSpeaker, !hadLiveTrack);
+            }
+          }
+        });
+
+        // 3. Flush any queued peers waiting for mic warmup
+        if (this.partyPendingOfferPeers.size > 0) {
+          const queued = Array.from(this.partyPendingOfferPeers);
+          this.partyPendingOfferPeers.clear();
+          queued.forEach((peerId) => {
+            void this.createPartyOffer(peerId);
+          });
+        }
       }
     }
 
-    if (roleChanged) {
+    if (roleChanged || (!hadLiveTrack && nowHasLiveTrack)) {
       this.announcePartyPresence();
     }
   }
@@ -1021,6 +1126,7 @@ class WebRtcMediaService {
     this.partyRemoteAudioEls.forEach((audioEl) => {
       audioEl.muted = muted;
       if (!muted) {
+        audioEl.volume = 1.0;
         audioEl.play().catch(() => {
           this.partyCallbacks?.onAutoplayBlocked?.();
         });
@@ -1029,8 +1135,14 @@ class WebRtcMediaService {
   }
 
   public resumePartyRemoteAudio() {
+    this.partyRemoteAnalysers.forEach((entry) => {
+      if (entry.ctx.state === 'suspended') {
+        entry.ctx.resume().catch(() => {});
+      }
+    });
     this.partyRemoteAudioEls.forEach((audioEl) => {
       audioEl.muted = this.partySpeakerMuted;
+      audioEl.volume = 1.0;
       if (!this.partySpeakerMuted) {
         audioEl.play().catch(() => {});
       }
@@ -1052,14 +1164,17 @@ class WebRtcMediaService {
     const timer = setTimeout(() => {
       this.partyIceFlushTimers.delete(peerId);
       if (!this.partyRoomId) return;
+      if (this.partyPeerSessions.get(peerId) !== sessionId) return;
       const batch = this.partyOutboundIce.get(peerId);
       if (!batch || batch.length === 0) return;
+      const sdp = this.partyOutboundSdp.get(peerId);
       void writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
         type,
+        ...(sdp ? { sdp } : {}),
         sessionId,
-        ice: batch.slice(0, 20),
+        ice: batch.slice(0, 32),
       });
-    }, 240);
+    }, 220);
     this.partyIceFlushTimers.set(peerId, timer);
   }
 
@@ -1075,6 +1190,7 @@ class WebRtcMediaService {
     this.partySeenRemoteIce.set(peerId, new Set());
     this.partyOutboundIce.set(peerId, []);
     this.partyPeerSessions.set(peerId, sessionId);
+    this.partyHandledAnswerSessions.delete(peerId);
 
     if (this.partyIsSpeaker && this.partyLocalStream) {
       this.partyLocalStream.getAudioTracks().forEach((track) => {
@@ -1107,7 +1223,9 @@ class WebRtcMediaService {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      if (pc.connectionState === 'connected') {
+        this.partyCallbacks?.onStatusChange?.('connected');
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         this.closePartyPeer(peerId);
       }
     };
@@ -1117,6 +1235,10 @@ class WebRtcMediaService {
 
   private async createPartyOffer(peerId: string) {
     if (!this.partyRoomId || !this.partyUserId) return;
+    if (this.partyIsSpeaker && !this.hasLivePartyAudioTrack()) {
+      this.partyPendingOfferPeers.add(peerId);
+      return;
+    }
     const sessionId = makeSessionId('pr');
     const pc = this.setupPartyPeerConnection(peerId, 'offer', sessionId);
     try {
@@ -1126,6 +1248,8 @@ class WebRtcMediaService {
         type: pc.localDescription?.type || offer.type,
         sdp: pc.localDescription?.sdp || offer.sdp,
       };
+      this.partyOutboundSdp.set(peerId, localSdp);
+
       liveAndRoomService.sendSignal({
         signalType: 'webrtc:room_offer',
         fromUserId: this.partyUserId,
@@ -1152,6 +1276,13 @@ class WebRtcMediaService {
   ) {
     if (!this.partyRoomId || !this.partyUserId) return;
     const sessionId = incomingSessionId || makeSessionId('pa');
+
+    // Deduplicate identical offers arriving over both WebSocket AND Firestore!
+    if (this.partyHandledOfferSessions.get(peerId) === sessionId) {
+      return;
+    }
+    this.partyHandledOfferSessions.set(peerId, sessionId);
+
     const pc = this.setupPartyPeerConnection(peerId, 'answer', sessionId);
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -1166,6 +1297,8 @@ class WebRtcMediaService {
         type: pc.localDescription?.type || answer.type,
         sdp: pc.localDescription?.sdp || answer.sdp,
       };
+      this.partyOutboundSdp.set(peerId, localSdp);
+
       liveAndRoomService.sendSignal({
         signalType: 'webrtc:room_answer',
         fromUserId: this.partyUserId,
@@ -1177,6 +1310,7 @@ class WebRtcMediaService {
         type: 'answer',
         sdp: localSdp,
         sessionId,
+        ice: this.partyOutboundIce.get(peerId)?.slice(0, 32) || [],
       });
     } catch (err) {
       console.warn('[WebRTC Party] Answer error:', err);
@@ -1184,12 +1318,25 @@ class WebRtcMediaService {
     }
   }
 
-  private async handlePartyAnswer(peerId: string, sdp: RTCSessionDescriptionInit) {
+  private async handlePartyAnswer(
+    peerId: string,
+    sdp: RTCSessionDescriptionInit,
+    incomingSessionId?: string
+  ) {
     const pc = this.partyPeers.get(peerId);
     if (!pc) return;
+    const expectedSession = this.partyPeerSessions.get(peerId);
+    if (incomingSessionId && expectedSession && incomingSessionId !== expectedSession) {
+      return; // Ignore stale answer from an older offer session
+    }
+    const ansKey = incomingSessionId || expectedSession || 'default';
+    if (this.partyHandledAnswerSessions.get(peerId) === ansKey) {
+      return;
+    }
     try {
       if (pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        this.partyHandledAnswerSessions.set(peerId, ansKey);
         const queued = this.partyPendingIce.get(peerId) || [];
         this.partyPendingIce.set(peerId, []);
         for (const cand of queued) {
@@ -1201,9 +1348,17 @@ class WebRtcMediaService {
     }
   }
 
-  private async handlePartyIce(peerId: string, candidate: RTCIceCandidateInit) {
+  private async handlePartyIce(
+    peerId: string,
+    candidate: RTCIceCandidateInit,
+    incomingSessionId?: string
+  ) {
     const pc = this.partyPeers.get(peerId);
     if (!pc || !candidate?.candidate) return;
+    const expectedSession = this.partyPeerSessions.get(peerId);
+    if (incomingSessionId && expectedSession && incomingSessionId !== expectedSession) {
+      return;
+    }
 
     const seen = this.partySeenRemoteIce.get(peerId) || new Set<string>();
     const key = iceKey(candidate);
@@ -1227,15 +1382,44 @@ class WebRtcMediaService {
       audioEl = document.createElement('audio');
       audioEl.autoplay = true;
       (audioEl as any).playsInline = true;
-      audioEl.style.display = 'none';
+      audioEl.setAttribute('playsinline', 'true');
+      audioEl.volume = 1.0;
+      // Avoid display:none so Android WebView / mobile browsers never suspend audio decoding
+      audioEl.style.position = 'fixed';
+      audioEl.style.width = '1px';
+      audioEl.style.height = '1px';
+      audioEl.style.opacity = '0';
+      audioEl.style.pointerEvents = 'none';
+      audioEl.style.left = '-10px';
+      audioEl.style.top = '-10px';
       document.body.appendChild(audioEl);
       this.partyRemoteAudioEls.set(peerId, audioEl);
     }
     audioEl.srcObject = stream;
     audioEl.muted = this.partySpeakerMuted;
+    audioEl.volume = 1.0;
     audioEl.play().catch(() => {
       this.partyCallbacks?.onAutoplayBlocked?.();
     });
+
+    // Attach lightweight remote volume analyser for live speaking rings in WebRTC mode
+    if (!this.partyRemoteAnalysers.has(peerId) && typeof window !== 'undefined') {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx: AudioContext = new AudioCtx();
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          const data = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+          this.partyRemoteAnalysers.set(peerId, { ctx, analyser, data });
+        }
+      } catch {
+        // Non-fatal: audio still plays via HTMLAudioElement
+      }
+    }
+
     this.notifyPartySpeakers();
   }
 
@@ -1260,7 +1444,17 @@ class WebRtcMediaService {
     this.partyPendingIce.delete(peerId);
     this.partySeenRemoteIce.delete(peerId);
     this.partyOutboundIce.delete(peerId);
+    this.partyOutboundSdp.delete(peerId);
     this.partyPeerSessions.delete(peerId);
+    const analyserEntry = this.partyRemoteAnalysers.get(peerId);
+    if (analyserEntry) {
+      try {
+        void analyserEntry.ctx.close();
+      } catch {
+        // ignore
+      }
+      this.partyRemoteAnalysers.delete(peerId);
+    }
     const audioEl = this.partyRemoteAudioEls.get(peerId);
     if (audioEl) {
       try {
@@ -1284,6 +1478,10 @@ class WebRtcMediaService {
       clearInterval(this.partyPresenceTimer);
       this.partyPresenceTimer = null;
     }
+    if (this.partyVolumeTimer) {
+      clearInterval(this.partyVolumeTimer);
+      this.partyVolumeTimer = null;
+    }
     this.partyIceFlushTimers.forEach((t) => clearTimeout(t));
     this.partyIceFlushTimers.clear();
     if (this.partyUnsubscribeWs) {
@@ -1295,6 +1493,7 @@ class WebRtcMediaService {
       this.partyUnsubscribeFs = null;
     }
     if (this.partyRoomId && this.partyUserId) {
+      void clearFirestorePartyPeerSignals(this.partyRoomId);
       liveAndRoomService.sendSignal({
         signalType: 'webrtc:room_peer_left',
         fromUserId: this.partyUserId,
@@ -1303,11 +1502,23 @@ class WebRtcMediaService {
     }
     Array.from(this.partyPeers.keys()).forEach((peerId) => this.closePartyPeer(peerId));
     this.partyPeers.clear();
+    this.partyKnownPeers.clear();
+    this.partyPendingOfferPeers.clear();
     this.partyPendingIce.clear();
     this.partySeenRemoteIce.clear();
     this.partyOutboundIce.clear();
-    this.partyHandledSignalKeys.clear();
+    this.partyOutboundSdp.clear();
+    this.partyHandledOfferSessions.clear();
+    this.partyHandledAnswerSessions.clear();
     this.partyPeerSessions.clear();
+    this.partyRemoteAnalysers.forEach((entry) => {
+      try {
+        void entry.ctx.close();
+      } catch {
+        // ignore
+      }
+    });
+    this.partyRemoteAnalysers.clear();
     this.partyRemoteAudioEls.forEach((audioEl) => {
       try {
         audioEl.pause();
@@ -1323,6 +1534,7 @@ class WebRtcMediaService {
     this.partyRoomId = null;
     this.partyUserId = null;
     this.partyIsSpeaker = false;
+    this.partyStartedAt = 0;
   }
 }
 

@@ -722,6 +722,7 @@ export async function sendChatMessage(
     senderName: string;
     senderAvatar: string;
     senderVip?: number;
+    recipientId?: string;
     type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite';
     mediaUrl?: string;
     mediaName?: string;
@@ -734,7 +735,7 @@ export async function sendChatMessage(
 ): Promise<string> {
   const collPath = `chats/${chatId}/messages`;
   try {
-    const docRef = await addDoc(collection(db, collPath), {
+    const cleanPayload: Record<string, any> = {
       ...message,
       status: 'sent',
       createdAt: serverTimestamp(),
@@ -743,7 +744,11 @@ export async function sendChatMessage(
       reactions: [],
       deletedForEveryone: false,
       deletedForUsers: [],
-    });
+    };
+    if (!cleanPayload.recipientId) {
+      delete cleanPayload.recipientId;
+    }
+    const docRef = await addDoc(collection(db, collPath), cleanPayload);
 
     // Update conversation metadata
     const chatRef = doc(db, 'chats', chatId);

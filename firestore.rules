@@ -37,6 +37,12 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isBlockedBy(blockerUid, targetUid) {
+      return blockerUid is string
+        && targetUid is string
+        && exists(/databases/$(database)/documents/blocked_users/$(blockerUid + '_' + targetUid));
+    }
+
     // ========================================================
     // 0. ADMINS COLLECTION (/admins/{uid})
     // ========================================================
@@ -194,7 +200,10 @@ service cloud.firestore {
                     && (
                       isAdmin()
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
-                      || incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount'])
+                      || (
+                        !isBlockedBy(existing().host.id, request.auth.uid)
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount'])
+                      )
                     );
       allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
 
@@ -205,6 +214,7 @@ service cloud.firestore {
                       && isValidId(roomId)
                       && isValidId(messageId)
                       && exists(/databases/$(database)/documents/party_rooms/$(roomId))
+                      && !isBlockedBy(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
                       && incoming().userId == request.auth.uid
                       && incoming().text is string
                       && incoming().text.size() > 0
@@ -228,7 +238,10 @@ service cloud.firestore {
                               && isValidId(participantId)
                               && exists(/databases/$(database)/documents/party_rooms/$(roomId))
                               && (
-                                participantId == request.auth.uid
+                                (
+                                  participantId == request.auth.uid
+                                  && !isBlockedBy(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
+                                )
                                 || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
                                 || isAdmin()
                               )
@@ -259,7 +272,10 @@ service cloud.firestore {
                     && (
                       isAdmin()
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
-                      || incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount'])
+                      || (
+                        !isBlockedBy(existing().host.id, request.auth.uid)
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount'])
+                      )
                     );
       allow delete: if isSignedIn() && isValidId(streamId) && (existing().host.id == request.auth.uid || isAdmin());
 
@@ -270,6 +286,7 @@ service cloud.firestore {
                       && isValidId(streamId)
                       && isValidId(commentId)
                       && exists(/databases/$(database)/documents/live_streams/$(streamId))
+                      && !isBlockedBy(get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id, request.auth.uid)
                       && incoming().userId == request.auth.uid
                       && incoming().text is string
                       && incoming().text.size() > 0
@@ -293,7 +310,10 @@ service cloud.firestore {
                               && isValidId(viewerId)
                               && exists(/databases/$(database)/documents/live_streams/$(streamId))
                               && (
-                                viewerId == request.auth.uid
+                                (
+                                  viewerId == request.auth.uid
+                                  && !isBlockedBy(get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id, request.auth.uid)
+                                )
                                 || get(/databases/$(database)/documents/live_streams/$(streamId)).data.host.id == request.auth.uid
                                 || isAdmin()
                               )
@@ -327,6 +347,7 @@ service cloud.firestore {
                       && isValidId(chatId)
                       && isValidId(messageId)
                       && incoming().senderId == request.auth.uid
+                      && (!('recipientId' in incoming()) || (!isBlockedBy(incoming().recipientId, request.auth.uid) && !isBlockedBy(request.auth.uid, incoming().recipientId)))
                       && (!('text' in incoming()) || (incoming().text is string && incoming().text.size() <= 2000));
         allow update: if isSignedIn()
                       && isValidId(chatId)
@@ -713,6 +734,39 @@ service cloud.firestore {
                     && isValidCoinTransaction(incoming())
                     && (incoming().userId == request.auth.uid || isAdmin());
       allow update, delete: if false;
+    }
+
+    // ========================================================
+    // 16. USER BLOCKING (/blocked_users/{blockId})
+    // ========================================================
+    function isValidBlockedUser(data) {
+      return data.keys().hasAll(['blockerId', 'blockedUserId', 'blockedUserName'])
+        && data.keys().hasOnly(['blockerId', 'blockedUserId', 'blockedUserName', 'blockedUserUsername', 'blockedUserDisplayId', 'blockedUserAvatar', 'reason', 'createdAt'])
+        && data.blockerId is string && data.blockerId.size() > 0 && data.blockerId.size() <= 128
+        && data.blockedUserId is string && data.blockedUserId.size() > 0 && data.blockedUserId.size() <= 128
+        && data.blockerId != data.blockedUserId
+        && data.blockedUserName is string && data.blockedUserName.size() > 0 && data.blockedUserName.size() <= 64
+        && (!('blockedUserUsername' in data) || (data.blockedUserUsername is string && data.blockedUserUsername.size() <= 64))
+        && (!('blockedUserDisplayId' in data) || (data.blockedUserDisplayId is string && data.blockedUserDisplayId.size() <= 32))
+        && (!('blockedUserAvatar' in data) || (data.blockedUserAvatar is string && data.blockedUserAvatar.size() <= 1500))
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 200));
+    }
+
+    match /blocked_users/{blockId} {
+      allow get: if isSignedIn()
+                 && isValidId(blockId)
+                 && (existing().blockerId == request.auth.uid || existing().blockedUserId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn()
+                  && (resource.data.blockerId == request.auth.uid || resource.data.blockedUserId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(blockId)
+                    && blockId == (request.auth.uid + '_' + incoming().blockedUserId)
+                    && isValidBlockedUser(incoming())
+                    && incoming().blockerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn()
+                    && isValidId(blockId)
+                    && (existing().blockerId == request.auth.uid || isAdmin());
     }
   }
 }

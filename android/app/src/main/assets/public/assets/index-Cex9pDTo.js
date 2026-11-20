@@ -54371,7 +54371,7 @@ function subscribeChatMessages(chatId, onUpdate) {
 async function sendChatMessage(chatId, message) {
 	const collPath = `chats/${chatId}/messages`;
 	try {
-		const docRef = await addDoc(collection(db, collPath), {
+		const cleanPayload = {
 			...message,
 			status: "sent",
 			createdAt: serverTimestamp(),
@@ -54383,7 +54383,9 @@ async function sendChatMessage(chatId, message) {
 			reactions: [],
 			deletedForEveryone: false,
 			deletedForUsers: []
-		});
+		};
+		if (!cleanPayload.recipientId) delete cleanPayload.recipientId;
+		const docRef = await addDoc(collection(db, collPath), cleanPayload);
 		await setDoc(doc(db, "chats", chatId), {
 			lastMessage: message.type === "voice" ? "🎤 Voice message" : message.type === "image" ? "📷 Photo" : message.type === "room_invite" ? "🎉 Room invitation" : message.text,
 			lastMessageType: message.type || "text",
@@ -55040,7 +55042,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-el4C1oGW.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-mdNUKxAy.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -55092,7 +55094,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-EdbLhbVk.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-DT9qTyxI.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -56731,6 +56733,230 @@ function subscribeAllWithdrawalRequests(onUpdate) {
 	}, (err) => {
 		console.warn("Admin withdrawal requests listener notice:", err);
 	});
+}
+// src/services/blockService.ts
+var LOCAL_BLOCKS_KEY = "lenzo_party_blocked_users_v1";
+function toIsoDate$1(val) {
+	if (!val) return (/* @__PURE__ */ new Date()).toISOString();
+	if (typeof val === "string") return val;
+	if (val instanceof Timestamp) return val.toDate().toISOString();
+	if (typeof val.toDate === "function") return val.toDate().toISOString();
+	return (/* @__PURE__ */ new Date()).toISOString();
+}
+function readLocalBlocks(blockerId) {
+	try {
+		const raw = localStorage.getItem(`${LOCAL_BLOCKS_KEY}_${blockerId}`);
+		if (!raw) return [];
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+function writeLocalBlocks(blockerId, records) {
+	try {
+		localStorage.setItem(`${LOCAL_BLOCKS_KEY}_${blockerId}`, JSON.stringify(records));
+	} catch {}
+}
+async function getAuthHeaders$2() {
+	const headers = { "Content-Type": "application/json" };
+	const user = auth.currentUser;
+	if (user) try {
+		const token = await user.getIdToken();
+		if (token) headers.Authorization = `Bearer ${token}`;
+	} catch {}
+	return headers;
+}
+function getBlockDocId(blockerId, blockedUserId) {
+	return `${blockerId}_${blockedUserId}`;
+}
+/**
+* Subscribe in real time to all users blocked BY the current user.
+*/
+function subscribeBlockedByMe(userId, onUpdate) {
+	if (!userId) {
+		onUpdate([]);
+		return () => {};
+	}
+	const cached = readLocalBlocks(userId);
+	if (cached.length > 0) onUpdate(cached);
+	(async () => {
+		try {
+			const res = await apiFetch("/api/users/blocks", { headers: await getAuthHeaders$2() });
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data.blockedUsers) && data.blockedUsers.length > 0) {
+					writeLocalBlocks(userId, data.blockedUsers);
+					onUpdate(data.blockedUsers);
+				}
+			}
+		} catch {}
+	})();
+	return onSnapshot(query(collection(db, "blocked_users"), where("blockerId", "==", userId)), (snap) => {
+		const records = snap.docs.map((d) => {
+			const data = d.data();
+			return {
+				id: d.id,
+				blockerId: String(data.blockerId || userId),
+				blockedUserId: String(data.blockedUserId || ""),
+				blockedUserName: String(data.blockedUserName || "Lenzo User"),
+				blockedUserUsername: data.blockedUserUsername ? String(data.blockedUserUsername) : "",
+				blockedUserDisplayId: data.blockedUserDisplayId ? String(data.blockedUserDisplayId) : "",
+				blockedUserAvatar: data.blockedUserAvatar ? String(data.blockedUserAvatar) : "",
+				reason: data.reason ? String(data.reason) : "",
+				createdAt: toIsoDate$1(data.createdAt)
+			};
+		});
+		records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+		writeLocalBlocks(userId, records);
+		onUpdate(records);
+	}, () => {
+		onUpdate(readLocalBlocks(userId));
+	});
+}
+/**
+* Subscribe in real time to all user IDs who have BLOCKED the current user.
+* Enables instant real-time ejection from streams/rooms and message blocking.
+*/
+function subscribeBlockedMe(userId, onUpdate) {
+	if (!userId) {
+		onUpdate([]);
+		return () => {};
+	}
+	(async () => {
+		try {
+			const res = await apiFetch("/api/users/blocks", { headers: await getAuthHeaders$2() });
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data.blockedByIds)) onUpdate(data.blockedByIds.map(String));
+			}
+		} catch {}
+	})();
+	return onSnapshot(query(collection(db, "blocked_users"), where("blockedUserId", "==", userId)), (snap) => {
+		const ids = snap.docs.map((d) => String(d.data()?.blockerId || "")).filter(Boolean);
+		onUpdate(Array.from(new Set(ids)));
+	}, () => {});
+}
+/**
+* Block a user:
+* 1. Persists deterministic record in Firestore `blocked_users/{blockerId}_{blockedUserId}`.
+* 2. Calls backend `POST /api/users/:targetId/block` which immediately evicts them from
+*    the blocker's active streams, party rooms, seats, and seat requests and removes follows.
+* 3. Updates local cache immediately.
+*/
+async function blockUser(params) {
+	const { blockerId, targetUser, reason = "" } = params;
+	if (!blockerId || !targetUser?.id) return {
+		success: false,
+		error: "Invalid user."
+	};
+	if (blockerId === targetUser.id) return {
+		success: false,
+		error: "You cannot block yourself."
+	};
+	const blockId = getBlockDocId(blockerId, targetUser.id);
+	const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+	const record = {
+		id: blockId,
+		blockerId,
+		blockedUserId: targetUser.id,
+		blockedUserName: (targetUser.name || "Lenzo User").slice(0, 64),
+		blockedUserUsername: (targetUser.username || "").slice(0, 64),
+		blockedUserDisplayId: (targetUser.displayId || "").slice(0, 32),
+		blockedUserAvatar: (targetUser.avatar || "").slice(0, 1500),
+		reason: reason.trim().slice(0, 200),
+		createdAt: nowIso
+	};
+	writeLocalBlocks(blockerId, [record, ...readLocalBlocks(blockerId).filter((r) => r.blockedUserId !== targetUser.id)]);
+	if (auth.currentUser && auth.currentUser.uid === blockerId) {
+		try {
+			await setDoc(doc(db, "blocked_users", blockId), {
+				blockerId: record.blockerId,
+				blockedUserId: record.blockedUserId,
+				blockedUserName: record.blockedUserName,
+				blockedUserUsername: record.blockedUserUsername || "",
+				blockedUserDisplayId: record.blockedUserDisplayId || "",
+				blockedUserAvatar: record.blockedUserAvatar || "",
+				reason: record.reason || "",
+				createdAt: serverTimestamp()
+			});
+		} catch (err) {
+			console.warn("[BlockService] Firestore block write notice:", err);
+		}
+		try {
+			await deleteDoc(doc(db, "follows", `${blockerId}_${targetUser.id}`)).catch(() => {});
+		} catch {}
+	}
+	try {
+		const headers = await getAuthHeaders$2();
+		await apiFetch(`/api/users/${encodeURIComponent(targetUser.id)}/block`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({
+				blockerId,
+				blockedUserName: record.blockedUserName,
+				blockedUserUsername: record.blockedUserUsername,
+				blockedUserDisplayId: record.blockedUserDisplayId,
+				blockedUserAvatar: record.blockedUserAvatar,
+				reason: record.reason
+			})
+		});
+	} catch (err) {
+		console.warn("[BlockService] Backend block sync notice:", err);
+	}
+	return {
+		success: true,
+		record
+	};
+}
+/**
+* Unblock a previously blocked user in Firestore, Express backend, and local cache.
+*/
+async function unblockUser(params) {
+	const { blockerId, targetUserId } = params;
+	if (!blockerId || !targetUserId) return {
+		success: false,
+		error: "Invalid user."
+	};
+	const blockId = getBlockDocId(blockerId, targetUserId);
+	writeLocalBlocks(blockerId, readLocalBlocks(blockerId).filter((r) => r.blockedUserId !== targetUserId));
+	if (auth.currentUser && auth.currentUser.uid === blockerId) try {
+		await deleteDoc(doc(db, "blocked_users", blockId));
+	} catch (err) {
+		console.warn("[BlockService] Firestore unblock delete notice:", err);
+	}
+	try {
+		const headers = await getAuthHeaders$2();
+		await apiFetch(`/api/users/${encodeURIComponent(targetUserId)}/unblock`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ blockerId })
+		});
+	} catch (err) {
+		console.warn("[BlockService] Backend unblock sync notice:", err);
+	}
+	return { success: true };
+}
+/**
+* Convert a BlockedUserRecord into a minimal UserProfile for UI components like MessagesScreen.
+*/
+function blockedRecordToUserProfile(record) {
+	return {
+		id: record.blockedUserId,
+		displayId: record.blockedUserDisplayId || record.blockedUserId.slice(0, 8),
+		name: record.blockedUserName || "Blocked User",
+		username: record.blockedUserUsername || "",
+		avatar: record.blockedUserAvatar || "",
+		bio: "",
+		level: 1,
+		vipLevel: 0,
+		coins: 0,
+		diamonds: 0,
+		fansCount: "0",
+		followingCount: 0,
+		likesCount: "0",
+		isVIP: false
+	};
 }
 // node_modules/lucide-react/dist/esm/shared/src/utils.js
 /**
@@ -60949,11 +61175,13 @@ var DesktopSidebar = ({ currentScreen, currentUser, onNavigate, onOpenCreateLive
 	});
 };
 // src/components/common/UserProfileModal.tsx
-var UserProfileModal = ({ user, isOpen, onClose, onToggleFollow, onSendMessage, onSendGift, onViewFullProfile }) => {
+var UserProfileModal = ({ user, currentUserId, isOpen, isBlocked: isBlockedProp = false, isBlockedByTarget = false, onClose, onToggleFollow, onSendMessage, onSendGift, onViewFullProfile, onBlockUser, onUnblockUser }) => {
 	const [reportSuccess, setReportSuccess] = (0, import_react.useState)(false);
-	const [isBlocked, setIsBlocked] = (0, import_react.useState)(false);
+	const [blockBusy, setBlockBusy] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	if (!isOpen || !user) return null;
+	const isSelf = Boolean(currentUserId && currentUserId === user.id);
+	const interactionBlocked = isBlockedProp || isBlockedByTarget;
 	const showToast = (msg) => {
 		setToastMessage(msg);
 		setTimeout(() => setToastMessage(null), 2500);
@@ -60966,18 +61194,30 @@ var UserProfileModal = ({ user, isOpen, onClose, onToggleFollow, onSendMessage, 
 		showToast(`Report filed for ${user.name}. Our moderation team has been alerted.`);
 		setTimeout(() => setReportSuccess(false), 3e3);
 	};
-	const handleBlock = () => {
-		setIsBlocked(!isBlocked);
-		showToast(!isBlocked ? `${user.name} has been blocked.` : `${user.name} has been unblocked.`);
+	const handleBlockToggle = async () => {
+		if (isSelf || blockBusy) return;
+		setBlockBusy(true);
+		try {
+			if (isBlockedProp) {
+				if (onUnblockUser) await onUnblockUser(user.id, user.name);
+				showToast(`${user.name} has been unblocked.`);
+			} else {
+				if (onBlockUser) await onBlockUser(user);
+				showToast(`${user.name} blocked. They cannot interact with your streams, rooms, or messages.`);
+			}
+		} finally {
+			setBlockBusy(false);
+		}
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in",
+		onClick: onClose,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "w-full max-w-sm bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative",
 			onClick: (e) => e.stopPropagation(),
 			children: [
 				toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "absolute top-4 left-4 right-4 z-50 bg-[#8B20FF] text-white text-xs font-semibold py-2 px-3 rounded-xl shadow-lg shadow-[#8B20FF]/50 text-center animate-bounce",
+					className: "absolute top-4 left-4 right-4 z-50 bg-[#8B20FF] text-white text-xs font-semibold py-2 px-3 rounded-xl shadow-lg shadow-[#8B20FF]/50 text-center",
 					children: toastMessage
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -61045,7 +61285,7 @@ var UserProfileModal = ({ user, isOpen, onClose, onToggleFollow, onSendMessage, 
 							children: user.bio || "Living life on Lenzo Party Live! Connect with me on streams."
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "grid grid-cols-3 gap-2 w-full py-2.5 px-3 rounded-2xl bg-[#211333] border border-white/[0.06] mb-5",
+							className: "grid grid-cols-3 gap-2 w-full py-2.5 px-3 rounded-2xl bg-[#211333] border border-white/[0.06] mb-4",
 							children: [
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex flex-col items-center",
@@ -61079,7 +61319,11 @@ var UserProfileModal = ({ user, isOpen, onClose, onToggleFollow, onSendMessage, 
 								})
 							]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						!isSelf && interactionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-full mb-4 px-3 py-2 rounded-xl bg-rose-950/60 border border-rose-500/40 text-[11px] font-semibold text-rose-200",
+							children: isBlockedProp ? `You blocked ${user.name}. Unblock to interact again.` : `You cannot interact with ${user.name}.`
+						}),
+						!isSelf && !interactionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "grid grid-cols-3 gap-2 w-full mb-4",
 							children: [
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
@@ -61121,15 +61365,16 @@ var UserProfileModal = ({ user, isOpen, onClose, onToggleFollow, onSendMessage, 
 									className: "flex items-center gap-1 hover:text-white transition-colors",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Share2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Share" })]
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								!isSelf && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: handleReport,
-									className: "flex items-center gap-1 hover:text-amber-400 transition-colors",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldAlert, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Report" })]
+									className: `flex items-center gap-1 transition-colors ${reportSuccess ? "text-amber-300 font-bold" : "hover:text-amber-400"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldAlert, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: reportSuccess ? "Reported" : "Report" })]
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-									onClick: handleBlock,
-									className: `flex items-center gap-1 transition-colors ${isBlocked ? "text-rose-400 font-bold" : "hover:text-rose-400"}`,
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isBlocked ? "Unblock" : "Block" })]
+								!isSelf && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									disabled: blockBusy,
+									onClick: () => void handleBlockToggle(),
+									className: `flex items-center gap-1 transition-colors disabled:opacity-50 ${isBlockedProp ? "text-rose-400 font-bold" : "hover:text-rose-400"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: blockBusy ? "..." : isBlockedProp ? "Unblock" : "Block" })]
 								})
 							]
 						})
@@ -111073,7 +111318,7 @@ var AgoraRtcService = class {
 	*/
 	async getAgoraConfig() {
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 4e3);
+		const timeoutId = setTimeout(() => controller.abort(), 1800);
 		try {
 			const res = await apiFetch("/api/agora/config", { signal: controller.signal });
 			if (res.ok && res.headers.get("content-type")?.includes("application/json")) return await res.json();
@@ -111910,6 +112155,17 @@ async function writeFirestorePartyPeerSignal(roomId, targetPeerId, signal) {
 		console.warn("[Firestore Room] writePeerSignal notice:", err);
 	}
 }
+async function clearFirestorePartyPeerSignals(roomId) {
+	const uid = auth.currentUser?.uid;
+	if (!uid || !isValidFirestoreId(roomId) || !isValidFirestoreId(uid)) return;
+	try {
+		await setDoc(doc(db, "party_rooms", roomId, "participants", uid), {
+			userId: uid,
+			lastSeen: Date.now(),
+			rtcSignals: {}
+		}, { merge: true });
+	} catch {}
+}
 function subscribeFirestoreRoomParticipants(roomId, onUpdate) {
 	if (!auth.currentUser || !isValidFirestoreId(roomId)) return () => {};
 	return onSnapshot(collection(db, "party_rooms", roomId, "participants"), (snap) => {
@@ -112060,6 +112316,169 @@ async function syncFirestorePartyRoomState(roomId, isHost, patch) {
 		await updateDoc(doc(db, "party_rooms", roomId), payload);
 	} catch {}
 }
+/**
+* Atomically append/update a listener's seat request directly on the Firestore party room doc.
+* Works cross-device (Web <-> Android) even if the Express backend is unreachable or restarted.
+*/
+async function submitFirestoreSeatRequest(roomId, request) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return {
+		success: false,
+		error: "Please sign in to request a seat."
+	};
+	const compactUser = compactSeatUser(request.user);
+	if (!compactUser) return {
+		success: false,
+		error: "Invalid user profile."
+	};
+	const roomRef = doc(db, "party_rooms", roomId);
+	try {
+		return {
+			success: true,
+			seatRequests: await runTransaction(db, async (tx) => {
+				const snap = await tx.get(roomRef);
+				if (!snap.exists()) throw new Error("This party room has already been closed.");
+				const data = snap.data();
+				if (data.isLocked || data.allowJoin === false) throw new Error("Stage seats are currently locked by the host.");
+				if ((Array.isArray(data.seats) ? data.seats : []).some((s) => s && s.id === compactUser.id)) throw new Error("You already occupy a seat in this room.");
+				const maxSeats = data.maxSeats === 16 ? 16 : 8;
+				const safeIndex = typeof request.seatIndex === "number" && request.seatIndex >= 0 && request.seatIndex < maxSeats ? request.seatIndex : 1;
+				const existing = Array.isArray(data.seatRequests) ? data.seatRequests : [];
+				const nextEntry = {
+					id: String(request.id || `sr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+					user: compactUser,
+					seatIndex: safeIndex,
+					requestedAt: typeof request.requestedAt === "number" ? request.requestedAt : Date.now()
+				};
+				const nextRequests = [...existing.filter((r) => r?.user?.id && r.user.id !== compactUser.id), nextEntry];
+				tx.update(roomRef, { seatRequests: nextRequests });
+				return nextRequests;
+			})
+		};
+	} catch (err) {
+		const rawMsg = String(err?.message || "");
+		if (/permission|insufficient/i.test(rawMsg)) return {
+			success: false,
+			error: "You cannot request a seat in this room."
+		};
+		return {
+			success: false,
+			error: rawMsg || "Could not send seat request."
+		};
+	}
+}
+/**
+* Atomically approve or decline a pending seat request directly on Firestore party room doc.
+*/
+async function respondFirestoreSeatRequest(roomId, applicant, approve, preferredSeatIndex, maxSeatsFallback = 8) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return {
+		success: false,
+		error: "Authentication required."
+	};
+	const roomRef = doc(db, "party_rooms", roomId);
+	try {
+		return {
+			success: true,
+			...await runTransaction(db, async (tx) => {
+				const snap = await tx.get(roomRef);
+				if (!snap.exists()) throw new Error("Party room not found.");
+				const data = snap.data();
+				const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+				const nextSeats = Array(maxSeats).fill(null);
+				if (Array.isArray(data.seats)) for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) nextSeats[i] = data.seats[i] || null;
+				const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== applicant.id);
+				let assignedSeatIndex = -1;
+				if (approve) {
+					for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === applicant.id) nextSeats[i] = null;
+					let targetIdx = typeof preferredSeatIndex === "number" && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats ? preferredSeatIndex : 1;
+					if (nextSeats[targetIdx] !== null) {
+						const openIdx = nextSeats.findIndex((s) => s === null);
+						if (openIdx === -1) throw new Error("All seats are currently full.");
+						targetIdx = openIdx;
+					}
+					nextSeats[targetIdx] = compactSeatUser(applicant);
+					assignedSeatIndex = targetIdx;
+				}
+				tx.update(roomRef, {
+					seats: nextSeats,
+					seatRequests: nextRequests
+				});
+				return {
+					seats: nextSeats,
+					seatRequests: nextRequests,
+					assignedSeatIndex
+				};
+			})
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: String(err?.message || "Failed to update seat request.")
+		};
+	}
+}
+/**
+* Atomically seat a user (host taking a seat or host directly assigning a listener).
+*/
+async function takeFirestoreSeatDirect(roomId, seatIndex, targetUser, maxSeatsFallback = 8) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+	const compactUser = compactSeatUser(targetUser);
+	if (!compactUser) return { success: false };
+	const roomRef = doc(db, "party_rooms", roomId);
+	try {
+		const result = await runTransaction(db, async (tx) => {
+			const snap = await tx.get(roomRef);
+			if (!snap.exists()) return null;
+			const data = snap.data();
+			const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+			const nextSeats = Array(maxSeats).fill(null);
+			if (Array.isArray(data.seats)) for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) nextSeats[i] = data.seats[i] || null;
+			for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
+			if (seatIndex >= 0 && seatIndex < maxSeats) nextSeats[seatIndex] = compactUser;
+			const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== compactUser.id);
+			tx.update(roomRef, {
+				seats: nextSeats,
+				seatRequests: nextRequests
+			});
+			return {
+				seats: nextSeats,
+				seatRequests: nextRequests
+			};
+		});
+		return result ? {
+			success: true,
+			...result
+		} : { success: false };
+	} catch {
+		return { success: false };
+	}
+}
+/**
+* Atomically remove a user from their seat in Firestore.
+*/
+async function vacateFirestoreSeat(roomId, targetUserId, seatIndex, maxSeatsFallback = 8) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+	const roomRef = doc(db, "party_rooms", roomId);
+	try {
+		const nextSeats = await runTransaction(db, async (tx) => {
+			const snap = await tx.get(roomRef);
+			if (!snap.exists()) return null;
+			const data = snap.data();
+			const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+			const seats = Array(maxSeats).fill(null);
+			if (Array.isArray(data.seats)) for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) seats[i] = data.seats[i] || null;
+			if (typeof seatIndex === "number" && seatIndex >= 0 && seatIndex < maxSeats) seats[seatIndex] = null;
+			for (let i = 0; i < seats.length; i++) if (seats[i]?.id === targetUserId) seats[i] = null;
+			tx.update(roomRef, { seats });
+			return seats;
+		});
+		return nextSeats ? {
+			success: true,
+			seats: nextSeats
+		} : { success: false };
+	} catch {
+		return { success: false };
+	}
+}
 // src/utils/webrtcMediaService.ts
 var DEFAULT_ICE_SERVERS = [
 	{ urls: "stun:stun.l.google.com:19302" },
@@ -112124,15 +112543,22 @@ var WebRtcMediaService = class {
 		this.partyRoomId = null;
 		this.partyUserId = null;
 		this.partyIsSpeaker = false;
+		this.partyStartedAt = 0;
 		this.partyLocalStream = null;
+		this.partyKnownPeers = /* @__PURE__ */ new Map();
+		this.partyPendingOfferPeers = /* @__PURE__ */ new Set();
 		this.partyPeers = /* @__PURE__ */ new Map();
 		this.partyPendingIce = /* @__PURE__ */ new Map();
 		this.partySeenRemoteIce = /* @__PURE__ */ new Map();
 		this.partyOutboundIce = /* @__PURE__ */ new Map();
+		this.partyOutboundSdp = /* @__PURE__ */ new Map();
 		this.partyIceFlushTimers = /* @__PURE__ */ new Map();
-		this.partyHandledSignalKeys = /* @__PURE__ */ new Map();
+		this.partyHandledOfferSessions = /* @__PURE__ */ new Map();
+		this.partyHandledAnswerSessions = /* @__PURE__ */ new Map();
 		this.partyPeerSessions = /* @__PURE__ */ new Map();
 		this.partyRemoteAudioEls = /* @__PURE__ */ new Map();
+		this.partyRemoteAnalysers = /* @__PURE__ */ new Map();
+		this.partyVolumeTimer = null;
 		this.partySpeakerMuted = false;
 		this.partyCallbacks = null;
 		this.partyUnsubscribeWs = null;
@@ -112653,6 +113079,34 @@ var WebRtcMediaService = class {
 		this.liveViewerSessionId = "";
 		this.liveViewerHandledOfferSession = "";
 	}
+	hasLivePartyAudioTrack() {
+		if (!this.partyLocalStream) return false;
+		return this.partyLocalStream.getAudioTracks().some((t) => t.readyState === "live");
+	}
+	shouldInitiatePartyOffer(peerId, peerIsSpeaker) {
+		if (!this.partyIsSpeaker) return false;
+		if (!peerIsSpeaker) return true;
+		return String(this.partyUserId || "") > peerId;
+	}
+	isPartyPeerHealthy(peerId) {
+		const pc = this.partyPeers.get(peerId);
+		if (!pc) return false;
+		if (pc.connectionState === "connected" || pc.connectionState === "connecting") return true;
+		if (pc.signalingState === "have-local-offer" && pc.iceConnectionState !== "failed" && pc.iceConnectionState !== "closed") return true;
+		return false;
+	}
+	maybeInitiatePartyPeer(peerId, peerIsSpeaker, forceRenegotiate = false) {
+		if (!this.partyRoomId || !this.partyUserId || !peerId || peerId === this.partyUserId) return;
+		this.partyKnownPeers.set(peerId, { isSpeaker: peerIsSpeaker });
+		if (!this.shouldInitiatePartyOffer(peerId, peerIsSpeaker)) return;
+		if (!this.hasLivePartyAudioTrack()) {
+			this.partyPendingOfferPeers.add(peerId);
+			return;
+		}
+		if (!forceRenegotiate && this.isPartyPeerHealthy(peerId)) return;
+		this.partyPendingOfferPeers.delete(peerId);
+		this.createPartyOffer(peerId);
+	}
 	startPartyVoice(roomId, userId, isSpeaker, localAudioStream, callbacks) {
 		this.stopPartyVoice();
 		if (typeof RTCPeerConnection === "undefined") {
@@ -112663,18 +113117,37 @@ var WebRtcMediaService = class {
 		this.partyRoomId = roomId;
 		this.partyUserId = userId;
 		this.partyIsSpeaker = isSpeaker;
+		this.partyStartedAt = Date.now();
 		this.partyLocalStream = localAudioStream;
 		this.partyCallbacks = callbacks;
+		clearFirestorePartyPeerSignals(roomId);
 		callbacks.onStatusChange?.("connected");
+		this.partyVolumeTimer = setInterval(() => {
+			if (!this.partyRoomId || this.partyRemoteAnalysers.size === 0) return;
+			this.partyRemoteAnalysers.forEach((entry, peerId) => {
+				try {
+					entry.analyser.getByteTimeDomainData(entry.data);
+					let sumSq = 0;
+					for (let i = 0; i < entry.data.length; i++) {
+						const v = (entry.data[i] - 128) / 128;
+						sumSq += v * v;
+					}
+					const rms = Math.sqrt(sumSq / entry.data.length);
+					const level = Math.min(100, Math.round(rms * 320));
+					if (level > 6) this.partyCallbacks?.onRemoteVolume?.(peerId, level);
+				} catch {}
+			});
+		}, 180);
 		this.partyUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
 			if (!this.partyRoomId || !payload || payload.roomId !== this.partyRoomId) return;
 			const fromUserId = String(payload.fromUserId || "");
 			if (!fromUserId || fromUserId === this.partyUserId) return;
 			if (event === "webrtc:room_peer_ready") {
 				const peerIsSpeaker = Boolean(payload.isSpeaker);
+				this.partyKnownPeers.set(fromUserId, { isSpeaker: peerIsSpeaker });
 				if (!this.partyIsSpeaker && !peerIsSpeaker) return;
-				if (this.partyIsSpeaker && !peerIsSpeaker || this.partyIsSpeaker && peerIsSpeaker && String(this.partyUserId) > fromUserId) this.createPartyOffer(fromUserId);
-				else if (peerIsSpeaker && !this.partyIsSpeaker) liveAndRoomService.sendSignal({
+				if (this.shouldInitiatePartyOffer(fromUserId, peerIsSpeaker)) this.maybeInitiatePartyPeer(fromUserId, peerIsSpeaker, false);
+				else if (peerIsSpeaker && !this.partyIsSpeaker && !this.isPartyPeerHealthy(fromUserId)) liveAndRoomService.sendSignal({
 					signalType: "webrtc:room_listener_hello",
 					fromUserId: this.partyUserId,
 					targetUserId: fromUserId,
@@ -112682,11 +113155,16 @@ var WebRtcMediaService = class {
 					payload: { isSpeaker: false }
 				});
 			} else if (event === "webrtc:room_listener_hello") {
-				if (this.partyIsSpeaker) this.createPartyOffer(fromUserId);
+				this.partyKnownPeers.set(fromUserId, { isSpeaker: false });
+				if (this.partyIsSpeaker) this.maybeInitiatePartyPeer(fromUserId, false, false);
 			} else if (event === "webrtc:room_offer" && payload.sdp) this.handlePartyOffer(fromUserId, payload.sdp, payload.sessionId);
-			else if (event === "webrtc:room_answer" && payload.sdp) this.handlePartyAnswer(fromUserId, payload.sdp);
-			else if (event === "webrtc:room_ice" && payload.candidate) this.handlePartyIce(fromUserId, payload.candidate);
-			else if (event === "webrtc:room_peer_left") this.closePartyPeer(fromUserId);
+			else if (event === "webrtc:room_answer" && payload.sdp) this.handlePartyAnswer(fromUserId, payload.sdp, payload.sessionId);
+			else if (event === "webrtc:room_ice" && payload.candidate) this.handlePartyIce(fromUserId, payload.candidate, payload.sessionId);
+			else if (event === "webrtc:room_peer_left") {
+				this.partyKnownPeers.delete(fromUserId);
+				this.partyPendingOfferPeers.delete(fromUserId);
+				this.closePartyPeer(fromUserId);
+			}
 		});
 		this.partyUnsubscribeFs = subscribeFirestoreRoomParticipants(roomId, (_list, rawDocs) => {
 			if (!this.partyRoomId || this.partyRoomId !== roomId || !this.partyUserId) return;
@@ -112694,25 +113172,20 @@ var WebRtcMediaService = class {
 				const peerId = String(pDoc.userId || docId);
 				if (!peerId || peerId === this.partyUserId) return;
 				const peerIsSpeaker = Boolean(pDoc.isSpeaker);
-				const existingPc = this.partyPeers.get(peerId);
-				if ((this.partyIsSpeaker && !peerIsSpeaker || this.partyIsSpeaker && peerIsSpeaker && String(this.partyUserId) > peerId) && (!existingPc || existingPc.connectionState === "failed" || existingPc.connectionState === "closed")) this.createPartyOffer(peerId);
+				this.partyKnownPeers.set(peerId, { isSpeaker: peerIsSpeaker });
+				if (this.shouldInitiatePartyOffer(peerId, peerIsSpeaker)) this.maybeInitiatePartyPeer(peerId, peerIsSpeaker, false);
 				const envelope = pDoc.rtcSignals?.[this.partyUserId];
 				if (!envelope) return;
-				const sigKey = `${envelope.type || ""}_${envelope.sessionId || ""}_${envelope.updatedAt || 0}`;
-				if (envelope.type === "offer" && envelope.sdp) {
-					const handledKey = `offer_${envelope.sessionId || ""}`;
-					if (this.partyHandledSignalKeys.get(peerId) !== handledKey) {
-						this.partyHandledSignalKeys.set(peerId, handledKey);
-						this.handlePartyOffer(peerId, envelope.sdp, envelope.sessionId);
-					}
-				} else if (envelope.type === "answer" && envelope.sdp) {
-					const handledKey = `answer_${envelope.sessionId || ""}`;
-					if (this.partyHandledSignalKeys.get(peerId) !== handledKey) {
-						this.partyHandledSignalKeys.set(peerId, handledKey);
-						this.handlePartyAnswer(peerId, envelope.sdp);
-					}
+				if (typeof envelope.updatedAt === "number" && envelope.updatedAt < this.partyStartedAt - 15e3) return;
+				if (envelope.type === "offer" && envelope.sdp && envelope.sdp.sdp) {
+					const offerSession = String(envelope.sessionId || `fs_off_${envelope.updatedAt || 0}`);
+					if (this.partyHandledOfferSessions.get(peerId) !== offerSession) this.handlePartyOffer(peerId, envelope.sdp, offerSession);
+				} else if (envelope.type === "answer" && envelope.sdp && envelope.sdp.sdp) {
+					const answerSession = String(envelope.sessionId || "");
+					const expectedSession = this.partyPeerSessions.get(peerId) || "";
+					if ((!answerSession || !expectedSession || answerSession === expectedSession) && this.partyHandledAnswerSessions.get(peerId) !== (answerSession || "default")) this.handlePartyAnswer(peerId, envelope.sdp, answerSession);
 				}
-				if (Array.isArray(envelope.ice) && envelope.ice.length > 0 && sigKey) for (const cand of envelope.ice) this.handlePartyIce(peerId, cand);
+				if (Array.isArray(envelope.ice) && envelope.ice.length > 0) for (const cand of envelope.ice) this.handlePartyIce(peerId, cand, envelope.sessionId);
 			});
 		});
 		this.announcePartyPresence();
@@ -112727,33 +113200,51 @@ var WebRtcMediaService = class {
 				return;
 			}
 			this.announcePartyPresence();
-		}, 2500);
+		}, 3e3);
 	}
 	updatePartySpeakerRole(isSpeaker, localAudioStream) {
 		if (!this.partyRoomId || !this.partyUserId) return;
 		const roleChanged = this.partyIsSpeaker !== isSpeaker;
+		const hadLiveTrack = this.hasLivePartyAudioTrack();
 		this.partyIsSpeaker = isSpeaker;
 		this.partyLocalStream = localAudioStream;
-		if (!isSpeaker) this.partyPeers.forEach((pc, peerId) => {
-			pc.getSenders().forEach((sender) => {
-				if (sender.track) try {
-					pc.removeTrack(sender);
-				} catch {}
+		const nowHasLiveTrack = this.hasLivePartyAudioTrack();
+		if (!isSpeaker) {
+			this.partyPendingOfferPeers.clear();
+			this.partyPeers.forEach((pc, peerId) => {
+				pc.getSenders().forEach((sender) => {
+					if (sender.track) try {
+						pc.removeTrack(sender);
+					} catch {}
+				});
+				const peerMeta = this.partyKnownPeers.get(peerId);
+				if (roleChanged && !peerMeta?.isSpeaker) this.closePartyPeer(peerId);
 			});
-			if (roleChanged) this.closePartyPeer(peerId);
-		});
-		else if (localAudioStream) {
-			const audioTrack = localAudioStream.getAudioTracks()[0];
-			if (audioTrack) this.partyPeers.forEach((pc, peerId) => {
-				const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
-				if (sender) sender.replaceTrack(audioTrack).catch(() => {});
-				else {
-					pc.addTrack(audioTrack, localAudioStream);
-					this.createPartyOffer(peerId);
+		} else if (localAudioStream && nowHasLiveTrack) {
+			const audioTrack = localAudioStream.getAudioTracks().find((t) => t.readyState === "live");
+			if (audioTrack) {
+				this.partyPeers.forEach((pc, peerId) => {
+					const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+					if (sender) sender.replaceTrack(audioTrack).catch(() => {
+						this.createPartyOffer(peerId);
+					});
+					else this.createPartyOffer(peerId);
+				});
+				this.partyKnownPeers.forEach((meta, peerId) => {
+					if (this.shouldInitiatePartyOffer(peerId, meta.isSpeaker)) {
+						if (!this.partyPeers.has(peerId) || !hadLiveTrack || roleChanged) this.maybeInitiatePartyPeer(peerId, meta.isSpeaker, !hadLiveTrack);
+					}
+				});
+				if (this.partyPendingOfferPeers.size > 0) {
+					const queued = Array.from(this.partyPendingOfferPeers);
+					this.partyPendingOfferPeers.clear();
+					queued.forEach((peerId) => {
+						this.createPartyOffer(peerId);
+					});
 				}
-			});
+			}
 		}
-		if (roleChanged) this.announcePartyPresence();
+		if (roleChanged || !hadLiveTrack && nowHasLiveTrack) this.announcePartyPresence();
 	}
 	setPartyMicMuted(muted) {
 		if (this.partyLocalStream) this.partyLocalStream.getAudioTracks().forEach((t) => {
@@ -112764,14 +113255,21 @@ var WebRtcMediaService = class {
 		this.partySpeakerMuted = muted;
 		this.partyRemoteAudioEls.forEach((audioEl) => {
 			audioEl.muted = muted;
-			if (!muted) audioEl.play().catch(() => {
-				this.partyCallbacks?.onAutoplayBlocked?.();
-			});
+			if (!muted) {
+				audioEl.volume = 1;
+				audioEl.play().catch(() => {
+					this.partyCallbacks?.onAutoplayBlocked?.();
+				});
+			}
 		});
 	}
 	resumePartyRemoteAudio() {
+		this.partyRemoteAnalysers.forEach((entry) => {
+			if (entry.ctx.state === "suspended") entry.ctx.resume().catch(() => {});
+		});
 		this.partyRemoteAudioEls.forEach((audioEl) => {
 			audioEl.muted = this.partySpeakerMuted;
+			audioEl.volume = 1;
 			if (!this.partySpeakerMuted) audioEl.play().catch(() => {});
 		});
 	}
@@ -112789,14 +113287,17 @@ var WebRtcMediaService = class {
 		const timer = setTimeout(() => {
 			this.partyIceFlushTimers.delete(peerId);
 			if (!this.partyRoomId) return;
+			if (this.partyPeerSessions.get(peerId) !== sessionId) return;
 			const batch = this.partyOutboundIce.get(peerId);
 			if (!batch || batch.length === 0) return;
+			const sdp = this.partyOutboundSdp.get(peerId);
 			writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
 				type,
+				...sdp ? { sdp } : {},
 				sessionId,
-				ice: batch.slice(0, 20)
+				ice: batch.slice(0, 32)
 			});
-		}, 240);
+		}, 220);
 		this.partyIceFlushTimers.set(peerId, timer);
 	}
 	setupPartyPeerConnection(peerId, signalType, sessionId) {
@@ -112807,6 +113308,7 @@ var WebRtcMediaService = class {
 		this.partySeenRemoteIce.set(peerId, /* @__PURE__ */ new Set());
 		this.partyOutboundIce.set(peerId, []);
 		this.partyPeerSessions.set(peerId, sessionId);
+		this.partyHandledAnswerSessions.delete(peerId);
 		if (this.partyIsSpeaker && this.partyLocalStream) this.partyLocalStream.getAudioTracks().forEach((track) => {
 			if (this.partyLocalStream && track.readyState === "live") pc.addTrack(track, this.partyLocalStream);
 		});
@@ -112834,12 +113336,17 @@ var WebRtcMediaService = class {
 			}
 		};
 		pc.onconnectionstatechange = () => {
-			if (pc.connectionState === "failed" || pc.connectionState === "closed") this.closePartyPeer(peerId);
+			if (pc.connectionState === "connected") this.partyCallbacks?.onStatusChange?.("connected");
+			else if (pc.connectionState === "failed" || pc.connectionState === "closed") this.closePartyPeer(peerId);
 		};
 		return pc;
 	}
 	async createPartyOffer(peerId) {
 		if (!this.partyRoomId || !this.partyUserId) return;
+		if (this.partyIsSpeaker && !this.hasLivePartyAudioTrack()) {
+			this.partyPendingOfferPeers.add(peerId);
+			return;
+		}
 		const sessionId = makeSessionId("pr");
 		const pc = this.setupPartyPeerConnection(peerId, "offer", sessionId);
 		try {
@@ -112852,6 +113359,7 @@ var WebRtcMediaService = class {
 				type: pc.localDescription?.type || offer.type,
 				sdp: pc.localDescription?.sdp || offer.sdp
 			};
+			this.partyOutboundSdp.set(peerId, localSdp);
 			liveAndRoomService.sendSignal({
 				signalType: "webrtc:room_offer",
 				fromUserId: this.partyUserId,
@@ -112876,6 +113384,8 @@ var WebRtcMediaService = class {
 	async handlePartyOffer(peerId, sdp, incomingSessionId) {
 		if (!this.partyRoomId || !this.partyUserId) return;
 		const sessionId = incomingSessionId || makeSessionId("pa");
+		if (this.partyHandledOfferSessions.get(peerId) === sessionId) return;
+		this.partyHandledOfferSessions.set(peerId, sessionId);
 		const pc = this.setupPartyPeerConnection(peerId, "answer", sessionId);
 		try {
 			await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -112888,6 +113398,7 @@ var WebRtcMediaService = class {
 				type: pc.localDescription?.type || answer.type,
 				sdp: pc.localDescription?.sdp || answer.sdp
 			};
+			this.partyOutboundSdp.set(peerId, localSdp);
 			liveAndRoomService.sendSignal({
 				signalType: "webrtc:room_answer",
 				fromUserId: this.partyUserId,
@@ -112901,19 +113412,25 @@ var WebRtcMediaService = class {
 			writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
 				type: "answer",
 				sdp: localSdp,
-				sessionId
+				sessionId,
+				ice: this.partyOutboundIce.get(peerId)?.slice(0, 32) || []
 			});
 		} catch (err) {
 			console.warn("[WebRTC Party] Answer error:", err);
 			this.closePartyPeer(peerId);
 		}
 	}
-	async handlePartyAnswer(peerId, sdp) {
+	async handlePartyAnswer(peerId, sdp, incomingSessionId) {
 		const pc = this.partyPeers.get(peerId);
 		if (!pc) return;
+		const expectedSession = this.partyPeerSessions.get(peerId);
+		if (incomingSessionId && expectedSession && incomingSessionId !== expectedSession) return;
+		const ansKey = incomingSessionId || expectedSession || "default";
+		if (this.partyHandledAnswerSessions.get(peerId) === ansKey) return;
 		try {
 			if (pc.signalingState === "have-local-offer") {
 				await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+				this.partyHandledAnswerSessions.set(peerId, ansKey);
 				const queued = this.partyPendingIce.get(peerId) || [];
 				this.partyPendingIce.set(peerId, []);
 				for (const cand of queued) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
@@ -112922,9 +113439,11 @@ var WebRtcMediaService = class {
 			console.warn("[WebRTC Party] Remote answer error:", err);
 		}
 	}
-	async handlePartyIce(peerId, candidate) {
+	async handlePartyIce(peerId, candidate, incomingSessionId) {
 		const pc = this.partyPeers.get(peerId);
 		if (!pc || !candidate?.candidate) return;
+		const expectedSession = this.partyPeerSessions.get(peerId);
+		if (incomingSessionId && expectedSession && incomingSessionId !== expectedSession) return;
 		const seen = this.partySeenRemoteIce.get(peerId) || /* @__PURE__ */ new Set();
 		const key = iceKey(candidate);
 		if (seen.has(key)) return;
@@ -112944,15 +113463,40 @@ var WebRtcMediaService = class {
 			audioEl = document.createElement("audio");
 			audioEl.autoplay = true;
 			audioEl.playsInline = true;
-			audioEl.style.display = "none";
+			audioEl.setAttribute("playsinline", "true");
+			audioEl.volume = 1;
+			audioEl.style.position = "fixed";
+			audioEl.style.width = "1px";
+			audioEl.style.height = "1px";
+			audioEl.style.opacity = "0";
+			audioEl.style.pointerEvents = "none";
+			audioEl.style.left = "-10px";
+			audioEl.style.top = "-10px";
 			document.body.appendChild(audioEl);
 			this.partyRemoteAudioEls.set(peerId, audioEl);
 		}
 		audioEl.srcObject = stream;
 		audioEl.muted = this.partySpeakerMuted;
+		audioEl.volume = 1;
 		audioEl.play().catch(() => {
 			this.partyCallbacks?.onAutoplayBlocked?.();
 		});
+		if (!this.partyRemoteAnalysers.has(peerId) && typeof window !== "undefined") try {
+			const AudioCtx = window.AudioContext || window.webkitAudioContext;
+			if (AudioCtx) {
+				const ctx = new AudioCtx();
+				const source = ctx.createMediaStreamSource(stream);
+				const analyser = ctx.createAnalyser();
+				analyser.fftSize = 256;
+				source.connect(analyser);
+				const data = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+				this.partyRemoteAnalysers.set(peerId, {
+					ctx,
+					analyser,
+					data
+				});
+			}
+		} catch {}
 		this.notifyPartySpeakers();
 	}
 	closePartyPeer(peerId) {
@@ -112974,7 +113518,15 @@ var WebRtcMediaService = class {
 		this.partyPendingIce.delete(peerId);
 		this.partySeenRemoteIce.delete(peerId);
 		this.partyOutboundIce.delete(peerId);
+		this.partyOutboundSdp.delete(peerId);
 		this.partyPeerSessions.delete(peerId);
+		const analyserEntry = this.partyRemoteAnalysers.get(peerId);
+		if (analyserEntry) {
+			try {
+				analyserEntry.ctx.close();
+			} catch {}
+			this.partyRemoteAnalysers.delete(peerId);
+		}
 		const audioEl = this.partyRemoteAudioEls.get(peerId);
 		if (audioEl) {
 			try {
@@ -112994,6 +113546,10 @@ var WebRtcMediaService = class {
 			clearInterval(this.partyPresenceTimer);
 			this.partyPresenceTimer = null;
 		}
+		if (this.partyVolumeTimer) {
+			clearInterval(this.partyVolumeTimer);
+			this.partyVolumeTimer = null;
+		}
 		this.partyIceFlushTimers.forEach((t) => clearTimeout(t));
 		this.partyIceFlushTimers.clear();
 		if (this.partyUnsubscribeWs) {
@@ -113004,18 +113560,31 @@ var WebRtcMediaService = class {
 			this.partyUnsubscribeFs();
 			this.partyUnsubscribeFs = null;
 		}
-		if (this.partyRoomId && this.partyUserId) liveAndRoomService.sendSignal({
-			signalType: "webrtc:room_peer_left",
-			fromUserId: this.partyUserId,
-			roomId: this.partyRoomId
-		});
+		if (this.partyRoomId && this.partyUserId) {
+			clearFirestorePartyPeerSignals(this.partyRoomId);
+			liveAndRoomService.sendSignal({
+				signalType: "webrtc:room_peer_left",
+				fromUserId: this.partyUserId,
+				roomId: this.partyRoomId
+			});
+		}
 		Array.from(this.partyPeers.keys()).forEach((peerId) => this.closePartyPeer(peerId));
 		this.partyPeers.clear();
+		this.partyKnownPeers.clear();
+		this.partyPendingOfferPeers.clear();
 		this.partyPendingIce.clear();
 		this.partySeenRemoteIce.clear();
 		this.partyOutboundIce.clear();
-		this.partyHandledSignalKeys.clear();
+		this.partyOutboundSdp.clear();
+		this.partyHandledOfferSessions.clear();
+		this.partyHandledAnswerSessions.clear();
 		this.partyPeerSessions.clear();
+		this.partyRemoteAnalysers.forEach((entry) => {
+			try {
+				entry.ctx.close();
+			} catch {}
+		});
+		this.partyRemoteAnalysers.clear();
 		this.partyRemoteAudioEls.forEach((audioEl) => {
 			try {
 				audioEl.pause();
@@ -113029,6 +113598,7 @@ var WebRtcMediaService = class {
 		this.partyRoomId = null;
 		this.partyUserId = null;
 		this.partyIsSpeaker = false;
+		this.partyStartedAt = 0;
 	}
 };
 var webrtcMediaService = new WebRtcMediaService();
@@ -113060,8 +113630,40 @@ var VIDEO_FILTERS = {
 		css: "contrast-[1.3] brightness-[1.05] hue-rotate-[180deg] saturate-[1.35]"
 	}
 };
-var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK }) => {
+var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK, blockedUserIds = [], blockedByUserIds = [] }) => {
 	const isActualHost = currentUser.id === stream.host.id;
+	const blockedUserIdsRef = (0, import_react.useRef)(new Set(blockedUserIds));
+	const blockedByUserIdsRef = (0, import_react.useRef)(new Set(blockedByUserIds));
+	(0, import_react.useEffect)(() => {
+		blockedUserIdsRef.current = new Set(blockedUserIds);
+		if (isActualHost && blockedUserIds.length > 0) {
+			const blockedSet = blockedUserIdsRef.current;
+			setViewersList((prev) => {
+				const filtered = prev.filter((v) => !blockedSet.has(v.userId));
+				if (filtered.length !== prev.length) {
+					setViewersTotalCount(filtered.length);
+					setLiveViewerCount(filtered.length);
+				}
+				return filtered;
+			});
+			setMessages((prev) => prev.filter((m) => !blockedSet.has(m.senderId)));
+		}
+	}, [blockedUserIds, isActualHost]);
+	(0, import_react.useEffect)(() => {
+		blockedByUserIdsRef.current = new Set(blockedByUserIds);
+		if (!isActualHost && blockedByUserIds.includes(stream.host.id)) {
+			webrtcMediaService.stopLive();
+			agoraRtcService.leaveChannel().catch(() => {});
+			leaveFirestoreLiveViewer(stream.id);
+			onClose();
+		}
+	}, [
+		blockedByUserIds,
+		isActualHost,
+		stream.host.id,
+		stream.id,
+		onClose
+	]);
 	const [isHostMode, setIsHostMode] = (0, import_react.useState)(isActualHost);
 	const [isCameraOn, setIsCameraOn] = (0, import_react.useState)(true);
 	const [isFrontCamera, setIsFrontCamera] = (0, import_react.useState)(true);
@@ -113186,10 +113788,22 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 				return next.slice(-80);
 			});
 		}).catch((err) => {
-			console.warn("[ActiveLive] Backend join fallback to Firestore:", err?.message || err);
+			const msg = String(err?.message || err || "");
+			if (!isActualHost && /block|403|forbidden/i.test(msg)) {
+				showToast("You cannot join or interact with this live stream.");
+				webrtcMediaService.stopLive();
+				agoraRtcService.leaveChannel().catch(() => {});
+				leaveFirestoreLiveViewer(stream.id);
+				setTimeout(() => {
+					if (active) onClose();
+				}, 900);
+				return;
+			}
+			console.warn("[ActiveLive] Backend join fallback to Firestore:", msg);
 		});
-		const unsubFsViewers = subscribeFirestoreLiveViewers(stream.id, (fsViewers) => {
+		const unsubFsViewers = subscribeFirestoreLiveViewers(stream.id, (rawFsViewers) => {
 			if (!active) return;
+			const fsViewers = isActualHost ? rawFsViewers.filter((v) => !blockedUserIdsRef.current.has(v.userId)) : rawFsViewers;
 			if (!fsViewersInitialized) {
 				fsViewersInitialized = true;
 				fsViewers.forEach((v) => initialKnownViewerIds.add(v.userId));
@@ -113230,6 +113844,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 				const merged = [...prev];
 				let changed = false;
 				fsComments.forEach((m) => {
+					if (isActualHost && blockedUserIdsRef.current.has(m.senderId)) return;
 					if (!seen.has(m.id)) {
 						seen.add(m.id);
 						merged.push(m);
@@ -113258,20 +113873,37 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			heartbeatFirestoreLiveViewer(stream.id, currentUser, isActualHost);
 		}, 15e3);
 		const unsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
-			if (!active || payload?.streamId !== stream.id) return;
+			if (!active) return;
+			if (event === "user:blocked_by" && !isActualHost && payload?.blockerId === stream.host.id) {
+				showToast("You have been blocked by the host.");
+				webrtcMediaService.stopLive();
+				agoraRtcService.leaveChannel().catch(() => {});
+				leaveFirestoreLiveViewer(stream.id);
+				setTimeout(() => {
+					if (active) onClose();
+				}, 700);
+				return;
+			}
+			if (payload?.streamId !== stream.id) return;
 			if (event === "live:sync_state") {
 				if (payload.stream && typeof payload.stream.numericViewers === "number") setLiveViewerCount(payload.stream.numericViewers);
 				if (Array.isArray(payload.viewers)) {
-					setViewersList(payload.viewers);
-					setViewersTotalCount(payload.viewers.length);
+					const filtered = isActualHost ? payload.viewers.filter((v) => !blockedUserIdsRef.current.has(v.userId)) : payload.viewers;
+					setViewersList(filtered);
+					setViewersTotalCount(filtered.length);
 				}
-				if (Array.isArray(payload.comments)) setMessages(payload.comments);
+				if (Array.isArray(payload.comments)) {
+					const filteredComments = isActualHost ? payload.comments.filter((m) => !blockedUserIdsRef.current.has(m.senderId)) : payload.comments;
+					setMessages(filteredComments);
+				}
 			} else if (event === "live:viewer_joined") {
 				if (typeof payload.numericViewers === "number") setLiveViewerCount(payload.numericViewers);
 				const joinedViewer = payload.viewer;
+				if (isActualHost && joinedViewer?.userId && blockedUserIdsRef.current.has(joinedViewer.userId)) return;
 				if (Array.isArray(payload.viewers)) {
-					setViewersList(payload.viewers);
-					setViewersTotalCount(payload.viewers.length);
+					const filtered = isActualHost ? payload.viewers.filter((v) => !blockedUserIdsRef.current.has(v.userId)) : payload.viewers;
+					setViewersList(filtered);
+					setViewersTotalCount(filtered.length);
 				} else if (joinedViewer?.userId) setViewersList((prev) => {
 					const next = [...prev.filter((v) => v.userId !== joinedViewer.userId), joinedViewer];
 					setViewersTotalCount(next.length);
@@ -113300,6 +113932,16 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 					}
 				}
 			} else if (event === "live:viewer_left" || event === "live:viewer_count_updated") {
+				if (event === "live:viewer_left" && !isActualHost && payload.reason === "blocked" && payload.userId === currentUser.id) {
+					showToast("You have been blocked by the host.");
+					webrtcMediaService.stopLive();
+					agoraRtcService.leaveChannel().catch(() => {});
+					leaveFirestoreLiveViewer(stream.id);
+					setTimeout(() => {
+						if (active) onClose();
+					}, 700);
+					return;
+				}
 				if (typeof payload.numericViewers === "number") setLiveViewerCount(payload.numericViewers);
 				if (Array.isArray(payload.viewers)) {
 					setViewersList(payload.viewers);
@@ -113311,6 +113953,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 				});
 			} else if (event === "live:comment" && payload.message) {
 				const incoming = payload.message;
+				if (isActualHost && blockedUserIdsRef.current.has(incoming.senderId)) return;
 				setMessages((prev) => prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]);
 			} else if ((event === "live:like" || event === "live:heart") && typeof payload.likesCount === "number") setStreamLikes(payload.likesCount);
 			else if (event === "live:media_state") {
@@ -113852,6 +114495,10 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		if (e) e.preventDefault();
 		const textToSend = (customText || inputMessage).trim();
 		if (!textToSend) return;
+		if (!isActualHost && blockedByUserIdsRef.current.has(stream.host.id)) {
+			showToast("You cannot interact with this live stream.");
+			return;
+		}
 		setInputMessage("");
 		setShowEmojiPicker(false);
 		let finalMsg = null;
@@ -113859,7 +114506,12 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			const backendSaved = await liveAndRoomService.sendLiveComment(stream.id, currentUser, textToSend);
 			finalMsg = backendSaved;
 			sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, backendSaved.id);
-		} catch {
+		} catch (err) {
+			const errMsg = String(err?.message || err || "");
+			if (/block|403|forbidden/i.test(errMsg)) {
+				showToast("You are blocked from commenting in this live stream.");
+				return;
+			}
 			const fallbackId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 			finalMsg = await sendFirestoreLiveComment(stream.id, currentUser, textToSend, isActualHost, fallbackId);
 		}
@@ -115090,13 +115742,14 @@ var RoomService = class {
 			mutedSeatIndices: []
 		};
 	}
-	async requestSeat(roomId, user, requestedSeatIndex, roomHostId) {
+	async requestSeat(roomId, user, requestedSeatIndex, roomHostId, roomMeta) {
 		const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/request_seat`, {
 			method: "POST",
 			body: JSON.stringify({
 				user,
 				requestedSeatIndex,
-				roomHostId
+				roomHostId,
+				roomMeta
 			})
 		});
 		if (!res.ok) {
@@ -115111,14 +115764,15 @@ var RoomService = class {
 			body: JSON.stringify({ userId })
 		});
 	}
-	async respondSeatRequest(roomId, hostId, applicantId, approve, targetSeatIndex) {
+	async respondSeatRequest(roomId, hostId, applicantId, approve, targetSeatIndex, applicantUser) {
 		const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/respond_seat_request`, {
 			method: "POST",
 			body: JSON.stringify({
 				hostId,
 				applicantId,
 				approve,
-				targetSeatIndex
+				targetSeatIndex,
+				applicantUser
 			})
 		});
 		if (!res.ok) {
@@ -115182,8 +115836,53 @@ var RoomService = class {
 };
 var roomService = new RoomService();
 // src/components/screens/AudioRoomScreen.tsx
-var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWallet, onSelectUser, onUpdateRoom, onCloseRoom, activeGiftCelebration }) => {
+var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWallet, onSelectUser, onUpdateRoom, onCloseRoom, activeGiftCelebration, blockedUserIds = [], blockedByUserIds = [] }) => {
 	const isRoomHost = currentUser.id === room.host.id;
+	const blockedUserIdsRef = (0, import_react.useRef)(new Set(blockedUserIds));
+	const blockedByUserIdsRef = (0, import_react.useRef)(new Set(blockedByUserIds));
+	(0, import_react.useEffect)(() => {
+		blockedUserIdsRef.current = new Set(blockedUserIds);
+		if (isRoomHost && blockedUserIds.length > 0) {
+			const blockedSet = blockedUserIdsRef.current;
+			setParticipantsList((prev) => {
+				const filtered = prev.filter((p) => !blockedSet.has(p.userId));
+				if (filtered.length !== prev.length) setParticipantTotal(filtered.length);
+				return filtered;
+			});
+			setSeatRequests((prev) => prev.filter((r) => !blockedSet.has(r.user.id)));
+			setSeats((prev) => {
+				let changed = false;
+				const next = prev.map((s) => {
+					if (s && blockedSet.has(s.id)) {
+						changed = true;
+						return null;
+					}
+					return s;
+				});
+				if (changed) syncFirestorePartyRoomState(room.id, true, { seats: next });
+				return changed ? next : prev;
+			});
+		}
+	}, [
+		blockedUserIds,
+		isRoomHost,
+		room.id
+	]);
+	(0, import_react.useEffect)(() => {
+		blockedByUserIdsRef.current = new Set(blockedByUserIds);
+		if (!isRoomHost && blockedByUserIds.includes(room.host.id)) {
+			webrtcMediaService.stopPartyVoice();
+			agoraRtcService.leaveChannel().catch(() => {});
+			leaveFirestoreRoomParticipant(room.id);
+			onClose();
+		}
+	}, [
+		blockedByUserIds,
+		isRoomHost,
+		room.host.id,
+		room.id,
+		onClose
+	]);
 	const maxSeats = room.maxSeats === 16 ? 16 : 8;
 	const normalizeSeats = (raw, count = maxSeats) => {
 		const arr = Array(count).fill(null);
@@ -115244,11 +115943,55 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setToastMessage(msg);
 		setTimeout(() => setToastMessage(null), 2600);
 	};
+	const prevSeatedRef = (0, import_react.useRef)(isCurrentlySeated);
+	const seenSeatReqIdsRef = (0, import_react.useRef)(new Set((room.seatRequests || []).map((r) => r.id)));
+	const seatReqHydratedRef = (0, import_react.useRef)(false);
 	(0, import_react.useEffect)(() => {
 		setSeats(normalizeSeats(room.seats, maxSeats));
 		if (room.mutedSeatIndices) setMutedSeatIndices(room.mutedSeatIndices);
 		if (room.seatRequests) setSeatRequests(room.seatRequests);
+		seenSeatReqIdsRef.current = new Set((room.seatRequests || []).map((r) => r.id));
+		seatReqHydratedRef.current = false;
 	}, [room.id]);
+	(0, import_react.useEffect)(() => {
+		if (!isRoomHost && !prevSeatedRef.current && isCurrentlySeated && userSeatIndex !== -1) showToast(`Approved! You are now on Seat #${userSeatIndex + 1} — mic is live.`);
+		prevSeatedRef.current = isCurrentlySeated;
+	}, [
+		isCurrentlySeated,
+		userSeatIndex,
+		isRoomHost
+	]);
+	(0, import_react.useEffect)(() => {
+		if (!seatReqHydratedRef.current) {
+			seatRequests.forEach((r) => seenSeatReqIdsRef.current.add(r.id));
+			seatReqHydratedRef.current = true;
+			return;
+		}
+		if (isRoomHost) {
+			for (const req of seatRequests) if (req?.id && !seenSeatReqIdsRef.current.has(req.id) && req.user?.id !== currentUser.id) {
+				seenSeatReqIdsRef.current.add(req.id);
+				showToast(`${req.user.name} requested Seat #${req.seatIndex + 1}`);
+			}
+		}
+	}, [
+		seatRequests,
+		isRoomHost,
+		currentUser.id
+	]);
+	(0, import_react.useEffect)(() => {
+		if (isSpeakerMuted) return;
+		const unlockAudioOnGesture = () => {
+			agoraRtcService.resumeRemoteAudio();
+			webrtcMediaService.resumePartyRemoteAudio();
+			setAutoplayBlocked(false);
+		};
+		window.addEventListener("pointerdown", unlockAudioOnGesture, { passive: true });
+		window.addEventListener("touchstart", unlockAudioOnGesture, { passive: true });
+		return () => {
+			window.removeEventListener("pointerdown", unlockAudioOnGesture);
+			window.removeEventListener("touchstart", unlockAudioOnGesture);
+		};
+	}, [isSpeakerMuted]);
 	(0, import_react.useEffect)(() => {
 		let active = true;
 		hasExplicitlyLeftRef.current = false;
@@ -115291,12 +116034,20 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				return merged;
 			});
 			else refreshRealTimeParticipants();
-			if (Array.isArray(res.pendingRequests)) setSeatRequests(res.pendingRequests.map((r) => ({
-				id: r.id,
-				user: r.user,
-				seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
-				requestedAt: r.createdAt || r.requestedAt || Date.now()
-			})));
+			if (Array.isArray(res.pendingRequests) && res.pendingRequests.length > 0) {
+				const incoming = res.pendingRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))).map((r) => ({
+					id: r.id,
+					user: r.user,
+					seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
+					requestedAt: r.createdAt || r.requestedAt || Date.now()
+				}));
+				if (incoming.length > 0) setSeatRequests((prev) => {
+					const byUser = /* @__PURE__ */ new Map();
+					prev.forEach((p) => byUser.set(p.user.id, p));
+					incoming.forEach((inc) => byUser.set(inc.user.id, inc));
+					return Array.from(byUser.values());
+				});
+			}
 			if (Array.isArray(res.messages) && res.messages.length > 0) setActivities((prev) => {
 				const seen = new Set(prev.map((a) => a.id));
 				const next = [...prev];
@@ -115316,10 +116067,22 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				return next.slice(-60);
 			});
 		}).catch((err) => {
-			console.warn("[AudioRoom] Backend join fallback to Firestore:", err?.message || err);
+			const msg = String(err?.message || err || "");
+			if (!isRoomHost && /block|403|forbidden/i.test(msg)) {
+				showToast("You cannot join or interact with this party room.");
+				webrtcMediaService.stopPartyVoice();
+				agoraRtcService.leaveChannel().catch(() => {});
+				leaveFirestoreRoomParticipant(room.id);
+				setTimeout(() => {
+					if (active) onClose();
+				}, 900);
+				return;
+			}
+			console.warn("[AudioRoom] Backend join fallback to Firestore:", msg);
 		});
-		const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (fsParticipants) => {
+		const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants) => {
 			if (!active) return;
+			const fsParticipants = isRoomHost ? rawFsParticipants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : rawFsParticipants;
 			if (!fsParticipantsInitialized) {
 				fsParticipantsInitialized = true;
 				fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
@@ -115358,6 +116121,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				const next = [...prev];
 				let changed = false;
 				fsMessages.forEach((m) => {
+					if (isRoomHost && blockedUserIdsRef.current.has(m.senderId)) return;
 					if (!seen.has(m.id)) {
 						seen.add(m.id);
 						next.push({
@@ -115381,7 +116145,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				roomDocEverExisted = true;
 				if (Array.isArray(data.seats)) setSeats(normalizeSeats(data.seats, data.maxSeats === 16 ? 16 : maxSeats));
 				if (Array.isArray(data.mutedSeatIndices)) setMutedSeatIndices(data.mutedSeatIndices);
-				if (Array.isArray(data.seatRequests)) setSeatRequests(data.seatRequests);
+				if (Array.isArray(data.seatRequests)) {
+					const filteredFsRequests = data.seatRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id)));
+					setSeatRequests(filteredFsRequests);
+				}
 				if (typeof data.isLocked === "boolean") setIsSeatLocked(data.isLocked);
 				if (typeof data.allowJoin === "boolean") setIsAllowJoin(data.allowJoin);
 				if (typeof data.announcement === "string") setRoomAnnouncement(data.announcement);
@@ -115400,21 +116167,40 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}, 15e3);
 		const unsubWs = liveAndRoomService.addEventListener((event, payload) => {
 			if (!active || !payload) return;
+			if (event === "user:blocked_by" && !isRoomHost && payload.blockerId === room.host.id) {
+				showToast("You have been blocked by the room host.");
+				webrtcMediaService.stopPartyVoice();
+				agoraRtcService.leaveChannel().catch(() => {});
+				leaveFirestoreRoomParticipant(room.id);
+				setTimeout(() => {
+					if (active) onClose();
+				}, 700);
+				return;
+			}
 			if (payload.roomId && payload.roomId !== room.id) return;
 			if ((event === "room:updated" || event === "room:state_updated" || event === "room:sync_state" || event === "room:settings_updated" || event === "room:seat_occupied" || event === "room:seat_vacated") && payload.room) {
 				applyServerRoomState(payload.room);
 				if (Array.isArray(payload.participants)) {
-					setParticipantsList(payload.participants);
-					setParticipantTotal(payload.participants.length);
+					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
+					setParticipantsList(filtered);
+					setParticipantTotal(filtered.length);
 				}
 				if (event === "room:sync_state") {
-					if (Array.isArray(payload.pendingRequests)) setSeatRequests(payload.pendingRequests.map((r) => ({
-						id: r.id,
-						user: r.user,
-						seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
-						requestedAt: r.createdAt || r.requestedAt || Date.now()
-					})));
-					if (Array.isArray(payload.messages)) setActivities(payload.messages.map((m) => ({
+					if (Array.isArray(payload.pendingRequests) && payload.pendingRequests.length > 0) {
+						const incoming = payload.pendingRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))).map((r) => ({
+							id: r.id,
+							user: r.user,
+							seatIndex: r.requestedSeatIndex ?? r.seatIndex ?? 1,
+							requestedAt: r.createdAt || r.requestedAt || Date.now()
+						}));
+						if (incoming.length > 0) setSeatRequests((prev) => {
+							const byUser = /* @__PURE__ */ new Map();
+							prev.forEach((p) => byUser.set(p.user.id, p));
+							incoming.forEach((inc) => byUser.set(inc.user.id, inc));
+							return Array.from(byUser.values());
+						});
+					}
+					if (Array.isArray(payload.messages)) setActivities(payload.messages.filter((m) => !isRoomHost || !blockedUserIdsRef.current.has(m.senderId)).map((m) => ({
 						id: m.id,
 						name: m.senderName,
 						avatar: m.senderAvatar,
@@ -115425,9 +116211,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				}
 			} else if (event === "room:participant_joined") {
 				if (payload.room) applyServerRoomState(payload.room);
+				if (isRoomHost && payload.participant?.userId && blockedUserIdsRef.current.has(payload.participant.userId)) return;
 				if (Array.isArray(payload.participants)) {
-					setParticipantsList(payload.participants);
-					setParticipantTotal(payload.participants.length);
+					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
+					setParticipantsList(filtered);
+					setParticipantTotal(filtered.length);
 				} else refreshRealTimeParticipants();
 				if (payload.participant && payload.participant.userId !== currentUser.id) {
 					const p = payload.participant;
@@ -115452,6 +116240,16 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					}
 				}
 			} else if (event === "room:participant_left") {
+				if (!isRoomHost && payload.reason === "blocked" && payload.userId === currentUser.id) {
+					showToast("You have been blocked by the room host.");
+					webrtcMediaService.stopPartyVoice();
+					agoraRtcService.leaveChannel().catch(() => {});
+					leaveFirestoreRoomParticipant(room.id);
+					setTimeout(() => {
+						if (active) onClose();
+					}, 700);
+					return;
+				}
 				if (payload.room) applyServerRoomState(payload.room);
 				if (Array.isArray(payload.participants)) {
 					setParticipantsList(payload.participants);
@@ -115597,6 +116395,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					onAutoplayBlocked: () => {
 						if (!isMounted) return;
 						setAutoplayBlocked(true);
+					},
+					onRemoteVolume: (peerId, level) => {
+						if (!isMounted || level <= 8) return;
+						const remoteSeatIdx = seatsRef.current.findIndex((s) => s && s.id === peerId);
+						if (remoteSeatIdx !== -1) setSpeakingSeats((prev) => ({
+							...prev,
+							[remoteSeatIdx]: Date.now()
+						}));
 					}
 				});
 				if (isMounted) setAgoraVoiceState("connected");
@@ -115777,7 +116583,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
 		};
 	}, []);
-	const syncRoom = (updatedSeats, updatedRequests, updatedLocked, updatedAllowJoin, updatedAnnouncement) => {
+	const syncRoom = (updatedSeats, updatedRequests, updatedLocked, updatedAllowJoin, updatedAnnouncement, skipFirestoreSync = false) => {
 		const nextRoom = {
 			...room,
 			seats: updatedSeats,
@@ -115791,7 +116597,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			isOwnerPresent: participantsList.some((p) => p.userId === room.host.id)
 		};
 		onUpdateRoom?.(nextRoom);
-		syncFirestorePartyRoomState(room.id, isRoomHost, {
+		if (!skipFirestoreSync) syncFirestorePartyRoomState(room.id, isRoomHost, {
 			seats: updatedSeats,
 			seatRequests: nextRoom.seatRequests,
 			numericParticipants: participantTotal,
@@ -115806,6 +116612,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setShowExitRoomModal(false);
 		setShowSettingsSheet(false);
 		hasExplicitlyLeftRef.current = true;
+		const leavingSeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
 		webrtcMediaService.stopPartyVoice();
 		if (realMicAnalyserRef.current) {
 			realMicAnalyserRef.current.cleanup();
@@ -115816,7 +116623,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			realMicStreamRef.current = null;
 		}
 		await agoraRtcService.leaveChannel().catch(() => {});
-		await Promise.all([liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}), leaveFirestoreRoomParticipant(room.id).catch(() => {})]);
+		await Promise.all([
+			leavingSeatIdx !== -1 ? vacateFirestoreSeat(room.id, currentUser.id, leavingSeatIdx, maxSeats).catch(() => {}) : Promise.resolve(),
+			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}),
+			leaveFirestoreRoomParticipant(room.id).catch(() => {})
+		]);
 		onClose();
 	};
 	const handleSeatClick = (index) => {
@@ -115836,7 +116647,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		if (isRoomHost) {
 			if (seats.findIndex((s) => s?.id === currentUser.id) === -1) setShowOwnerSeatChoice(index);
 			else {
-				liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => setParticipantsList(r.participants));
+				liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+					if (r.participants.length > 0) setParticipantsList((prev) => {
+						const map = /* @__PURE__ */ new Map();
+						prev.forEach((p) => map.set(p.userId, p));
+						r.participants.forEach((p) => map.set(p.userId, p));
+						return Array.from(map.values());
+					});
+				});
 				setShowInviteToSeatModal(index);
 			}
 			return;
@@ -115863,59 +116681,97 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	};
 	const handleSendSeatRequest = async () => {
 		if (requestTargetSeat === null) return;
+		const targetSeat = requestTargetSeat;
 		setShowRequestConfirmModal(false);
-		try {
-			const req = await roomService.requestSeat(room.id, currentUser, requestTargetSeat, room.host.id);
+		if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
+			showToast("You are blocked from requesting a seat in this room.");
+			return;
+		}
+		const newReq = {
+			id: `sr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+			user: currentUser,
+			seatIndex: targetSeat,
+			requestedAt: Date.now()
+		};
+		const fsRes = await submitFirestoreSeatRequest(room.id, newReq);
+		const serverPromise = roomService.requestSeat(room.id, currentUser, targetSeat, room.host.id, {
+			host: room.host,
+			title: room.title,
+			maxSeats
+		}).catch((err) => ({ __err: err }));
+		if (fsRes.success) {
+			const nextRequests = Array.isArray(fsRes.seatRequests) && fsRes.seatRequests.length > 0 ? fsRes.seatRequests : [...seatRequests.filter((r) => r.user.id !== currentUser.id), newReq];
+			setSeatRequests(nextRequests);
+			syncRoom(seats, nextRequests, void 0, void 0, void 0, true);
+			showToast(`Seat request sent for Seat #${targetSeat + 1} — waiting for Host approval`);
+			return;
+		}
+		const srvRes = await serverPromise;
+		if (srvRes && !srvRes.__err) {
 			const mappedReq = {
-				id: req?.id || `sr_${Date.now()}`,
-				user: req?.user || currentUser,
-				seatIndex: req?.requestedSeatIndex ?? requestTargetSeat,
-				requestedAt: req?.createdAt || Date.now()
+				id: srvRes.id || newReq.id,
+				user: srvRes.user || currentUser,
+				seatIndex: srvRes.requestedSeatIndex ?? targetSeat,
+				requestedAt: srvRes.createdAt || newReq.requestedAt
 			};
 			const nextRequests = [...seatRequests.filter((r) => r.user.id !== currentUser.id), mappedReq];
 			setSeatRequests(nextRequests);
 			syncRoom(seats, nextRequests);
-			showToast(`Join request sent for Seat #${requestTargetSeat + 1}`);
-		} catch (err) {
-			showToast(err?.message || "Could not send seat request");
+			showToast(`Seat request sent for Seat #${targetSeat + 1} — waiting for Host approval`);
+			return;
 		}
+		const rawErr = String(fsRes.error || srvRes?.__err?.message || "");
+		const friendlyErr = /failed to fetch|networkerror/i.test(rawErr) ? "Connection weak — please tap the seat again to send your request." : rawErr || "Could not send seat request. Please try again.";
+		showToast(friendlyErr);
 	};
 	const handleAcceptSeatRequest = async (req) => {
-		try {
-			const res = await roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, true, req.seatIndex);
-			const nextSeats = normalizeSeats(res.seats, maxSeats);
-			const nextRequests = seatRequests.filter((r) => r.id !== req.id);
+		const fsRes = await respondFirestoreSeatRequest(room.id, req.user, true, req.seatIndex, maxSeats);
+		const serverPromise = roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, true, req.seatIndex, req.user).catch(() => null);
+		if (fsRes.success && Array.isArray(fsRes.seats)) {
+			const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
+			const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests.filter((r) => r.user.id !== req.user.id);
+			const assignedSeat = typeof fsRes.assignedSeatIndex === "number" && fsRes.assignedSeatIndex >= 0 ? fsRes.assignedSeatIndex : req.seatIndex;
+			setSeats(nextSeats);
+			setSeatRequests(nextRequests);
+			syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
+			showToast(`Approved ${req.user.name} for Seat #${assignedSeat + 1}`);
+			return;
+		}
+		const srvRes = await serverPromise;
+		if (srvRes?.seats) {
+			const nextSeats = normalizeSeats(srvRes.seats, maxSeats);
+			const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
 			setSeats(nextSeats);
 			setSeatRequests(nextRequests);
 			syncRoom(nextSeats, nextRequests);
-			showToast(`Approved ${req.user.name} for Seat #${req.seatIndex + 1}`);
-		} catch {
-			const updated = [...seats];
-			const prevIdx = updated.findIndex((s) => s?.id === req.user.id);
-			if (prevIdx !== -1) updated[prevIdx] = null;
-			let targetIdx = req.seatIndex;
-			if (updated[targetIdx] !== null) {
-				const emptyIdx = updated.findIndex((s) => s === null);
-				if (emptyIdx === -1) {
-					showToast("All seats are currently full");
-					return;
-				}
-				targetIdx = emptyIdx;
-			}
-			updated[targetIdx] = req.user;
-			const nextRequests = seatRequests.filter((r) => r.id !== req.id);
-			setSeats(updated);
-			setSeatRequests(nextRequests);
-			syncRoom(updated, nextRequests);
+			showToast(`Approved ${req.user.name} for Seat #${(srvRes.seatIndex ?? req.seatIndex) + 1}`);
+			return;
 		}
+		const updated = [...seats];
+		const prevIdx = updated.findIndex((s) => s?.id === req.user.id);
+		if (prevIdx !== -1) updated[prevIdx] = null;
+		let targetIdx = req.seatIndex;
+		if (updated[targetIdx] !== null) {
+			const emptyIdx = updated.findIndex((s) => s === null);
+			if (emptyIdx === -1) {
+				showToast(fsRes.error || "All seats are currently full");
+				return;
+			}
+			targetIdx = emptyIdx;
+		}
+		updated[targetIdx] = req.user;
+		const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
+		setSeats(updated);
+		setSeatRequests(nextRequests);
+		syncRoom(updated, nextRequests);
+		showToast(`Approved ${req.user.name} for Seat #${targetIdx + 1}`);
 	};
 	const handleRejectSeatRequest = async (req) => {
-		try {
-			await roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, false, req.seatIndex);
-		} catch {}
-		const nextRequests = seatRequests.filter((r) => r.id !== req.id);
+		const fsRes = await respondFirestoreSeatRequest(room.id, req.user, false, req.seatIndex, maxSeats);
+		roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, false, req.seatIndex, req.user).catch(() => null);
+		const nextRequests = fsRes.success && Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests.filter((r) => r.user.id !== req.user.id);
 		setSeatRequests(nextRequests);
-		syncRoom(seats, nextRequests);
+		syncRoom(seats, nextRequests, void 0, void 0, void 0, fsRes.success);
 		showToast(`Declined request from ${req.user.name}`);
 	};
 	const handleToggleSeatMute = async (seatIndex) => {
@@ -115925,21 +116781,22 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const nextMuted = await liveAndRoomService.muteRoomSeat(room.id, currentUser.id, seatIndex, !currentlyMuted);
 			setMutedSeatIndices(nextMuted);
 			showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
-		} catch (err) {
-			showToast(err?.message || "Failed to update seat mute");
+		} catch {
+			const nextMuted = currentlyMuted ? mutedSeatIndices.filter((i) => i !== seatIndex) : [...mutedSeatIndices, seatIndex];
+			setMutedSeatIndices(nextMuted);
+			syncFirestorePartyRoomState(room.id, true, { mutedSeatIndices: nextMuted });
+			showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
 		}
 	};
 	const handleRemoveMember = async () => {
 		if (!selectedSeatMember) return;
 		const idx = selectedSeatMember.index;
 		const member = selectedSeatMember.user;
-		try {
-			await roomService.removeSeat(room.id, currentUser.id, idx);
-		} catch {}
-		const updated = [...seats];
-		updated[idx] = null;
+		const fsRes = await vacateFirestoreSeat(room.id, member.id, idx, maxSeats);
+		roomService.removeSeat(room.id, currentUser.id, idx).catch(() => null);
+		const updated = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : seats.map((s, i) => i === idx ? null : s);
 		setSeats(updated);
-		syncRoom(updated);
+		syncRoom(updated, void 0, void 0, void 0, void 0, fsRes.success);
 		setSelectedSeatMember(null);
 		showToast(`Removed ${member.name} from Seat #${idx + 1}`);
 	};
@@ -115947,34 +116804,50 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		if (showInviteToSeatModal === null) return;
 		const targetSeat = showInviteToSeatModal;
 		setShowInviteToSeatModal(null);
-		try {
-			const nextSeats = normalizeSeats(await liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser), maxSeats);
+		const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
+		liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch(() => null);
+		if (fsRes.success && Array.isArray(fsRes.seats)) {
+			const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
+			const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
 			setSeats(nextSeats);
-			syncRoom(nextSeats);
-			showToast(`Invited ${targetUser.name} to Seat #${targetSeat + 1}`);
-		} catch (err) {
-			showToast(err?.message || "Failed to assign seat");
+			setSeatRequests(nextRequests);
+			syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
+			showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+			return;
 		}
+		const updated = [...seats];
+		const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
+		if (prevIdx !== -1) updated[prevIdx] = null;
+		updated[targetSeat] = targetUser;
+		setSeats(updated);
+		syncRoom(updated);
+		showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
 	};
 	const handleAcceptSeatInvitation = async () => {
 		if (!incomingSeatInvite) return;
 		const idx = incomingSeatInvite.seatIndex;
-		const updated = [...seats];
-		const prevSeat = updated.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
-		if (prevSeat !== -1) updated[prevSeat] = null;
-		updated[idx] = incomingSeatInvite.toUser;
+		const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
+		const updated = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : (() => {
+			const copy = [...seats];
+			const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
+			if (prevSeat !== -1) copy[prevSeat] = null;
+			copy[idx] = incomingSeatInvite.toUser;
+			return copy;
+		})();
 		setSeats(updated);
-		syncRoom(updated);
+		syncRoom(updated, void 0, void 0, void 0, void 0, fsRes.success);
 		showToast(`Joined Seat #${idx + 1}`);
 		setIncomingSeatInvite(null);
 	};
 	const handleOwnerTakeSeat = async (index) => {
 		setShowOwnerSeatChoice(null);
-		try {
-			const nextSeats = normalizeSeats(await liveAndRoomService.takeSeatDirect(room.id, currentUser.id, index, currentUser), maxSeats);
+		const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
+		liveAndRoomService.takeSeatDirect(room.id, currentUser.id, index, currentUser).catch(() => null);
+		if (fsRes.success && Array.isArray(fsRes.seats)) {
+			const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
 			setSeats(nextSeats);
-			syncRoom(nextSeats);
-		} catch {
+			syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
+		} else {
 			const updated = [...seats];
 			const prevSeat = updated.findIndex((s) => s?.id === currentUser.id);
 			if (prevSeat !== -1) updated[prevSeat] = null;
@@ -115987,23 +116860,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const handleLeaveSeat = async (index) => {
 		setShowMySeatModal(null);
 		setShowExitRoomModal(false);
-		try {
-			const returnedSeats = await liveAndRoomService.leaveOwnSeat(room.id, currentUser.id);
-			const nextSeats = returnedSeats.length > 0 ? normalizeSeats(returnedSeats, maxSeats) : seats.map((s, i) => i === index ? null : s);
-			setSeats(nextSeats);
-			syncRoom(nextSeats);
-		} catch {
-			const updated = [...seats];
-			updated[index] = null;
-			setSeats(updated);
-			syncRoom(updated);
-		}
+		const fsRes = await vacateFirestoreSeat(room.id, currentUser.id, index, maxSeats);
+		liveAndRoomService.leaveOwnSeat(room.id, currentUser.id).catch(() => []);
+		const nextSeats = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : seats.map((s, i) => i === index ? null : s);
+		setSeats(nextSeats);
+		syncRoom(nextSeats, void 0, void 0, void 0, void 0, fsRes.success);
 		showToast(`Stepped down from Seat #${index + 1}`);
 	};
 	const handleSendMessage = async (e) => {
 		if (e) e.preventDefault();
 		const text = inputMessage.trim();
 		if (!text) return;
+		if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
+			showToast("You are blocked from chatting in this room.");
+			return;
+		}
 		setInputMessage("");
 		setShowEmojiPicker(false);
 		let saved = null;
@@ -116011,7 +116882,12 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const backendSaved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
 			saved = backendSaved;
 			sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id);
-		} catch {
+		} catch (err) {
+			const errMsg = String(err?.message || err || "");
+			if (/block|403|forbidden/i.test(errMsg)) {
+				showToast("You are blocked from chatting in this room.");
+				return;
+			}
 			const fallbackId = `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 			saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId);
 		}
@@ -116032,6 +116908,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}
 	};
 	const handleTriggerHeart = () => {
+		if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
+			showToast("You cannot interact with this room.");
+			return;
+		}
 		const newHeart = {
 			id: Date.now() + Math.random(),
 			x: 75 + Math.random() * 15,
@@ -116282,6 +117162,67 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Tap to Enable Party Voice Audio" })]
 						})
 					}),
+					isRoomHost && seatRequests.length > 0 && (() => {
+						const latestReq = seatRequests[seatRequests.length - 1];
+						if (!latestReq?.user) return null;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "max-w-md mx-auto w-full rounded-2xl bg-gradient-to-r from-[#281146]/95 via-[#3B135C]/95 to-[#281146]/95 border border-[#FA26A0]/60 shadow-[0_0_24px_rgba(250,38,160,0.3)] px-3 py-2 flex items-center justify-between gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-full overflow-hidden border-2 border-[#FA26A0] bg-[#160A2B] shrink-0 flex items-center justify-center",
+									children: latestReq.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										src: latestReq.user.avatar,
+										alt: latestReq.user.name,
+										className: "w-full h-full object-cover"
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-black text-white",
+										children: (latestReq.user.name || "U").charAt(0).toUpperCase()
+									})
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs font-black text-white truncate",
+										children: latestReq.user.name
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+										className: "text-[10px] font-bold text-[#FFD166] truncate",
+										children: [
+											"Wants Seat #",
+											latestReq.seatIndex + 1,
+											seatRequests.length > 1 ? ` • +${seatRequests.length - 1} waiting` : ""
+										]
+									})]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-1.5 shrink-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => void handleAcceptSeatRequest(latestReq),
+										className: "px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-[#051B14] text-[11px] font-black flex items-center gap-1 shadow active:scale-95 transition-transform",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5 stroke-[3]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Accept" })]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => void handleRejectSeatRequest(latestReq),
+										"aria-label": "Decline seat request",
+										className: "w-7 h-7 rounded-xl bg-white/10 hover:bg-rose-500/30 border border-white/15 text-white/80 flex items-center justify-center active:scale-95 transition-transform",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+									}),
+									seatRequests.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setShowSeatRequestsModal(true),
+										className: "px-2 py-1.5 rounded-xl bg-[#FA26A0]/25 border border-[#FA26A0]/50 text-[#FFB3DE] text-[10px] font-black active:scale-95",
+										children: [
+											"All (",
+											seatRequests.length,
+											")"
+										]
+									})
+								]
+							})]
+						});
+					})(),
 					isCurrentlySeated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "max-w-md mx-auto w-full flex items-center justify-center gap-2",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
@@ -118720,7 +119661,7 @@ var QUICK_EMOJIS = [
 	"😢",
 	"🙏"
 ];
-var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavigate, onSelectUser, onOpenGiftShop, activeChatUser: initialActiveUser, onCloseChat }) => {
+var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavigate, onSelectUser, onOpenGiftShop, activeChatUser: initialActiveUser, onCloseChat, blockedUsers: persistedBlockedRecords = [], blockedByUserIds = [], onBlockUser, onUnblockUser }) => {
 	const [activeTab, setActiveTab] = (0, import_react.useState)("all");
 	const [callToast, setCallToast] = (0, import_react.useState)(null);
 	const [conversationsList, setConversationsList] = (0, import_react.useState)(() => initialConversations.map((c) => ({
@@ -118767,7 +119708,14 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 	const [newGroupDesc, setNewGroupDesc] = (0, import_react.useState)("");
 	const [selectedGroupMembers, setSelectedGroupMembers] = (0, import_react.useState)([]);
 	const [messageRequests, setMessageRequests] = (0, import_react.useState)([]);
-	const [blockedUsers, setBlockedUsers] = (0, import_react.useState)([]);
+	const [localBlockedUsers, setLocalBlockedUsers] = (0, import_react.useState)([]);
+	const blockedUsers = persistedBlockedRecords.length > 0 || onBlockUser ? persistedBlockedRecords.map(blockedRecordToUserProfile) : localBlockedUsers;
+	const blockedUserIdSet = new Set(blockedUsers.map((u) => u.id));
+	const blockedByIdSet = new Set(blockedByUserIds);
+	const activeDirectUserId = selectedConversation && selectedConversation.type !== "group" ? selectedConversation.user.id : null;
+	const isSelectedBlockedByMe = Boolean(activeDirectUserId && blockedUserIdSet.has(activeDirectUserId));
+	const isSelectedBlockedMe = Boolean(activeDirectUserId && blockedByIdSet.has(activeDirectUserId));
+	const isSelectedChatBlocked = isSelectedBlockedByMe || isSelectedBlockedMe;
 	const messagesEndRef = (0, import_react.useRef)(null);
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118778,6 +119726,11 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 	const handleSendMessage = async (e) => {
 		if (e) e.preventDefault();
 		if (!inputText.trim() || !selectedConversation) return;
+		if (isSelectedChatBlocked) {
+			setCallToast(isSelectedBlockedByMe ? "Unblock this user to send messages." : "You cannot send messages to this user.");
+			setTimeout(() => setCallToast(null), 2600);
+			return;
+		}
 		if (editingMessageId) {
 			await editChatMessage(selectedConversation.id, editingMessageId, inputText.trim());
 			setMessages((prev) => prev.map((m) => m.id === editingMessageId ? {
@@ -118814,6 +119767,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 			senderName: currentUser.name,
 			senderAvatar: currentUser.avatar,
 			senderVip: currentUser.vipLevel,
+			recipientId: activeDirectUserId || void 0,
 			type: "text",
 			replyTo: replyingTo || void 0
 		});
@@ -118824,6 +119778,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 		} : c));
 	};
 	const handleStartVoiceRecord = () => {
+		if (isSelectedChatBlocked) return;
 		setIsRecordingVoice(true);
 		setRecordingSeconds(0);
 		recordingTimerRef.current = setInterval(() => {
@@ -118833,7 +119788,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 	const handleStopAndSendVoice = async () => {
 		if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
 		setIsRecordingVoice(false);
-		if (!selectedConversation) return;
+		if (!selectedConversation || isSelectedChatBlocked) return;
 		const duration = Math.max(recordingSeconds, 2);
 		const waveform = Array.from({ length: 16 }, () => Math.floor(Math.random() * 65) + 35);
 		const voiceMsg = {
@@ -118858,6 +119813,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 			senderId: currentUser.id,
 			senderName: currentUser.name,
 			senderAvatar: currentUser.avatar,
+			recipientId: activeDirectUserId || void 0,
 			type: "voice",
 			voiceDuration: duration,
 			voiceWaveform: waveform
@@ -118869,7 +119825,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 		setRecordingSeconds(0);
 	};
 	const handleSendMedia = async (type) => {
-		if (!selectedConversation) return;
+		if (!selectedConversation || isSelectedChatBlocked) return;
 		setIsAttachmentOpen(false);
 		let mediaUrl = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80";
 		let text = "📷 Photo";
@@ -118901,6 +119857,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 				senderId: currentUser.id,
 				senderName: currentUser.name,
 				senderAvatar: currentUser.avatar,
+				recipientId: activeDirectUserId || void 0,
 				type: "room_invite",
 				roomInvite: inviteMsg.roomInvite
 			});
@@ -118927,6 +119884,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 			senderId: currentUser.id,
 			senderName: currentUser.name,
 			senderAvatar: currentUser.avatar,
+			recipientId: activeDirectUserId || void 0,
 			type,
 			mediaUrl
 		});
@@ -119007,12 +119965,14 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 	const handleDeleteRequest = (reqId) => {
 		setMessageRequests((prev) => prev.filter((r) => r.id !== reqId));
 	};
-	const handleBlockFromRequest = (req) => {
+	const handleBlockFromRequest = async (req) => {
 		setMessageRequests((prev) => prev.filter((r) => r.id !== req.id));
-		setBlockedUsers((prev) => [...prev, req.user]);
+		if (onBlockUser) await onBlockUser(req.user);
+		else setLocalBlockedUsers((prev) => prev.some((u) => u.id === req.user.id) ? prev : [...prev, req.user]);
 	};
-	const handleUnblockUser = (userId) => {
-		setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+	const handleUnblockUser = async (userId, userName) => {
+		if (onUnblockUser) await onUnblockUser(userId, userName);
+		else setLocalBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
 	};
 	const handleCreateGroup = () => {
 		if (!newGroupName.trim()) return;
@@ -119050,6 +120010,10 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 	};
 	const getFilteredConversations = () => {
 		return conversationsList.filter((conv) => {
+			if (conv.type !== "group") {
+				const uid = conv.user?.id;
+				if (uid && (blockedUserIdSet.has(uid) || blockedByIdSet.has(uid))) return false;
+			}
 			if (!(!searchQuery || (conv.type === "group" ? conv.group?.name.toLowerCase().includes(searchQuery.toLowerCase()) : conv.user.name.toLowerCase().includes(searchQuery.toLowerCase())))) return false;
 			if (activeTab === "all") return !conv.isArchived;
 			if (activeTab === "personal") return conv.type !== "group" && !conv.isArchived;
@@ -119199,7 +120163,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-1 sm:gap-2",
-								children: [
+								children: [!isSelectedChatBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 										onClick: () => onOpenGiftShop(selectedConversation.user),
 										className: "p-2 rounded-xl bg-gradient-to-r from-[#F328D5]/20 to-[#8B20FF]/20 text-[#F328D5] hover:bg-[#F328D5]/30 transition-colors",
@@ -119224,7 +120188,24 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 										title: "Video Call",
 										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Video, { className: "w-4 h-4" })
 									})
-								]
+								] }), selectedConversation.type !== "group" && selectedConversation.user.id !== currentUser.id && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: async () => {
+										if (isSelectedBlockedByMe) {
+											await handleUnblockUser(selectedConversation.user.id, selectedConversation.user.name);
+											setCallToast(`Unblocked ${selectedConversation.user.name}`);
+										} else if (onBlockUser) {
+											await onBlockUser(selectedConversation.user);
+											setCallToast(`Blocked ${selectedConversation.user.name}`);
+										} else {
+											setLocalBlockedUsers((prev) => prev.some((u) => u.id === selectedConversation.user.id) ? prev : [...prev, selectedConversation.user]);
+											setCallToast(`Blocked ${selectedConversation.user.name}`);
+										}
+										setTimeout(() => setCallToast(null), 2500);
+									},
+									className: `p-2 rounded-xl transition-colors ${isSelectedBlockedByMe ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30" : "bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"}`,
+									title: isSelectedBlockedByMe ? "Unblock User" : "Block User",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserX, { className: "w-4 h-4" })
+								})]
 							})]
 						}),
 						callToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -119542,7 +120523,20 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 								})
 							]
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						isSelectedChatBlocked ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-3.5 bg-rose-950/35 border-t border-rose-500/30 flex items-center justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserX, { className: "w-4 h-4 text-rose-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-rose-200 font-medium truncate",
+									children: isSelectedBlockedByMe ? `You blocked ${selectedConversation.user.name}. Unblock to message or interact.` : "You cannot message or interact with this user."
+								})]
+							}), isSelectedBlockedByMe && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => handleUnblockUser(selectedConversation.user.id, selectedConversation.user.name),
+								className: "shrink-0 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white border border-white/15 transition-colors",
+								children: "Unblock"
+							})]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "p-3 bg-[#170e28] border-t border-white/[0.08] flex items-center gap-2",
 							children: isRecordingVoice ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex-1 flex items-center justify-between px-3 py-2 rounded-2xl bg-rose-950/40 border border-rose-500/40",
@@ -119697,7 +120691,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 										children: ["ID: ", u.displayId]
 									})] })]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => handleUnblockUser(u.id),
+									onClick: () => handleUnblockUser(u.id, u.name),
 									className: "px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-colors",
 									children: "Unblock"
 								})]
@@ -125497,8 +126491,142 @@ var AgencyCenterModal = ({ isOpen, onClose, currentUser, initialMode = "center",
 		})
 	});
 };
+// src/components/profile/BlockedUsersModal.tsx
+var BlockedUsersModal = ({ isOpen, onClose, blockedUsers, onUnblock }) => {
+	const [search, setSearch] = (0, import_react.useState)("");
+	const [unblockingId, setUnblockingId] = (0, import_react.useState)(null);
+	const filtered = (0, import_react.useMemo)(() => {
+		const q = search.trim().toLowerCase();
+		if (!q) return blockedUsers;
+		return blockedUsers.filter((u) => u.blockedUserName.toLowerCase().includes(q) || (u.blockedUserUsername || "").toLowerCase().includes(q) || (u.blockedUserDisplayId || "").toLowerCase().includes(q));
+	}, [blockedUsers, search]);
+	if (!isOpen) return null;
+	const handleUnblockClick = async (record) => {
+		if (unblockingId) return;
+		setUnblockingId(record.blockedUserId);
+		try {
+			await onUnblock(record.blockedUserId, record.blockedUserName);
+		} finally {
+			setUnblockingId(null);
+		}
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md",
+		onClick: onClose,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "w-full max-w-md max-h-[82vh] flex flex-col rounded-3xl bg-[#130824] border border-white/15 shadow-2xl overflow-hidden",
+			onClick: (e) => e.stopPropagation(),
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-5 py-4 border-b border-white/10 flex items-center justify-between gap-3 bg-gradient-to-r from-[#1E0C3A] to-[#130824]",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-9 h-9 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center text-rose-400",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+							className: "text-sm font-black text-white font-display",
+							children: [
+								"Blocked Users (",
+								blockedUsers.length,
+								")"
+							]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[11px] text-[#B9AECF]",
+							children: "Blocked users cannot join your streams, rooms, or message you."
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: onClose,
+						"aria-label": "Close Blocked Users",
+						className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+					})]
+				}),
+				blockedUsers.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "px-4 pt-3 pb-2",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "relative",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "w-4 h-4 text-[#B9AECF] absolute left-3 top-1/2 -translate-y-1/2" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+							value: search,
+							onChange: (e) => setSearch(e.target.value),
+							placeholder: "Search blocked users by name or ID...",
+							className: "w-full pl-9 pr-3 py-2 rounded-xl bg-black/35 border border-white/10 text-xs text-white placeholder-[#9B8DB8] focus:outline-none focus:border-rose-400/50"
+						})]
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex-1 overflow-y-auto p-4 space-y-2.5",
+					children: filtered.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-12 px-4 text-center space-y-2.5",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-400/25 flex items-center justify-center mx-auto text-emerald-400",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-6 h-6" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-sm font-bold text-white",
+								children: blockedUsers.length === 0 ? "No Blocked Users" : "No matching blocked users"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] max-w-xs mx-auto leading-relaxed",
+								children: blockedUsers.length === 0 ? "Users you block from their profile, live stream, room, or messages will appear here so you can manage them anytime." : "Try a different name or Lenzo ID."
+							})
+						]
+					}) : filtered.map((item) => {
+						const initials = (item.blockedUserName || "U").slice(0, 2).toUpperCase();
+						const isBusy = unblockingId === item.blockedUserId;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08]",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-11 h-11 rounded-full overflow-hidden bg-[#241242] border border-rose-400/30 flex items-center justify-center shrink-0",
+									children: item.blockedUserAvatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										src: item.blockedUserAvatar,
+										alt: item.blockedUserName,
+										referrerPolicy: "no-referrer",
+										className: "w-full h-full object-cover"
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-black text-rose-200",
+										children: initials
+									})
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-extrabold text-white truncate",
+												children: item.blockedUserName
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserX, { className: "w-3 h-3 text-rose-400 shrink-0" })]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "text-[10px] text-[#B9AECF] font-mono truncate",
+											children: item.blockedUserUsername || `ID: ${item.blockedUserDisplayId || item.blockedUserId.slice(0, 8)}`
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "text-[10px] text-[#8E7FA8] mt-0.5",
+											children: ["Blocked ", new Date(item.createdAt).toLocaleDateString()]
+										})
+									]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								disabled: isBusy,
+								onClick: () => void handleUnblockClick(item),
+								className: "px-3 py-1.5 rounded-xl bg-white/10 hover:bg-emerald-500/20 border border-white/15 hover:border-emerald-400/45 text-[11px] font-bold text-white hover:text-emerald-200 flex items-center gap-1 shrink-0 active:scale-95 transition-all disabled:opacity-50",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LockOpen, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isBusy ? "..." : "Unblock" })]
+							})]
+						}, item.id);
+					})
+				})
+			]
+		})
+	});
+};
 // src/components/screens/ProfileScreen.tsx
-var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, onOpenAdminPanel, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift }) => {
+var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUsers = [], blockedByUserIds = [], onBlockUser, onUnblockUser, onUpdateProfile, onNavigate, onOpenWallet, onOpenVIP, onOpenLevelVIP, onOpenAdminPanel, userVideos = [], onOpenUploadVideo, onDeleteVideo, onBack, onSelectUser, onSendMessage, onSendGift }) => {
 	const isOwner = !viewingUser || viewingUser.id === currentUser.id;
 	const activeUser = isOwner ? currentUser : viewingUser;
 	const [activeTab, setActiveTab] = (0, import_react.useState)("public");
@@ -125510,6 +126638,20 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 	const [isAchievementsOpen, setIsAchievementsOpen] = (0, import_react.useState)(false);
 	const [isAgencyModalOpen, setIsAgencyModalOpen] = (0, import_react.useState)(false);
 	const [agencyModalMode, setAgencyModalMode] = (0, import_react.useState)("center");
+	const [isBlockedUsersModalOpen, setIsBlockedUsersModalOpen] = (0, import_react.useState)(false);
+	const [showBlockConfirmModal, setShowBlockConfirmModal] = (0, import_react.useState)(false);
+	const [isBlockBusy, setIsBlockBusy] = (0, import_react.useState)(false);
+	const isTargetBlockedByMe = (0, import_react.useMemo)(() => !isOwner && blockedUsers.some((b) => b.blockedUserId === activeUser.id), [
+		isOwner,
+		blockedUsers,
+		activeUser.id
+	]);
+	const isCurrentUserBlockedByTarget = (0, import_react.useMemo)(() => !isOwner && blockedByUserIds.includes(activeUser.id), [
+		isOwner,
+		blockedByUserIds,
+		activeUser.id
+	]);
+	const isInteractionBlocked = isTargetBlockedByMe || isCurrentUserBlockedByTarget;
 	const [uploadingMedia, setUploadingMedia] = (0, import_react.useState)(null);
 	const quickAvatarInputRef = (0, import_react.useRef)(null);
 	const quickCoverInputRef = (0, import_react.useRef)(null);
@@ -125658,6 +126800,10 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 	};
 	const handleToggleFollow = async () => {
 		if (isOwner) return;
+		if (isInteractionBlocked) {
+			showToast(isTargetBlockedByMe ? `Unblock ${activeUser.name} first to follow them.` : "You cannot interact with this profile.");
+			return;
+		}
 		try {
 			const res = await profileService.toggleFollow(activeUser.id, currentUser.id);
 			setIsFollowingTarget(res.isFollowing);
@@ -125665,6 +126811,40 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 			showToast(res.isFollowing ? `Following ${activeUser.name}` : `Unfollowed ${activeUser.name}`);
 		} catch (err) {
 			showToast(err?.message || "Could not update follow status.");
+		}
+	};
+	const handleConfirmBlockTarget = async () => {
+		if (isOwner || isBlockBusy) return;
+		setIsBlockBusy(true);
+		try {
+			if (onBlockUser) await onBlockUser(activeUser);
+			else await blockUser({
+				blockerId: currentUser.id,
+				targetUser: activeUser
+			});
+			setIsFollowingTarget(false);
+			setShowBlockConfirmModal(false);
+			showToast(`${activeUser.name} has been blocked. They can no longer join your streams, rooms, or message you.`);
+		} catch {
+			showToast("Could not block user right now.");
+		} finally {
+			setIsBlockBusy(false);
+		}
+	};
+	const handleUnblockTarget = async (targetId, targetName) => {
+		if (isBlockBusy) return;
+		setIsBlockBusy(true);
+		try {
+			if (onUnblockUser) await onUnblockUser(targetId, targetName);
+			else await unblockUser({
+				blockerId: currentUser.id,
+				targetUserId: targetId
+			});
+			showToast(`${targetName} has been unblocked.`);
+		} catch {
+			showToast("Could not unblock user right now.");
+		} finally {
+			setIsBlockBusy(false);
 		}
 	};
 	const handleToggleEquipBadge = async (badgeId) => {
@@ -125867,6 +127047,54 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 					showToast(updated.agencyName ? `Agency synced: ${updated.agencyName}` : "Agency membership updated");
 				}
 			}),
+			isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BlockedUsersModal, {
+				isOpen: isBlockedUsersModalOpen,
+				onClose: () => setIsBlockedUsersModalOpen(false),
+				blockedUsers,
+				onUnblock: (uid, uname) => handleUnblockTarget(uid, uname)
+			}),
+			!isOwner && showBlockConfirmModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+				onClick: () => !isBlockBusy && setShowBlockConfirmModal(false),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "w-full max-w-xs bg-[#140B24] border border-rose-500/35 rounded-3xl p-5 text-center space-y-3.5 shadow-2xl",
+					onClick: (e) => e.stopPropagation(),
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/35 text-rose-400 flex items-center justify-center mx-auto",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-5 h-5" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", {
+							className: "text-base font-extrabold text-white",
+							children: [
+								"Block ",
+								activeUser.name,
+								"?"
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-[#C4B8DE] leading-relaxed",
+							children: "They will be immediately removed and prevented from joining your live streams, entering your party rooms, commenting, gifting, or sending you direct messages."
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex gap-2 pt-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isBlockBusy,
+								onClick: () => setShowBlockConfirmModal(false),
+								className: "flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold disabled:opacity-50",
+								children: "Cancel"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isBlockBusy,
+								onClick: () => void handleConfirmBlockTarget(),
+								className: "flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold disabled:opacity-50",
+								children: isBlockBusy ? "Blocking..." : "Block User"
+							})]
+						})
+					]
+				})
+			}),
 			videoToDelete && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
 				onClick: () => setVideoToDelete(null),
@@ -125985,154 +127213,200 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 				className: "max-w-5xl mx-auto",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 					className: "relative",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative h-44 sm:h-56 w-full overflow-hidden sm:rounded-b-3xl bg-gradient-to-br from-[#2B1055] via-[#4C1784] to-[#170929] border-b border-white/[0.08]",
-						children: [
-							activeUser.coverImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-								src: activeUser.coverImage,
-								alt: `${activeUser.name} cover`,
-								className: "w-full h-full object-cover"
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "absolute inset-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#FA26A0]/20 blur-3xl" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -bottom-24 -left-16 w-72 h-72 rounded-full bg-[#8B20FF]/25 blur-3xl" })]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-[#090611] via-[#090611]/35 to-black/35" }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "flex items-center gap-2",
-									children: !isOwner && onBack ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										onClick: onBack,
-										"aria-label": "Go Back",
-										className: "min-h-[44px] min-w-[44px] rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-transform",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-4 h-4" })
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-extrabold tracking-wide text-white",
-										children: "LENZO PROFILE"
-									})
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-2",
-									children: [
-										isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-											onClick: () => quickCoverInputRef.current?.click(),
-											className: "h-10 px-3.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all",
-											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Image$1, { className: "w-3.5 h-3.5 text-[#FA26A0]" }),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "hidden sm:inline",
-													children: "Change Cover"
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "sm:hidden",
-													children: "Cover"
-												})
-											]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-											onClick: () => setIsShareModalOpen(true),
-											"aria-label": "Share Profile",
-											className: "min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Share2, { className: "w-4 h-4" })
-										}),
-										isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-											onClick: () => onNavigate("settings"),
-											"aria-label": "Settings",
-											className: "min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Settings, { className: "w-4 h-4" })
-										})
-									]
-								})]
-							}),
-							uploadingMedia?.type === "cover" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-44 h-2 rounded-full bg-white/15 overflow-hidden",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "h-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] transition-all",
-										style: { width: `${uploadingMedia.progress}%` }
-									})
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-xs font-bold text-white tabular-nums",
-									children: [
-										"Uploading cover (",
-										uploadingMedia.progress,
-										"%)"
-									]
-								})]
-							})
-						]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "px-4 sm:px-6 -mt-12 sm:-mt-14 relative z-20 flex items-end justify-between gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "relative shrink-0",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "relative h-44 sm:h-56 w-full overflow-hidden sm:rounded-b-3xl bg-gradient-to-br from-[#2B1055] via-[#4C1784] to-[#170929] border-b border-white/[0.08]",
 							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "rounded-full p-1 bg-[#090611]",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
-										src: activeUser.avatar,
-										name: activeUser.name,
-										level: fullProgression.currentLevel,
-										vipLevel: fullProgression.equippedVipFrame,
-										superVipLevel: fullProgression.equippedSuperVipFrame,
-										activeFrameType: fullProgression.activeFrameType,
-										isVIP: isVipMember,
-										size: "xl",
-										showFrame: true,
-										showVipBadge: false,
-										onClick: () => {
-											if (isOwner) quickAvatarInputRef.current?.click();
-										}
-									})
+								activeUser.coverImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: activeUser.coverImage,
+									alt: `${activeUser.name} cover`,
+									className: "w-full h-full object-cover"
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "absolute inset-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#FA26A0]/20 blur-3xl" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -bottom-24 -left-16 w-72 h-72 rounded-full bg-[#8B20FF]/25 blur-3xl" })]
 								}),
-								showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									title: isOnlineNow ? "Online" : "Offline",
-									className: `absolute top-2 right-2 w-3.5 h-3.5 rounded-full ring-2 ring-[#090611] ${isOnlineNow ? "bg-emerald-400" : "bg-slate-500"}`
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-[#090611] via-[#090611]/35 to-black/35" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "flex items-center gap-2",
+										children: !isOwner && onBack ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: onBack,
+											"aria-label": "Go Back",
+											className: "min-h-[44px] min-w-[44px] rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-transform",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-4 h-4" })
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-extrabold tracking-wide text-white",
+											children: "LENZO PROFILE"
+										})
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2",
+										children: [
+											isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => quickCoverInputRef.current?.click(),
+												className: "h-10 px-3.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Image$1, { className: "w-3.5 h-3.5 text-[#FA26A0]" }),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "hidden sm:inline",
+														children: "Change Cover"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "sm:hidden",
+														children: "Cover"
+													})
+												]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => setIsShareModalOpen(true),
+												"aria-label": "Share Profile",
+												className: "min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Share2, { className: "w-4 h-4" })
+											}),
+											isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												onClick: () => setIsBlockedUsersModalOpen(true),
+												"aria-label": "Blocked Users",
+												title: "Manage Blocked Users",
+												className: "relative min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-rose-500/25 backdrop-blur-md border border-white/15 hover:border-rose-400/45 flex items-center justify-center text-white active:scale-95 transition-all",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-4 h-4 text-rose-300" }), blockedUsers.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-600 text-[9px] font-black text-white flex items-center justify-center border border-[#090611]",
+													children: blockedUsers.length > 99 ? "99+" : blockedUsers.length
+												})]
+											}),
+											isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												onClick: () => onNavigate("settings"),
+												"aria-label": "Settings",
+												className: "min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Settings, { className: "w-4 h-4" })
+											})
+										]
+									})]
 								}),
-								isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => quickAvatarInputRef.current?.click(),
-									"aria-label": "Change Profile Picture",
-									className: "absolute bottom-0 right-0 w-9 h-9 rounded-full bg-gradient-to-tr from-[#8B20FF] to-[#FA26A0] text-white flex items-center justify-center shadow-lg ring-2 ring-[#090611] hover:scale-105 active:scale-95 transition-transform",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Camera, { className: "w-4 h-4" })
-								}),
-								uploadingMedia?.type === "avatar" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "absolute inset-0 rounded-full bg-black/75 flex items-center justify-center",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-xs font-mono font-bold text-white tabular-nums",
-										children: [uploadingMedia.progress, "%"]
-									})
+								uploadingMedia?.type === "cover" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "w-44 h-2 rounded-full bg-white/15 overflow-hidden",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "h-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] transition-all",
+											style: { width: `${uploadingMedia.progress}%` }
+										})
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-xs font-bold text-white tabular-nums",
+										children: [
+											"Uploading cover (",
+											uploadingMedia.progress,
+											"%)"
+										]
+									})]
 								})
 							]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "flex items-center gap-2 pb-1 flex-wrap justify-end",
-							children: isOwner ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => openAgencyCenter(hasAgency ? "center" : "join"),
-								className: "h-10 px-3.5 rounded-xl bg-[#1C0F33] hover:bg-[#271547] border border-[#A855F7]/40 text-white text-xs font-bold flex items-center gap-1.5 whitespace-nowrap active:scale-95 transition-all",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Building2, { className: "w-3.5 h-3.5 text-[#C084FC]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: hasAgency ? "Agency" : "Join Agency" })]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setIsEditModalOpen(true),
-								className: "h-10 px-4 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] hover:opacity-95 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-[#8B20FF]/25 whitespace-nowrap active:scale-95 transition-all",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PenLine, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Edit Profile" })]
-							})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: handleToggleFollow,
-									className: `h-10 px-4 rounded-xl text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all ${isFollowingTarget ? "bg-white/12 hover:bg-white/20 text-white border border-white/15" : "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-[#8B20FF]/25"}`,
-									children: isFollowingTarget ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-4 h-4 text-emerald-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Following" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Follow" })] })
-								}),
-								onSendMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => onSendMessage(activeUser),
-									"aria-label": "Message",
-									className: "h-10 w-10 rounded-xl bg-[#1B1030] hover:bg-[#271645] border border-white/10 flex items-center justify-center text-[#06B6D4]",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-4 h-4" })
-								}),
-								onSendGift && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => onSendGift(activeUser),
-									"aria-label": "Send Gift",
-									className: "h-10 w-10 rounded-xl bg-[#1B1030] hover:bg-[#271645] border border-white/10 flex items-center justify-center text-[#FA26A0]",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-4 h-4" })
-								})
-							] })
-						})]
-					})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "px-4 sm:px-6 -mt-12 sm:-mt-14 relative z-20 flex items-end justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative shrink-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "rounded-full p-1 bg-[#090611]",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+											src: activeUser.avatar,
+											name: activeUser.name,
+											level: fullProgression.currentLevel,
+											vipLevel: fullProgression.equippedVipFrame,
+											superVipLevel: fullProgression.equippedSuperVipFrame,
+											activeFrameType: fullProgression.activeFrameType,
+											isVIP: isVipMember,
+											size: "xl",
+											showFrame: true,
+											showVipBadge: false,
+											onClick: () => {
+												if (isOwner) quickAvatarInputRef.current?.click();
+											}
+										})
+									}),
+									showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										title: isOnlineNow ? "Online" : "Offline",
+										className: `absolute top-2 right-2 w-3.5 h-3.5 rounded-full ring-2 ring-[#090611] ${isOnlineNow ? "bg-emerald-400" : "bg-slate-500"}`
+									}),
+									isOwner && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => quickAvatarInputRef.current?.click(),
+										"aria-label": "Change Profile Picture",
+										className: "absolute bottom-0 right-0 w-9 h-9 rounded-full bg-gradient-to-tr from-[#8B20FF] to-[#FA26A0] text-white flex items-center justify-center shadow-lg ring-2 ring-[#090611] hover:scale-105 active:scale-95 transition-transform",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Camera, { className: "w-4 h-4" })
+									}),
+									uploadingMedia?.type === "avatar" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "absolute inset-0 rounded-full bg-black/75 flex items-center justify-center",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-xs font-mono font-bold text-white tabular-nums",
+											children: [uploadingMedia.progress, "%"]
+										})
+									})
+								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-center gap-2 pb-1 flex-wrap justify-end",
+								children: isOwner ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									onClick: () => openAgencyCenter(hasAgency ? "center" : "join"),
+									className: "h-10 px-3.5 rounded-xl bg-[#1C0F33] hover:bg-[#271547] border border-[#A855F7]/40 text-white text-xs font-bold flex items-center gap-1.5 whitespace-nowrap active:scale-95 transition-all",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Building2, { className: "w-3.5 h-3.5 text-[#C084FC]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: hasAgency ? "Agency" : "Join Agency" })]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									onClick: () => setIsEditModalOpen(true),
+									className: "h-10 px-4 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] hover:opacity-95 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-[#8B20FF]/25 whitespace-nowrap active:scale-95 transition-all",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PenLine, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Edit Profile" })]
+								})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+									!isInteractionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: handleToggleFollow,
+										className: `h-10 px-4 rounded-xl text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all ${isFollowingTarget ? "bg-white/12 hover:bg-white/20 text-white border border-white/15" : "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white shadow-lg shadow-[#8B20FF]/25"}`,
+										children: isFollowingTarget ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-4 h-4 text-emerald-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Following" })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Follow" })] })
+									}),
+									onSendMessage && !isInteractionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => onSendMessage(activeUser),
+										"aria-label": "Message",
+										className: "h-10 w-10 rounded-xl bg-[#1B1030] hover:bg-[#271645] border border-white/10 flex items-center justify-center text-[#06B6D4]",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-4 h-4" })
+									}),
+									onSendGift && !isInteractionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: () => onSendGift(activeUser),
+										"aria-label": "Send Gift",
+										className: "h-10 w-10 rounded-xl bg-[#1B1030] hover:bg-[#271645] border border-white/10 flex items-center justify-center text-[#FA26A0]",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-4 h-4" })
+									}),
+									isTargetBlockedByMe ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										disabled: isBlockBusy,
+										onClick: () => void handleUnblockTarget(activeUser.id, activeUser.name),
+										className: "h-10 px-3.5 rounded-xl bg-rose-500/20 hover:bg-emerald-500/20 border border-rose-400/50 hover:border-emerald-400/50 text-rose-200 hover:text-emerald-200 text-xs font-extrabold flex items-center gap-1.5 active:scale-95 transition-all disabled:opacity-50",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LockOpen, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isBlockBusy ? "Updating..." : "Unblock" })]
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setShowBlockConfirmModal(true),
+										"aria-label": "Block User",
+										title: `Block ${activeUser.name}`,
+										className: "h-10 px-3 rounded-xl bg-[#1B1030] hover:bg-rose-600/25 border border-white/10 hover:border-rose-400/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ban, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Block" })]
+									})
+								] })
+							})]
+						}),
+						!isOwner && isInteractionBlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "px-4 sm:px-6 mt-3",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl bg-rose-950/50 border border-rose-500/40 px-4 py-3 flex items-center justify-between gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldAlert, { className: "w-4 h-4 text-rose-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs text-rose-100 leading-snug",
+										children: isTargetBlockedByMe ? `You have blocked ${activeUser.name}. They cannot interact with your streams, party rooms, or messages.` : `You cannot follow, message, or interact with ${activeUser.name}.`
+									})]
+								}), isTargetBlockedByMe && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled: isBlockBusy,
+									onClick: () => void handleUnblockTarget(activeUser.id, activeUser.name),
+									className: "px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold shrink-0",
+									children: "Unblock"
+								})]
+							})
+						})
+					]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "px-4 sm:px-6 pt-4 grid grid-cols-1 lg:grid-cols-12 gap-5",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -126800,12 +128074,13 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 	});
 };
 // src/components/screens/SettingsScreen.tsx
-var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onOpenAdminProgression }) => {
+var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
 	const [darkMode, setDarkMode] = (0, import_react.useState)(true);
 	const [cacheSize, setCacheSize] = (0, import_react.useState)("12.5MB");
 	const [language, setLanguage] = (0, import_react.useState)("English");
 	const [showLanguageModal, setShowLanguageModal] = (0, import_react.useState)(false);
+	const [isBlockedModalOpen, setIsBlockedModalOpen] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const showToast = (msg) => {
 		setToastMessage(msg);
@@ -126988,7 +128263,7 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast("No blocked users currently on your account."),
+							onClick: () => setIsBlockedModalOpen(true),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
@@ -126996,7 +128271,22 @@ var SettingsScreen = ({ onNavigate, onLogout, onOpenWallet, isAdmin = false, onO
 									className: "text-sm font-semibold text-white",
 									children: "Blocked Users"
 								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs text-[#B9AECF]",
+									children: blockedUsers.length
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(BlockedUsersModal, {
+							isOpen: isBlockedModalOpen,
+							onClose: () => setIsBlockedModalOpen(false),
+							blockedUsers,
+							onUnblock: async (uid, uname) => {
+								if (onUnblockUser) await onUnblockUser(uid, uname);
+								showToast(`${uname} has been unblocked.`);
+							}
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							onClick: () => showToast("Lenzo Party Live v1.0.0 (Android Production Build com.lenzoparty.app)"),
@@ -134031,6 +135321,101 @@ function App() {
 	const [viewingProfileUser, setViewingProfileUser] = (0, import_react.useState)(null);
 	const [navigatingProfileUser, setNavigatingProfileUser] = (0, import_react.useState)(null);
 	const [activeChatUser, setActiveChatUser] = (0, import_react.useState)(null);
+	const [blockedUsers, setBlockedUsers] = (0, import_react.useState)([]);
+	const [blockedByUserIds, setBlockedByUserIds] = (0, import_react.useState)([]);
+	const [appToast, setAppToast] = (0, import_react.useState)(null);
+	const appToastTimerRef = (0, import_react.useRef)(null);
+	const showAppToast = (msg) => {
+		setAppToast(msg);
+		if (appToastTimerRef.current) clearTimeout(appToastTimerRef.current);
+		appToastTimerRef.current = setTimeout(() => setAppToast(null), 3200);
+	};
+	const blockedUserIds = blockedUsers.map((b) => b.blockedUserId);
+	const isBlockedByMe = (userId) => Boolean(userId && blockedUserIds.includes(userId));
+	const isBlockedByTarget = (userId) => Boolean(userId && blockedByUserIds.includes(userId));
+	const isBlockedRelationship = (userId) => isBlockedByMe(userId) || isBlockedByTarget(userId);
+	(0, import_react.useEffect)(() => {
+		const uid = currentUser?.id;
+		if (!uid) {
+			setBlockedUsers([]);
+			setBlockedByUserIds([]);
+			return;
+		}
+		const unsubByMe = subscribeBlockedByMe(uid, (records) => {
+			setBlockedUsers(records);
+		});
+		const unsubBlockedMe = subscribeBlockedMe(uid, (ids) => {
+			setBlockedByUserIds(ids);
+		});
+		const unsubWsBlocks = liveAndRoomService.addEventListener((event, payload) => {
+			if (event === "user:blocked_by" && payload?.blockerId) setBlockedByUserIds((prev) => prev.includes(payload.blockerId) ? prev : [...prev, payload.blockerId]);
+			else if (event === "user:unblocked_by" && payload?.blockerId) setBlockedByUserIds((prev) => prev.filter((id) => id !== payload.blockerId));
+		});
+		return () => {
+			unsubByMe();
+			unsubBlockedMe();
+			unsubWsBlocks();
+		};
+	}, [currentUser?.id]);
+	(0, import_react.useEffect)(() => {
+		if (activeLiveStream && activeLiveStream.host.id !== currentUser.id && blockedByUserIds.includes(activeLiveStream.host.id)) {
+			setActiveLiveStream(null);
+			setActivePKSession(null);
+			setCurrentScreen("home");
+			showAppToast("You can no longer view or interact with this live stream.");
+		}
+	}, [
+		activeLiveStream,
+		blockedByUserIds,
+		currentUser.id
+	]);
+	(0, import_react.useEffect)(() => {
+		if (activeAudioRoom && activeAudioRoom.host.id !== currentUser.id && blockedByUserIds.includes(activeAudioRoom.host.id)) {
+			setActiveAudioRoom(null);
+			setCurrentScreen("rooms");
+			showAppToast("You can no longer access or interact with this party room.");
+		}
+	}, [
+		activeAudioRoom,
+		blockedByUserIds,
+		currentUser.id
+	]);
+	const handleBlockUser = async (target) => {
+		if (!target?.id || target.id === currentUser.id) return;
+		const res = await blockUser({
+			blockerId: currentUser.id,
+			targetUser: target
+		});
+		if (res.record) {
+			const record = res.record;
+			setBlockedUsers((prev) => [record, ...prev.filter((item) => item.blockedUserId !== target.id)]);
+		}
+		setViewingProfileUser((prev) => prev && prev.id === target.id ? {
+			...prev,
+			isFollowing: false
+		} : prev);
+		setNavigatingProfileUser((prev) => prev && prev.id === target.id ? {
+			...prev,
+			isFollowing: false
+		} : prev);
+		setLiveStreams((prev) => prev.map((s) => s.host.id === target.id ? {
+			...s,
+			host: {
+				...s.host,
+				isFollowing: false
+			}
+		} : s));
+		showAppToast(`Blocked ${target.name}. They can no longer interact with your streams, rooms, or messages.`);
+	};
+	const handleUnblockUser = async (targetUserId, targetName) => {
+		if (!targetUserId) return;
+		await unblockUser({
+			blockerId: currentUser.id,
+			targetUserId
+		});
+		setBlockedUsers((prev) => prev.filter((item) => item.blockedUserId !== targetUserId));
+		showAppToast(`Unblocked ${targetName || "user"}.`);
+	};
 	const [isPKInviteModalOpen, setIsPKInviteModalOpen] = (0, import_react.useState)(false);
 	const [activePKSession, setActivePKSession] = (0, import_react.useState)(null);
 	const [incomingPKInvite, setIncomingPKInvite] = (0, import_react.useState)(null);
@@ -134591,10 +135976,18 @@ function App() {
 		setActiveAudioRoom(null);
 	};
 	const handleSelectLive = (stream) => {
+		if (stream.host.id !== currentUser.id && isBlockedRelationship(stream.host.id)) {
+			showAppToast(isBlockedByMe(stream.host.id) ? `Unblock ${stream.host.name} to view their live stream.` : "You cannot join or interact with this live stream.");
+			return;
+		}
 		setActiveLiveStream(stream);
 		setCurrentScreen("live_active");
 	};
 	const handleSelectRoom = (room) => {
+		if (room.host.id !== currentUser.id && isBlockedRelationship(room.host.id)) {
+			showAppToast(isBlockedByMe(room.host.id) ? `Unblock ${room.host.name} to join their party room.` : "You cannot join or interact with this party room.");
+			return;
+		}
 		setActiveAudioRoom(room);
 		setCurrentScreen("audio_room");
 	};
@@ -134774,6 +136167,11 @@ function App() {
 		}
 	};
 	const handleSendGift = async (gift, quantity, recipient) => {
+		if (recipient.id !== currentUser.id && isBlockedRelationship(recipient.id)) {
+			setIsGiftShopOpen(false);
+			showAppToast(isBlockedByMe(recipient.id) ? `Unblock ${recipient.name} to send gifts.` : "You cannot send gifts to this user.");
+			return;
+		}
 		const cost = gift.coins * quantity;
 		if (currentUser.coins >= cost) {
 			setCurrentUser((prev) => {
@@ -134905,6 +136303,10 @@ function App() {
 		});
 	};
 	const handleToggleFollow = async (userId) => {
+		if (userId !== currentUser.id && isBlockedRelationship(userId)) {
+			showAppToast("Cannot follow a blocked user.");
+			return;
+		}
 		try {
 			const result = await profileService.toggleFollow(userId, currentUser.id);
 			syncFirestoreFollow(currentUser.id, userId, result.isFollowing).catch(() => {});
@@ -134941,10 +136343,16 @@ function App() {
 		}
 	};
 	const handleSendMessageToUser = (user) => {
+		if (user.id !== currentUser.id && isBlockedRelationship(user.id)) {
+			showAppToast(isBlockedByMe(user.id) ? `Unblock ${user.name} to send messages.` : "You cannot send messages to this user.");
+			return;
+		}
 		setViewingProfileUser(null);
 		setActiveChatUser(user);
 		setCurrentScreen("messages");
 	};
+	const visibleLiveStreams = liveStreams.filter((s) => s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id));
+	const visiblePartyRooms = partyRooms.filter((r) => r.host.id === currentUser.id || !blockedByUserIds.includes(r.host.id));
 	const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 	const topHostsList = topBroadcasters.map((b) => b.user);
 	if (currentScreen === "splash") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SplashScreen, { onComplete: handleSplashComplete });
@@ -134974,7 +136382,9 @@ function App() {
 				activeGiftCelebration,
 				activePKSession,
 				onForfeitPK: handleForfeitPK,
-				onRematchPK: () => setIsPKInviteModalOpen(true)
+				onRematchPK: () => setIsPKInviteModalOpen(true),
+				blockedUserIds,
+				blockedByUserIds
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GiftShopModal, {
 				isOpen: isGiftShopOpen,
@@ -135016,6 +136426,7 @@ function App() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
 				user: viewingProfileUser,
+				currentUserId: currentUser.id,
 				isOpen: !!viewingProfileUser,
 				onClose: () => setViewingProfileUser(null),
 				onToggleFollow: handleToggleFollow,
@@ -135024,6 +136435,10 @@ function App() {
 					setGiftRecipient(u);
 					setIsGiftShopOpen(true);
 				},
+				isBlocked: isBlockedByMe(viewingProfileUser?.id),
+				isBlockedByTarget: isBlockedByTarget(viewingProfileUser?.id),
+				onBlockUser: handleBlockUser,
+				onUnblockUser: handleUnblockUser,
 				onViewFullProfile: (u) => {
 					setViewingProfileUser(null);
 					setActiveLiveStream(null);
@@ -135037,6 +136452,10 @@ function App() {
 				onClose: () => setIsWalletOpen(false),
 				currentUser,
 				onRechargeSuccess: handleRechargeSuccess
+			}),
+			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
+				children: appToast
 			})
 		]
 	});
@@ -135071,7 +136490,9 @@ function App() {
 				onOpenWallet: () => setIsWalletOpen(true),
 				onSelectUser: (u) => setViewingProfileUser(u),
 				onOpenPK: handleOpenPKFromNav,
-				activeGiftCelebration
+				activeGiftCelebration,
+				blockedUserIds,
+				blockedByUserIds
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GiftShopModal, {
 				isOpen: isGiftShopOpen,
@@ -135084,6 +136505,7 @@ function App() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
 				user: viewingProfileUser,
+				currentUserId: currentUser.id,
 				isOpen: !!viewingProfileUser,
 				onClose: () => setViewingProfileUser(null),
 				onToggleFollow: handleToggleFollow,
@@ -135092,6 +136514,10 @@ function App() {
 					setGiftRecipient(u);
 					setIsGiftShopOpen(true);
 				},
+				isBlocked: isBlockedByMe(viewingProfileUser?.id),
+				isBlockedByTarget: isBlockedByTarget(viewingProfileUser?.id),
+				onBlockUser: handleBlockUser,
+				onUnblockUser: handleUnblockUser,
 				onViewFullProfile: (u) => {
 					setViewingProfileUser(null);
 					setActiveAudioRoom(null);
@@ -135104,6 +136530,10 @@ function App() {
 				onClose: () => setIsWalletOpen(false),
 				currentUser,
 				onRechargeSuccess: handleRechargeSuccess
+			}),
+			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
+				children: appToast
 			})
 		]
 	});
@@ -135147,8 +136577,8 @@ function App() {
 					className: "flex-1 w-full",
 					children: [
 						currentScreen === "home" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HomeScreen, {
-							liveStreams,
-							partyRooms,
+							liveStreams: visibleLiveStreams,
+							partyRooms: visiblePartyRooms,
 							topHosts: topHostsList,
 							topBroadcasters,
 							onSelectLive: handleSelectLive,
@@ -135164,7 +136594,7 @@ function App() {
 							onToggleFollow: handleToggleFollow
 						}),
 						(currentScreen === "party" || currentScreen === "rooms") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RoomsScreen, {
-							partyRooms,
+							partyRooms: visiblePartyRooms,
 							onSelectRoom: handleSelectRoom,
 							onNavigate: (s) => setCurrentScreen(s),
 							onOpenCreateRoom: () => setCurrentScreen("create_room"),
@@ -135211,7 +136641,11 @@ function App() {
 								setIsGiftShopOpen(true);
 							},
 							activeChatUser,
-							onCloseChat: () => setActiveChatUser(null)
+							onCloseChat: () => setActiveChatUser(null),
+							blockedUsers,
+							blockedByUserIds,
+							onBlockUser: handleBlockUser,
+							onUnblockUser: handleUnblockUser
 						}),
 						currentScreen === "videos" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VideoFeedScreen, {
 							videos,
@@ -135277,14 +136711,20 @@ function App() {
 							userVideos: videos,
 							onSelectVideo: (_v) => setCurrentScreen("videos"),
 							onOpenUploadVideo: handleOpenPlusUpload,
-							onDeleteVideo: (id) => setVideos((prev) => prev.filter((v) => v.id !== id))
+							onDeleteVideo: (id) => setVideos((prev) => prev.filter((v) => v.id !== id)),
+							blockedUsers,
+							blockedByUserIds,
+							onBlockUser: handleBlockUser,
+							onUnblockUser: handleUnblockUser
 						}),
 						currentScreen === "settings" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SettingsScreen, {
 							onNavigate: (s) => setCurrentScreen(s),
 							onLogout: handleLogout,
 							onOpenWallet: () => setIsWalletOpen(true),
 							isAdmin: Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === "yaquoobe@gmail.com"),
-							onOpenAdminProgression: () => setIsAdminProgressionOpen(true)
+							onOpenAdminProgression: () => setIsAdminProgressionOpen(true),
+							blockedUsers,
+							onUnblockUser: handleUnblockUser
 						})
 					]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BottomNav, {
@@ -135426,8 +136866,8 @@ function App() {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SearchModal, {
 				isOpen: isSearchOpen,
 				onClose: () => setIsSearchOpen(false),
-				liveStreams,
-				partyRooms,
+				liveStreams: visibleLiveStreams,
+				partyRooms: visiblePartyRooms,
 				users: topHostsList,
 				onSelectLive: handleSelectLive,
 				onSelectRoom: handleSelectRoom,
@@ -135440,6 +136880,7 @@ function App() {
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
 				user: viewingProfileUser,
+				currentUserId: currentUser.id,
 				isOpen: !!viewingProfileUser,
 				onClose: () => setViewingProfileUser(null),
 				onToggleFollow: handleToggleFollow,
@@ -135448,6 +136889,10 @@ function App() {
 					setGiftRecipient(u);
 					setIsGiftShopOpen(true);
 				},
+				isBlocked: isBlockedByMe(viewingProfileUser?.id),
+				isBlockedByTarget: isBlockedByTarget(viewingProfileUser?.id),
+				onBlockUser: handleBlockUser,
+				onUnblockUser: handleUnblockUser,
 				onViewFullProfile: (u) => {
 					setViewingProfileUser(null);
 					setNavigatingProfileUser(u);
@@ -135472,6 +136917,10 @@ function App() {
 					setPkWinnerSession(null);
 					setCurrentScreen("profile");
 				}
+			}),
+			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
+				children: appToast
 			})
 		]
 	});

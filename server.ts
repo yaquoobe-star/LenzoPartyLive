@@ -1704,6 +1704,9 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   if (!user || !user.id) {
     return res.status(400).json({ error: 'Authenticated user required to join room.' });
   }
+  if (user.id !== room.host.id && isUserBlockedBy(room.host.id, user.id)) {
+    return res.status(403).json({ error: 'You cannot join this room because the host has blocked you.' });
+  }
 
   if (room.roomType === 'private' && room.password && user.id !== room.host.id && password !== room.password) {
     return res.status(403).json({ error: 'Incorrect room password.' });
@@ -1887,16 +1890,64 @@ app.get('/api/rooms/:roomId/seats', (req: Request, res: Response) => {
   });
 });
 
+function ensurePartyRoomHydrated(
+  roomId: string,
+  meta?: { host?: any; title?: string; maxSeats?: number } | null,
+  fallbackHostId?: string
+): ServerPartyRoom | null {
+  const existing = partyRoomsMap.get(roomId);
+  if (existing) return existing;
+  const hostObj = meta?.host?.id
+    ? meta.host
+    : fallbackHostId
+    ? serverUsers.get(fallbackHostId) || { id: fallbackHostId, name: 'Host', avatar: '' }
+    : null;
+  if (!hostObj || !hostObj.id) return null;
+
+  const maxSeats = meta?.maxSeats === 16 ? 16 : 8;
+  const seats: (any | null)[] = Array(maxSeats).fill(null);
+  seats[0] = hostObj;
+
+  const hydrated: ServerPartyRoom = {
+    id: roomId,
+    displayId: roomId.replace(/\D/g, '').slice(-5) || String(Math.floor(10000 + Math.random() * 90000)),
+    title: String(meta?.title || `${hostObj.name || 'Host'}'s Party Room`),
+    category: 'Party',
+    host: hostObj,
+    coverImage: hostObj.avatar || '',
+    iconType: 'heart',
+    maxSeats,
+    roomType: 'public',
+    announcement: 'Welcome! Hop on a seat, respect everyone & enjoy the party.',
+    seats,
+    mutedSeatIndices: new Set<number>(),
+    isLocked: false,
+    allowJoin: true,
+    startTime: Date.now(),
+    likesCount: 0,
+    giftsCoinValue: 0,
+    participants: new Map(),
+    pendingRequests: new Map(),
+    messages: [],
+    recentJoinAnnouncements: new Map(),
+  };
+  partyRoomsMap.set(roomId, hydrated);
+  return hydrated;
+}
+
 app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { user, requestedSeatIndex } = req.body;
+  const { user, requestedSeatIndex, seatIndex, roomHostId, roomMeta } = req.body;
   if (!user || !user.id) {
     return res.status(400).json({ error: 'Valid user object required.' });
   }
 
-  const room = partyRoomsMap.get(roomId);
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, roomHostId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found or already closed.' });
+  }
+  if (user.id !== room.host.id && isUserBlockedBy(room.host.id, user.id)) {
+    return res.status(403).json({ error: 'You cannot request a seat because the host has blocked you.' });
   }
   if (!room.allowJoin || room.isLocked) {
     return res.status(403).json({ error: 'Stage seats are currently locked by host.' });
@@ -1904,15 +1955,14 @@ app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   if (room.host?.id === user.id) {
     return res.status(400).json({ error: 'Room host already holds stage authority.' });
   }
-  if (room.pendingRequests.has(user.id)) {
-    return res.status(400).json({ error: 'You already have a pending seat request for this room.' });
-  }
   if (room.seats.some((s) => s && s.id === user.id)) {
     return res.status(400).json({ error: 'You already occupy a seat in this room.' });
   }
 
-  const idx = typeof requestedSeatIndex === 'number' && requestedSeatIndex > 0 && requestedSeatIndex < room.maxSeats ? requestedSeatIndex : 1;
-  const requestId = `seat_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const rawIdx = typeof requestedSeatIndex === 'number' ? requestedSeatIndex : seatIndex;
+  const idx = typeof rawIdx === 'number' && rawIdx >= 0 && rawIdx < room.maxSeats ? rawIdx : 1;
+  const existingReq = room.pendingRequests.get(user.id);
+  const requestId = existingReq?.id || `seat_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const requestObj = {
     id: requestId,
     roomId,
@@ -1920,7 +1970,7 @@ app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
     requestedSeatIndex: idx,
     status: 'pending',
     createdAt: Date.now(),
-    expiresAt: Date.now() + 60000,
+    expiresAt: Date.now() + 180000,
   };
 
   room.pendingRequests.set(user.id, requestObj);
@@ -1944,8 +1994,8 @@ app.post('/api/rooms/:roomId/cancel_seat_request', (req: Request, res: Response)
 app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { applicantId, approve, targetSeatIndex } = req.body;
-  const room = partyRoomsMap.get(roomId);
+  const { applicantId, approve, targetSeatIndex, applicantUser } = req.body;
+  const room = ensurePartyRoomHydrated(roomId, null, hostId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
@@ -1954,7 +2004,19 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
     return res.status(403).json({ error: 'Permission denied. Only the room host can approve or reject seat requests.' });
   }
 
-  const requestObj = room.pendingRequests.get(applicantId);
+  const requestObj = room.pendingRequests.get(applicantId) || (
+    applicantUser && applicantUser.id
+      ? {
+          id: `fs_req_${Date.now()}`,
+          roomId,
+          user: applicantUser,
+          requestedSeatIndex: typeof targetSeatIndex === 'number' ? targetSeatIndex : 1,
+          status: 'pending',
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 60000,
+        }
+      : null
+  );
   if (!requestObj) {
     return res.status(404).json({ error: 'Seat request not found or expired.' });
   }
@@ -1969,13 +2031,19 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
   }
 
   let seatIdx = typeof targetSeatIndex === 'number' ? targetSeatIndex : requestObj.requestedSeatIndex;
-  if (seatIdx <= 0 || seatIdx >= room.maxSeats || room.seats[seatIdx] !== null) {
-    seatIdx = room.seats.findIndex((s, i) => i > 0 && s === null);
+  if (seatIdx < 0 || seatIdx >= room.maxSeats || room.seats[seatIdx] !== null) {
+    seatIdx = room.seats.findIndex((s) => s === null);
   }
   if (seatIdx === -1) {
     return res.status(400).json({ error: 'All stage seats are currently occupied.' });
   }
 
+  // Clear applicant from any previous seat
+  for (let i = 0; i < room.seats.length; i++) {
+    if (room.seats[i]?.id === applicantId) {
+      room.seats[i] = null;
+    }
+  }
   room.seats[seatIdx] = requestObj.user;
   requestObj.status = 'accepted';
 
@@ -2120,6 +2188,9 @@ app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
   if (!sender || !sender.id) {
     return res.status(400).json({ error: 'Authenticated sender required.' });
   }
+  if (sender.id !== room.host.id && isUserBlockedBy(room.host.id, sender.id)) {
+    return res.status(403).json({ error: 'You cannot send messages in this room because the host has blocked you.' });
+  }
   const cleanText = sanitizeText(text, 300);
   if (!cleanText) {
     return res.status(400).json({ error: 'Message text cannot be empty.' });
@@ -2165,6 +2236,9 @@ app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
+  if (heartSenderId && heartSenderId !== room.host.id && isUserBlockedBy(room.host.id, heartSenderId)) {
+    return res.status(403).json({ error: 'You cannot interact with this room because the host has blocked you.' });
+  }
   const now = Date.now();
   const lastAt = lastHeartTimeMap.get(heartSenderId || 'anon') || 0;
   if (now - lastAt < 200) {
@@ -2201,6 +2275,9 @@ app.post('/api/rooms/:roomId/gift', (req: Request, res: Response) => {
   const room = partyRoomsMap.get(roomId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (sender?.id && (isUserBlockedBy(room.host.id, sender.id) || (recipient?.id && isUserBlockedBy(recipient.id, sender.id)))) {
+    return res.status(403).json({ error: 'You cannot send gifts to a user who has blocked you.' });
   }
   const qty = Math.max(1, Number(quantity) || 1);
   const totalCoins = Math.max(0, Number(gift?.coins || 0) * qty);
@@ -2326,6 +2403,22 @@ app.get('/api/users/check_username', (req: Request, res: Response) => {
   }
 
   res.json({ available: true });
+});
+
+app.get('/api/users/blocks', (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid || (typeof req.query.userId === 'string' ? req.query.userId : '');
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const myMap = blockedRecordsByBlocker.get(uid);
+  const blockedUsers = myMap ? Array.from(myMap.values()) : [];
+  const blockedIds = blockedUsers.map((r) => r.blockedUserId);
+  const blockedByIds: string[] = [];
+  blockedRecordsByBlocker.forEach((inner, blockerId) => {
+    if (inner.has(uid)) blockedByIds.push(blockerId);
+  });
+
+  return res.json({ blockedIds, blockedByIds, blockedUsers });
 });
 
 app.get('/api/users/:id', (req: Request, res: Response) => {
@@ -2870,6 +2963,9 @@ app.post('/api/users/:id/follow', (req: AuthenticatedRequest, res: Response) => 
   if (targetId === followerId) {
     return res.status(400).json({ error: 'Cannot follow yourself.' });
   }
+  if (areUsersBlocked(followerId, targetId)) {
+    return res.status(403).json({ error: 'Cannot follow because a block exists between these users.' });
+  }
 
   let followers = userFollowersMap.get(targetId);
   if (!followers) {
@@ -2998,6 +3094,9 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   }
   if (!user || !user.id) {
     return res.status(400).json({ error: 'User profile required to join stream.' });
+  }
+  if (user.id !== stream.host.id && isUserBlockedBy(stream.host.id, user.id)) {
+    return res.status(403).json({ error: 'You cannot join this stream because the host has blocked you.' });
   }
 
   const now = Date.now();
@@ -3171,6 +3270,9 @@ app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
   if (!sender || !sender.id) {
     return res.status(400).json({ error: 'Authenticated sender required.' });
   }
+  if (sender.id !== stream.host.id && isUserBlockedBy(stream.host.id, sender.id)) {
+    return res.status(403).json({ error: 'You cannot comment on this stream because the host has blocked you.' });
+  }
   const cleanText = sanitizeText(text, 300);
   if (!cleanText) {
     return res.status(400).json({ error: 'Comment cannot be empty.' });
@@ -3220,6 +3322,9 @@ app.post('/api/live/:streamId/heart', (req: Request, res: Response) => {
   if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Stream has ended.' });
   }
+  if (senderId && senderId !== stream.host.id && isUserBlockedBy(stream.host.id, senderId)) {
+    return res.status(403).json({ error: 'You cannot interact with this stream because the host has blocked you.' });
+  }
   const now = Date.now();
   const lastAt = lastHeartTimeMap.get(senderId || 'anon') || 0;
   if (now - lastAt < 180) {
@@ -3252,6 +3357,9 @@ app.post('/api/live/:streamId/gift', (req: Request, res: Response) => {
   const stream = liveStreamsMap.get(streamId);
   if (!stream || !stream.isLive) {
     return res.status(404).json({ error: 'Stream has ended.' });
+  }
+  if (sender?.id && (isUserBlockedBy(stream.host.id, sender.id) || (recipient?.id && isUserBlockedBy(recipient.id, sender.id)))) {
+    return res.status(403).json({ error: 'You cannot send gifts to a user who has blocked you.' });
   }
   const qty = Math.max(1, Number(quantity) || 1);
   const totalCoins = Math.max(0, Number(gift?.coins || 0) * qty);
@@ -5160,6 +5268,162 @@ app.delete('/api/admin/store/products/:id', requireAdminMiddleware, (req: Authen
   });
 
   return res.json({ success: true, deletedId: id });
+});
+
+// ============================================================================
+// USER BLOCKING SYSTEM — PERSISTENCE, EVICTION & ACCESS GUARDS
+// ============================================================================
+interface ServerBlockedRecord {
+  id: string;
+  blockerId: string;
+  blockedUserId: string;
+  blockedUserName: string;
+  blockedUserUsername?: string;
+  blockedUserDisplayId?: string;
+  blockedUserAvatar?: string;
+  reason?: string;
+  createdAt: string;
+}
+
+const BLOCKS_DATA_FILE = path.resolve(__dirname, 'data', 'lenzo-blocks.json');
+const blockedRecordsByBlocker = new Map<string, Map<string, ServerBlockedRecord>>();
+
+function loadBlocksFromDisk() {
+  try {
+    if (fs.existsSync(BLOCKS_DATA_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(BLOCKS_DATA_FILE, 'utf8'));
+      if (Array.isArray(parsed.records)) {
+        parsed.records.forEach((rec: ServerBlockedRecord) => {
+          if (rec?.blockerId && rec?.blockedUserId) {
+            if (!blockedRecordsByBlocker.has(rec.blockerId)) {
+              blockedRecordsByBlocker.set(rec.blockerId, new Map());
+            }
+            blockedRecordsByBlocker.get(rec.blockerId)!.set(rec.blockedUserId, rec);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Blocks] Failed to load disk block list:', err);
+  }
+}
+
+function persistBlocksToDisk() {
+  try {
+    const dir = path.dirname(BLOCKS_DATA_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const records: ServerBlockedRecord[] = [];
+    blockedRecordsByBlocker.forEach((inner) => {
+      inner.forEach((rec) => records.push(rec));
+    });
+    fs.writeFileSync(
+      BLOCKS_DATA_FILE,
+      JSON.stringify({ records, updatedAt: new Date().toISOString() }, null, 2)
+    );
+  } catch (err) {
+    console.warn('[Blocks] Failed to persist block list:', err);
+  }
+}
+
+function isUserBlockedBy(blockerId: string | undefined, targetId: string | undefined): boolean {
+  if (!blockerId || !targetId) return false;
+  return Boolean(blockedRecordsByBlocker.get(blockerId)?.has(targetId));
+}
+
+function areUsersBlocked(uidA: string | undefined, uidB: string | undefined): boolean {
+  return isUserBlockedBy(uidA, uidB) || isUserBlockedBy(uidB, uidA);
+}
+
+loadBlocksFromDisk();
+
+app.post('/api/users/:id/block', (req: AuthenticatedRequest, res: Response) => {
+  const targetId = String(req.params.id || '').trim();
+  const blockerId = req.firebaseUser?.uid || String(req.body?.blockerId || '').trim();
+  if (!blockerId) {
+    return res.status(401).json({ error: 'Authentication required to block users.' });
+  }
+  if (!targetId || targetId === blockerId) {
+    return res.status(400).json({ error: 'Invalid target user to block.' });
+  }
+
+  const record: ServerBlockedRecord = {
+    id: `${blockerId}_${targetId}`,
+    blockerId,
+    blockedUserId: targetId,
+    blockedUserName: String(req.body?.blockedUserName || serverUsers.get(targetId)?.name || 'Lenzo User').slice(0, 64),
+    blockedUserUsername: String(req.body?.blockedUserUsername || serverUsers.get(targetId)?.username || '').slice(0, 64),
+    blockedUserDisplayId: String(req.body?.blockedUserDisplayId || serverUsers.get(targetId)?.displayId || '').slice(0, 32),
+    blockedUserAvatar: String(req.body?.blockedUserAvatar || serverUsers.get(targetId)?.avatar || '').slice(0, 1500),
+    reason: String(req.body?.reason || '').slice(0, 200),
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!blockedRecordsByBlocker.has(blockerId)) {
+    blockedRecordsByBlocker.set(blockerId, new Map());
+  }
+  blockedRecordsByBlocker.get(blockerId)!.set(targetId, record);
+
+  // Remove mutual follow relationships
+  userFollowersMap.get(targetId)?.delete(blockerId);
+  userFollowingMap.get(blockerId)?.delete(targetId);
+  userFollowersMap.get(blockerId)?.delete(targetId);
+  userFollowingMap.get(targetId)?.delete(blockerId);
+
+  // Immediately evict blocked user from any active party room hosted by blockerId
+  partyRoomsMap.forEach((room, roomId) => {
+    if (room.host?.id === blockerId) {
+      let changed = false;
+      if (room.participants.delete(targetId)) changed = true;
+      if (room.pendingRequests.delete(targetId)) changed = true;
+      room.seats = room.seats.map((seatUser, idx) => {
+        if (seatUser && seatUser.id === targetId) {
+          room.mutedSeatIndices.delete(idx);
+          changed = true;
+          return null;
+        }
+        return seatUser;
+      });
+      if (changed) {
+        const serialized = serializePartyRoom(room);
+        broadcastToRoom(roomId, 'room:participant_left', {
+          roomId,
+          userId: targetId,
+          reason: 'blocked',
+          participantsCount: room.participants.size,
+          room: serialized,
+        });
+      }
+    }
+  });
+
+  // Immediately evict blocked user from any active live stream hosted by blockerId
+  liveStreamsMap.forEach((stream, streamId) => {
+    if (stream.host?.id === blockerId && stream.viewers.delete(targetId)) {
+      broadcastToLive(streamId, 'live:viewer_left', {
+        streamId,
+        userId: targetId,
+        reason: 'blocked',
+        viewerCount: stream.viewers.size,
+      });
+    }
+  });
+
+  broadcastToUser(targetId, 'user:blocked_by', { blockerId, targetId });
+  persistBlocksToDisk();
+
+  return res.json({ success: true, record });
+});
+
+app.post('/api/users/:id/unblock', (req: AuthenticatedRequest, res: Response) => {
+  const targetId = String(req.params.id || '').trim();
+  const blockerId = req.firebaseUser?.uid || String(req.body?.blockerId || '').trim();
+  if (!blockerId) {
+    return res.status(401).json({ error: 'Authentication required to unblock users.' });
+  }
+  blockedRecordsByBlocker.get(blockerId)?.delete(targetId);
+  persistBlocksToDisk();
+  broadcastToUser(targetId, 'user:unblocked_by', { blockerId, targetId });
+  return res.json({ success: true, unblockedUserId: targetId });
 });
 
 // Vite Integration & Production Static Serving (Cloudflare / Railway / Local Dev)

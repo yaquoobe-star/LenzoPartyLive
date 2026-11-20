@@ -21,11 +21,12 @@ class RoomService {
     roomId: string,
     user: UserProfile,
     requestedSeatIndex: number,
-    roomHostId: string
+    roomHostId: string,
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number }
   ): Promise<RoomSeatRequest> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/request_seat`, {
       method: 'POST',
-      body: JSON.stringify({ user, requestedSeatIndex, roomHostId }),
+      body: JSON.stringify({ user, requestedSeatIndex, roomHostId, roomMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to request seat' }));
@@ -47,11 +48,12 @@ class RoomService {
     hostId: string,
     applicantId: string,
     approve: boolean,
-    targetSeatIndex?: number
-  ): Promise<{ success: boolean; seats?: (UserProfile | null)[] }> {
+    targetSeatIndex?: number,
+    applicantUser?: UserProfile
+  ): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatIndex?: number }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/respond_seat_request`, {
       method: 'POST',
-      body: JSON.stringify({ hostId, applicantId, approve, targetSeatIndex }),
+      body: JSON.stringify({ hostId, applicantId, approve, targetSeatIndex, applicantUser }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Action failed' }));

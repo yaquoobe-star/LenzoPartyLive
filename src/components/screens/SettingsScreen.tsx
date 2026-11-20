@@ -15,6 +15,8 @@ import {
   Wallet
 } from 'lucide-react';
 import { ScreenType } from '../../types';
+import { BlockedUserRecord } from '../../services/blockService';
+import { BlockedUsersModal } from '../profile/BlockedUsersModal';
 
 interface SettingsScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -22,6 +24,8 @@ interface SettingsScreenProps {
   onOpenWallet?: () => void;
   isAdmin?: boolean;
   onOpenAdminProgression?: () => void;
+  blockedUsers?: BlockedUserRecord[];
+  onUnblockUser?: (targetUserId: string, targetName?: string) => Promise<void> | void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -30,6 +34,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenWallet,
   isAdmin = false,
   onOpenAdminProgression,
+  blockedUsers = [],
+  onUnblockUser,
 }) => {
 
   const [notifications, setNotifications] = useState(true);
@@ -37,6 +43,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [cacheSize, setCacheSize] = useState('12.5MB');
   const [language, setLanguage] = useState('English');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -240,15 +247,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
           {/* Blocked Users */}
           <div
-            onClick={() => showToast('No blocked users currently on your account.')}
+            onClick={() => setIsBlockedModalOpen(true)}
             className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-3">
               <UserX className="w-5 h-5 text-rose-400" />
               <span className="text-sm font-semibold text-white">Blocked Users</span>
             </div>
-            <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[#B9AECF]">{blockedUsers.length}</span>
+              <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
+            </div>
           </div>
+
+          <BlockedUsersModal
+            isOpen={isBlockedModalOpen}
+            onClose={() => setIsBlockedModalOpen(false)}
+            blockedUsers={blockedUsers}
+            onUnblock={async (uid, uname) => {
+              if (onUnblockUser) await onUnblockUser(uid, uname);
+              showToast(`${uname} has been unblocked.`);
+            }}
+          />
 
           {/* About Lenzo Party Live */}
           <div

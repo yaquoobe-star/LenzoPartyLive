@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  runTransaction,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -482,6 +483,24 @@ export async function writeFirestorePartyPeerSignal(
   }
 }
 
+export async function clearFirestorePartyPeerSignals(roomId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !isValidFirestoreId(roomId) || !isValidFirestoreId(uid)) return;
+  try {
+    await setDoc(
+      doc(db, 'party_rooms', roomId, 'participants', uid),
+      {
+        userId: uid,
+        lastSeen: Date.now(),
+        rtcSignals: {},
+      },
+      { merge: true }
+    );
+  } catch {
+    // Non-fatal
+  }
+}
+
 export function subscribeFirestoreRoomParticipants(
   roomId: string,
   onUpdate: (
@@ -715,4 +734,237 @@ export async function syncFirestorePartyRoomState(
     // Non-fatal: room may have just closed
   }
 }
+
+export interface FirestoreSeatRequestEntry {
+  id: string;
+  user: UserProfile;
+  seatIndex: number;
+  requestedAt: number;
+}
+
+/**
+ * Atomically append/update a listener's seat request directly on the Firestore party room doc.
+ * Works cross-device (Web <-> Android) even if the Express backend is unreachable or restarted.
+ */
+export async function submitFirestoreSeatRequest(
+  roomId: string,
+  request: FirestoreSeatRequestEntry
+): Promise<{ success: boolean; seatRequests?: FirestoreSeatRequestEntry[]; error?: string }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) {
+    return { success: false, error: 'Please sign in to request a seat.' };
+  }
+  const compactUser = compactSeatUser(request.user);
+  if (!compactUser) {
+    return { success: false, error: 'Invalid user profile.' };
+  }
+
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const updatedRequests = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) {
+        throw new Error('This party room has already been closed.');
+      }
+      const data = snap.data() as Record<string, any>;
+      if (data.isLocked || data.allowJoin === false) {
+        throw new Error('Stage seats are currently locked by the host.');
+      }
+      const currentSeats: (UserProfile | null)[] = Array.isArray(data.seats) ? data.seats : [];
+      if (currentSeats.some((s) => s && s.id === compactUser.id)) {
+        throw new Error('You already occupy a seat in this room.');
+      }
+      const maxSeats = data.maxSeats === 16 ? 16 : 8;
+      const safeIndex =
+        typeof request.seatIndex === 'number' && request.seatIndex >= 0 && request.seatIndex < maxSeats
+          ? request.seatIndex
+          : 1;
+
+      const existing: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
+        ? data.seatRequests
+        : [];
+      const nextEntry: FirestoreSeatRequestEntry = {
+        id: String(request.id || `sr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+        user: compactUser,
+        seatIndex: safeIndex,
+        requestedAt: typeof request.requestedAt === 'number' ? request.requestedAt : Date.now(),
+      };
+      const nextRequests = [
+        ...existing.filter((r) => r?.user?.id && r.user.id !== compactUser.id),
+        nextEntry,
+      ];
+
+      tx.update(roomRef, { seatRequests: nextRequests });
+      return nextRequests;
+    });
+
+    return { success: true, seatRequests: updatedRequests };
+  } catch (err: any) {
+    const rawMsg = String(err?.message || '');
+    if (/permission|insufficient/i.test(rawMsg)) {
+      return { success: false, error: 'You cannot request a seat in this room.' };
+    }
+    return { success: false, error: rawMsg || 'Could not send seat request.' };
+  }
+}
+
+/**
+ * Atomically approve or decline a pending seat request directly on Firestore party room doc.
+ */
+export async function respondFirestoreSeatRequest(
+  roomId: string,
+  applicant: UserProfile,
+  approve: boolean,
+  preferredSeatIndex: number,
+  maxSeatsFallback = 8
+): Promise<{
+  success: boolean;
+  seats?: (UserProfile | null)[];
+  seatRequests?: FirestoreSeatRequestEntry[];
+  assignedSeatIndex?: number;
+  error?: string;
+}> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) {
+    return { success: false, error: 'Authentication required.' };
+  }
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const result = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) {
+        throw new Error('Party room not found.');
+      }
+      const data = snap.data() as Record<string, any>;
+      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
+      if (Array.isArray(data.seats)) {
+        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
+          nextSeats[i] = data.seats[i] || null;
+        }
+      }
+
+      const existingReqs: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
+        ? data.seatRequests
+        : [];
+      const nextRequests = existingReqs.filter((r) => r?.user?.id !== applicant.id);
+      let assignedSeatIndex = -1;
+
+      if (approve) {
+        // Clear applicant from any old seat
+        for (let i = 0; i < nextSeats.length; i++) {
+          if (nextSeats[i]?.id === applicant.id) {
+            nextSeats[i] = null;
+          }
+        }
+        let targetIdx =
+          typeof preferredSeatIndex === 'number' && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats
+            ? preferredSeatIndex
+            : 1;
+        if (nextSeats[targetIdx] !== null) {
+          const openIdx = nextSeats.findIndex((s) => s === null);
+          if (openIdx === -1) {
+            throw new Error('All seats are currently full.');
+          }
+          targetIdx = openIdx;
+        }
+        nextSeats[targetIdx] = compactSeatUser(applicant);
+        assignedSeatIndex = targetIdx;
+      }
+
+      tx.update(roomRef, {
+        seats: nextSeats,
+        seatRequests: nextRequests,
+      });
+
+      return { seats: nextSeats, seatRequests: nextRequests, assignedSeatIndex };
+    });
+
+    return { success: true, ...result };
+  } catch (err: any) {
+    return { success: false, error: String(err?.message || 'Failed to update seat request.') };
+  }
+}
+
+/**
+ * Atomically seat a user (host taking a seat or host directly assigning a listener).
+ */
+export async function takeFirestoreSeatDirect(
+  roomId: string,
+  seatIndex: number,
+  targetUser: UserProfile,
+  maxSeatsFallback = 8
+): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatRequests?: FirestoreSeatRequestEntry[] }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+  const compactUser = compactSeatUser(targetUser);
+  if (!compactUser) return { success: false };
+
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const result = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) return null;
+      const data = snap.data() as Record<string, any>;
+      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
+      if (Array.isArray(data.seats)) {
+        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
+          nextSeats[i] = data.seats[i] || null;
+        }
+      }
+      for (let i = 0; i < nextSeats.length; i++) {
+        if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
+      }
+      if (seatIndex >= 0 && seatIndex < maxSeats) {
+        nextSeats[seatIndex] = compactUser;
+      }
+      const existingReqs: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
+        ? data.seatRequests
+        : [];
+      const nextRequests = existingReqs.filter((r) => r?.user?.id !== compactUser.id);
+      tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests });
+      return { seats: nextSeats, seatRequests: nextRequests };
+    });
+    return result ? { success: true, ...result } : { success: false };
+  } catch {
+    return { success: false };
+  }
+}
+
+/**
+ * Atomically remove a user from their seat in Firestore.
+ */
+export async function vacateFirestoreSeat(
+  roomId: string,
+  targetUserId: string,
+  seatIndex?: number,
+  maxSeatsFallback = 8
+): Promise<{ success: boolean; seats?: (UserProfile | null)[] }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const nextSeats = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) return null;
+      const data = snap.data() as Record<string, any>;
+      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
+      if (Array.isArray(data.seats)) {
+        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
+          seats[i] = data.seats[i] || null;
+        }
+      }
+      if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < maxSeats) {
+        seats[seatIndex] = null;
+      }
+      for (let i = 0; i < seats.length; i++) {
+        if (seats[i]?.id === targetUserId) seats[i] = null;
+      }
+      tx.update(roomRef, { seats });
+      return seats;
+    });
+    return nextSeats ? { success: true, seats: nextSeats } : { success: false };
+  } catch {
+    return { success: false };
+  }
+}
+
 

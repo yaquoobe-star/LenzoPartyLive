@@ -644,6 +644,22 @@
         "createdAt": { "type": "string" }
       },
       "required": ["userId", "type", "amount", "balanceBefore", "balanceAfter", "idempotencyKey", "status"]
+    },
+    "BlockedUser": {
+      "title": "BlockedUser",
+      "description": "User blocking relationship preventing interactions on streams, party rooms, and direct messages",
+      "type": "object",
+      "properties": {
+        "blockerId": { "type": "string", "maxLength": 128 },
+        "blockedUserId": { "type": "string", "maxLength": 128 },
+        "blockedUserName": { "type": "string", "maxLength": 64 },
+        "blockedUserUsername": { "type": "string", "maxLength": 64 },
+        "blockedUserDisplayId": { "type": "string", "maxLength": 32 },
+        "blockedUserAvatar": { "type": "string", "maxLength": 1500 },
+        "reason": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["blockerId", "blockedUserId", "blockedUserName"]
     }
   },
   "firestore": {
@@ -770,6 +786,10 @@
     "/coin_transactions/{txId}": {
       "schema": "CoinTransaction",
       "description": "Immutable Store coin purchase transaction ledger"
+    },
+    "/blocked_users/{blockId}": {
+      "schema": "BlockedUser",
+      "description": "Persisted user blocking records keyed by blockerId_blockedUserId"
     }
   }
 }

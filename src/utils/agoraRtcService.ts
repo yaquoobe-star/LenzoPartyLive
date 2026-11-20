@@ -117,7 +117,7 @@ class AgoraRtcService {
    */
   async getAgoraConfig(): Promise<{ configured: boolean; appId: string }> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 1800);
     try {
       const res = await apiFetch('/api/agora/config', { signal: controller.signal });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
