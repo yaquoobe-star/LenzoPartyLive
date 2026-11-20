@@ -174,57 +174,257 @@ export async function toggleLikeVideo(videoId: string, isLiked: boolean): Promis
 }
 
 /**
+ * Deep-sanitize payloads before writing to Cloud Firestore.
+ * - Removes all `undefined` object keys (Firestore rejects `undefined` with INVALID_ARGUMENT).
+ * - Converts `undefined` array elements to `null`.
+ * - Preserves Firestore FieldValue / Timestamp sentinel objects intact.
+ */
+const VALID_DOC_ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
+
+function isFirestoreSentinelOrTimestamp(val: any): boolean {
+  if (!val || typeof val !== 'object') return false;
+  if (val instanceof Timestamp) return true;
+  if (typeof val._methodName === 'string') return true;
+  if (typeof val.toDate === 'function' && typeof val.seconds === 'number') return true;
+  return false;
+}
+
+export function stripUndefinedDeep<T>(value: T): T {
+  if (value === undefined) return null as unknown as T;
+  if (value === null || typeof value !== 'object') {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      return 0 as unknown as T;
+    }
+    return value;
+  }
+  if (isFirestoreSentinelOrTimestamp(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => (item === undefined ? null : stripUndefinedDeep(item))) as unknown as T;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(value as Record<string, any>)) {
+    if (v === undefined) continue;
+    out[k] = stripUndefinedDeep(v);
+  }
+  return out as T;
+}
+
+function safeImageUrlForCard(url?: string | null, maxBytes = 160000): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  // Guard against oversized inline base64 images exceeding Firestore's 1 MiB document limit
+  if (trimmed.startsWith('data:') && trimmed.length > maxBytes) {
+    return '';
+  }
+  return trimmed;
+}
+
+export function sanitizeFirestoreUserCard(
+  user: Partial<UserProfile> | null | undefined,
+  forcedUid?: string
+): UserProfile {
+  const uid = forcedUid || user?.id || auth.currentUser?.uid || 'unknown';
+  const card: Record<string, any> = {
+    id: String(uid),
+    name: String(user?.name || auth.currentUser?.displayName || 'Lenzo User').slice(0, 80),
+    username: String(user?.username || `@${String(uid).slice(0, 8)}`).slice(0, 60),
+    displayId: String(user?.displayId || String(uid).slice(0, 8)),
+    avatar: safeImageUrlForCard(user?.avatar || auth.currentUser?.photoURL || ''),
+    level: typeof user?.level === 'number' && Number.isFinite(user.level) ? user.level : 0,
+    fansCount: String(user?.fansCount ?? '0'),
+    followingCount: typeof user?.followingCount === 'number' ? user.followingCount : 0,
+    likesCount: String(user?.likesCount ?? '0'),
+    coins: typeof user?.coins === 'number' ? user.coins : 0,
+    diamonds: typeof user?.diamonds === 'number' ? user.diamonds : 0,
+    vipLevel: typeof user?.vipLevel === 'number' ? user.vipLevel : 0,
+    isVIP: Boolean(user?.isVIP),
+    superVipLevel: typeof user?.superVipLevel === 'number' ? user.superVipLevel : 0,
+    isSuperVIP: Boolean(user?.isSuperVIP),
+    bio: String(user?.bio || '').slice(0, 200),
+    isOnline: true,
+  };
+  const safeCover = safeImageUrlForCard(user?.coverImage, 120000);
+  if (safeCover) card.coverImage = safeCover;
+  if (typeof user?.isVerified === 'boolean') card.isVerified = user.isVerified;
+  if (user?.verificationTier) card.verificationTier = user.verificationTier;
+  if (user?.country) card.country = user.country;
+  if (user?.activeFrameType) card.activeFrameType = user.activeFrameType;
+  if (typeof user?.equippedVipFrame === 'number') card.equippedVipFrame = user.equippedVipFrame;
+  if (typeof user?.equippedSuperVipFrame === 'number') card.equippedSuperVipFrame = user.equippedSuperVipFrame;
+  if (Array.isArray(user?.equippedBadges) && user.equippedBadges.length > 0) {
+    card.equippedBadges = user.equippedBadges.slice(0, 6);
+  }
+  return card as UserProfile;
+}
+
+function toMillis(val: any, fallback = Date.now()): number {
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (val && typeof val.toMillis === 'function') return val.toMillis();
+  if (val && typeof val.seconds === 'number') return val.seconds * 1000;
+  return fallback;
+}
+
+function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
+  const maxSeats: 8 | 16 = data?.maxSeats === 16 ? 16 : 8;
+  const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
+  const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
+  for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
+    seats[i] = rawSeats[i] ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
+  }
+  const numericParticipants =
+    typeof data?.numericParticipants === 'number'
+      ? data.numericParticipants
+      : typeof data?.viewersCount === 'number'
+        ? data.viewersCount
+        : Math.max(1, seats.filter(Boolean).length);
+
+  return {
+    id,
+    displayId: String(data?.displayId || id.replace(/[^0-9]/g, '').slice(-5) || '10001'),
+    title: String(data?.title || 'Party Voice Room'),
+    category: (data?.category || 'Party') as PartyRoom['category'],
+    host: sanitizeFirestoreUserCard(data?.host),
+    coverImage: String(data?.coverImage || data?.host?.avatar || ''),
+    iconType: data?.iconType || 'heart',
+    participantCount: String(data?.participantCount || `${numericParticipants}/${maxSeats}`),
+    numericParticipants,
+    isAudioRoom: true,
+    maxSeats,
+    roomType: data?.roomType === 'private' ? 'private' : 'public',
+    ...(data?.password ? { password: String(data.password) } : {}),
+    announcement: String(data?.announcement || 'Welcome to my party voice room!'),
+    seats,
+    mutedSeatIndices: Array.isArray(data?.mutedSeatIndices) ? data.mutedSeatIndices : [],
+    seatRequests: Array.isArray(data?.seatRequests) ? data.seatRequests : [],
+    isLocked: Boolean(data?.isLocked),
+    allowJoin: data?.allowJoin !== false,
+    startTime: toMillis(data?.startTime ?? data?.createdAt),
+    likesCount: typeof data?.likesCount === 'number' ? data.likesCount : 0,
+  };
+}
+
+function normalizeFirestoreLiveStream(id: string, data: any): LiveStream {
+  const numericViewers =
+    typeof data?.numericViewers === 'number'
+      ? data.numericViewers
+      : typeof data?.viewersCount === 'number'
+        ? data.viewersCount
+        : 0;
+  return {
+    id,
+    title: String(data?.title || 'Live Broadcast'),
+    category: String(data?.category || 'Live'),
+    host: sanitizeFirestoreUserCard(data?.host),
+    coverImage: String(data?.coverImage || data?.host?.coverImage || data?.host?.avatar || ''),
+    viewerCount: String(data?.viewerCount ?? numericViewers),
+    numericViewers,
+    isLive: data?.isLive !== false && data?.status !== 'ended',
+    tags: Array.isArray(data?.tags) ? data.tags : [String(data?.category || 'Live')],
+    guests: Array.isArray(data?.guests) ? data.guests : [],
+    likesCount: typeof data?.likesCount === 'number' ? data.likesCount : 0,
+    commentsCount: typeof data?.commentsCount === 'number' ? data.commentsCount : 0,
+    startTime: toMillis(data?.startTime ?? data?.createdAt),
+    allowGuests: data?.allowGuests !== false,
+    isPrivate: Boolean(data?.isPrivate),
+  };
+}
+
+/**
  * 2. REAL PARTY ROOMS FIRESTORE SERVICE
  */
 export async function fetchFirestorePartyRooms(): Promise<PartyRoom[]> {
   const collPath = 'party_rooms';
   try {
-    const q = query(collection(db, collPath), limit(30));
+    const q = query(collection(db, collPath), limit(100));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    } as PartyRoom));
+    return snap.docs
+      .filter((d) => d.data()?.status !== 'closed' && d.data()?.status !== 'ended')
+      .map((d) => normalizeFirestorePartyRoom(d.id, d.data()))
+      .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, collPath);
+    console.warn('[Firestore] fetchFirestorePartyRooms notice:', err);
     return [];
   }
 }
 
 export function subscribeFirestorePartyRooms(onUpdate: (rooms: PartyRoom[]) => void) {
   const collPath = 'party_rooms';
-  const q = query(collection(db, collPath), limit(30));
+  const q = query(collection(db, collPath), limit(100));
   return onSnapshot(
     q,
     (snap) => {
-      const rooms = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      } as PartyRoom));
+      const rooms = snap.docs
+        .filter((d) => d.data()?.status !== 'closed' && d.data()?.status !== 'ended')
+        .map((d) => normalizeFirestorePartyRoom(d.id, d.data()))
+        .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
       onUpdate(rooms);
     },
     (err) => {
-      handleFirestoreError(err, OperationType.LIST, collPath);
+      console.warn('[Firestore] subscribeFirestorePartyRooms notice:', err);
     }
   );
 }
 
 export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom, 'id'>): Promise<string> {
   const collPath = 'party_rooms';
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    throw new Error('Authentication required to create a party room.');
+  }
+
   try {
-    const explicitId = 'id' in room && room.id ? room.id : '';
-    if (explicitId) {
-      await setDoc(doc(db, collPath, explicitId), {
-        ...room,
-        createdAt: serverTimestamp(),
-      });
-      return explicitId;
+    const rawId = 'id' in room && room.id ? String(room.id) : `room_${Date.now()}`;
+    const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `room_${Date.now()}`;
+    const safeHost = sanitizeFirestoreUserCard(room.host, uid);
+    const maxSeats: 8 | 16 = room.maxSeats === 16 ? 16 : 8;
+    const rawSeats = Array.isArray(room.seats) ? room.seats : Array(maxSeats).fill(null);
+    const safeSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
+    for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
+      const occupant = rawSeats[i];
+      if (occupant) {
+        const isHostOccupant = i === 0 || occupant.id === room.host?.id || occupant.id === uid;
+        safeSeats[i] = sanitizeFirestoreUserCard(occupant, isHostOccupant ? uid : occupant.id);
+      }
     }
-    const docRef = await addDoc(collection(db, collPath), {
-      ...room,
+
+    const payload: Record<string, any> = stripUndefinedDeep({
+      id: safeId,
+      displayId: room.displayId || String(Math.floor(10000 + Math.random() * 90000)),
+      title: String(room.title || 'Party Voice Room').trim().slice(0, 100),
+      category: String(room.category || 'Party'),
+      host: safeHost,
+      coverImage: safeImageUrlForCard(room.coverImage, 160000) || safeHost.avatar || '',
+      iconType: room.iconType || 'heart',
+      participantCount: String(room.participantCount || `1/${maxSeats}`),
+      numericParticipants: typeof room.numericParticipants === 'number' ? room.numericParticipants : 1,
+      viewersCount: typeof room.numericParticipants === 'number' ? room.numericParticipants : 1,
+      isAudioRoom: true,
+      maxSeats,
+      roomType: room.roomType === 'private' ? 'private' : 'public',
+      announcement: String(room.announcement || 'Welcome to my party voice room!').slice(0, 200),
+      seats: safeSeats,
+      mutedSeatIndices: Array.isArray(room.mutedSeatIndices) ? room.mutedSeatIndices : [],
+      seatRequests: [],
+      isLocked: Boolean(room.isLocked),
+      allowJoin: room.allowJoin !== false,
+      startTime: typeof room.startTime === 'number' ? room.startTime : Date.now(),
+      updatedAt: Date.now(),
+      likesCount: typeof room.likesCount === 'number' ? room.likesCount : 0,
+      status: 'active',
+    });
+
+    if (room.roomType === 'private' && room.password && room.password.trim()) {
+      payload.password = room.password.trim();
+    }
+
+    await setDoc(doc(db, collPath, safeId), {
+      ...payload,
       createdAt: serverTimestamp(),
     });
-    return docRef.id;
+    return safeId;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, collPath);
     throw err;
@@ -232,20 +432,31 @@ export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom,
 }
 
 export async function updateFirestorePartyRoom(roomId: string, updates: Partial<PartyRoom>): Promise<void> {
+  if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(roomId)) return;
   const docRef = doc(db, 'party_rooms', roomId);
   try {
-    await updateDoc(docRef, updates);
+    const cleanUpdates: Record<string, any> = stripUndefinedDeep({ ...updates });
+    if (Array.isArray(updates.seats)) {
+      cleanUpdates.seats = updates.seats.map((s) => (s ? sanitizeFirestoreUserCard(s) : null));
+    }
+    if (updates.host) {
+      cleanUpdates.host = sanitizeFirestoreUserCard(updates.host);
+    }
+    delete cleanUpdates.id;
+    if (Object.keys(cleanUpdates).length === 0) return;
+    await updateDoc(docRef, cleanUpdates);
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `party_rooms/${roomId}`);
+    console.warn(`[Firestore] updateFirestorePartyRoom (${roomId}) notice:`, err);
   }
 }
 
 export async function deleteFirestorePartyRoom(roomId: string): Promise<void> {
+  if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(roomId)) return;
   const docRef = doc(db, 'party_rooms', roomId);
   try {
     await deleteDoc(docRef);
   } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, `party_rooms/${roomId}`);
+    console.warn(`[Firestore] deleteFirestorePartyRoom (${roomId}) notice:`, err);
   }
 }
 
@@ -255,52 +466,74 @@ export async function deleteFirestorePartyRoom(roomId: string): Promise<void> {
 export async function fetchFirestoreLiveStreams(): Promise<LiveStream[]> {
   const collPath = 'live_streams';
   try {
-    const q = query(collection(db, collPath), limit(30));
+    const q = query(collection(db, collPath), limit(100));
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    } as LiveStream));
+    return snap.docs
+      .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
+      .map((d) => normalizeFirestoreLiveStream(d.id, d.data()))
+      .sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
   } catch (err) {
-    handleFirestoreError(err, OperationType.LIST, collPath);
+    console.warn('[Firestore] fetchFirestoreLiveStreams notice:', err);
     return [];
   }
 }
 
 export function subscribeFirestoreLiveStreams(onUpdate: (streams: LiveStream[]) => void) {
   const collPath = 'live_streams';
-  const q = query(collection(db, collPath), limit(30));
+  const q = query(collection(db, collPath), limit(100));
   return onSnapshot(
     q,
     (snap) => {
-      const streams = snap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      } as LiveStream));
+      const streams = snap.docs
+        .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
+        .map((d) => normalizeFirestoreLiveStream(d.id, d.data()))
+        .sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
       onUpdate(streams);
     },
     (err) => {
-      handleFirestoreError(err, OperationType.LIST, collPath);
+      console.warn('[Firestore] subscribeFirestoreLiveStreams notice:', err);
     }
   );
 }
 
 export async function createFirestoreLiveStream(stream: LiveStream | Omit<LiveStream, 'id'>): Promise<string> {
   const collPath = 'live_streams';
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    throw new Error('Authentication required to start a live stream.');
+  }
+
   try {
-    const explicitId = 'id' in stream && stream.id ? stream.id : '';
-    if (explicitId) {
-      await setDoc(doc(db, collPath, explicitId), {
-        ...stream,
-        createdAt: serverTimestamp(),
-      });
-      return explicitId;
-    }
-    const docRef = await addDoc(collection(db, collPath), {
-      ...stream,
+    const rawId = 'id' in stream && stream.id ? String(stream.id) : `live_${Date.now()}`;
+    const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `live_${Date.now()}`;
+    const safeHost = sanitizeFirestoreUserCard(stream.host, uid);
+
+    const payload: Record<string, any> = stripUndefinedDeep({
+      id: safeId,
+      title: String(stream.title || 'Live Broadcast').trim().slice(0, 120),
+      category: String(stream.category || 'Live'),
+      host: safeHost,
+      coverImage: safeImageUrlForCard(stream.coverImage, 160000) || safeHost.coverImage || safeHost.avatar || '',
+      viewerCount: String(stream.viewerCount ?? '0'),
+      numericViewers: typeof stream.numericViewers === 'number' ? stream.numericViewers : 0,
+      viewersCount: typeof stream.numericViewers === 'number' ? stream.numericViewers : 0,
+      isLive: true,
+      status: 'live',
+      tags: Array.isArray(stream.tags) ? stream.tags.slice(0, 8) : [String(stream.category || 'Live'), 'Live'],
+      guests: [],
+      likesCount: typeof stream.likesCount === 'number' ? stream.likesCount : 0,
+      commentsCount: typeof stream.commentsCount === 'number' ? stream.commentsCount : 0,
+      startTime: typeof stream.startTime === 'number' ? stream.startTime : Date.now(),
+      updatedAt: Date.now(),
+      allowGuests: stream.allowGuests !== false,
+      isPrivate: Boolean(stream.isPrivate),
+    });
+
+    await setDoc(doc(db, collPath, safeId), {
+      ...payload,
       createdAt: serverTimestamp(),
     });
-    return docRef.id;
+    return safeId;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, collPath);
     throw err;
@@ -308,20 +541,28 @@ export async function createFirestoreLiveStream(stream: LiveStream | Omit<LiveSt
 }
 
 export async function updateFirestoreLiveStream(streamId: string, updates: Partial<LiveStream>): Promise<void> {
+  if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(streamId)) return;
   const docRef = doc(db, 'live_streams', streamId);
   try {
-    await updateDoc(docRef, updates);
+    const cleanUpdates: Record<string, any> = stripUndefinedDeep({ ...updates });
+    if (updates.host) {
+      cleanUpdates.host = sanitizeFirestoreUserCard(updates.host);
+    }
+    delete cleanUpdates.id;
+    if (Object.keys(cleanUpdates).length === 0) return;
+    await updateDoc(docRef, cleanUpdates);
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `live_streams/${streamId}`);
+    console.warn(`[Firestore] updateFirestoreLiveStream (${streamId}) notice:`, err);
   }
 }
 
 export async function endFirestoreLiveStream(streamId: string): Promise<void> {
+  if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(streamId)) return;
   const docRef = doc(db, 'live_streams', streamId);
   try {
     await deleteDoc(docRef);
   } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, `live_streams/${streamId}`);
+    console.warn(`[Firestore] endFirestoreLiveStream (${streamId}) notice:`, err);
   }
 }
 

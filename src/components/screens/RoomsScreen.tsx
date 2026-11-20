@@ -10,7 +10,8 @@ import {
   X,
   Sparkles,
   ArrowRight,
-  Mic
+  Mic,
+  Trophy
 } from 'lucide-react';
 import { PartyRoom, ScreenType } from '../../types';
 
@@ -87,8 +88,16 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             </h1>
           </div>
 
-          {/* Right Action Icons: Microphone Broadcast, Search & Bell */}
-          <div className="flex items-center gap-2.5">
+          {/* Right Action Icons: Leaderboard, Microphone Broadcast, Search & Bell */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNavigate('rankings')}
+              className="w-9 h-9 rounded-full bg-[#241338] hover:bg-[#321B4E] border border-[#FFC84A]/45 flex items-center justify-center text-[#FFC84A] transition-colors active:scale-95"
+              title="Leaderboards & Rankings"
+            >
+              <Trophy className="w-4 h-4" />
+            </button>
+
             {/* Microphone Button (Triggers Go Live vs Create Room) */}
             <button
               onClick={onOpenMicMenu || onOpenCreateRoom}

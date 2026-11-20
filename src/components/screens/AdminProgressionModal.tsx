@@ -12,6 +12,7 @@ import {
   FileClock,
   Save,
   RefreshCw,
+  ShoppingBag,
 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
@@ -26,6 +27,7 @@ import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
 import { VerifiedTick } from '../common/VerifiedBadge';
+import { AdminStoreTab } from './AdminStoreTab';
 
 interface AdminProgressionModalProps {
   isOpen: boolean;
@@ -33,7 +35,7 @@ interface AdminProgressionModalProps {
   currentUserEmail?: string;
 }
 
-type AdminTab = 'levels' | 'vip' | 'achievements' | 'users' | 'audit';
+type AdminTab = 'levels' | 'vip' | 'achievements' | 'store' | 'users' | 'audit';
 
 export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   isOpen,
@@ -279,6 +281,7 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
             { id: 'levels', label: 'Levels 0–100', icon: Layers },
             { id: 'vip', label: 'VIP & Super VIP', icon: Crown },
             { id: 'achievements', label: 'Achievements', icon: Award },
+            { id: 'store', label: 'Store Catalog', icon: ShoppingBag },
             { id: 'users', label: 'Users & Adjust', icon: Users },
             { id: 'audit', label: 'Audit Logs', icon: FileClock },
           ] as const).map((tab) => {
@@ -705,6 +708,14 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* TAB: STORE CATALOG MANAGER */}
+              {activeTab === 'store' && (
+                <AdminStoreTab
+                  onNotify={(msg) => notify(msg)}
+                  onError={(msg) => setError(msg)}
+                />
               )}
 
               {/* TAB: AUDIT LOGS & UNLOCK HISTORY */}

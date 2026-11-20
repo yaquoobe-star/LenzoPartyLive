@@ -579,6 +579,71 @@
         "updatedBy": { "type": "string", "maxLength": 120 }
       },
       "required": ["viewerWeight", "giftWeight", "engagementWeight", "durationWeight"]
+    },
+    "StoreCategory": {
+      "title": "StoreCategory",
+      "description": "Official Lenzo Party Store categories (VIP FRAMES, SPECIAL ENTRY, CUSTOM GIFT, PREMIUM ASSETS)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "enum": ["vip_frames", "special_entry", "custom_gift", "premium_assets"] },
+        "title": { "type": "string", "maxLength": 64 },
+        "subtitle": { "type": "string", "maxLength": 160 },
+        "order": { "type": "number" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["id", "title", "enabled"]
+    },
+    "StoreProduct": {
+      "title": "StoreProduct",
+      "description": "Lenzo Party Store product managed by Admin and synced live to the Store screen",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 64 },
+        "categoryId": { "type": "string", "enum": ["vip_frames", "special_entry", "custom_gift", "premium_assets"] },
+        "priceCoins": { "type": "number" },
+        "description": { "type": "string", "maxLength": 320 },
+        "imageUrl": { "type": "string", "maxLength": 2048 },
+        "animationUrl": { "type": "string", "maxLength": 2048 },
+        "animationPreset": { "type": "string", "maxLength": 64 },
+        "isFeatured": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "sortOrder": { "type": "number" }
+      },
+      "required": ["name", "categoryId", "priceCoins", "enabled"]
+    },
+    "UserInventoryItem": {
+      "title": "UserInventoryItem",
+      "description": "Purchased Store item owned by a user with equip state",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 64 },
+        "categoryId": { "type": "string", "enum": ["vip_frames", "special_entry", "custom_gift", "premium_assets"] },
+        "pricePaidCoins": { "type": "number" },
+        "equipped": { "type": "boolean" },
+        "purchasedAt": { "type": "string" }
+      },
+      "required": ["userId", "productId", "categoryId", "pricePaidCoins", "equipped"]
+    },
+    "CoinTransaction": {
+      "title": "CoinTransaction",
+      "description": "Immutable Lenzo Party Store coin purchase audit transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["store_purchase", "coin_recharge", "admin_adjustment"] },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 64 },
+        "amount": { "type": "number" },
+        "balanceBefore": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "idempotencyKey": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["completed", "failed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "type", "amount", "balanceBefore", "balanceAfter", "idempotencyKey", "status"]
     }
   },
   "firestore": {
@@ -689,6 +754,22 @@
     "/chats/{chatId}/messages/{messageId}": {
       "schema": "ChatMessage",
       "description": "Direct chat conversation messages"
+    },
+    "/store_categories/{categoryId}": {
+      "schema": "StoreCategory",
+      "description": "Lenzo Party Store official categories"
+    },
+    "/store_products/{productId}": {
+      "schema": "StoreProduct",
+      "description": "Lenzo Party Store products managed via Admin panel"
+    },
+    "/user_inventory/{itemId}": {
+      "schema": "UserInventoryItem",
+      "description": "User purchased Store items and active equip state"
+    },
+    "/coin_transactions/{txId}": {
+      "schema": "CoinTransaction",
+      "description": "Immutable Store coin purchase transaction ledger"
     }
   }
 }

@@ -210,3 +210,105 @@ html, body {
   animation: lenzoParticleFloat 2.4s ease-in-out infinite;
 }
 
+/* ========================================================
+   LENZO PARTY STORE — REAL ANIMATED PREVIEW KEYFRAMES
+   ======================================================== */
+@keyframes storeReverseOrbit {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes storeFlamePulse {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.85; }
+  35% { transform: scale(1.06) rotate(4deg); opacity: 1; }
+  70% { transform: scale(0.98) rotate(-3deg); opacity: 0.9; }
+}
+
+@keyframes storeGateLeft {
+  0%, 15% { transform: translateX(0) scaleX(1); }
+  50%, 75% { transform: translateX(-34%) scaleX(0.58); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+@keyframes storeGateRight {
+  0%, 15% { transform: translateX(0) scaleX(1); }
+  50%, 75% { transform: translateX(34%) scaleX(0.58); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+
+@keyframes storeSpotlightLeft {
+  0%, 100% { transform: rotate(-24deg) scaleY(1); opacity: 0.45; }
+  50% { transform: rotate(12deg) scaleY(1.12); opacity: 0.85; }
+}
+
+@keyframes storeSpotlightRight {
+  0%, 100% { transform: rotate(24deg) scaleY(1); opacity: 0.45; }
+  50% { transform: rotate(-12deg) scaleY(1.12); opacity: 0.85; }
+}
+
+@keyframes storeGiftBounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  20% { transform: translateY(2px) scale(1.04, 0.94); }
+  42% { transform: translateY(-7px) scale(0.96, 1.06); }
+  62% { transform: translateY(0) scale(1.02, 0.98); }
+}
+
+@keyframes storeGiftLidPop {
+  0%, 20%, 100% { transform: translateY(0) rotate(0deg); }
+  45%, 65% { transform: translateY(-10px) rotate(-9deg); }
+}
+
+@keyframes storeSparkleRise {
+  0% { transform: translateY(10px) scale(0.4); opacity: 0; }
+  30% { opacity: 1; }
+  80% { opacity: 0.9; }
+  100% { transform: translateY(-28px) scale(1.15); opacity: 0; }
+}
+
+@keyframes storeDiamondFloat {
+  0%, 100% { transform: translateY(0px) scale(1) rotate(0deg); }
+  50% { transform: translateY(-6px) scale(1.05) rotate(3deg); }
+}
+
+@keyframes storeShimmerSweep {
+  0% { transform: translateX(-140%) skewX(-20deg); opacity: 0; }
+  25% { opacity: 0.65; }
+  60% { opacity: 0.65; }
+  100% { transform: translateX(180%) skewX(-20deg); opacity: 0; }
+}
+
+.animate-store-reverse-orbit {
+  animation: storeReverseOrbit 10s linear infinite;
+}
+.animate-store-flame {
+  animation: storeFlamePulse 2.1s ease-in-out infinite;
+}
+.animate-store-gate-left {
+  animation: storeGateLeft 3.4s ease-in-out infinite;
+}
+.animate-store-gate-right {
+  animation: storeGateRight 3.4s ease-in-out infinite;
+}
+.animate-store-spot-left {
+  animation: storeSpotlightLeft 3.2s ease-in-out infinite;
+}
+.animate-store-spot-right {
+  animation: storeSpotlightRight 3.2s ease-in-out infinite;
+}
+.animate-store-gift-bounce {
+  animation: storeGiftBounce 2.4s ease-in-out infinite;
+}
+.animate-store-gift-lid {
+  animation: storeGiftLidPop 2.4s ease-in-out infinite;
+}
+.animate-store-sparkle-rise {
+  animation: storeSparkleRise 2.2s ease-out infinite;
+}
+.animate-store-diamond {
+  animation: storeDiamondFloat 2.8s ease-in-out infinite;
+}
+.animate-store-shimmer {
+  animation: storeShimmerSweep 3.2s ease-in-out infinite;
+}
+
+

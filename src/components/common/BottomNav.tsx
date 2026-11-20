@@ -43,6 +43,72 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isChatActive = currentScreen === 'messages' || currentScreen === 'chat' || currentScreen === 'inbox';
   const isProfileActive = currentScreen === 'profile' || currentScreen === 'settings' || currentScreen === 'wallet';
 
+  // Dedicated Store Screen 5-Tab Bottom Navigation matching Lenzo Store visual spec:
+  // Home | Rooms | Store (glowing purple pill & shopping bag) | Videos | Profile
+  if (isStoreActive) {
+    return (
+      <nav
+        aria-label="Store Bottom Navigation"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-[#0A0318]/95 backdrop-blur-xl border-t border-purple-500/30 px-2 pb-safe pt-1.5 md:hidden select-none shadow-[0_-8px_28px_rgba(88,28,135,0.45)]"
+      >
+        <div className="grid grid-cols-5 items-center max-w-lg mx-auto h-14">
+          <button
+            onClick={() => onNavigate('home')}
+            className="flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all"
+            aria-label="Home"
+          >
+            <Home className="w-5 h-5 stroke-[1.9]" />
+            <span className="text-[10px] font-semibold mt-0.5">Home</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate('rooms')}
+            className="flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all"
+            aria-label="Rooms"
+          >
+            <LayoutGrid className="w-5 h-5 stroke-[1.9]" />
+            <span className="text-[10px] font-semibold mt-0.5">Rooms</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate('store')}
+            className="relative flex flex-col items-center justify-center -mt-2 active:scale-95 transition-all"
+            aria-label="Store"
+          >
+            <div
+              className="flex flex-col items-center justify-center px-3.5 py-1.5 rounded-2xl border border-fuchsia-300/60 text-white"
+              style={{
+                background: 'linear-gradient(135deg, #9333EA 0%, #C026D3 55%, #7C3AED 100%)',
+                boxShadow: '0 0 22px rgba(192, 38, 211, 0.85), 0 4px 14px rgba(0, 0, 0, 0.6)',
+              }}
+            >
+              <ShoppingBag className="w-5 h-5 stroke-[2.4] text-white" />
+              <span className="text-[10px] font-black tracking-wide text-white mt-0.5">Store</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigate('videos')}
+            className="flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all"
+            aria-label="Videos"
+          >
+            <Film className="w-5 h-5 stroke-[1.9]" />
+            <span className="text-[10px] font-semibold mt-0.5">Videos</span>
+          </button>
+
+          <button
+            onClick={() => onNavigate('profile')}
+            className="flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all"
+            aria-label="Profile"
+          >
+            <User className="w-5 h-5 stroke-[1.9]" />
+            <span className="text-[10px] font-semibold mt-0.5">Profile</span>
+          </button>
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#090611]/95 backdrop-blur-xl border-t border-white/[0.08] px-1 pb-safe pt-1 md:hidden select-none">
       <div className="flex items-center justify-between relative max-w-lg mx-auto h-14">

@@ -57,17 +57,22 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
       return;
     }
 
+    const hostProfile: UserProfile = {
+      ...currentUser,
+      id: auth.currentUser.uid,
+    };
+
     // Initialize 8 or 16 empty seats
     const emptySeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
     // Host sits in seat 0
-    emptySeats[0] = currentUser;
+    emptySeats[0] = hostProfile;
 
     const newRoom: PartyRoom = {
       id: `room_${Date.now()}`,
       displayId: Math.floor(10000 + Math.random() * 90000).toString(),
       title: roomName.trim(),
       category: 'Party',
-      host: currentUser,
+      host: hostProfile,
       coverImage: coverUrl,
       iconType: 'heart',
       participantCount: `1/${maxSeats}`,
@@ -75,7 +80,7 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
       isAudioRoom: true,
       maxSeats,
       roomType: isPrivate ? 'private' : 'public',
-      password: isPrivate ? password.trim() : undefined,
+      ...(isPrivate && password.trim() ? { password: password.trim() } : {}),
       announcement: announcement.trim() || 'Welcome to my party voice room! Respect everyone and enjoy!',
       seats: emptySeats,
       mutedSeatIndices: [],

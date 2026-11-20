@@ -434,8 +434,201 @@ let rankingConfig: RankingConfig = {
   updatedBy: 'system',
 };
 
+type RankingScope = 'global' | 'solo' | 'party';
+type RankingCategory = 'all' | 'host' | 'gifter' | 'viewer';
+type RankingPeriod = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'all_time';
+type RankingEventType = 'gift' | 'viewer_join' | 'viewer_watch' | 'heart' | 'comment' | 'host_live';
+
+interface RankingActivityEvent {
+  id: string;
+  timestamp: number;
+  scope: RankingScope;
+  contextId?: string;
+  type: RankingEventType;
+  actorId: string;
+  targetId?: string;
+  coins: number;
+  quantity: number;
+}
+
+const RANKINGS_STORE_PATH = path.join(process.cwd(), '.lenzo_rankings_store.json');
+const rankingEvents: RankingActivityEvent[] = [];
+const rankingUsersCache = new Map<string, any>();
+const lastWatchCreditMap = new Map<string, number>();
+const lastRankBroadcastMap = new Map<string, number>();
+let rankingsPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cacheRankingUser(user: any) {
+  if (!user || !user.id) return;
+  const existing = rankingUsersCache.get(user.id) || {};
+  const merged = {
+    ...existing,
+    ...user,
+    id: user.id,
+    name: user.name || existing.name || 'User',
+    avatar: user.avatar || existing.avatar || '',
+    displayId: user.displayId || existing.displayId || String(user.id).slice(-6).toUpperCase(),
+    level: typeof user.level === 'number' ? user.level : (existing.level ?? 0),
+    vipLevel: typeof user.vipLevel === 'number' ? user.vipLevel : (existing.vipLevel ?? 0),
+    superVipLevel: typeof user.superVipLevel === 'number' ? user.superVipLevel : (existing.superVipLevel ?? 0),
+    isVIP: Boolean(user.isVIP ?? existing.isVIP ?? ((user.vipLevel ?? existing.vipLevel ?? 0) > 0)),
+    isSuperVIP: Boolean(user.isSuperVIP ?? existing.isSuperVIP ?? ((user.superVipLevel ?? existing.superVipLevel ?? 0) > 0)),
+    isVerified: user.isVerified ?? existing.isVerified,
+    verificationTier: user.verificationTier ?? existing.verificationTier,
+    verifiedTag: user.verifiedTag ?? existing.verifiedTag,
+  };
+  rankingUsersCache.set(user.id, merged);
+}
+
+function getRankingUserProfile(userId: string): any {
+  const fromServer = serverUsers.get(userId);
+  const fromCache = rankingUsersCache.get(userId);
+  const base = fromServer || fromCache;
+  if (base) {
+    return {
+      id: userId,
+      displayId: base.displayId || userId.slice(-6).toUpperCase(),
+      name: base.name || 'Lenzo User',
+      username: base.username || `@${(base.name || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '')}`,
+      email: base.email || '',
+      avatar: base.avatar || '',
+      bio: base.bio || '',
+      level: typeof base.level === 'number' ? base.level : 0,
+      vipLevel: typeof base.vipLevel === 'number' ? base.vipLevel : 0,
+      isVIP: Boolean(base.isVIP || (base.vipLevel || 0) > 0),
+      superVipLevel: typeof base.superVipLevel === 'number' ? base.superVipLevel : 0,
+      isSuperVIP: Boolean(base.isSuperVIP || (base.superVipLevel || 0) > 0),
+      isVerified: base.isVerified,
+      verificationTier: base.verificationTier,
+      verifiedTag: base.verifiedTag || '',
+      fansCount: base.fansCount || '0',
+      followingCount: base.followingCount || 0,
+      likesCount: base.likesCount || '0',
+      coins: base.coins || 0,
+      diamonds: base.diamonds || 0,
+    };
+  }
+  return {
+    id: userId,
+    displayId: userId.slice(-6).toUpperCase(),
+    name: `User ${userId.slice(-4)}`,
+    username: `@user_${userId.slice(-4).toLowerCase()}`,
+    avatar: '',
+    bio: '',
+    level: 0,
+    vipLevel: 0,
+    isVIP: false,
+    superVipLevel: 0,
+    isSuperVIP: false,
+    fansCount: '0',
+    followingCount: 0,
+    likesCount: '0',
+    coins: 0,
+    diamonds: 0,
+  };
+}
+
+function scheduleRankingsPersist() {
+  if (rankingsPersistTimer) return;
+  rankingsPersistTimer = setTimeout(() => {
+    rankingsPersistTimer = null;
+    try {
+      const payload = {
+        events: rankingEvents.slice(-25000),
+        users: Array.from(rankingUsersCache.values()).slice(-2000),
+        rankingConfig,
+      };
+      fs.writeFileSync(RANKINGS_STORE_PATH, JSON.stringify(payload), 'utf8');
+    } catch {
+      // non-fatal on ephemeral filesystems
+    }
+  }, 800);
+}
+
+function loadRankingsStoreFromDisk() {
+  try {
+    if (!fs.existsSync(RANKINGS_STORE_PATH)) return;
+    const raw = JSON.parse(fs.readFileSync(RANKINGS_STORE_PATH, 'utf8'));
+    if (Array.isArray(raw.events)) {
+      for (const ev of raw.events) {
+        if (ev && ev.id && ev.actorId && typeof ev.timestamp === 'number') {
+          rankingEvents.push(ev);
+        }
+      }
+    }
+    if (Array.isArray(raw.users)) {
+      for (const u of raw.users) {
+        if (u && u.id) {
+          cacheRankingUser(u);
+          if (!serverUsers.has(u.id)) {
+            serverUsers.set(u.id, u);
+          }
+        }
+      }
+    }
+    if (raw.rankingConfig && typeof raw.rankingConfig === 'object') {
+      rankingConfig = { ...rankingConfig, ...raw.rankingConfig };
+    }
+  } catch (err) {
+    console.warn('[Rankings] Could not hydrate disk cache:', err);
+  }
+}
+
+function recordRankingEvent(input: {
+  scope: RankingScope;
+  contextId?: string;
+  type: RankingEventType;
+  actor?: any;
+  actorId?: string;
+  target?: any;
+  targetId?: string;
+  coins?: number;
+  quantity?: number;
+}) {
+  const actorId = input.actor?.id || input.actorId || '';
+  const targetId = input.target?.id || input.targetId || undefined;
+  if (!actorId) return;
+
+  if (input.actor?.id) cacheRankingUser(input.actor);
+  if (input.target?.id) cacheRankingUser(input.target);
+
+  const now = Date.now();
+  const ev: RankingActivityEvent = {
+    id: `rk_${now}_${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: now,
+    scope: input.scope,
+    contextId: input.contextId,
+    type: input.type,
+    actorId,
+    targetId,
+    coins: Math.max(0, Math.floor(Number(input.coins || 0))),
+    quantity: Math.max(1, Math.floor(Number(input.quantity || 1))),
+  };
+  rankingEvents.push(ev);
+  if (rankingEvents.length > 30000) {
+    rankingEvents.splice(0, rankingEvents.length - 25000);
+  }
+  scheduleRankingsPersist();
+
+  // Broadcast throttled live ranking update notification so open leaderboards refresh instantly
+  const throttleKey = `${input.scope}:${input.contextId || 'global'}`;
+  const lastBcast = lastRankBroadcastMap.get(throttleKey) || 0;
+  if (now - lastBcast >= 500 || input.type === 'gift') {
+    lastRankBroadcastMap.set(throttleKey, now);
+    broadcastAll('rankings:updated', {
+      scope: input.scope,
+      contextId: input.contextId || null,
+      type: input.type,
+      timestamp: now,
+    });
+  }
+}
+
+loadRankingsStoreFromDisk();
+
 function ensureBroadcasterMetric(user: any): BroadcasterMetricRecord | null {
   if (!user || !user.id) return null;
+  cacheRankingUser(user);
   let rec = broadcasterMetricsMap.get(user.id);
   if (!rec) {
     rec = {
@@ -1487,6 +1680,13 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
 
   serverUsers.set(host.id, host);
   partyRoomsMap.set(roomId, newRoom);
+  recordRankingEvent({
+    scope: 'party',
+    contextId: roomId,
+    type: 'host_live',
+    actor: host,
+    target: host,
+  });
 
   const serialized = serializePartyRoom(newRoom);
   broadcastAll('room:directory_updated', { roomId, action: 'created', room: serialized });
@@ -1528,6 +1728,16 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   };
   room.participants.set(user.id, viewerRecord);
   serverUsers.set(user.id, user);
+  cacheRankingUser(user);
+  if (isNewParticipant && user.id !== room.host.id) {
+    recordRankingEvent({
+      scope: 'party',
+      contextId: roomId,
+      type: 'viewer_join',
+      actor: user,
+      target: room.host,
+    });
+  }
 
   const serialized = serializePartyRoom(room);
   const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
@@ -1564,7 +1774,23 @@ app.post('/api/rooms/:roomId/heartbeat', (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Party room closed or not found.' });
   }
   if (userId && room.participants.has(userId)) {
-    room.participants.get(userId)!.lastSeen = Date.now();
+    const now = Date.now();
+    room.participants.get(userId)!.lastSeen = now;
+    if (userId !== room.host.id) {
+      const creditKey = `party:${room.id}:${userId}`;
+      const lastCredit = lastWatchCreditMap.get(creditKey) || 0;
+      if (now - lastCredit >= 30000) {
+        lastWatchCreditMap.set(creditKey, now);
+        recordRankingEvent({
+          scope: 'party',
+          contextId: room.id,
+          type: 'viewer_watch',
+          actorId: userId,
+          target: room.host,
+          quantity: 1,
+        });
+      }
+    }
   }
   res.json({ success: true, numericParticipants: room.participants.size });
 });
@@ -1918,6 +2144,14 @@ app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
   };
   room.messages.push(chatMsg);
   if (room.messages.length > 200) room.messages.shift();
+  recordRankingEvent({
+    scope: 'party',
+    contextId: roomId,
+    type: 'comment',
+    actor: sender,
+    target: room.host,
+    quantity: 1,
+  });
 
   broadcastToRoom(roomId, 'room:chat', { roomId, message: chatMsg });
   res.json({ success: true, message: chatMsg });
@@ -1940,6 +2174,16 @@ app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {
 
   const delta = Math.min(Math.max(1, Number(count) || 1), 10);
   room.likesCount += delta;
+  if (heartSenderId) {
+    recordRankingEvent({
+      scope: 'party',
+      contextId: roomId,
+      type: 'heart',
+      actorId: heartSenderId,
+      target: room.host,
+      quantity: delta,
+    });
+  }
 
   broadcastToRoom(roomId, 'room:heart', {
     roomId,
@@ -1980,6 +2224,16 @@ app.post('/api/rooms/:roomId/gift', (req: Request, res: Response) => {
     cRec.giftsSentCount += qty;
     cRec.lastActiveAt = Date.now();
     contributorMetricsMap.set(sender.id, cRec);
+
+    recordRankingEvent({
+      scope: 'party',
+      contextId: roomId,
+      type: 'gift',
+      actor: sender,
+      target: targetHost,
+      coins: totalCoins,
+      quantity: qty,
+    });
   }
 
   const eventPayload = {
@@ -2040,6 +2294,7 @@ app.post('/api/users/sync', (req: AuthenticatedRequest, res: Response) => {
   const existing = serverUsers.get(user.id) || {};
   const merged = { ...existing, ...user };
   serverUsers.set(user.id, merged);
+  cacheRankingUser(merged);
   res.json({ success: true, user: merged });
 });
 
@@ -2721,6 +2976,13 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
     metric.isCurrentlyLive = true;
     metric.liveStreamId = streamId;
   }
+  recordRankingEvent({
+    scope: 'solo',
+    contextId: streamId,
+    type: 'host_live',
+    actor: host,
+    target: host,
+  });
 
   const serialized = serializeLiveStream(newStream);
   broadcastAll('live:directory_updated', { streamId, action: 'started', stream: serialized });
@@ -2764,8 +3026,18 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
     if (metric) {
       metric.uniqueViewerIds.add(user.id);
     }
+    if (isNewInActiveMap) {
+      recordRankingEvent({
+        scope: 'solo',
+        contextId: streamId,
+        type: 'viewer_join',
+        actor: user,
+        target: stream.host,
+      });
+    }
   }
   serverUsers.set(user.id, user);
+  cacheRankingUser(user);
 
   const serialized = serializeLiveStream(stream);
   const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
@@ -2801,7 +3073,23 @@ app.post('/api/live/:streamId/heartbeat', (req: Request, res: Response) => {
   const { userId } = req.body;
   if (!stream) return res.status(404).json({ error: 'Stream ended' });
   if (userId && stream.viewers.has(userId)) {
-    stream.viewers.get(userId)!.lastSeen = Date.now();
+    const now = Date.now();
+    stream.viewers.get(userId)!.lastSeen = now;
+    if (userId !== stream.host.id) {
+      const creditKey = `solo:${stream.id}:${userId}`;
+      const lastCredit = lastWatchCreditMap.get(creditKey) || 0;
+      if (now - lastCredit >= 30000) {
+        lastWatchCreditMap.set(creditKey, now);
+        recordRankingEvent({
+          scope: 'solo',
+          contextId: stream.id,
+          type: 'viewer_watch',
+          actorId: userId,
+          target: stream.host,
+          quantity: 1,
+        });
+      }
+    }
   }
   res.json({ success: true, numericViewers: stream.viewers.size });
 });
@@ -2912,6 +3200,14 @@ app.post('/api/live/:streamId/comment', (req: Request, res: Response) => {
   };
   stream.comments.push(msg);
   if (stream.comments.length > 200) stream.comments.shift();
+  recordRankingEvent({
+    scope: 'solo',
+    contextId: streamId,
+    type: 'comment',
+    actor: sender,
+    target: stream.host,
+    quantity: 1,
+  });
 
   broadcastToLive(streamId, 'live:comment', { streamId, message: msg, commentsCount: stream.commentsCount });
   res.json({ success: true, message: msg });
@@ -2935,6 +3231,16 @@ app.post('/api/live/:streamId/heart', (req: Request, res: Response) => {
   stream.likesCount += delta;
   const metric = ensureBroadcasterMetric(stream.host);
   if (metric) metric.totalLikes += delta;
+  if (senderId) {
+    recordRankingEvent({
+      scope: 'solo',
+      contextId: streamId,
+      type: 'heart',
+      actorId: senderId,
+      target: stream.host,
+      quantity: delta,
+    });
+  }
 
   broadcastToLive(streamId, 'live:heart', { streamId, likesCount: stream.likesCount, delta });
   res.json({ success: true, likesCount: stream.likesCount });
@@ -2969,6 +3275,16 @@ app.post('/api/live/:streamId/gift', (req: Request, res: Response) => {
     cRec.giftsSentCount += qty;
     cRec.lastActiveAt = Date.now();
     contributorMetricsMap.set(sender.id, cRec);
+
+    recordRankingEvent({
+      scope: 'solo',
+      contextId: streamId,
+      type: 'gift',
+      actor: sender,
+      target: targetHost,
+      coins: totalCoins,
+      quantity: qty,
+    });
   }
 
   const eventPayload = {
@@ -2984,7 +3300,39 @@ app.post('/api/live/:streamId/gift', (req: Request, res: Response) => {
   res.json({ success: true, ...eventPayload });
 });
 
-// --- CONFIGURABLE BROADCASTER RANKINGS & ADMIN CONTROLS ---
+// --- MULTI-SCOPE REAL-TIME RANKING ENGINE (GLOBAL, SOLO LIVE, PARTY ROOMS) ---
+
+function getPeriodWindow(period: RankingPeriod): { since: number; resetAt: number | null } {
+  const now = Date.now();
+  const d = new Date(now);
+  switch (period) {
+    case 'hourly': {
+      const nextHour = new Date(d);
+      nextHour.setMinutes(0, 0, 0);
+      nextHour.setHours(nextHour.getHours() + 1);
+      return { since: now - 60 * 60 * 1000, resetAt: nextHour.getTime() };
+    }
+    case 'daily': {
+      const nextDay = new Date(d);
+      nextDay.setUTCHours(24, 0, 0, 0);
+      return { since: now - 24 * 60 * 60 * 1000, resetAt: nextDay.getTime() };
+    }
+    case 'weekly': {
+      const daysUntilMon = (8 - d.getUTCDay()) % 7 || 7;
+      const nextMon = new Date(d);
+      nextMon.setUTCDate(d.getUTCDate() + daysUntilMon);
+      nextMon.setUTCHours(0, 0, 0, 0);
+      return { since: now - 7 * 24 * 60 * 60 * 1000, resetAt: nextMon.getTime() };
+    }
+    case 'monthly': {
+      const nextMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0));
+      return { since: now - 30 * 24 * 60 * 60 * 1000, resetAt: nextMonth.getTime() };
+    }
+    case 'all_time':
+    default:
+      return { since: 0, resetAt: null };
+  }
+}
 
 function computeWeightedBroadcasterScore(rec: BroadcasterMetricRecord): number {
   const giftPart = rec.giftsCoinValue * rankingConfig.giftValueWeight;
@@ -2994,98 +3342,483 @@ function computeWeightedBroadcasterScore(rec: BroadcasterMetricRecord): number {
   return Math.round(giftPart + viewerPart + engagementPart + livePart);
 }
 
-app.get('/api/rankings/top-broadcasters', (_req: Request, res: Response) => {
-  const entries = Array.from(broadcasterMetricsMap.values())
-    .map((rec) => {
-      const activeStream = Array.from(liveStreamsMap.values()).find((s) => s.host?.id === rec.user.id);
-      const isCurrentlyLive = Boolean(activeStream);
-      const computedScore = computeWeightedBroadcasterScore({ ...rec, isCurrentlyLive });
-      return {
-        user: rec.user,
-        score: computedScore,
-        formattedScore: formatCompactCount(computedScore),
-        liveStreamId: activeStream?.id,
-        isCurrentlyLive,
-        breakdown: {
-          giftsCoinValue: rec.giftsCoinValue,
-          uniqueViewers: rec.uniqueViewerIds.size,
-          totalLikes: rec.totalLikes,
-          totalComments: rec.totalComments,
-        },
+interface AggregatedUserRankingBucket {
+  userId: string;
+  hostGiftsCoins: number;
+  hostGiftsCount: number;
+  hostUniqueViewers: Set<string>;
+  hostLikes: number;
+  hostComments: number;
+  hostSessions: Set<string>;
+  gifterCoins: number;
+  gifterCount: number;
+  viewerGiftsCoins: number;
+  viewerLikes: number;
+  viewerComments: number;
+  viewerWatchTicks: number; // each tick = 0.5 min
+  viewerSessions: Set<string>;
+  isHostInContext: boolean;
+}
+
+function getOrInitBucket(map: Map<string, AggregatedUserRankingBucket>, userId: string): AggregatedUserRankingBucket {
+  let b = map.get(userId);
+  if (!b) {
+    b = {
+      userId,
+      hostGiftsCoins: 0,
+      hostGiftsCount: 0,
+      hostUniqueViewers: new Set<string>(),
+      hostLikes: 0,
+      hostComments: 0,
+      hostSessions: new Set<string>(),
+      gifterCoins: 0,
+      gifterCount: 0,
+      viewerGiftsCoins: 0,
+      viewerLikes: 0,
+      viewerComments: 0,
+      viewerWatchTicks: 0,
+      viewerSessions: new Set<string>(),
+      isHostInContext: false,
+    };
+    map.set(userId, b);
+  }
+  return b;
+}
+
+function computeLeaderboard(params: {
+  scope: RankingScope;
+  category: RankingCategory;
+  period: RankingPeriod;
+  contextId?: string;
+  userId?: string;
+  limit?: number;
+}) {
+  const { scope, category, period, contextId, userId } = params;
+  const maxLimit = Math.min(Math.max(1, params.limit || 50), 100);
+  const { since, resetAt } = getPeriodWindow(period);
+
+  const buckets = new Map<string, AggregatedUserRankingBucket>();
+
+  // 1. Aggregate real time-windowed events matching scope & optional contextId
+  for (const ev of rankingEvents) {
+    if (ev.timestamp < since) continue;
+    if (contextId) {
+      if (ev.contextId !== contextId) continue;
+    } else if (scope === 'solo' && ev.scope !== 'solo') {
+      continue;
+    } else if (scope === 'party' && ev.scope !== 'party') {
+      continue;
+    }
+
+    const sessionKey = ev.contextId || `${ev.scope}:${Math.floor(ev.timestamp / 3600000)}`;
+
+    if (ev.type === 'host_live') {
+      const hb = getOrInitBucket(buckets, ev.actorId);
+      hb.isHostInContext = true;
+      hb.hostSessions.add(sessionKey);
+    } else if (ev.type === 'gift') {
+      const gb = getOrInitBucket(buckets, ev.actorId);
+      gb.gifterCoins += ev.coins;
+      gb.gifterCount += ev.quantity;
+      if (!ev.targetId || ev.actorId !== ev.targetId) {
+        gb.viewerGiftsCoins += ev.coins;
+        gb.viewerSessions.add(sessionKey);
+      }
+      if (ev.targetId) {
+        const hb = getOrInitBucket(buckets, ev.targetId);
+        hb.isHostInContext = true;
+        hb.hostGiftsCoins += ev.coins;
+        hb.hostGiftsCount += ev.quantity;
+        hb.hostUniqueViewers.add(ev.actorId);
+        hb.hostSessions.add(sessionKey);
+      }
+    } else if (ev.type === 'viewer_join') {
+      const vb = getOrInitBucket(buckets, ev.actorId);
+      vb.viewerSessions.add(sessionKey);
+      if (ev.targetId && ev.targetId !== ev.actorId) {
+        const hb = getOrInitBucket(buckets, ev.targetId);
+        hb.isHostInContext = true;
+        hb.hostUniqueViewers.add(ev.actorId);
+        hb.hostSessions.add(sessionKey);
+      }
+    } else if (ev.type === 'viewer_watch') {
+      const vb = getOrInitBucket(buckets, ev.actorId);
+      vb.viewerWatchTicks += ev.quantity;
+      vb.viewerSessions.add(sessionKey);
+      if (ev.targetId && ev.targetId !== ev.actorId) {
+        const hb = getOrInitBucket(buckets, ev.targetId);
+        hb.hostUniqueViewers.add(ev.actorId);
+      }
+    } else if (ev.type === 'heart') {
+      const vb = getOrInitBucket(buckets, ev.actorId);
+      vb.viewerLikes += ev.quantity;
+      vb.viewerSessions.add(sessionKey);
+      if (ev.targetId) {
+        const hb = getOrInitBucket(buckets, ev.targetId);
+        hb.isHostInContext = true;
+        hb.hostLikes += ev.quantity;
+        if (ev.actorId !== ev.targetId) hb.hostUniqueViewers.add(ev.actorId);
+      }
+    } else if (ev.type === 'comment') {
+      const vb = getOrInitBucket(buckets, ev.actorId);
+      vb.viewerComments += ev.quantity;
+      vb.viewerSessions.add(sessionKey);
+      if (ev.targetId) {
+        const hb = getOrInitBucket(buckets, ev.targetId);
+        hb.isHostInContext = true;
+        hb.hostComments += ev.quantity;
+        if (ev.actorId !== ev.targetId) hb.hostUniqueViewers.add(ev.actorId);
+      }
+    }
+  }
+
+  // 2. Fold in live active streams & party rooms so live hosts & real connected audience always appear immediately
+  const activeSoloByHost = new Map<string, ServerLiveStream>();
+  for (const s of liveStreamsMap.values()) {
+    if (!s.isLive) continue;
+    activeSoloByHost.set(s.host.id, s);
+    if (contextId && s.id !== contextId) continue;
+    if (!contextId && scope === 'party') continue;
+
+    cacheRankingUser(s.host);
+    const hb = getOrInitBucket(buckets, s.host.id);
+    hb.isHostInContext = true;
+    hb.hostSessions.add(s.id);
+    for (const v of s.viewers.values()) {
+      if (v.userId === s.host.id) continue;
+      hb.hostUniqueViewers.add(v.userId);
+      const vb = getOrInitBucket(buckets, v.userId);
+      vb.viewerSessions.add(s.id);
+      cacheRankingUser({
+        id: v.userId,
+        name: v.name,
+        username: v.username,
+        avatar: v.avatar,
+        level: v.level,
+        vipLevel: v.vipLevel,
+        isVIP: v.isVIP,
+      });
+    }
+  }
+
+  const activePartyByHost = new Map<string, ServerPartyRoom>();
+  for (const r of partyRoomsMap.values()) {
+    activePartyByHost.set(r.host.id, r);
+    if (contextId && r.id !== contextId) continue;
+    if (!contextId && scope === 'solo') continue;
+
+    cacheRankingUser(r.host);
+    const hb = getOrInitBucket(buckets, r.host.id);
+    hb.isHostInContext = true;
+    hb.hostSessions.add(r.id);
+    for (const p of r.participants.values()) {
+      if (p.userId === r.host.id) continue;
+      hb.hostUniqueViewers.add(p.userId);
+      const vb = getOrInitBucket(buckets, p.userId);
+      vb.viewerSessions.add(r.id);
+      cacheRankingUser({
+        id: p.userId,
+        name: p.name,
+        username: p.username,
+        avatar: p.avatar,
+        level: p.level,
+        vipLevel: p.vipLevel,
+        isVIP: p.isVIP,
+      });
+    }
+  }
+
+  // 3. For Global All-Time, also include persisted progression spend from userProgressionStore (real users only)
+  if (!contextId && scope === 'global' && period === 'all_time') {
+    for (const rec of userProgressionStore.values()) {
+      if (rec.totalQualifyingCoinsSpent <= 0) continue;
+      cacheRankingUser({
+        id: rec.userId,
+        name: rec.userName || undefined,
+        avatar: rec.userAvatar || undefined,
+        email: rec.userEmail || undefined,
+        verificationTier: rec.verificationTier,
+        verifiedTag: rec.verifiedTag,
+      });
+      const b = getOrInitBucket(buckets, rec.userId);
+      if (b.gifterCoins < rec.totalQualifyingCoinsSpent) {
+        b.gifterCoins = rec.totalQualifyingCoinsSpent;
+        b.viewerGiftsCoins = Math.max(b.viewerGiftsCoins, rec.totalQualifyingCoinsSpent);
+      }
+    }
+  }
+
+  // Determine explicit context host ID (if viewing a single Solo Live or Party Room)
+  const contextHostId = contextId
+    ? liveStreamsMap.get(contextId)?.host?.id || partyRoomsMap.get(contextId)?.host?.id || null
+    : null;
+
+  // 4. Score each user for the requested category
+  const scored: Array<{
+    userId: string;
+    user: any;
+    numericScore: number;
+    score: string;
+    roleLabel: string;
+    isLive: boolean;
+    liveContextId?: string;
+    liveContextType?: 'solo' | 'party';
+    metrics: {
+      giftsCoins: number;
+      giftsCount: number;
+      uniqueViewers: number;
+      likesCount: number;
+      commentsCount: number;
+      watchMinutes: number;
+      sessionsCount: number;
+    };
+  }> = [];
+
+  for (const b of buckets.values()) {
+    const activeSolo = activeSoloByHost.get(b.userId);
+    const activeParty = activePartyByHost.get(b.userId);
+    const isLiveInScope =
+      scope === 'solo'
+        ? Boolean(activeSolo)
+        : scope === 'party'
+          ? Boolean(activeParty)
+          : Boolean(activeSolo || activeParty);
+
+    const liveContextId =
+      scope === 'party'
+        ? activeParty?.id
+        : scope === 'solo'
+          ? activeSolo?.id
+          : activeSolo?.id || activeParty?.id;
+    const liveContextType: 'solo' | 'party' | undefined =
+      scope === 'party'
+        ? activeParty ? 'party' : undefined
+        : scope === 'solo'
+          ? activeSolo ? 'solo' : undefined
+          : activeSolo ? 'solo' : activeParty ? 'party' : undefined;
+
+    const watchMinutes = Math.round((b.viewerWatchTicks * 0.5) * 10) / 10;
+
+    const hostScore = Math.round(
+      b.hostGiftsCoins * rankingConfig.giftValueWeight +
+        b.hostUniqueViewers.size * rankingConfig.uniqueViewerWeight +
+        (b.hostLikes + b.hostComments * 3) * rankingConfig.engagementWeight +
+        (isLiveInScope ? rankingConfig.activeLiveBoost : 0)
+    );
+
+    const viewerScore = Math.round(
+      b.viewerGiftsCoins * 2 +
+        b.viewerComments * 15 +
+        b.viewerLikes * 5 +
+        b.viewerSessions.size * 25 +
+        watchMinutes * 10
+    );
+
+    const gifterScore = Math.round(b.gifterCoins);
+    const allScore = Math.round(hostScore + gifterScore * 2 + viewerScore);
+
+    let numericScore = 0;
+    let formattedScore = '0';
+    let roleLabel = 'Member';
+    let metrics = {
+      giftsCoins: b.hostGiftsCoins + b.gifterCoins,
+      giftsCount: b.hostGiftsCount + b.gifterCount,
+      uniqueViewers: b.hostUniqueViewers.size,
+      likesCount: b.hostLikes + b.viewerLikes,
+      commentsCount: b.hostComments + b.viewerComments,
+      watchMinutes,
+      sessionsCount: Math.max(b.hostSessions.size, b.viewerSessions.size),
+    };
+
+    if (category === 'host') {
+      if (!b.isHostInContext && !isLiveInScope) continue;
+      numericScore = hostScore;
+      if (numericScore <= 0 && !isLiveInScope) continue;
+      formattedScore = `${formatCompactCount(numericScore)} pts`;
+      roleLabel = liveContextType === 'party' ? 'Party Host' : 'Live Host';
+      metrics = {
+        giftsCoins: b.hostGiftsCoins,
+        giftsCount: b.hostGiftsCount,
+        uniqueViewers: b.hostUniqueViewers.size,
+        likesCount: b.hostLikes,
+        commentsCount: b.hostComments,
+        watchMinutes: 0,
+        sessionsCount: b.hostSessions.size,
       };
-    })
-    .filter((entry) => entry.score > 0 || entry.isCurrentlyLive)
-    .sort((a, b) => b.score - a.score || (b.isCurrentlyLive ? 1 : 0) - (a.isCurrentlyLive ? 1 : 0))
-    .slice(0, 2)
-    .map((entry, idx) => ({
-      rank: idx + 1,
-      ...entry,
-    }));
+    } else if (category === 'gifter') {
+      numericScore = gifterScore;
+      if (numericScore <= 0) continue;
+      formattedScore = `${formatCompactCount(numericScore)} Coins`;
+      roleLabel = 'Top Gifter';
+      metrics = {
+        giftsCoins: b.gifterCoins,
+        giftsCount: b.gifterCount,
+        uniqueViewers: 0,
+        likesCount: b.viewerLikes,
+        commentsCount: b.viewerComments,
+        watchMinutes,
+        sessionsCount: b.viewerSessions.size,
+      };
+    } else if (category === 'viewer') {
+      // In a specific room/stream, keep Top Viewer strictly audience (exclude the room's own host)
+      if (contextHostId && b.userId === contextHostId) continue;
+      numericScore = viewerScore;
+      if (numericScore <= 0) continue;
+      formattedScore = `${formatCompactCount(numericScore)} pts`;
+      roleLabel = 'Top Viewer';
+      metrics = {
+        giftsCoins: b.viewerGiftsCoins,
+        giftsCount: b.gifterCount,
+        uniqueViewers: 0,
+        likesCount: b.viewerLikes,
+        commentsCount: b.viewerComments,
+        watchMinutes,
+        sessionsCount: b.viewerSessions.size,
+      };
+    } else {
+      numericScore = allScore;
+      if (numericScore <= 0 && !isLiveInScope) continue;
+      formattedScore = `${formatCompactCount(numericScore)} pts`;
+      if (hostScore >= gifterScore * 2 && hostScore >= viewerScore && (b.isHostInContext || isLiveInScope)) {
+        roleLabel = liveContextType === 'party' ? 'Party Host' : 'Live Host';
+      } else if (gifterScore * 2 >= viewerScore && gifterScore > 0) {
+        roleLabel = 'Top Gifter';
+      } else {
+        roleLabel = 'Top Viewer';
+      }
+    }
+
+    const profile = getRankingUserProfile(b.userId);
+    // Attach authoritative progression level/verification if known
+    const progRec = userProgressionStore.get(b.userId);
+    if (progRec) {
+      const progState = calculateProgressionState(progRec.totalQualifyingCoinsSpent);
+      profile.level = Math.max(profile.level || 0, progState.currentLevel);
+      profile.vipLevel = Math.max(profile.vipLevel || 0, progState.highestUnlockedVipTier);
+      profile.superVipLevel = Math.max(profile.superVipLevel || 0, progState.highestUnlockedSuperVipTier);
+      if (progRec.verificationTier) profile.verificationTier = progRec.verificationTier;
+      if (progRec.verifiedTag) profile.verifiedTag = progRec.verifiedTag;
+    }
+
+    scored.push({
+      userId: b.userId,
+      user: profile,
+      numericScore,
+      score: formattedScore,
+      roleLabel,
+      isLive: isLiveInScope,
+      liveContextId,
+      liveContextType,
+      metrics,
+    });
+  }
+
+  scored.sort(
+    (a, b) =>
+      b.numericScore - a.numericScore ||
+      (b.isLive ? 1 : 0) - (a.isLive ? 1 : 0) ||
+      b.metrics.giftsCoins - a.metrics.giftsCoins
+  );
+
+  const allRankings = scored.map((item, idx) => ({
+    rank: idx + 1,
+    user: item.user,
+    score: item.score,
+    numericScore: item.numericScore,
+    badge: idx === 0 ? ('gold' as const) : idx === 1 ? ('silver' as const) : idx === 2 ? ('bronze' as const) : undefined,
+    trend: 'same' as const,
+    roleLabel: item.roleLabel,
+    isLive: item.isLive,
+    liveContextId: item.liveContextId,
+    liveContextType: item.liveContextType,
+    metrics: item.metrics,
+  }));
+
+  const myIndex = userId ? allRankings.findIndex((r) => r.user.id === userId) : -1;
+  const myEntry = myIndex >= 0 ? allRankings[myIndex] : null;
+
+  return {
+    rankings: allRankings.slice(0, maxLimit),
+    myRank: myIndex >= 0 ? myIndex + 1 : null,
+    myEntry,
+    totalCount: allRankings.length,
+    scope,
+    category,
+    period,
+    contextId: contextId || null,
+    resetAt,
+    config: rankingConfig,
+  };
+}
+
+app.get('/api/rankings/top-broadcasters', (_req: Request, res: Response) => {
+  const board = computeLeaderboard({
+    scope: 'global',
+    category: 'host',
+    period: 'weekly',
+    limit: 2,
+  });
+
+  const entries = board.rankings.map((entry) => ({
+    rank: entry.rank,
+    user: entry.user,
+    score: entry.numericScore,
+    formattedScore: formatCompactCount(entry.numericScore),
+    liveStreamId: entry.liveContextType === 'solo' ? entry.liveContextId : undefined,
+    isCurrentlyLive: Boolean(entry.isLive),
+    breakdown: {
+      giftsCoinValue: entry.metrics?.giftsCoins || 0,
+      uniqueViewers: entry.metrics?.uniqueViewers || 0,
+      totalLikes: entry.metrics?.likesCount || 0,
+      totalComments: entry.metrics?.commentsCount || 0,
+    },
+  }));
 
   res.json({ broadcasters: entries, config: rankingConfig });
 });
 
 app.get('/api/rankings', (req: Request, res: Response) => {
-  const tab = String(req.query.tab || 'Star');
-  const userId = String(req.query.userId || '');
+  const rawScope = String(req.query.scope || 'global').toLowerCase();
+  const scope: RankingScope =
+    rawScope === 'solo' || rawScope === 'party' ? rawScope : 'global';
 
-  let list: any[] = [];
-  if (tab === 'Star') {
-    list = Array.from(broadcasterMetricsMap.values())
-      .map((rec) => {
-        const isLive = Array.from(liveStreamsMap.values()).some((s) => s.host?.id === rec.user.id);
-        const numericScore = computeWeightedBroadcasterScore({ ...rec, isCurrentlyLive: isLive });
-        return {
-          user: rec.user,
-          numericScore,
-          score: formatCompactCount(numericScore),
-          isLive,
-        };
-      })
-      .filter((e) => e.numericScore > 0 || e.isLive)
-      .sort((a, b) => b.numericScore - a.numericScore);
-  } else if (tab === 'Contribution') {
-    list = Array.from(contributorMetricsMap.values())
-      .map((rec) => ({
-        user: rec.user,
-        numericScore: rec.coinsSpent,
-        score: formatCompactCount(rec.coinsSpent),
-      }))
-      .filter((e) => e.numericScore > 0)
-      .sort((a, b) => b.numericScore - a.numericScore);
-  } else {
-    list = Array.from(serverUsers.values())
-      .map((u) => {
-        const coinsSpent = contributorMetricsMap.get(u.id)?.coinsSpent || 0;
-        const levelVal = u.level || 1;
-        const vipVal = u.vipLevel || 0;
-        const numericScore = coinsSpent + vipVal * 10000 + levelVal * 100;
-        return {
-          user: u,
-          numericScore,
-          score: vipVal > 0 ? `VIP ${vipVal} • ${formatCompactCount(numericScore)}` : `Lv.${levelVal} • ${formatCompactCount(numericScore)}`,
-        };
-      })
-      .filter((e) => e.numericScore > 0)
-      .sort((a, b) => b.numericScore - a.numericScore);
+  const rawPeriod = String(req.query.period || 'daily').toLowerCase();
+  const period: RankingPeriod =
+    rawPeriod === 'hourly' ||
+    rawPeriod === 'daily' ||
+    rawPeriod === 'weekly' ||
+    rawPeriod === 'monthly' ||
+    rawPeriod === 'all_time'
+      ? rawPeriod
+      : 'daily';
+
+  const rawCategory = String(req.query.category || '').toLowerCase();
+  const rawTab = String(req.query.tab || '').toLowerCase();
+  let category: RankingCategory = 'all';
+  if (rawCategory === 'host' || rawCategory === 'gifter' || rawCategory === 'viewer' || rawCategory === 'all') {
+    category = rawCategory;
+  } else if (rawTab === 'star') {
+    category = 'host';
+  } else if (rawTab === 'contribution') {
+    category = 'gifter';
+  } else if (rawTab === 'wealth') {
+    category = 'all';
   }
 
-  const rankings = list.map((item, idx) => ({
-    rank: idx + 1,
-    user: item.user,
-    score: item.score,
-    numericScore: item.numericScore,
-    badge: idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : undefined,
-    trend: 'same',
-  }));
+  const contextId = req.query.contextId ? sanitizeText(String(req.query.contextId), 128) : undefined;
+  const userId = req.query.userId ? sanitizeText(String(req.query.userId), 128) : undefined;
+  const limit = req.query.limit ? Number(req.query.limit) : 50;
 
-  const myIndex = userId ? rankings.findIndex((r) => r.user.id === userId) : -1;
-  res.json({
-    rankings,
-    myRank: myIndex >= 0 ? myIndex + 1 : null,
-    totalCount: rankings.length,
-    config: rankingConfig,
+  const result = computeLeaderboard({
+    scope,
+    category,
+    period,
+    contextId,
+    userId,
+    limit,
   });
+
+  res.json(result);
 });
 
 app.get('/api/admin/ranking-config', (_req: Request, res: Response) => {
@@ -3110,6 +3843,7 @@ app.put('/api/admin/ranking-config', (req: AuthenticatedRequest, res: Response) 
     updatedBy: req.firebaseUser.email || req.firebaseUser.uid,
   };
 
+  scheduleRankingsPersist();
   broadcastAll('rankings:config_updated', { config: rankingConfig });
   res.json({ success: true, config: rankingConfig });
 });
@@ -3263,7 +3997,10 @@ interface ProgressionAuditLogEntry {
     | 'achievement_awarded'
     | 'achievement_equipped'
     | 'admin_config_updated'
-    | 'admin_user_adjusted';
+    | 'admin_user_adjusted'
+    | 'store_item_purchased'
+    | 'admin_store_product_saved'
+    | 'admin_store_product_deleted';
   summary: string;
   details: Record<string, any>;
 }
@@ -3599,6 +4336,18 @@ app.post('/api/progression/spend', (req: AuthenticatedRequest, res: Response) =>
     if (typeof snap.metrics.profileCompletedSteps === 'number') rec.metrics.profileCompletedSteps = Math.max(rec.metrics.profileCompletedSteps, snap.metrics.profileCompletedSteps);
   }
   rec.updatedAt = new Date().toISOString();
+
+  // Only record a global ranking event if not already recorded by a solo live or party room gift endpoint
+  const lowerReason = reason.toLowerCase();
+  if (!lowerReason.includes('live') && !lowerReason.includes('room') && !lowerReason.includes('party')) {
+    recordRankingEvent({
+      scope: 'global',
+      type: 'gift',
+      actorId: userId,
+      coins: coinsSpent,
+      quantity: 1,
+    });
+  }
 
   const { progression, achievements, newlyEarnedDefs } = buildUserProgressionPayload(rec);
   const nowIso = new Date().toISOString();
@@ -4152,6 +4901,265 @@ app.get('/api/admin/progression/audit-logs', requireAdminMiddleware, (_req: Auth
     auditLogs: progressionAuditLogs.slice(0, 200),
     unlockHistory: progressionUnlockHistory.slice(0, 200),
   });
+});
+
+// ============================================================================
+// LENZO PARTY STORE — CATALOG, VALIDATED PURCHASES & ADMIN MANAGEMENT API
+// ============================================================================
+interface ServerStoreProduct {
+  id: string;
+  name: string;
+  categoryId: 'vip_frames' | 'special_entry' | 'custom_gift' | 'premium_assets';
+  priceCoins: number;
+  description: string;
+  imageUrl?: string;
+  animationUrl?: string;
+  animationPreset: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  glowColor: string;
+  badgeText?: string;
+  durationDays?: number;
+  isFeatured: boolean;
+  enabled: boolean;
+  sortOrder: number;
+  updatedAt?: string;
+}
+
+const VALID_STORE_CATEGORIES = new Set([
+  'vip_frames',
+  'special_entry',
+  'custom_gift',
+  'premium_assets',
+]);
+
+const STORE_DATA_FILE = path.resolve(__dirname, 'data', 'lenzo-store.json');
+
+const SEED_STORE_PRODUCTS: ServerStoreProduct[] = [
+  { id: 'vip_frame_royal_flame', name: 'Royal Flame', categoryId: 'vip_frames', priceCoins: 2500, description: 'Blazing golden crown crest with rotating molten-amber flame ring and rising royal embers.', animationPreset: 'royal_flame', primaryColor: '#FF8A00', secondaryColor: '#FFC84A', accentColor: '#FFE082', glowColor: 'rgba(255, 160, 24, 0.75)', badgeText: 'POPULAR', durationDays: 0, isFeatured: true, enabled: true, sortOrder: 1 },
+  { id: 'vip_frame_neon_galaxy', name: 'Neon Galaxy', categoryId: 'vip_frames', priceCoins: 4800, description: 'Orbiting electric magenta-violet cosmic vortex with dual stardust particles.', animationPreset: 'neon_galaxy', primaryColor: '#A855F7', secondaryColor: '#EC4899', accentColor: '#38BDF8', glowColor: 'rgba(192, 68, 255, 0.8)', badgeText: 'HOT', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 2 },
+  { id: 'vip_frame_diamond_aura', name: 'Diamond Aura', categoryId: 'vip_frames', priceCoins: 7200, description: 'Ultra-luxury crystalline diamond halo with prismatic star-flares and platinum rim.', animationPreset: 'diamond_aura', primaryColor: '#38BDF8', secondaryColor: '#C084FC', accentColor: '#F8FAFC', glowColor: 'rgba(56, 189, 248, 0.8)', badgeText: 'LEGENDARY', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 3 },
+  { id: 'entry_imperial_carpet', name: 'Imperial Carpet', categoryId: 'special_entry', priceCoins: 6500, description: 'Plush crimson carpet with gleaming golden stanchions and animated twin spotlights.', animationPreset: 'imperial_carpet', primaryColor: '#DC2626', secondaryColor: '#FFC84A', accentColor: '#FDE68A', glowColor: 'rgba(245, 158, 11, 0.78)', badgeText: 'VIP ENTRY', durationDays: 0, isFeatured: true, enabled: true, sortOrder: 1 },
+  { id: 'entry_golden_gate', name: 'Royal Gate', categoryId: 'special_entry', priceCoins: 9800, description: 'Twin sculpted golden palace gates swing open with violet laser rays.', animationPreset: 'golden_gate', primaryColor: '#F59E0B', secondaryColor: '#9333EA', accentColor: '#FEF08A', glowColor: 'rgba(255, 200, 74, 0.82)', badgeText: 'ROYAL', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 2 },
+  { id: 'entry_phantom_spotlight', name: 'Neon Spotlight', categoryId: 'special_entry', priceCoins: 14500, description: 'Sweeping purple and magenta stage spotlights across live broadcasts.', animationPreset: 'phantom_spotlight', primaryColor: '#D946EF', secondaryColor: '#7C3AED', accentColor: '#F0ABFC', glowColor: 'rgba(217, 70, 239, 0.85)', badgeText: 'MYTHIC', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 3 },
+  { id: 'gift_velvet_galaxy', name: 'Velvet Gift Box', categoryId: 'custom_gift', priceCoins: 1800, description: 'Glowing violet crystal gift box wrapped in liquid gold ribbon with stardust burst.', animationPreset: 'velvet_gift_box', primaryColor: '#9333EA', secondaryColor: '#FFC84A', accentColor: '#F472B6', glowColor: 'rgba(168, 85, 247, 0.8)', badgeText: 'CUSTOM', durationDays: 0, isFeatured: true, enabled: true, sortOrder: 1 },
+  { id: 'gift_golden_ribbon', name: 'Golden Ribbon', categoryId: 'custom_gift', priceCoins: 3600, description: 'Gilded surprise chest with animated satin bow unfurling golden coin rain.', animationPreset: 'golden_ribbon_gift', primaryColor: '#F59E0B', secondaryColor: '#EC4899', accentColor: '#FEF08A', glowColor: 'rgba(245, 158, 11, 0.8)', badgeText: 'LUXURY', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 2 },
+  { id: 'gift_starburst_chest', name: 'Crown Treasure', categoryId: 'custom_gift', priceCoins: 8500, description: 'Royal amethyst treasure box bursting with a 3D crown hologram and sparks.', animationPreset: 'starburst_chest', primaryColor: '#C026D3', secondaryColor: '#FACC15', accentColor: '#E879F9', glowColor: 'rgba(192, 38, 211, 0.85)', badgeText: 'EXCLUSIVE', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 3 },
+  { id: 'asset_amethyst_prism', name: 'Amethyst Prism', categoryId: 'premium_assets', priceCoins: 3200, description: 'Rotating neon purple cut diamond emblem with prismatic violet aura rings.', animationPreset: 'amethyst_prism', primaryColor: '#A855F7', secondaryColor: '#EC4899', accentColor: '#F5D0FE', glowColor: 'rgba(168, 85, 247, 0.82)', badgeText: 'PREMIUM', durationDays: 0, isFeatured: true, enabled: true, sortOrder: 1 },
+  { id: 'asset_neon_diamond_crest', name: 'Diamond Crest', categoryId: 'premium_assets', priceCoins: 5900, description: 'High-gloss violet diamond crest emitting synchronized neon pulse waves.', animationPreset: 'neon_diamond_crest', primaryColor: '#D946EF', secondaryColor: '#38BDF8', accentColor: '#FDE047', glowColor: 'rgba(217, 70, 239, 0.82)', badgeText: 'ELITE', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 2 },
+  { id: 'asset_celestial_crystal', name: 'Celestial Orb', categoryId: 'premium_assets', priceCoins: 11000, description: 'Orbital sapphire-amethyst crystal core with animated golden star halo.', animationPreset: 'celestial_crystal', primaryColor: '#8B5CF6', secondaryColor: '#F59E0B', accentColor: '#67E8F9', glowColor: 'rgba(139, 92, 246, 0.88)', badgeText: 'MYTHIC', durationDays: 0, isFeatured: false, enabled: true, sortOrder: 3 },
+];
+
+const storeProductsMap = new Map<string, ServerStoreProduct>();
+const storeInventoryOwnership = new Map<string, Set<string>>(); // userId -> Set<productId>
+const storeIdempotencyKeys = new Set<string>();
+
+function loadStoreCatalogFromDisk() {
+  SEED_STORE_PRODUCTS.forEach((p) => storeProductsMap.set(p.id, { ...p }));
+  try {
+    if (fs.existsSync(STORE_DATA_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(STORE_DATA_FILE, 'utf8'));
+      if (Array.isArray(parsed.products) && parsed.products.length > 0) {
+        storeProductsMap.clear();
+        parsed.products.forEach((p: ServerStoreProduct) => {
+          if (p && p.id && VALID_STORE_CATEGORIES.has(p.categoryId)) {
+            storeProductsMap.set(p.id, p);
+          }
+        });
+      }
+      if (parsed.ownership && typeof parsed.ownership === 'object') {
+        Object.entries(parsed.ownership).forEach(([uid, ids]) => {
+          if (Array.isArray(ids)) {
+            storeInventoryOwnership.set(uid, new Set(ids.map(String)));
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Store] Failed to load disk store catalog, using defaults:', err);
+  }
+}
+
+function persistStoreCatalogToDisk() {
+  try {
+    const dir = path.dirname(STORE_DATA_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const ownershipObj: Record<string, string[]> = {};
+    storeInventoryOwnership.forEach((set, uid) => {
+      ownershipObj[uid] = Array.from(set);
+    });
+    fs.writeFileSync(
+      STORE_DATA_FILE,
+      JSON.stringify(
+        {
+          products: Array.from(storeProductsMap.values()),
+          ownership: ownershipObj,
+          updatedAt: new Date().toISOString(),
+        },
+        null,
+        2
+      )
+    );
+  } catch (err) {
+    console.warn('[Store] Failed to persist store catalog:', err);
+  }
+}
+
+loadStoreCatalogFromDisk();
+
+app.get('/api/store/catalog', (req: Request, res: Response) => {
+  const category = typeof req.query.category === 'string' ? req.query.category : null;
+  let list = Array.from(storeProductsMap.values()).filter((p) => p.enabled !== false);
+  if (category && VALID_STORE_CATEGORIES.has(category)) {
+    list = list.filter((p) => p.categoryId === category);
+  }
+  list.sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+  return res.json({ products: list });
+});
+
+app.post('/api/store/purchase/validate', (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required to purchase store items.' });
+  }
+  const productId = String(req.body?.productId || '').trim();
+  const idempotencyKey = String(req.body?.idempotencyKey || '').trim();
+  if (!productId) {
+    return res.status(400).json({ error: 'productId is required.' });
+  }
+  const prod = storeProductsMap.get(productId);
+  if (!prod) {
+    return res.status(404).json({ error: 'Store product not found.' });
+  }
+  if (!prod.enabled) {
+    return res.status(410).json({ error: 'Store product is currently unavailable.' });
+  }
+  const ownedSet = storeInventoryOwnership.get(uid);
+  const alreadyOwned = Boolean(ownedSet?.has(productId)) || (Boolean(idempotencyKey) && storeIdempotencyKeys.has(idempotencyKey));
+  return res.json({
+    valid: !alreadyOwned,
+    alreadyOwned,
+    product: {
+      id: prod.id,
+      name: prod.name,
+      categoryId: prod.categoryId,
+      priceCoins: prod.priceCoins,
+      animationPreset: prod.animationPreset,
+    },
+  });
+});
+
+app.post('/api/store/purchase/record', (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const productId = String(req.body?.productId || '').trim();
+  const idempotencyKey = String(req.body?.idempotencyKey || `store_${uid}_${productId}`).trim();
+  const pricePaidCoins = Math.max(0, Math.round(Number(req.body?.pricePaidCoins ?? 0)));
+
+  if (!productId) {
+    return res.status(400).json({ error: 'productId is required.' });
+  }
+  if (storeIdempotencyKeys.has(idempotencyKey)) {
+    return res.json({ success: true, duplicate: true });
+  }
+
+  storeIdempotencyKeys.add(idempotencyKey);
+  if (!storeInventoryOwnership.has(uid)) {
+    storeInventoryOwnership.set(uid, new Set());
+  }
+  storeInventoryOwnership.get(uid)!.add(productId);
+  persistStoreCatalogToDisk();
+
+  appendAuditLog({
+    actorId: uid,
+    actorEmail: req.firebaseUser?.email || '',
+    targetUserId: uid,
+    action: 'store_item_purchased',
+    summary: `Purchased Store product ${productId} for ${pricePaidCoins.toLocaleString()} coins`,
+    details: { productId, pricePaidCoins, idempotencyKey },
+  });
+
+  return res.json({ success: true, productId, pricePaidCoins });
+});
+
+app.get('/api/admin/store/products', requireAdminMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  const list = Array.from(storeProductsMap.values()).sort(
+    (a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99)
+  );
+  return res.json({ products: list });
+});
+
+app.post('/api/admin/store/products', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const body = req.body || {};
+  const categoryId = String(body.categoryId || '');
+  if (!VALID_STORE_CATEGORIES.has(categoryId)) {
+    return res.status(400).json({ error: 'Invalid store categoryId.' });
+  }
+  const name = String(body.name || '').trim().slice(0, 64);
+  if (!name) {
+    return res.status(400).json({ error: 'Product name is required.' });
+  }
+  const priceCoins = Math.max(1, Math.round(Number(body.priceCoins ?? 0)));
+  const id =
+    String(body.id || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_') ||
+    `${categoryId}_${Date.now()}`;
+
+  const item: ServerStoreProduct = {
+    id,
+    name,
+    categoryId: categoryId as ServerStoreProduct['categoryId'],
+    priceCoins,
+    description: String(body.description || '').trim().slice(0, 320),
+    imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '',
+    animationUrl: typeof body.animationUrl === 'string' ? body.animationUrl.trim() : '',
+    animationPreset: String(body.animationPreset || 'royal_flame'),
+    primaryColor: String(body.primaryColor || '#A855F7'),
+    secondaryColor: String(body.secondaryColor || '#FFC84A'),
+    accentColor: String(body.accentColor || '#F0ABFC'),
+    glowColor: String(body.glowColor || 'rgba(168, 85, 247, 0.75)'),
+    badgeText: typeof body.badgeText === 'string' ? body.badgeText.trim().slice(0, 24) : '',
+    durationDays: Math.max(0, Math.round(Number(body.durationDays ?? 0))),
+    isFeatured: Boolean(body.isFeatured),
+    enabled: body.enabled !== false,
+    sortOrder: Math.max(0, Math.round(Number(body.sortOrder ?? 10))),
+    updatedAt: new Date().toISOString(),
+  };
+
+  storeProductsMap.set(id, item);
+  persistStoreCatalogToDisk();
+
+  appendAuditLog({
+    actorId: req.firebaseUser?.uid || 'admin',
+    actorEmail: req.firebaseUser?.email || 'yaquoobe@gmail.com',
+    action: 'admin_store_product_saved',
+    summary: `Admin saved Store product "${name}" (${categoryId}) — ${priceCoins.toLocaleString()} coins`,
+    details: { id, categoryId, priceCoins, enabled: item.enabled, isFeatured: item.isFeatured },
+  });
+
+  return res.json({ success: true, product: item });
+});
+
+app.delete('/api/admin/store/products/:id', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const id = String(req.params.id || '').trim();
+  if (!id || !storeProductsMap.has(id)) {
+    return res.status(404).json({ error: 'Product not found.' });
+  }
+  const removed = storeProductsMap.get(id)!;
+  storeProductsMap.delete(id);
+  persistStoreCatalogToDisk();
+
+  appendAuditLog({
+    actorId: req.firebaseUser?.uid || 'admin',
+    actorEmail: req.firebaseUser?.email || 'yaquoobe@gmail.com',
+    action: 'admin_store_product_deleted',
+    summary: `Admin deleted Store product "${removed.name}" (${id})`,
+    details: { id, categoryId: removed.categoryId },
+  });
+
+  return res.json({ success: true, deletedId: id });
 });
 
 // Vite Integration & Production Static Serving (Cloudflare / Railway / Local Dev)

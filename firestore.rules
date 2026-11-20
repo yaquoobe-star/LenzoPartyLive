@@ -618,5 +618,102 @@ service cloud.firestore {
                             && incoming().durationWeight is number;
       allow delete: if false;
     }
+
+    // ========================================================
+    // 15. LENZO PARTY STORE (store_categories, store_products, user_inventory, coin_transactions)
+    // ========================================================
+    function isValidStoreCategoryId(catId) {
+      return catId in ['vip_frames', 'special_entry', 'custom_gift', 'premium_assets'];
+    }
+
+    function isValidStoreCategory(data) {
+      return data.keys().hasAll(['id', 'title', 'enabled'])
+        && isValidStoreCategoryId(data.id)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 64
+        && data.enabled is bool
+        && (!('order' in data) || (data.order is number && data.order >= 0 && data.order <= 100));
+    }
+
+    function isValidStoreProduct(data) {
+      return data.keys().hasAll(['name', 'categoryId', 'priceCoins', 'enabled'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 64
+        && isValidStoreCategoryId(data.categoryId)
+        && data.priceCoins is number && data.priceCoins >= 1 && data.priceCoins <= 100000000
+        && data.enabled is bool
+        && (!('description' in data) || (data.description is string && data.description.size() <= 320))
+        && (!('isFeatured' in data) || data.isFeatured is bool)
+        && (!('sortOrder' in data) || (data.sortOrder is number && data.sortOrder >= 0 && data.sortOrder <= 10000));
+    }
+
+    function isValidUserInventoryItem(data) {
+      return data.keys().hasAll(['userId', 'productId', 'categoryId', 'pricePaidCoins', 'equipped'])
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.productId is string && data.productId.size() > 0 && data.productId.size() <= 128
+        && isValidStoreCategoryId(data.categoryId)
+        && data.pricePaidCoins is number && data.pricePaidCoins >= 0 && data.pricePaidCoins <= 100000000
+        && data.equipped is bool;
+    }
+
+    function isValidCoinTransaction(data) {
+      return data.keys().hasAll(['userId', 'type', 'amount', 'balanceBefore', 'balanceAfter', 'idempotencyKey', 'status'])
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.type in ['store_purchase', 'coin_recharge', 'admin_adjustment']
+        && data.amount is number
+        && data.balanceBefore is number && data.balanceBefore >= 0
+        && data.balanceAfter is number && data.balanceAfter >= 0
+        && data.idempotencyKey is string && data.idempotencyKey.size() > 0 && data.idempotencyKey.size() <= 160
+        && data.status in ['completed', 'failed'];
+    }
+
+    match /store_categories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin()
+                            && isValidId(categoryId)
+                            && isValidStoreCategoryId(categoryId)
+                            && isValidStoreCategory(incoming());
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /store_products/{productId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin()
+                            && isValidId(productId)
+                            && isValidStoreProduct(incoming());
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    match /user_inventory/{itemId} {
+      allow get: if isSignedIn() && isValidId(itemId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(itemId)
+                    && isValidUserInventoryItem(incoming())
+                    && (incoming().userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn()
+                    && isValidId(itemId)
+                    && isValidUserInventoryItem(incoming())
+                    && (
+                      isAdmin()
+                      || (
+                        existing().userId == request.auth.uid
+                        && incoming().userId == existing().userId
+                        && incoming().productId == existing().productId
+                        && incoming().categoryId == existing().categoryId
+                        && incoming().pricePaidCoins == existing().pricePaidCoins
+                      )
+                    );
+      allow delete: if isAdmin() && isValidId(itemId);
+    }
+
+    match /coin_transactions/{txId} {
+      allow get: if isSignedIn() && isValidId(txId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(txId)
+                    && isValidCoinTransaction(incoming())
+                    && (incoming().userId == request.auth.uid || isAdmin());
+      allow update, delete: if false;
+    }
   }
 }
+

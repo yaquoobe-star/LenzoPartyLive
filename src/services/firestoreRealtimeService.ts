@@ -616,3 +616,103 @@ export async function updateFirestoreRoomParticipantCount(
     // ignore
   }
 }
+
+export function subscribeFirestorePartyRoomDoc(
+  roomId: string,
+  onStatus: (exists: boolean, data: Record<string, any> | null) => void
+): () => void {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) {
+    return () => {};
+  }
+
+  return onSnapshot(
+    doc(db, 'party_rooms', roomId),
+    (snap) => {
+      onStatus(snap.exists(), snap.exists() ? snap.data() : null);
+    },
+    () => {}
+  );
+}
+
+function compactSeatUser(user: UserProfile | null | undefined): UserProfile | null {
+  if (!user || !user.id) return null;
+  const clean: Record<string, any> = {
+    id: String(user.id),
+    name: String(user.name || 'User').slice(0, 80),
+    username: String(user.username || ''),
+    displayId: String(user.displayId || ''),
+    avatar: typeof user.avatar === 'string' && (!user.avatar.startsWith('data:') || user.avatar.length <= 160000) ? user.avatar : '',
+    level: typeof user.level === 'number' ? user.level : 0,
+    fansCount: String(user.fansCount ?? '0'),
+    followingCount: typeof user.followingCount === 'number' ? user.followingCount : 0,
+    likesCount: String(user.likesCount ?? '0'),
+    coins: typeof user.coins === 'number' ? user.coins : 0,
+    diamonds: typeof user.diamonds === 'number' ? user.diamonds : 0,
+    vipLevel: typeof user.vipLevel === 'number' ? user.vipLevel : 0,
+    isVIP: Boolean(user.isVIP),
+    bio: String(user.bio || '').slice(0, 140),
+  };
+  if (typeof user.isVerified === 'boolean') clean.isVerified = user.isVerified;
+  if (user.verificationTier) clean.verificationTier = user.verificationTier;
+  if (typeof user.equippedVipFrame === 'number') clean.equippedVipFrame = user.equippedVipFrame;
+  if (user.activeFrameType) clean.activeFrameType = user.activeFrameType;
+  return clean as UserProfile;
+}
+
+export async function syncFirestorePartyRoomState(
+  roomId: string,
+  isHost: boolean,
+  patch: {
+    seats?: (UserProfile | null)[];
+    seatRequests?: Array<{ id: string; user: UserProfile; seatIndex: number; requestedAt: number }>;
+    numericParticipants?: number;
+    participantCount?: string;
+    likesCount?: number;
+    mutedSeatIndices?: number[];
+    isLocked?: boolean;
+    allowJoin?: boolean;
+    announcement?: string;
+  }
+): Promise<void> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
+  try {
+    const payload: Record<string, any> = {};
+    if (Array.isArray(patch.seats)) {
+      payload.seats = patch.seats.map((s) => compactSeatUser(s));
+    }
+    if (Array.isArray(patch.seatRequests)) {
+      payload.seatRequests = patch.seatRequests
+        .map((r) => {
+          const u = compactSeatUser(r.user);
+          if (!u) return null;
+          return {
+            id: String(r.id || `sr_${Date.now()}`),
+            user: u,
+            seatIndex: typeof r.seatIndex === 'number' ? r.seatIndex : 1,
+            requestedAt: typeof r.requestedAt === 'number' ? r.requestedAt : Date.now(),
+          };
+        })
+        .filter(Boolean);
+    }
+    if (typeof patch.numericParticipants === 'number') {
+      const safe = Math.max(0, Math.floor(patch.numericParticipants));
+      payload.numericParticipants = safe;
+      payload.viewersCount = safe;
+      payload.participantCount = patch.participantCount ?? String(safe);
+    }
+    if (typeof patch.likesCount === 'number') {
+      payload.likesCount = Math.max(0, Math.floor(patch.likesCount));
+    }
+    if (isHost) {
+      if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
+      if (typeof patch.isLocked === 'boolean') payload.isLocked = patch.isLocked;
+      if (typeof patch.allowJoin === 'boolean') payload.allowJoin = patch.allowJoin;
+      if (typeof patch.announcement === 'string') payload.announcement = patch.announcement.slice(0, 200);
+    }
+    if (Object.keys(payload).length === 0) return;
+    await updateDoc(doc(db, 'party_rooms', roomId), payload);
+  } catch {
+    // Non-fatal: room may have just closed
+  }
+}
+

@@ -164,41 +164,155 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* 2. PROMINENT PARTY ROOM CREATION CARD */}
-        <div
-          onClick={() => onNavigate('create_room')}
-          className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-[#1A0D2E] via-[#261042] to-[#3B0F54] border border-[#FA26A0]/35 p-4 sm:p-5 shadow-lg cursor-pointer group hover:border-[#FA26A0]/70 transition-all"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#FA26A0]/30 group-hover:scale-105 transition-transform">
-                <Users className="w-6 h-6" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-black text-white font-display tracking-wide">
-                  CREATE YOUR PARTY ROOM
-                </h3>
-                <p className="text-xs text-[#B9AECF] truncate">
-                  Launch an 8-seat or 16-seat live audio party room & invite friends
-                </p>
-              </div>
-            </div>
-
+        {/* 2. ACTIVE REAL-TIME SOLO LIVE CARDS (Always prominent so viewers can tap & join immediately) */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
+              <Flame className="w-5 h-5 text-[#F328D5]" />
+              <span>LIVE BROADCASTERS</span>
+              {visibleLiveCards.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/35 text-[10px] font-bold text-rose-300">
+                  {visibleLiveCards.length} Live
+                </span>
+              )}
+            </h3>
             <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNavigate('create_room');
-              }}
-              className="px-4 py-2 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-[#FA26A0]/35 shrink-0 active:scale-95 transition-all"
+              onClick={() => onNavigate('create_live')}
+              className="text-xs text-[#F328D5] hover:text-pink-300 flex items-center gap-0.5 font-bold transition-colors"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
-              <span>Create Room</span>
+              <span>Go Live</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
 
-        {/* 2B. ACTIVE REAL-TIME PARTY ROOMS CARDS */}
+          {visibleLiveCards.length === 0 ? (
+            <div className="py-10 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center">
+              <div className="w-12 h-12 rounded-2xl bg-[#211333] flex items-center justify-center mb-2.5 text-[#F328D5]">
+                <Radio className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-white mb-1">
+                {activeTab === 'following'
+                  ? 'No Followed Hosts Are Live'
+                  : 'No Live Streams Active'}
+              </h4>
+              <p className="text-xs text-[#B9AECF] max-w-xs mb-3.5">
+                {activeTab === 'following'
+                  ? 'Follow broadcasters to see their live streams here as soon as they start.'
+                  : 'Be the first to go live and showcase your talent in real time.'}
+              </p>
+              <button
+                onClick={() => onNavigate('create_live')}
+                className="px-5 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg shadow-[#F328D5]/30 active:scale-95 transition-all"
+              >
+                Go Live Now
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {visibleLiveCards.map((stream) => {
+                const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
+                const topRankIndex = topTwoBroadcasters.findIndex(
+                  (b) => b.liveStreamId === stream.id || b.user.id === stream.host.id
+                );
+                return (
+                <div
+                  key={stream.id}
+                  onClick={() => onSelectLive(stream)}
+                  className="group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col"
+                >
+                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#211333]">
+                    {cardImage ? (
+                      <img
+                        src={cardImage}
+                        alt={stream.title}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]">
+                        <Video className="w-10 h-10 text-white/30" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
+
+                    {/* Top Badges: LIVE + Optional Top Rank + Viewer Count */}
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1">
+                      <div className="flex items-center gap-1">
+                        <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          LIVE
+                        </span>
+                        {topRankIndex >= 0 && (
+                          <span className="bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow">
+                            #{topRankIndex + 1}
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
+                        <Eye className="w-3 h-3 text-cyan-300" />
+                        <span>{stream.numericViewers ?? 0}</span>
+                      </span>
+                    </div>
+
+                    {/* Stream Title */}
+                    <div className="absolute bottom-10 left-2.5 right-2.5">
+                      <p className="text-xs font-extrabold text-white truncate drop-shadow">
+                        {stream.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <LevelBadge level={stream.host.level || 0} size="sm" />
+                        <span className="text-[10px] text-rose-300 flex items-center gap-0.5 font-mono">
+                          <Heart className="w-2.5 h-2.5 fill-rose-400" />
+                          {stream.likesCount || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Host Info with Follow Button */}
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {stream.host.avatar ? (
+                          <img
+                            src={stream.host.avatar}
+                            alt={stream.host.name}
+                            referrerPolicy="no-referrer"
+                            className="w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0">
+                            {(stream.host.name || 'H').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-xs font-bold text-white truncate drop-shadow">
+                          {stream.host.name}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleFollow?.(stream.host.id);
+                        }}
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${
+                          stream.host.isFollowing
+                            ? 'bg-white/20 text-white'
+                            : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white'
+                        }`}
+                      >
+                        {stream.host.isFollowing ? 'Following' : 'Follow'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* 3. ACTIVE REAL-TIME PARTY ROOMS CARDS */}
         {partyRooms.length > 0 && (
           <section className="space-y-3">
             <div className="flex items-center justify-between">
@@ -278,7 +392,41 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </section>
         )}
 
-        {/* 3. TOP BROADCASTERS (STRICTLY TOP 1 & TOP 2) */}
+        {/* 4. PROMINENT PARTY ROOM CREATION CARD */}
+        <div
+          onClick={() => onNavigate('create_room')}
+          className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-[#1A0D2E] via-[#261042] to-[#3B0F54] border border-[#FA26A0]/35 p-4 sm:p-5 shadow-lg cursor-pointer group hover:border-[#FA26A0]/70 transition-all"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#FA26A0]/30 group-hover:scale-105 transition-transform">
+                <Users className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-black text-white font-display tracking-wide">
+                  CREATE YOUR PARTY ROOM
+                </h3>
+                <p className="text-xs text-[#B9AECF] truncate">
+                  Launch an 8-seat or 16-seat live audio party room & invite friends
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate('create_room');
+              }}
+              className="px-4 py-2 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-[#FA26A0]/35 shrink-0 active:scale-95 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
+              <span>Create Room</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 5. TOP BROADCASTERS (STRICTLY TOP 1 & TOP 2) */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
@@ -369,7 +517,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                             <span className="text-sm font-black text-white truncate">
                               {entry.user.name}
                             </span>
-                            <LevelBadge level={entry.user.level || 1} size="sm" />
+                            <LevelBadge level={entry.user.level || 0} size="sm" />
                           </div>
 
                           <div className="flex items-center gap-3 text-[11px] text-[#B9AECF] mt-1 font-mono">
@@ -399,154 +547,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* 4. LIVE BROADCASTERS (All Active Real-Time Live Stream Cards) */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
-              <Flame className="w-5 h-5 text-[#F328D5]" />
-              <span>LIVE BROADCASTERS</span>
-              {visibleLiveCards.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/35 text-[10px] font-bold text-rose-300">
-                  {visibleLiveCards.length} Live
-                </span>
-              )}
-            </h3>
-            <button
-              onClick={() => onNavigate('rooms')}
-              className="text-xs text-[#B9AECF] hover:text-[#F328D5] flex items-center gap-0.5 font-semibold transition-colors"
-            >
-              <span>Party Rooms</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {visibleLiveCards.length === 0 ? (
-            <div className="py-12 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#211333] flex items-center justify-center mb-3 text-[#F328D5]">
-                <Radio className="w-7 h-7" />
-              </div>
-              <h4 className="text-sm font-bold text-white mb-1">
-                {activeTab === 'following'
-                  ? 'No Followed Hosts Are Live'
-                  : 'No Live Streams Active'}
-              </h4>
-              <p className="text-xs text-[#B9AECF] max-w-xs mb-4">
-                {activeTab === 'following'
-                  ? 'Follow broadcasters to see their live streams here as soon as they start.'
-                  : 'Be the first to go live and showcase your talent in real time.'}
-              </p>
-              <button
-                onClick={() => onNavigate('create_live')}
-                className="px-5 py-2.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg shadow-[#F328D5]/30 active:scale-95 transition-all"
-              >
-                Go Live Now
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {visibleLiveCards.map((stream) => {
-                const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
-                const topRankIndex = topTwoBroadcasters.findIndex(
-                  (b) => b.liveStreamId === stream.id || b.user.id === stream.host.id
-                );
-                return (
-                <div
-                  key={stream.id}
-                  onClick={() => onSelectLive(stream)}
-                  className="group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col"
-                >
-                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#211333]">
-                    {cardImage ? (
-                      <img
-                        src={cardImage}
-                        alt={stream.title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]">
-                        <Video className="w-10 h-10 text-white/30" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
-
-                    {/* Top Badges: LIVE + Optional Top Rank + Viewer Count */}
-                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1">
-                      <div className="flex items-center gap-1">
-                        <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                          LIVE
-                        </span>
-                        {topRankIndex >= 0 && (
-                          <span className="bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow">
-                            #{topRankIndex + 1}
-                          </span>
-                        )}
-                      </div>
-
-                      <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
-                        <Eye className="w-3 h-3 text-cyan-300" />
-                        <span>{stream.numericViewers ?? 0}</span>
-                      </span>
-                    </div>
-
-                    {/* Stream Title */}
-                    <div className="absolute bottom-10 left-2.5 right-2.5">
-                      <p className="text-xs font-extrabold text-white truncate drop-shadow">
-                        {stream.title}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <LevelBadge level={stream.host.level || 1} size="sm" />
-                        <span className="text-[10px] text-rose-300 flex items-center gap-0.5 font-mono">
-                          <Heart className="w-2.5 h-2.5 fill-rose-400" />
-                          {stream.likesCount || 0}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bottom Host Info with Follow Button */}
-                    <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {stream.host.avatar ? (
-                          <img
-                            src={stream.host.avatar}
-                            alt={stream.host.name}
-                            referrerPolicy="no-referrer"
-                            className="w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
-                          />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0">
-                            {(stream.host.name || 'H').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="text-xs font-bold text-white truncate drop-shadow">
-                          {stream.host.name}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleFollow?.(stream.host.id);
-                        }}
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${
-                          stream.host.isFollowing
-                            ? 'bg-white/20 text-white'
-                            : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white'
-                        }`}
-                      >
-                        {stream.host.isFollowing ? 'Following' : 'Follow'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
                 );
               })}
             </div>

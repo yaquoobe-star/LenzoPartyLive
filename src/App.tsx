@@ -669,13 +669,26 @@ export default function App() {
       setLiveStreams((prev) => {
         const merged = new Map<string, LiveStream>();
         remoteStreams.forEach((s) => {
-          if (!endedLiveIdsRef.current.has(s.id)) merged.set(s.id, s);
+          if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) {
+            merged.set(s.id, s);
+          }
         });
         prev.forEach((existing) => {
           if (endedLiveIdsRef.current.has(existing.id)) return;
           if (backendLiveIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
-            merged.set(existing.id, fsItem ? { ...fsItem, ...existing } : existing);
+            if (fsItem) {
+              const bestViewers = Math.max(fsItem.numericViewers || 0, existing.numericViewers || 0);
+              merged.set(existing.id, {
+                ...existing,
+                ...fsItem,
+                numericViewers: bestViewers,
+                viewerCount: String(bestViewers),
+                likesCount: Math.max(fsItem.likesCount || 0, existing.likesCount || 0),
+              });
+            } else {
+              merged.set(existing.id, existing);
+            }
           }
         });
         return Array.from(merged.values()).sort(
@@ -685,17 +698,27 @@ export default function App() {
     });
 
     const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
-      // Merge Firestore party rooms non-destructively: keep authoritative backend real-time seats & counts
+      // Merge Firestore party rooms non-destructively: keep authoritative seats & counts in sync across Web & Android
       setPartyRooms((prev) => {
         const merged = new Map<string, PartyRoom>();
         remoteRooms.forEach((r) => {
-          if (!endedRoomIdsRef.current.has(r.id)) merged.set(r.id, r);
+          if (!endedRoomIdsRef.current.has(r.id)) {
+            merged.set(r.id, r);
+          }
         });
         prev.forEach((existing) => {
           if (endedRoomIdsRef.current.has(existing.id)) return;
           if (backendRoomIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
-            merged.set(existing.id, fsItem ? { ...fsItem, ...existing } : existing);
+            if (fsItem) {
+              merged.set(existing.id, {
+                ...existing,
+                ...fsItem,
+                numericParticipants: Math.max(fsItem.numericParticipants || 0, existing.numericParticipants || 0),
+              });
+            } else {
+              merged.set(existing.id, existing);
+            }
           }
         });
         return Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
@@ -765,10 +788,21 @@ export default function App() {
     setCurrentScreen('audio_room');
   };
 
-  // Handler: Start Newly Created Live (Sync with Backend FIRST to avoid join/comment races, then Firestore)
+  // Handler: Start Newly Created Live (Sync to Cloud Firestore & Backend in parallel for instant Web + Android cards)
   const handleStartLive = async (newStream: LiveStream) => {
-    endedLiveIdsRef.current.delete(newStream.id);
-    backendLiveIdsRef.current.add(newStream.id);
+    const activeUid = auth.currentUser?.uid || newStream.host.id;
+    const normalizedStream: LiveStream = {
+      ...newStream,
+      isLive: true,
+      startTime: newStream.startTime || Date.now(),
+      host: {
+        ...newStream.host,
+        id: activeUid,
+      },
+    };
+
+    endedLiveIdsRef.current.delete(normalizedStream.id);
+    backendLiveIdsRef.current.add(normalizedStream.id);
 
     const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
       new Promise<T>((resolve) => {
@@ -796,15 +830,30 @@ export default function App() {
           });
       });
 
+    // Write to Cloud Firestore first/in parallel so BOTH Web and Android receive the live card immediately
+    const firestorePromise = createFirestoreLiveStream(normalizedStream).catch((err) => {
+      console.error('[Firestore] Live stream card creation failed:', err);
+      return null;
+    });
+
     const [confirmedStream] = await Promise.all([
-      withTimeout(liveAndRoomService.startLiveStream(newStream), 3000, newStream),
-      createFirestoreLiveStream(newStream).catch((err) => {
-        console.warn('[Firestore] Live stream creation notice:', err);
-      }),
+      withTimeout(liveAndRoomService.startLiveStream(normalizedStream), 3000, normalizedStream),
+      withTimeout(firestorePromise, 4000, null),
     ]);
 
-    setLiveStreams((prev) => [confirmedStream, ...prev.filter((s) => s.id !== confirmedStream.id)]);
-    setActiveLiveStream(confirmedStream);
+    const finalStream: LiveStream = {
+      ...normalizedStream,
+      ...confirmedStream,
+      id: normalizedStream.id,
+      host: {
+        ...(confirmedStream.host || normalizedStream.host),
+        id: activeUid,
+      },
+      isLive: true,
+    };
+
+    setLiveStreams((prev) => [finalStream, ...prev.filter((s) => s.id !== finalStream.id)]);
+    setActiveLiveStream(finalStream);
     setCurrentScreen('live_active');
 
     liveAndRoomService
@@ -830,46 +879,77 @@ export default function App() {
       .catch(() => {});
   };
 
-  // Handler: Create Newly Created Audio Room (Create Firestore & Backend in parallel with 3s cap)
+  // Handler: Create Newly Created Audio Room (Sync to Cloud Firestore & Backend in parallel for instant Web + Android cards)
   const handleCreateRoom = async (newRoom: PartyRoom) => {
-    endedRoomIdsRef.current.delete(newRoom.id);
-    backendRoomIdsRef.current.add(newRoom.id);
+    const activeUid = auth.currentUser?.uid || newRoom.host.id;
+    const normalizedHost: UserProfile = {
+      ...newRoom.host,
+      id: activeUid,
+    };
+    const normalizedSeats = Array.isArray(newRoom.seats)
+      ? newRoom.seats.map((seat, idx) =>
+          seat && (idx === 0 || seat.id === newRoom.host.id) ? normalizedHost : seat
+        )
+      : [normalizedHost, ...Array((newRoom.maxSeats === 16 ? 16 : 8) - 1).fill(null)];
 
-    const backendPromise = new Promise<PartyRoom>((resolve) => {
-      let settled = false;
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          resolve(newRoom);
-        }
-      }, 3000);
-      liveAndRoomService
-        .createPartyRoom(newRoom)
-        .then((res) => {
+    const normalizedRoom: PartyRoom = {
+      ...newRoom,
+      host: normalizedHost,
+      seats: normalizedSeats,
+      startTime: newRoom.startTime || Date.now(),
+    };
+
+    endedRoomIdsRef.current.delete(normalizedRoom.id);
+    backendRoomIdsRef.current.add(normalizedRoom.id);
+
+    const withTimeout = <T,>(promise: Promise<T>, ms: number, fallback: T): Promise<T> =>
+      new Promise<T>((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
           if (!settled) {
             settled = true;
-            clearTimeout(timer);
-            resolve(res);
+            resolve(fallback);
           }
-        })
-        .catch(() => {
-          if (!settled) {
-            settled = true;
-            clearTimeout(timer);
-            resolve(newRoom);
-          }
-        });
+        }, ms);
+        promise
+          .then((res) => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve(res);
+            }
+          })
+          .catch(() => {
+            if (!settled) {
+              settled = true;
+              clearTimeout(timer);
+              resolve(fallback);
+            }
+          });
+      });
+
+    const firestoreRoomPromise = createFirestorePartyRoom(normalizedRoom).catch((err) => {
+      console.error('[Firestore] Party room card creation failed:', err);
+      return null;
     });
 
     const [confirmedRoom] = await Promise.all([
-      backendPromise,
-      createFirestorePartyRoom(newRoom).catch((err) => {
-        console.warn('[Firestore] Party room creation notice:', err);
-      }),
+      withTimeout(liveAndRoomService.createPartyRoom(normalizedRoom), 3000, normalizedRoom),
+      withTimeout(firestoreRoomPromise, 4000, null),
     ]);
 
-    setPartyRooms((prev) => [confirmedRoom, ...prev.filter((r) => r.id !== confirmedRoom.id)]);
-    setActiveAudioRoom(confirmedRoom);
+    const finalRoom: PartyRoom = {
+      ...normalizedRoom,
+      ...confirmedRoom,
+      id: normalizedRoom.id,
+      host: {
+        ...(confirmedRoom.host || normalizedHost),
+        id: activeUid,
+      },
+    };
+
+    setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
+    setActiveAudioRoom(finalRoom);
     setCurrentScreen('audio_room');
   };
 

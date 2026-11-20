@@ -342,11 +342,16 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
       streamRef.current = null;
     }
 
+    const hostProfile: UserProfile = {
+      ...currentUser,
+      id: auth.currentUser.uid,
+    };
+
     const createdStream: LiveStream = {
       id: `live_${Date.now()}`,
       title: title.trim(),
       category,
-      host: currentUser,
+      host: hostProfile,
       coverImage: coverUrl,
       viewerCount: '0',
       numericViewers: 0,

@@ -392,6 +392,20 @@ export interface CartItem {
   quantity: number;
 }
 
+export type RankingScope = 'global' | 'solo' | 'party';
+export type RankingCategory = 'all' | 'host' | 'gifter' | 'viewer';
+export type RankingPeriod = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'all_time';
+
+export interface RankingEntryMetrics {
+  giftsCoins: number;
+  giftsCount: number;
+  uniqueViewers: number;
+  likesCount: number;
+  commentsCount: number;
+  watchMinutes: number;
+  sessionsCount: number;
+}
+
 export interface RankingEntry {
   rank: number;
   user: UserProfile;
@@ -399,6 +413,24 @@ export interface RankingEntry {
   numericScore: number;
   badge?: 'gold' | 'silver' | 'bronze';
   trend?: 'up' | 'down' | 'same';
+  roleLabel?: string;
+  isLive?: boolean;
+  liveContextId?: string;
+  liveContextType?: 'solo' | 'party';
+  metrics?: RankingEntryMetrics;
+}
+
+export interface RankingResponse {
+  rankings: RankingEntry[];
+  myRank: number | null;
+  myEntry?: RankingEntry | null;
+  totalCount: number;
+  scope: RankingScope;
+  category: RankingCategory;
+  period: RankingPeriod;
+  contextId?: string | null;
+  resetAt?: number | null;
+  config?: RankingConfig;
 }
 
 export interface RechargePackage {
@@ -433,5 +465,7 @@ export * from './pk';
 export * from './videoAndRoom';
 export * from './wallet';
 export * from './levelAndVip';
+export * from './store';
+
 
 

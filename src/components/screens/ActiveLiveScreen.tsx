@@ -31,7 +31,8 @@ import {
   ShieldAlert,
   ChevronDown,
   CheckCircle2,
-  Info
+  Info,
+  Trophy
 } from 'lucide-react';
 import { 
   LiveStream, 
@@ -43,6 +44,7 @@ import {
 } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
+import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
 import { pkService } from '../../utils/pkService';
 import { 
   acquireRealDeviceCamera, 
@@ -168,6 +170,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [isFollowing, setIsFollowing] = useState(stream.host.isFollowing || false);
   const [streamLikes, setStreamLikes] = useState<number>(stream.likesCount || 0);
 
@@ -1223,12 +1226,12 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       {showEndLiveConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <div className="w-full max-w-sm bg-[#160C25] border border-white/15 p-6 rounded-3xl text-center space-y-4 shadow-2xl">
-            <div className="w-14 h-14 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto text-2xl">
-              🛑
+            <div className="w-14 h-14 rounded-full bg-rose-500/20 border border-rose-500/35 text-rose-400 flex items-center justify-center mx-auto">
+              <X className="w-7 h-7 stroke-[2.5]" />
             </div>
             <h4 className="text-lg font-black text-white font-display">End Live Broadcast?</h4>
             <p className="text-xs text-[#B9AECF]">
-              Your stream will be ended and viewers will be redirected. Here is your current stream summary:
+              Your camera & mic will turn off, your live card will be removed immediately, and viewers will be returned home.
             </p>
 
             <div className="grid grid-cols-3 gap-2 bg-[#090611] p-3 rounded-2xl border border-white/10 text-left">
@@ -1264,14 +1267,19 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                     stopMediaStream(mediaStreamRef.current);
                     mediaStreamRef.current = null;
                   }
+                  webrtcMediaService.stopLive();
                   await agoraRtcService.leaveChannel().catch(() => {});
-                  await liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {});
+                  void setNativeLiveAudioMode(false);
+                  await Promise.all([
+                    leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+                    liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
+                  ]);
                   onEndLive?.(stream.id);
                   onClose();
                 }}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all"
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all"
               >
-                End Stream
+                End Broadcast
               </button>
             </div>
           </div>
@@ -2066,24 +2074,26 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
       {/* Top Header Bar & Level Indicator */}
       <div className="relative z-30 flex flex-col p-3 sm:p-5 pt-safe gap-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 min-w-0">
           {/* Host Profile Info Pill */}
           <div 
             onClick={() => onSelectUser(stream.host)}
-            className="flex items-center gap-2 bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1.5 pr-2.5 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg"
+            className="flex items-center gap-1.5 min-w-0 max-w-[54%] bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-2 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg"
           >
-            <AvatarWithFrame
-              avatar={stream.host.avatar}
-              name={stream.host.name}
-              level={stream.host.level || 42}
-              size="sm"
-            />
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                {stream.host.name}
+            <div className="shrink-0">
+              <AvatarWithFrame
+                avatar={stream.host.avatar}
+                name={stream.host.name}
+                level={stream.host.level || 0}
+                size="sm"
+              />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-white leading-tight flex items-center gap-1 min-w-0">
+                <span className="truncate">{stream.host.name}</span>
                 {isActualHost && (
-                  <span className="text-[9px] bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black px-1 rounded-sm uppercase">
-                    You (Host)
+                  <span className="shrink-0 text-[8px] bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black px-1 py-0.2 rounded-sm uppercase">
+                    HOST
                   </span>
                 )}
               </span>
@@ -2102,7 +2112,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   onToggleFollow?.(stream.host.id);
                   showToast(nextFollow ? `Followed ${stream.host.name}` : `Unfollowed ${stream.host.name}`);
                 }}
-                className={`ml-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
+                className={`ml-0.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95 shrink-0 ${
                   isFollowing
                     ? 'bg-white/20 text-white'
                     : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
@@ -2113,30 +2123,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             )}
           </div>
 
-          {/* Right Action Controls */}
-          <div className="flex items-center gap-2">
-            {/* Host Mode Perspective Switcher - ONLY show to live owner */}
-            {isActualHost && (
-              <button
-                onClick={() => {
-                  const nextMode = !isHostMode;
-                  setIsHostMode(nextMode);
-                  showToast(nextMode ? 'Switched to Host Control Mode' : 'Switched to Viewer Mode');
-                }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all active:scale-95 shadow ${
-                  isHostMode 
-                    ? 'bg-[#FFC84A] text-[#090611] border-[#FFC84A] shadow-[#FFC84A]/30' 
-                    : 'bg-black/60 text-white border-white/20 hover:bg-black/80'
-                }`}
-                title="Toggle between Host Controls and Viewer View"
-              >
-                <Crown className="w-3 h-3" />
-                <span>{isHostMode ? 'Host Controls' : 'Viewer Mode'}</span>
-              </button>
-            )}
-
+          {/* Right Action Controls (Exit / End Broadcast X is always locked at top-right!) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Real-Time Top Viewers Avatar Stack + Viewer Count Pill */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {viewersList.length > 0 && (
                 <button
                   type="button"
@@ -2144,7 +2134,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                     setShowViewersModal(true);
                     loadLiveViewers(1, false);
                   }}
-                  className="flex items-center -space-x-2 pr-0.5 cursor-pointer"
+                  className="hidden sm:flex items-center -space-x-2 pr-0.5 cursor-pointer"
                   title="Real-Time Viewers"
                 >
                   {viewersList.slice(0, 3).map((v) => (
@@ -2173,51 +2163,37 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   setShowViewersModal(true);
                   loadLiveViewers(1, false);
                 }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow hover:bg-black/75 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow hover:bg-black/75 transition-colors"
                 title="View Live Audience List"
               >
                 <Eye className="w-3.5 h-3.5 text-cyan-300" />
-                <span className="font-mono">{liveViewerCount.toLocaleString()}</span>
-                <span className="w-4 h-4 rounded-full bg-white/15 flex items-center justify-center text-white">
-                  <Info className="w-2.5 h-2.5" />
-                </span>
+                <span className="font-mono text-[11px]">{liveViewerCount.toLocaleString()}</span>
               </button>
             </div>
+
+            {/* Real-Time Solo Live & Global Leaderboard Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowLeaderboardModal(true)}
+              className="w-8 h-8 sm:w-auto sm:px-2.5 rounded-full bg-gradient-to-r from-[#3A2208]/90 to-[#241136]/90 hover:from-[#4E2E0B] hover:to-[#32174A] backdrop-blur-md border border-[#FFC84A]/50 text-[#FFC84A] text-[11px] font-black shadow-lg flex items-center justify-center gap-1 transition-all active:scale-95 shrink-0"
+              title="Open Live Leaderboard (Hourly, Daily, Weekly, Monthly)"
+            >
+              <Trophy className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Rank</span>
+            </button>
 
             {/* Audio Mute toggle (Controls both Agora & WebRTC remote sound) */}
             <button
               onClick={handleToggleViewerSound}
-              className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+              className="w-8 h-8 rounded-full bg-black/55 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/75 transition-colors shrink-0"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
             </button>
 
-            {/* PK Match / Live Battle Button - ONLY FOR LIVE OWNER */}
-            {isActualHost && (
-              activePKSession ? (
-                <button
-                  onClick={() => setShowForfeitConfirm(true)}
-                  className="px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold flex items-center gap-1 border border-white/20 shadow active:scale-95 transition-all"
-                  title="Forfeit PK Battle"
-                >
-                  <Flag className="w-3.5 h-3.5" />
-                  <span>Forfeit</span>
-                </button>
-              ) : (
-                <button
-                  onClick={onOpenPK}
-                  className="px-3 py-1 rounded-full bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#F328D5] text-white text-[11px] font-black flex items-center gap-1.5 shadow-lg shadow-red-500/25 active:scale-95 transition-all animate-pulse"
-                  title="Challenge eligible host to PK Battle"
-                >
-                  <Swords className="w-3.5 h-3.5" />
-                  <span>PK</span>
-                </button>
-              )
-            )}
-
-            {/* Close Stream / End Live Button */}
+            {/* Prominent Top-Right Exit / End Broadcast Button (Always Visible on Mobile & Desktop) */}
             <button
+              type="button"
               onClick={() => {
                 if (isActualHost) {
                   setShowEndLiveConfirm(true);
@@ -2225,24 +2201,27 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   onClose();
                 }
               }}
-              className={`w-8 h-8 rounded-full backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${
-                isActualHost ? 'bg-red-600/70 hover:bg-red-600 text-white' : 'bg-black/50 hover:bg-black/80 text-white'
+              aria-label={isActualHost ? 'End Broadcast / Exit Live' : 'Exit Live Stream'}
+              className={`w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-95 shrink-0 shadow-lg ${
+                isActualHost
+                  ? 'bg-rose-600/90 hover:bg-rose-600 border-white/25 text-white shadow-rose-900/40'
+                  : 'bg-black/65 hover:bg-black/85 border-white/15 text-white'
               }`}
-              title={isActualHost ? 'End Broadcast' : 'Exit Stream'}
+              title={isActualHost ? 'End Broadcast / Exit Live' : 'Exit Stream'}
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 stroke-[2.5]" />
             </button>
           </div>
         </div>
 
-        {/* Level Progress Bar & Live Duration */}
-        <div className="flex items-center justify-between pt-0.5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow">
+        {/* Level Progress Bar, Host View Toggle & Live Duration */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow">
               <span className="px-1.5 py-0.2 rounded-md bg-[#FFC84A] text-[#090611] text-[10px] font-black">
                 Lv.{hostLevelProgress.currentLevel}
               </span>
-              <div className="w-16 sm:w-24 h-2 rounded-full bg-white/20 overflow-hidden">
+              <div className="w-14 sm:w-24 h-2 rounded-full bg-white/20 overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] rounded-full shadow-[0_0_8px_#FFC84A]"
                   style={{ width: `${hostLevelProgress.progressPercent}%` }}
@@ -2253,16 +2232,39 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30">
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30 shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
               <span>LIVE</span>
             </div>
           </div>
 
-          {/* Broadcast Duration Badge */}
-          <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] font-bold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-            <span>{formatDuration(streamSeconds)}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Compact Host Mode Switcher (kept on second row so top-right Exit X is never crowded) */}
+            {isActualHost && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextMode = !isHostMode;
+                  setIsHostMode(nextMode);
+                  showToast(nextMode ? 'Switched to Host Control Mode' : 'Switched to Viewer Mode');
+                }}
+                className={`px-2 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all active:scale-95 shadow ${
+                  isHostMode 
+                    ? 'bg-[#FFC84A] text-[#090611] border-[#FFC84A] shadow-[#FFC84A]/30' 
+                    : 'bg-black/60 text-white border-white/20 hover:bg-black/80'
+                }`}
+                title="Toggle between Host Controls and Viewer View"
+              >
+                <Crown className="w-3 h-3" />
+                <span>{isHostMode ? 'Host' : 'Viewer'}</span>
+              </button>
+            )}
+
+            {/* Broadcast Duration Badge */}
+            <div className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+              <span>{formatDuration(streamSeconds)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -2434,16 +2436,27 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </button>
             </div>
 
-            {/* 5. PK Battle Shortcut & End Stream */}
+            {/* 5. PK Battle / Forfeit PK Control (Single clean PK button in bottom toolbar) */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={onOpenPK}
-                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#EF4444] text-white text-xs font-black flex items-center gap-1 shadow active:scale-95"
-                title="Challenge Host to PK Battle"
-              >
-                <Swords className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">PK Battle</span>
-              </button>
+              {activePKSession ? (
+                <button
+                  onClick={() => setShowForfeitConfirm(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-1 shadow active:scale-95"
+                  title="Forfeit PK Battle"
+                >
+                  <Flag className="w-3.5 h-3.5" />
+                  <span>Forfeit</span>
+                </button>
+              ) : (
+                <button
+                  onClick={onOpenPK}
+                  className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#EF4444] text-white text-xs font-black flex items-center gap-1 shadow active:scale-95"
+                  title="Challenge Host to PK Battle"
+                >
+                  <Swords className="w-3.5 h-3.5" />
+                  <span>PK</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -2519,6 +2532,15 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           </button>
         </div>
       </div>
+      <LiveLeaderboardModal
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+        mode="solo"
+        contextId={stream.id}
+        contextTitle={stream.title}
+        currentUser={currentUser}
+        onSelectUser={onSelectUser}
+      />
     </div>
   );
 };

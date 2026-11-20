@@ -5,8 +5,12 @@ import {
   LiveStream,
   LiveViewerInfo,
   PartyRoom,
+  RankingCategory,
   RankingConfig,
   RankingEntry,
+  RankingPeriod,
+  RankingResponse,
+  RankingScope,
   UserProfile,
 } from '../types';
 import { apiFetch, getWsUrl } from '../utils/apiConfig';
@@ -535,27 +539,77 @@ class LiveAndRoomService {
     return { broadcasters: [] };
   }
 
-  public async fetchRankings(
-    tab: 'Star' | 'Contribution' | 'Wealth',
-    period: 'daily' | 'weekly' | 'monthly',
-    userId?: string
-  ): Promise<{ rankings: RankingEntry[]; myRank: number | null; config?: RankingConfig }> {
+  public async fetchLeaderboard(params: {
+    scope?: RankingScope;
+    category?: RankingCategory;
+    period?: RankingPeriod;
+    contextId?: string;
+    userId?: string;
+    limit?: number;
+  }): Promise<RankingResponse> {
+    const scope: RankingScope = params.scope || 'global';
+    const category: RankingCategory = params.category || 'all';
+    const period: RankingPeriod = params.period || 'daily';
+    const qs = new URLSearchParams({
+      scope,
+      category,
+      period,
+    });
+    if (params.contextId) qs.set('contextId', params.contextId);
+    if (params.userId) qs.set('userId', params.userId);
+    if (params.limit) qs.set('limit', String(params.limit));
+
     try {
-      const res = await apiFetch(
-        `/api/rankings?tab=${encodeURIComponent(tab)}&period=${encodeURIComponent(period)}&userId=${encodeURIComponent(userId || '')}`
-      );
+      const res = await apiFetch(`/api/rankings?${qs.toString()}`);
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return {
           rankings: Array.isArray(data.rankings) ? data.rankings : [],
           myRank: data.myRank ?? null,
+          myEntry: data.myEntry ?? null,
+          totalCount: Number(data.totalCount || 0),
+          scope: data.scope || scope,
+          category: data.category || category,
+          period: data.period || period,
+          contextId: data.contextId ?? null,
+          resetAt: data.resetAt ?? null,
           config: data.config,
         };
       }
     } catch {
-      // ignore
+      // ignore network failure
     }
-    return { rankings: [], myRank: null };
+    return {
+      rankings: [],
+      myRank: null,
+      myEntry: null,
+      totalCount: 0,
+      scope,
+      category,
+      period,
+      contextId: params.contextId ?? null,
+      resetAt: null,
+    };
+  }
+
+  public async fetchRankings(
+    tab: 'Star' | 'Contribution' | 'Wealth',
+    period: RankingPeriod,
+    userId?: string
+  ): Promise<{ rankings: RankingEntry[]; myRank: number | null; config?: RankingConfig }> {
+    const category: RankingCategory =
+      tab === 'Star' ? 'host' : tab === 'Contribution' ? 'gifter' : 'all';
+    const data = await this.fetchLeaderboard({
+      scope: 'global',
+      category,
+      period,
+      userId,
+    });
+    return {
+      rankings: data.rankings,
+      myRank: data.myRank,
+      config: data.config,
+    };
   }
 
   public async fetchAdminRankingConfig(): Promise<RankingConfig | null> {

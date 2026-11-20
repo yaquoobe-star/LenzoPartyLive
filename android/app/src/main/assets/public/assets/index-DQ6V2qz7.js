@@ -48894,6 +48894,12 @@ async function __PRIVATE_setOnlineComponentProvider(e, t) {
 async function __PRIVATE_ensureOnlineComponents(e) {
 	return e._onlineComponents || (e._uninitializedComponentsProvider ? (__PRIVATE_logDebug(Jr, "Using user provided OnlineComponentProvider"), await __PRIVATE_setOnlineComponentProvider(e, e._uninitializedComponentsProvider._online)) : (__PRIVATE_logDebug(Jr, "Using default OnlineComponentProvider"), await __PRIVATE_setOnlineComponentProvider(e, new OnlineComponentProvider()))), e._onlineComponents;
 }
+function __PRIVATE_getPersistence(e) {
+	return __PRIVATE_ensureOfflineComponents(e).then(((e) => e.persistence));
+}
+function __PRIVATE_getRemoteStore(e) {
+	return __PRIVATE_ensureOnlineComponents(e).then(((e) => e.remoteStore));
+}
 function __PRIVATE_getSyncEngine(e) {
 	return __PRIVATE_ensureOnlineComponents(e).then(((e) => e.syncEngine));
 }
@@ -48903,6 +48909,15 @@ function __PRIVATE_getDatastore(e) {
 async function __PRIVATE_getEventManager(e) {
 	const t = await __PRIVATE_ensureOnlineComponents(e), n = t.eventManager;
 	return n.onListen = __PRIVATE_syncEngineListen.bind(null, t.syncEngine), n.onUnlisten = __PRIVATE_syncEngineUnlisten.bind(null, t.syncEngine), n.onFirstRemoteStoreListen = __PRIVATE_triggerRemoteStoreListen.bind(null, t.syncEngine), n.onLastRemoteStoreUnlisten = __PRIVATE_triggerRemoteStoreUnlisten.bind(null, t.syncEngine), n;
+}
+/** Enables the network connection and re-enqueues all pending operations. */ function __PRIVATE_firestoreClientEnableNetwork(e) {
+	return e.asyncQueue.enqueue((async () => {
+		const t = await __PRIVATE_getPersistence(e), n = await __PRIVATE_getRemoteStore(e);
+		return t.setNetworkEnabled(true), function __PRIVATE_remoteStoreEnableNetwork(e) {
+			const t = __PRIVATE_debugCast(e);
+			return t.xu.delete(0), __PRIVATE_enableNetworkInternal(t);
+		}(n);
+	}));
 }
 /**
 * Returns a Promise that resolves when all writes that were pending at the time
@@ -49430,6 +49445,32 @@ var __PRIVATE_AsyncQueueImpl = class {
 		}
 	}
 };
+/**
+* Initializes a new instance of {@link Firestore} with the provided settings.
+* Can only be called before any other function, including
+* {@link (getFirestore:1)}. If the custom settings are empty, this function is
+* equivalent to calling {@link (getFirestore:1)}.
+*
+* @param app - The {@link @firebase/app#FirebaseApp} with which the {@link Firestore} instance will
+* be associated.
+* @param settings - A settings object to configure the {@link Firestore} instance.
+* @param databaseId - The name of the database.
+* @returns A newly initialized {@link Firestore} instance.
+*/ function initializeFirestore(e, t, n) {
+	n || (n = qe$1);
+	const r = _getProvider(e, "firestore");
+	if (r.isInitialized(n)) {
+		const e = r.getImmediate({ identifier: n });
+		if (deepEqual(r.getOptions(n), t)) return e;
+		throw new Q(z.FAILED_PRECONDITION, "initializeFirestore() has already been called with different options. To avoid this error, call initializeFirestore() with the same options as when it was originally called, or call getFirestore() to return the already initialized instance.");
+	}
+	if (void 0 !== t.cacheSizeBytes && void 0 !== t.localCache) throw new Q(z.INVALID_ARGUMENT, "cache and cacheSizeBytes cannot be specified at the same time as cacheSizeBytes willbe deprecated. Instead, specify the cache size in the cache object");
+	if (void 0 !== t.cacheSizeBytes && -1 !== t.cacheSizeBytes && t.cacheSizeBytes < nn) throw new Q(z.INVALID_ARGUMENT, "cacheSizeBytes must be at least 1048576");
+	return t.host && isCloudWorkstation(t.host) && pingServer(t.host), r.initialize({
+		options: t,
+		instanceIdentifier: n
+	});
+}
 function getFirestore(e, t) {
 	const n = "object" == typeof e ? e : getApp(), r = "string" == typeof e ? e : t || qe$1, i = _getProvider(n, "firestore").getImmediate({ identifier: r });
 	if (!i._initialized) {
@@ -49456,6 +49497,14 @@ function __PRIVATE_configureFirestore(e) {
 			_online: t
 		};
 	}(e._componentsProvider));
+}
+/**
+* Re-enables use of the network for this {@link Firestore} instance after a prior
+* call to {@link disableNetwork}.
+*
+* @returns A `Promise` that is resolved once the network has been enabled.
+*/ function enableNetwork(e) {
+	return __PRIVATE_firestoreClientEnableNetwork(oa(e = ra(e, pa)));
 }
 /**
 * @license
@@ -50139,6 +50188,58 @@ function __PRIVATE_validateNewFieldFilter(e, t) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+/**
+* A write batch, used to perform multiple writes as a single atomic unit.
+*
+* A `WriteBatch` object can be acquired by calling {@link writeBatch}. It
+* provides methods for adding writes to the write batch. None of the writes
+* will be committed (or visible locally) until {@link WriteBatch.commit} is
+* called.
+*/
+var WriteBatch = class {
+	/** @hideconstructor */
+	constructor(e, t) {
+		this._firestore = e, this._commitHandler = t, this._mutations = [], this._committed = false, this._dataReader = la(e);
+	}
+	set(e, t, n) {
+		this._verifyNotCommitted();
+		const r = __PRIVATE_validateReference(e, this._firestore), s = __PRIVATE_applyFirestoreDataConverter(r.converter, t, n), a = __PRIVATE_parseSetData(this._dataReader, "WriteBatch.set", r._key, s, null !== r.converter, n);
+		return this._mutations.push(a.toMutation(r._key, Precondition.none())), this;
+	}
+	update(e, t, n, ...r) {
+		this._verifyNotCommitted();
+		const s = __PRIVATE_validateReference(e, this._firestore);
+		let a;
+		return a = "string" == typeof (t = getModularInstance(t)) || t instanceof FieldPath ? __PRIVATE_parseUpdateVarargs(this._dataReader, "WriteBatch.update", s._key, t, n, r) : __PRIVATE_parseUpdateData(this._dataReader, "WriteBatch.update", s._key, t), this._mutations.push(a.toMutation(s._key, Precondition.exists(true))), this;
+	}
+	/**
+	* Deletes the document referred to by the provided {@link DocumentReference}.
+	*
+	* @param documentRef - A reference to the document to be deleted.
+	* @returns This `WriteBatch` instance. Used for chaining method calls.
+	*/ delete(e) {
+		this._verifyNotCommitted();
+		const t = __PRIVATE_validateReference(e, this._firestore);
+		return this._mutations = this._mutations.concat(new __PRIVATE_DeleteMutation(t._key, Precondition.none())), this;
+	}
+	/**
+	* Commits all of the writes in this write batch as a single atomic unit.
+	*
+	* The result of these writes will only be reflected in document reads that
+	* occur after the returned promise resolves. If the client is offline, the
+	* write fails. If you would like to see local modifications or buffer writes
+	* until the client is online, use the full Firestore SDK.
+	*
+	* @returns A `Promise` resolved once all of the writes in the batch have been
+	* successfully written to the backend as an atomic unit (note that it won't
+	* resolve while you're offline).
+	*/ commit() {
+		return this._verifyNotCommitted(), this._committed = true, this._mutations.length > 0 ? this._commitHandler(this._mutations) : Promise.resolve();
+	}
+	_verifyNotCommitted() {
+		if (this._committed) throw new Q(z.FAILED_PRECONDITION, "A write batch can no longer be used after commit() has been called.");
+	}
+};
 function __PRIVATE_validateReference(e, t) {
 	if ((e = getModularInstance(e)).firestore !== t) throw new Q(z.INVALID_ARGUMENT, "Provided document reference is from a different Firestore instance.");
 	return e;
@@ -50448,6 +50549,9 @@ function onSnapshot(e, ...t) {
 */ function __PRIVATE_convertToDocSnapshot(e, t, n) {
 	const r = n.docs.get(t._key);
 	return new DocumentSnapshot(e, new ua(e), t._key, r, new SnapshotMetadata(n.hasPendingWrites, n.fromCache), t.converter);
+}
+function writeBatch(e) {
+	return e = ra(e, pa), oa(e), new WriteBatch(e, ((t) => executeWrite(e, t)));
 }
 /**
 * @license
@@ -53113,15 +53217,41 @@ var firebase_applet_config_default = {
 // src/firebase.ts
 var firebase_exports = /* @__PURE__ */ __exportAll({ auth: () => auth });
 var app = getApps().length > 0 ? getApp() : initializeApp(firebase_applet_config_default);
-var db = getFirestore(app, firebase_applet_config_default.firestoreDatabaseId);
+function createFirestoreInstance() {
+	const databaseId = firebase_applet_config_default.firestoreDatabaseId;
+	try {
+		return initializeFirestore(app, {
+			experimentalForceLongPolling: true,
+			ignoreUndefinedProperties: true
+		}, databaseId);
+	} catch {
+		return getFirestore(app, databaseId);
+	}
+}
+var db = createFirestoreInstance();
 var auth = getAuth(app);
 var storage = getStorage(app);
-async function testConnection() {
+if (typeof window !== "undefined") window.addEventListener("online", () => {
+	enableNetwork(db).catch(() => {});
+});
+async function testConnection(retryAttempt = 0) {
 	try {
 		await getDocFromServer(doc(db, "test", "connection"));
 		console.log("[Firebase] Connection established successfully with Firestore database:", firebase_applet_config_default.firestoreDatabaseId);
 	} catch (error) {
-		if (error instanceof Error && error.message.includes("the client is offline")) console.error("[Firebase] Firestore client is offline. Please check network/config.");
+		const code = error?.code || "";
+		const message = error instanceof Error ? error.message : String(error);
+		if (code === "permission-denied" || message.includes("Missing or insufficient permissions")) return;
+		if (message.includes("the client is offline") || code === "unavailable") {
+			if (retryAttempt < 1) {
+				await enableNetwork(db).catch(() => {});
+				setTimeout(() => {
+					testConnection(retryAttempt + 1);
+				}, 2500);
+				return;
+			}
+			console.warn("[Firebase] Firestore backend temporarily unreachable; operating with offline cache until network recovers.");
+		}
 	}
 }
 testConnection();
@@ -53918,82 +54048,252 @@ async function toggleLikeVideo(videoId, isLiked) {
 		handleFirestoreError(err, OperationType.UPDATE, `posts/${videoId}`);
 	}
 }
+/**
+* Deep-sanitize payloads before writing to Cloud Firestore.
+* - Removes all `undefined` object keys (Firestore rejects `undefined` with INVALID_ARGUMENT).
+* - Converts `undefined` array elements to `null`.
+* - Preserves Firestore FieldValue / Timestamp sentinel objects intact.
+*/
+var VALID_DOC_ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
+function isFirestoreSentinelOrTimestamp(val) {
+	if (!val || typeof val !== "object") return false;
+	if (val instanceof Timestamp) return true;
+	if (typeof val._methodName === "string") return true;
+	if (typeof val.toDate === "function" && typeof val.seconds === "number") return true;
+	return false;
+}
+function stripUndefinedDeep(value) {
+	if (value === void 0) return null;
+	if (value === null || typeof value !== "object") {
+		if (typeof value === "number" && !Number.isFinite(value)) return 0;
+		return value;
+	}
+	if (isFirestoreSentinelOrTimestamp(value)) return value;
+	if (Array.isArray(value)) return value.map((item) => item === void 0 ? null : stripUndefinedDeep(item));
+	const out = {};
+	for (const [k, v] of Object.entries(value)) {
+		if (v === void 0) continue;
+		out[k] = stripUndefinedDeep(v);
+	}
+	return out;
+}
+function safeImageUrlForCard(url, maxBytes = 16e4) {
+	if (!url || typeof url !== "string") return "";
+	const trimmed = url.trim();
+	if (!trimmed) return "";
+	if (trimmed.startsWith("data:") && trimmed.length > maxBytes) return "";
+	return trimmed;
+}
+function sanitizeFirestoreUserCard(user, forcedUid) {
+	const uid = forcedUid || user?.id || auth.currentUser?.uid || "unknown";
+	const card = {
+		id: String(uid),
+		name: String(user?.name || auth.currentUser?.displayName || "Lenzo User").slice(0, 80),
+		username: String(user?.username || `@${String(uid).slice(0, 8)}`).slice(0, 60),
+		displayId: String(user?.displayId || String(uid).slice(0, 8)),
+		avatar: safeImageUrlForCard(user?.avatar || auth.currentUser?.photoURL || ""),
+		level: typeof user?.level === "number" && Number.isFinite(user.level) ? user.level : 0,
+		fansCount: String(user?.fansCount ?? "0"),
+		followingCount: typeof user?.followingCount === "number" ? user.followingCount : 0,
+		likesCount: String(user?.likesCount ?? "0"),
+		coins: typeof user?.coins === "number" ? user.coins : 0,
+		diamonds: typeof user?.diamonds === "number" ? user.diamonds : 0,
+		vipLevel: typeof user?.vipLevel === "number" ? user.vipLevel : 0,
+		isVIP: Boolean(user?.isVIP),
+		superVipLevel: typeof user?.superVipLevel === "number" ? user.superVipLevel : 0,
+		isSuperVIP: Boolean(user?.isSuperVIP),
+		bio: String(user?.bio || "").slice(0, 200),
+		isOnline: true
+	};
+	const safeCover = safeImageUrlForCard(user?.coverImage, 12e4);
+	if (safeCover) card.coverImage = safeCover;
+	if (typeof user?.isVerified === "boolean") card.isVerified = user.isVerified;
+	if (user?.verificationTier) card.verificationTier = user.verificationTier;
+	if (user?.country) card.country = user.country;
+	if (user?.activeFrameType) card.activeFrameType = user.activeFrameType;
+	if (typeof user?.equippedVipFrame === "number") card.equippedVipFrame = user.equippedVipFrame;
+	if (typeof user?.equippedSuperVipFrame === "number") card.equippedSuperVipFrame = user.equippedSuperVipFrame;
+	if (Array.isArray(user?.equippedBadges) && user.equippedBadges.length > 0) card.equippedBadges = user.equippedBadges.slice(0, 6);
+	return card;
+}
+function toMillis(val, fallback = Date.now()) {
+	if (typeof val === "number" && Number.isFinite(val)) return val;
+	if (val && typeof val.toMillis === "function") return val.toMillis();
+	if (val && typeof val.seconds === "number") return val.seconds * 1e3;
+	return fallback;
+}
+function normalizeFirestorePartyRoom(id, data) {
+	const maxSeats = data?.maxSeats === 16 ? 16 : 8;
+	const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
+	const seats = Array(maxSeats).fill(null);
+	for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) seats[i] = rawSeats[i] ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
+	const numericParticipants = typeof data?.numericParticipants === "number" ? data.numericParticipants : typeof data?.viewersCount === "number" ? data.viewersCount : Math.max(1, seats.filter(Boolean).length);
+	return {
+		id,
+		displayId: String(data?.displayId || id.replace(/[^0-9]/g, "").slice(-5) || "10001"),
+		title: String(data?.title || "Party Voice Room"),
+		category: data?.category || "Party",
+		host: sanitizeFirestoreUserCard(data?.host),
+		coverImage: String(data?.coverImage || data?.host?.avatar || ""),
+		iconType: data?.iconType || "heart",
+		participantCount: String(data?.participantCount || `${numericParticipants}/${maxSeats}`),
+		numericParticipants,
+		isAudioRoom: true,
+		maxSeats,
+		roomType: data?.roomType === "private" ? "private" : "public",
+		...data?.password ? { password: String(data.password) } : {},
+		announcement: String(data?.announcement || "Welcome to my party voice room!"),
+		seats,
+		mutedSeatIndices: Array.isArray(data?.mutedSeatIndices) ? data.mutedSeatIndices : [],
+		seatRequests: Array.isArray(data?.seatRequests) ? data.seatRequests : [],
+		isLocked: Boolean(data?.isLocked),
+		allowJoin: data?.allowJoin !== false,
+		startTime: toMillis(data?.startTime ?? data?.createdAt),
+		likesCount: typeof data?.likesCount === "number" ? data.likesCount : 0
+	};
+}
+function normalizeFirestoreLiveStream(id, data) {
+	const numericViewers = typeof data?.numericViewers === "number" ? data.numericViewers : typeof data?.viewersCount === "number" ? data.viewersCount : 0;
+	return {
+		id,
+		title: String(data?.title || "Live Broadcast"),
+		category: String(data?.category || "Live"),
+		host: sanitizeFirestoreUserCard(data?.host),
+		coverImage: String(data?.coverImage || data?.host?.coverImage || data?.host?.avatar || ""),
+		viewerCount: String(data?.viewerCount ?? numericViewers),
+		numericViewers,
+		isLive: data?.isLive !== false && data?.status !== "ended",
+		tags: Array.isArray(data?.tags) ? data.tags : [String(data?.category || "Live")],
+		guests: Array.isArray(data?.guests) ? data.guests : [],
+		likesCount: typeof data?.likesCount === "number" ? data.likesCount : 0,
+		commentsCount: typeof data?.commentsCount === "number" ? data.commentsCount : 0,
+		startTime: toMillis(data?.startTime ?? data?.createdAt),
+		allowGuests: data?.allowGuests !== false,
+		isPrivate: Boolean(data?.isPrivate)
+	};
+}
 function subscribeFirestorePartyRooms(onUpdate) {
-	const collPath = "party_rooms";
-	return onSnapshot(query(collection(db, collPath), limit(30)), (snap) => {
-		onUpdate(snap.docs.map((d) => ({
-			id: d.id,
-			...d.data()
-		})));
+	return onSnapshot(query(collection(db, "party_rooms"), limit(100)), (snap) => {
+		onUpdate(snap.docs.filter((d) => d.data()?.status !== "closed" && d.data()?.status !== "ended").map((d) => normalizeFirestorePartyRoom(d.id, d.data())).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
 	}, (err) => {
-		handleFirestoreError(err, OperationType.LIST, collPath);
+		console.warn("[Firestore] subscribeFirestorePartyRooms notice:", err);
 	});
 }
 async function createFirestorePartyRoom(room) {
 	const collPath = "party_rooms";
+	const uid = auth.currentUser?.uid;
+	if (!uid) throw new Error("Authentication required to create a party room.");
 	try {
-		const explicitId = "id" in room && room.id ? room.id : "";
-		if (explicitId) {
-			await setDoc(doc(db, collPath, explicitId), {
-				...room,
-				createdAt: serverTimestamp()
-			});
-			return explicitId;
+		const rawId = "id" in room && room.id ? String(room.id) : `room_${Date.now()}`;
+		const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `room_${Date.now()}`;
+		const safeHost = sanitizeFirestoreUserCard(room.host, uid);
+		const maxSeats = room.maxSeats === 16 ? 16 : 8;
+		const rawSeats = Array.isArray(room.seats) ? room.seats : Array(maxSeats).fill(null);
+		const safeSeats = Array(maxSeats).fill(null);
+		for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
+			const occupant = rawSeats[i];
+			if (occupant) {
+				const isHostOccupant = i === 0 || occupant.id === room.host?.id || occupant.id === uid;
+				safeSeats[i] = sanitizeFirestoreUserCard(occupant, isHostOccupant ? uid : occupant.id);
+			}
 		}
-		return (await addDoc(collection(db, collPath), {
-			...room,
+		const payload = stripUndefinedDeep({
+			id: safeId,
+			displayId: room.displayId || String(Math.floor(1e4 + Math.random() * 9e4)),
+			title: String(room.title || "Party Voice Room").trim().slice(0, 100),
+			category: String(room.category || "Party"),
+			host: safeHost,
+			coverImage: safeImageUrlForCard(room.coverImage, 16e4) || safeHost.avatar || "",
+			iconType: room.iconType || "heart",
+			participantCount: String(room.participantCount || `1/${maxSeats}`),
+			numericParticipants: typeof room.numericParticipants === "number" ? room.numericParticipants : 1,
+			viewersCount: typeof room.numericParticipants === "number" ? room.numericParticipants : 1,
+			isAudioRoom: true,
+			maxSeats,
+			roomType: room.roomType === "private" ? "private" : "public",
+			announcement: String(room.announcement || "Welcome to my party voice room!").slice(0, 200),
+			seats: safeSeats,
+			mutedSeatIndices: Array.isArray(room.mutedSeatIndices) ? room.mutedSeatIndices : [],
+			seatRequests: [],
+			isLocked: Boolean(room.isLocked),
+			allowJoin: room.allowJoin !== false,
+			startTime: typeof room.startTime === "number" ? room.startTime : Date.now(),
+			updatedAt: Date.now(),
+			likesCount: typeof room.likesCount === "number" ? room.likesCount : 0,
+			status: "active"
+		});
+		if (room.roomType === "private" && room.password && room.password.trim()) payload.password = room.password.trim();
+		await setDoc(doc(db, collPath, safeId), {
+			...payload,
 			createdAt: serverTimestamp()
-		})).id;
+		});
+		return safeId;
 	} catch (err) {
 		handleFirestoreError(err, OperationType.CREATE, collPath);
 		throw err;
 	}
 }
 async function deleteFirestorePartyRoom(roomId) {
+	if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(roomId)) return;
 	const docRef = doc(db, "party_rooms", roomId);
 	try {
 		await deleteDoc(docRef);
 	} catch (err) {
-		handleFirestoreError(err, OperationType.DELETE, `party_rooms/${roomId}`);
+		console.warn(`[Firestore] deleteFirestorePartyRoom (${roomId}) notice:`, err);
 	}
 }
 function subscribeFirestoreLiveStreams(onUpdate) {
-	const collPath = "live_streams";
-	return onSnapshot(query(collection(db, collPath), limit(30)), (snap) => {
-		onUpdate(snap.docs.map((d) => ({
-			id: d.id,
-			...d.data()
-		})));
+	return onSnapshot(query(collection(db, "live_streams"), limit(100)), (snap) => {
+		onUpdate(snap.docs.filter((d) => d.data()?.isLive !== false && d.data()?.status !== "ended").map((d) => normalizeFirestoreLiveStream(d.id, d.data())).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)));
 	}, (err) => {
-		handleFirestoreError(err, OperationType.LIST, collPath);
+		console.warn("[Firestore] subscribeFirestoreLiveStreams notice:", err);
 	});
 }
 async function createFirestoreLiveStream(stream) {
 	const collPath = "live_streams";
+	const uid = auth.currentUser?.uid;
+	if (!uid) throw new Error("Authentication required to start a live stream.");
 	try {
-		const explicitId = "id" in stream && stream.id ? stream.id : "";
-		if (explicitId) {
-			await setDoc(doc(db, collPath, explicitId), {
-				...stream,
-				createdAt: serverTimestamp()
-			});
-			return explicitId;
-		}
-		return (await addDoc(collection(db, collPath), {
-			...stream,
+		const rawId = "id" in stream && stream.id ? String(stream.id) : `live_${Date.now()}`;
+		const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `live_${Date.now()}`;
+		const safeHost = sanitizeFirestoreUserCard(stream.host, uid);
+		const payload = stripUndefinedDeep({
+			id: safeId,
+			title: String(stream.title || "Live Broadcast").trim().slice(0, 120),
+			category: String(stream.category || "Live"),
+			host: safeHost,
+			coverImage: safeImageUrlForCard(stream.coverImage, 16e4) || safeHost.coverImage || safeHost.avatar || "",
+			viewerCount: String(stream.viewerCount ?? "0"),
+			numericViewers: typeof stream.numericViewers === "number" ? stream.numericViewers : 0,
+			viewersCount: typeof stream.numericViewers === "number" ? stream.numericViewers : 0,
+			isLive: true,
+			status: "live",
+			tags: Array.isArray(stream.tags) ? stream.tags.slice(0, 8) : [String(stream.category || "Live"), "Live"],
+			guests: [],
+			likesCount: typeof stream.likesCount === "number" ? stream.likesCount : 0,
+			commentsCount: typeof stream.commentsCount === "number" ? stream.commentsCount : 0,
+			startTime: typeof stream.startTime === "number" ? stream.startTime : Date.now(),
+			updatedAt: Date.now(),
+			allowGuests: stream.allowGuests !== false,
+			isPrivate: Boolean(stream.isPrivate)
+		});
+		await setDoc(doc(db, collPath, safeId), {
+			...payload,
 			createdAt: serverTimestamp()
-		})).id;
+		});
+		return safeId;
 	} catch (err) {
 		handleFirestoreError(err, OperationType.CREATE, collPath);
 		throw err;
 	}
 }
 async function endFirestoreLiveStream(streamId) {
+	if (!auth.currentUser || !VALID_DOC_ID_REGEX.test(streamId)) return;
 	const docRef = doc(db, "live_streams", streamId);
 	try {
 		await deleteDoc(docRef);
 	} catch (err) {
-		handleFirestoreError(err, OperationType.DELETE, `live_streams/${streamId}`);
+		console.warn(`[Firestore] endFirestoreLiveStream (${streamId}) notice:`, err);
 	}
 }
 async function syncFirestoreFollow(followerId, followingId, follow) {
@@ -54167,66 +54467,6 @@ async function starChatMessage(chatId, messageId, isStarred) {
 		await updateDoc(doc(db, "chats", chatId, "messages", messageId), { isStarred });
 	} catch (err) {
 		handleFirestoreError(err, OperationType.UPDATE, docPath);
-	}
-}
-/**
-* 7. REAL STORE PURCHASE & USER BALANCE SERVICE
-*/
-async function purchaseStoreItem(userId, item, quantity = 1) {
-	try {
-		const userRef = doc(db, "users", userId);
-		const snap = await getDoc(userRef);
-		if (!snap.exists()) return {
-			success: false,
-			newBalance: 0,
-			error: "User profile not found"
-		};
-		const userData = snap.data();
-		const totalCost = item.price * quantity;
-		if (item.currency === "coins") {
-			const currentCoins = userData.coins || 0;
-			if (currentCoins < totalCost) return {
-				success: false,
-				newBalance: currentCoins,
-				error: "Insufficient coins balance"
-			};
-			const newCoins = currentCoins - totalCost;
-			await updateDoc(userRef, { coins: newCoins });
-			await addDoc(collection(db, `users/${userId}/transactions`), {
-				type: "store_purchase",
-				title: `Purchased ${item.name} (${quantity}x)`,
-				amount: -totalCost,
-				currency: "coins",
-				timestamp: serverTimestamp()
-			});
-			return {
-				success: true,
-				newBalance: newCoins
-			};
-		} else if (item.currency === "diamonds") {
-			const currentDiamonds = userData.diamonds || 0;
-			if (currentDiamonds < totalCost) return {
-				success: false,
-				newBalance: currentDiamonds,
-				error: "Insufficient diamonds balance"
-			};
-			const newDiamonds = currentDiamonds - totalCost;
-			await updateDoc(userRef, { diamonds: newDiamonds });
-			return {
-				success: true,
-				newBalance: newDiamonds
-			};
-		} else return {
-			success: false,
-			newBalance: userData.coins || 0,
-			error: "Use Wallet Recharge packages to add coins."
-		};
-	} catch (err) {
-		return {
-			success: false,
-			newBalance: 0,
-			error: err?.message || "Transaction failed"
-		};
 	}
 }
 // src/utils/profileService.ts
@@ -54800,7 +55040,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-Dzfqs5aW.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-el4C1oGW.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -54852,7 +55092,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-B_tuBWSN.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-EdbLhbVk.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -55743,21 +55983,60 @@ var LiveAndRoomService = class {
 		} catch {}
 		return { broadcasters: [] };
 	}
-	async fetchRankings(tab, period, userId) {
+	async fetchLeaderboard(params) {
+		const scope = params.scope || "global";
+		const category = params.category || "all";
+		const period = params.period || "daily";
+		const qs = new URLSearchParams({
+			scope,
+			category,
+			period
+		});
+		if (params.contextId) qs.set("contextId", params.contextId);
+		if (params.userId) qs.set("userId", params.userId);
+		if (params.limit) qs.set("limit", String(params.limit));
 		try {
-			const res = await apiFetch(`/api/rankings?tab=${encodeURIComponent(tab)}&period=${encodeURIComponent(period)}&userId=${encodeURIComponent(userId || "")}`);
+			const res = await apiFetch(`/api/rankings?${qs.toString()}`);
 			if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
 				const data = await res.json();
 				return {
 					rankings: Array.isArray(data.rankings) ? data.rankings : [],
 					myRank: data.myRank ?? null,
+					myEntry: data.myEntry ?? null,
+					totalCount: Number(data.totalCount || 0),
+					scope: data.scope || scope,
+					category: data.category || category,
+					period: data.period || period,
+					contextId: data.contextId ?? null,
+					resetAt: data.resetAt ?? null,
 					config: data.config
 				};
 			}
 		} catch {}
 		return {
 			rankings: [],
-			myRank: null
+			myRank: null,
+			myEntry: null,
+			totalCount: 0,
+			scope,
+			category,
+			period,
+			contextId: params.contextId ?? null,
+			resetAt: null
+		};
+	}
+	async fetchRankings(tab, period, userId) {
+		const category = tab === "Star" ? "host" : tab === "Contribution" ? "gifter" : "all";
+		const data = await this.fetchLeaderboard({
+			scope: "global",
+			category,
+			period,
+			userId
+		});
+		return {
+			rankings: data.rankings,
+			myRank: data.myRank,
+			config: data.config
 		};
 	}
 	async fetchAdminRankingConfig() {
@@ -55888,7 +56167,7 @@ var DEFAULT_PAYOUT_METHODS = [
 		minAmountCoins: 5e3
 	}
 ];
-function isVerifiedAdminSession() {
+function isVerifiedAdminSession$1() {
 	return auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
 }
 /**
@@ -55902,7 +56181,7 @@ function subscribeWalletSettings(onUpdate) {
 			...snap.data()
 		});
 		else {
-			if (isVerifiedAdminSession()) setDoc(docRef, DEFAULT_WALLET_SETTINGS, { merge: true }).catch((err) => console.warn("Failed to auto-seed wallet settings:", err));
+			if (isVerifiedAdminSession$1()) setDoc(docRef, DEFAULT_WALLET_SETTINGS, { merge: true }).catch((err) => console.warn("Failed to auto-seed wallet settings:", err));
 			onUpdate(DEFAULT_WALLET_SETTINGS);
 		}
 	}, (err) => {
@@ -55934,7 +56213,7 @@ function subscribeCoinPackages(onUpdate) {
 			pkgs.sort((a, b) => a.coins - b.coins);
 			onUpdate(pkgs);
 		} else {
-			if (isVerifiedAdminSession()) DEFAULT_COIN_PACKAGES.forEach((pkg) => {
+			if (isVerifiedAdminSession$1()) DEFAULT_COIN_PACKAGES.forEach((pkg) => {
 				setDoc(doc(db, "coin_packages", pkg.id), pkg, { merge: true }).catch(console.warn);
 			});
 			onUpdate(DEFAULT_COIN_PACKAGES);
@@ -56864,6 +57143,16 @@ var ChevronDown = createLucideIcon("chevron-down", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var ChevronLeft = createLucideIcon("chevron-left", [["path", {
+	d: "m15 18-6-6 6-6",
+	key: "1wnfg3"
+}]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var ChevronRight = createLucideIcon("chevron-right", [["path", {
 	d: "m9 18 6-6-6-6",
 	key: "mthhwq"
@@ -57082,6 +57371,29 @@ var Crown = createLucideIcon("crown", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Database = createLucideIcon("database", [
+	["ellipse", {
+		cx: "12",
+		cy: "5",
+		rx: "9",
+		ry: "3",
+		key: "msslwz"
+	}],
+	["path", {
+		d: "M3 5V19A9 3 0 0 0 21 19V5",
+		key: "1wlel7"
+	}],
+	["path", {
+		d: "M3 12A9 3 0 0 0 21 12",
+		key: "mv7ke4"
+	}]
+]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var DollarSign = createLucideIcon("dollar-sign", [["line", {
 	x1: "12",
 	x2: "12",
@@ -57092,6 +57404,32 @@ var DollarSign = createLucideIcon("dollar-sign", [["line", {
 	d: "M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
 	key: "1b0p4s"
 }]]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Earth = createLucideIcon("earth", [
+	["path", {
+		d: "M21.54 15H17a2 2 0 0 0-2 2v4.54",
+		key: "1djwo0"
+	}],
+	["path", {
+		d: "M7 3.34V5a3 3 0 0 0 3 3a2 2 0 0 1 2 2c0 1.1.9 2 2 2a2 2 0 0 0 2-2c0-1.1.9-2 2-2h3.17",
+		key: "1tzkfa"
+	}],
+	["path", {
+		d: "M11 21.95V18a2 2 0 0 0-2-2a2 2 0 0 1-2-2v-1a2 2 0 0 0-2-2H2.05",
+		key: "14pb5j"
+	}],
+	["circle", {
+		cx: "12",
+		cy: "12",
+		r: "10",
+		key: "1mglay"
+	}]
+]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -57724,16 +58062,6 @@ var Mic = createLucideIcon("mic", [
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
-var Minus = createLucideIcon("minus", [["path", {
-	d: "M5 12h14",
-	key: "1ays0h"
-}]]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
 var Moon = createLucideIcon("moon", [["path", {
 	d: "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401",
 	key: "kfwtm"
@@ -58117,30 +58445,6 @@ var ShoppingBag = createLucideIcon("shopping-bag", [
 	["path", {
 		d: "M3.4 5.467a2 2 0 0 0-.4 1.2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.667a2 2 0 0 0-.4-1.2l-2-2.667A2 2 0 0 0 17 2H7a2 2 0 0 0-1.6.8z",
 		key: "o988cm"
-	}]
-]);
-/**
-* @license lucide-react v0.546.0 - ISC
-*
-* This source code is licensed under the ISC license.
-* See the LICENSE file in the root directory of this source tree.
-*/
-var ShoppingCart = createLucideIcon("shopping-cart", [
-	["circle", {
-		cx: "8",
-		cy: "21",
-		r: "1",
-		key: "jimo8o"
-	}],
-	["circle", {
-		cx: "19",
-		cy: "21",
-		r: "1",
-		key: "13723u"
-	}],
-	["path", {
-		d: "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12",
-		key: "9zh506"
 	}]
 ]);
 /**
@@ -58809,6 +59113,67 @@ var BottomNav = ({ currentScreen, onNavigate, onOpenCreate, unreadMessagesCount 
 	const isVideosActive = currentScreen === "videos";
 	const isChatActive = currentScreen === "messages" || currentScreen === "chat" || currentScreen === "inbox";
 	const isProfileActive = currentScreen === "profile" || currentScreen === "settings" || currentScreen === "wallet";
+	if (isStoreActive) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", {
+		"aria-label": "Store Bottom Navigation",
+		className: "fixed bottom-0 left-0 right-0 z-40 bg-[#0A0318]/95 backdrop-blur-xl border-t border-purple-500/30 px-2 pb-safe pt-1.5 md:hidden select-none shadow-[0_-8px_28px_rgba(88,28,135,0.45)]",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "grid grid-cols-5 items-center max-w-lg mx-auto h-14",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					onClick: () => onNavigate("home"),
+					className: "flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all",
+					"aria-label": "Home",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(House, { className: "w-5 h-5 stroke-[1.9]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[10px] font-semibold mt-0.5",
+						children: "Home"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					onClick: () => onNavigate("rooms"),
+					className: "flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all",
+					"aria-label": "Rooms",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutGrid, { className: "w-5 h-5 stroke-[1.9]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[10px] font-semibold mt-0.5",
+						children: "Rooms"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					onClick: () => onNavigate("store"),
+					className: "relative flex flex-col items-center justify-center -mt-2 active:scale-95 transition-all",
+					"aria-label": "Store",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex flex-col items-center justify-center px-3.5 py-1.5 rounded-2xl border border-fuchsia-300/60 text-white",
+						style: {
+							background: "linear-gradient(135deg, #9333EA 0%, #C026D3 55%, #7C3AED 100%)",
+							boxShadow: "0 0 22px rgba(192, 38, 211, 0.85), 0 4px 14px rgba(0, 0, 0, 0.6)"
+						},
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingBag, { className: "w-5 h-5 stroke-[2.4] text-white" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[10px] font-black tracking-wide text-white mt-0.5",
+							children: "Store"
+						})]
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					onClick: () => onNavigate("videos"),
+					className: "flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all",
+					"aria-label": "Videos",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Film, { className: "w-5 h-5 stroke-[1.9]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[10px] font-semibold mt-0.5",
+						children: "Videos"
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					onClick: () => onNavigate("profile"),
+					className: "flex flex-col items-center justify-center py-1 text-[#C4B5FD]/80 hover:text-white active:scale-90 transition-all",
+					"aria-label": "Profile",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(User, { className: "w-5 h-5 stroke-[1.9]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[10px] font-semibold mt-0.5",
+						children: "Profile"
+					})]
+				})
+			]
+		})
+	});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("nav", {
 		className: "fixed bottom-0 left-0 right-0 z-40 bg-[#090611]/95 backdrop-blur-xl border-t border-white/[0.08] px-1 pb-safe pt-1 md:hidden select-none",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -62510,36 +62875,130 @@ var HomeScreen = ({ liveStreams, partyRooms, topBroadcasters = [], onSelectLive,
 						})]
 					})]
 				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					onClick: () => onNavigate("create_room"),
-					className: "relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-[#1A0D2E] via-[#261042] to-[#3B0F54] border border-[#FA26A0]/35 p-4 sm:p-5 shadow-lg cursor-pointer group hover:border-[#FA26A0]/70 transition-all",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center justify-between gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-3.5 min-w-0",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#FA26A0]/30 group-hover:scale-105 transition-transform",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-6 h-6" })
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "min-w-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-									className: "text-sm sm:text-base font-black text-white font-display tracking-wide",
-									children: "CREATE YOUR PARTY ROOM"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-xs text-[#B9AECF] truncate",
-									children: "Launch an 8-seat or 16-seat live audio party room & invite friends"
-								})]
-							})]
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+					className: "space-y-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center justify-between",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+							className: "text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: "w-5 h-5 text-[#F328D5]" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "LIVE BROADCASTERS" }),
+								visibleLiveCards.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/35 text-[10px] font-bold text-rose-300",
+									children: [visibleLiveCards.length, " Live"]
+								})
+							]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							type: "button",
-							onClick: (e) => {
-								e.stopPropagation();
-								onNavigate("create_room");
-							},
-							className: "px-4 py-2 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-[#FA26A0]/35 shrink-0 active:scale-95 transition-all",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 stroke-[2.6]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Create Room" })]
+							onClick: () => onNavigate("create_live"),
+							className: "text-xs text-[#F328D5] hover:text-pink-300 flex items-center gap-0.5 font-bold transition-colors",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Go Live" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
 						})]
-					})
+					}), visibleLiveCards.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-10 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-[#211333] flex items-center justify-center mb-2.5 text-[#F328D5]",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-6 h-6" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+								className: "text-sm font-bold text-white mb-1",
+								children: activeTab === "following" ? "No Followed Hosts Are Live" : "No Live Streams Active"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] max-w-xs mb-3.5",
+								children: activeTab === "following" ? "Follow broadcasters to see their live streams here as soon as they start." : "Be the first to go live and showcase your talent in real time."
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => onNavigate("create_live"),
+								className: "px-5 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg shadow-[#F328D5]/30 active:scale-95 transition-all",
+								children: "Go Live Now"
+							})
+						]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4",
+						children: visibleLiveCards.map((stream) => {
+							const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
+							const topRankIndex = topTwoBroadcasters.findIndex((b) => b.liveStreamId === stream.id || b.user.id === stream.host.id);
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								onClick: () => onSelectLive(stream),
+								className: "group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "relative aspect-[3/4] w-full overflow-hidden bg-[#211333]",
+									children: [
+										cardImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+											src: cardImage,
+											alt: stream.title,
+											referrerPolicy: "no-referrer",
+											className: "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Video, { className: "w-10 h-10 text-white/30" })
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-white animate-pulse" }), "LIVE"]
+												}), topRankIndex >= 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow",
+													children: ["#", topRankIndex + 1]
+												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3 h-3 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: stream.numericViewers ?? 0 })]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "absolute bottom-10 left-2.5 right-2.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs font-extrabold text-white truncate drop-shadow",
+												children: stream.title
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 mt-0.5",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+													level: stream.host.level || 0,
+													size: "sm"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-[10px] text-rose-300 flex items-center gap-0.5 font-mono",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-2.5 h-2.5 fill-rose-400" }), stream.likesCount || 0]
+												})]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 min-w-0",
+												children: [stream.host.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+													src: stream.host.avatar,
+													alt: stream.host.name,
+													referrerPolicy: "no-referrer",
+													className: "w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
+												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0",
+													children: (stream.host.name || "H").charAt(0).toUpperCase()
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-xs font-bold text-white truncate drop-shadow",
+													children: stream.host.name
+												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												type: "button",
+												onClick: (e) => {
+													e.stopPropagation();
+													onToggleFollow?.(stream.host.id);
+												},
+												className: `px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${stream.host.isFollowing ? "bg-white/20 text-white" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white"}`,
+												children: stream.host.isFollowing ? "Following" : "Follow"
+											})]
+										})
+									]
+								})
+							}, stream.id);
+						})
+					})]
 				}),
 				partyRooms.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 					className: "space-y-3",
@@ -62623,6 +63082,37 @@ var HomeScreen = ({ liveStreams, partyRooms, topBroadcasters = [], onSelectLive,
 						})
 					})]
 				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					onClick: () => onNavigate("create_room"),
+					className: "relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-[#1A0D2E] via-[#261042] to-[#3B0F54] border border-[#FA26A0]/35 p-4 sm:p-5 shadow-lg cursor-pointer group hover:border-[#FA26A0]/70 transition-all",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center justify-between gap-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-3.5 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#FA26A0]/30 group-hover:scale-105 transition-transform",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-6 h-6" })
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+									className: "text-sm sm:text-base font-black text-white font-display tracking-wide",
+									children: "CREATE YOUR PARTY ROOM"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-[#B9AECF] truncate",
+									children: "Launch an 8-seat or 16-seat live audio party room & invite friends"
+								})]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: (e) => {
+								e.stopPropagation();
+								onNavigate("create_room");
+							},
+							className: "px-4 py-2 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-[#FA26A0]/35 shrink-0 active:scale-95 transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 stroke-[2.6]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Create Room" })]
+						})]
+					})
+				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 					className: "space-y-3",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -62688,7 +63178,7 @@ var HomeScreen = ({ liveStreams, partyRooms, topBroadcasters = [], onSelectLive,
 													className: "text-sm font-black text-white truncate",
 													children: entry.user.name
 												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-													level: entry.user.level || 1,
+													level: entry.user.level || 0,
 													size: "sm"
 												})]
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -62714,131 +63204,6 @@ var HomeScreen = ({ liveStreams, partyRooms, topBroadcasters = [], onSelectLive,
 									})]
 								})
 							}, entry.user.id);
-						})
-					})]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-					className: "space-y-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center justify-between",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-							className: "text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: "w-5 h-5 text-[#F328D5]" }),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "LIVE BROADCASTERS" }),
-								visibleLiveCards.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/35 text-[10px] font-bold text-rose-300",
-									children: [visibleLiveCards.length, " Live"]
-								})
-							]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => onNavigate("rooms"),
-							className: "text-xs text-[#B9AECF] hover:text-[#F328D5] flex items-center gap-0.5 font-semibold transition-colors",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Party Rooms" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
-						})]
-					}), visibleLiveCards.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "py-12 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: "w-14 h-14 rounded-2xl bg-[#211333] flex items-center justify-center mb-3 text-[#F328D5]",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-7 h-7" })
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-								className: "text-sm font-bold text-white mb-1",
-								children: activeTab === "following" ? "No Followed Hosts Are Live" : "No Live Streams Active"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-[#B9AECF] max-w-xs mb-4",
-								children: activeTab === "following" ? "Follow broadcasters to see their live streams here as soon as they start." : "Be the first to go live and showcase your talent in real time."
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => onNavigate("create_live"),
-								className: "px-5 py-2.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg shadow-[#F328D5]/30 active:scale-95 transition-all",
-								children: "Go Live Now"
-							})
-						]
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4",
-						children: visibleLiveCards.map((stream) => {
-							const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
-							const topRankIndex = topTwoBroadcasters.findIndex((b) => b.liveStreamId === stream.id || b.user.id === stream.host.id);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								onClick: () => onSelectLive(stream),
-								className: "group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative aspect-[3/4] w-full overflow-hidden bg-[#211333]",
-									children: [
-										cardImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: cardImage,
-											alt: stream.title,
-											referrerPolicy: "no-referrer",
-											className: "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Video, { className: "w-10 h-10 text-white/30" })
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-white animate-pulse" }), "LIVE"]
-												}), topRankIndex >= 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow",
-													children: ["#", topRankIndex + 1]
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3 h-3 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: stream.numericViewers ?? 0 })]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-10 left-2.5 right-2.5",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-												className: "text-xs font-extrabold text-white truncate drop-shadow",
-												children: stream.title
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 mt-0.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-													level: stream.host.level || 1,
-													size: "sm"
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-rose-300 flex items-center gap-0.5 font-mono",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-2.5 h-2.5 fill-rose-400" }), stream.likesCount || 0]
-												})]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 min-w-0",
-												children: [stream.host.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-													src: stream.host.avatar,
-													alt: stream.host.name,
-													referrerPolicy: "no-referrer",
-													className: "w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
-												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0",
-													children: (stream.host.name || "H").charAt(0).toUpperCase()
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white truncate drop-shadow",
-													children: stream.host.name
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-												type: "button",
-												onClick: (e) => {
-													e.stopPropagation();
-													onToggleFollow?.(stream.host.id);
-												},
-												className: `px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${stream.host.isFollowing ? "bg-white/20 text-white" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white"}`,
-												children: stream.host.isFollowing ? "Following" : "Follow"
-											})]
-										})
-									]
-								})
-							}, stream.id);
 						})
 					})]
 				})
@@ -62907,8 +63272,14 @@ var RoomsScreen = ({ partyRooms, onSelectRoom, onNavigate, onOpenCreateRoom, onO
 							})]
 						})
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2.5",
+						className: "flex items-center gap-2",
 						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => onNavigate("rankings"),
+								className: "w-9 h-9 rounded-full bg-[#241338] hover:bg-[#321B4E] border border-[#FFC84A]/45 flex items-center justify-center text-[#FFC84A] transition-colors active:scale-95",
+								title: "Leaderboards & Rankings",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-4 h-4" })
+							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: onOpenMicMenu || onOpenCreateRoom,
 								className: "w-9 h-9 rounded-full bg-gradient-to-tr from-[#FF007A] to-[#FA26A0] hover:opacity-90 flex items-center justify-center text-white shadow-md shadow-pink-900/40 transition-all active:scale-95",
@@ -63233,6 +63604,941 @@ var RoomsScreen = ({ partyRooms, onSelectRoom, onNavigate, onOpenCreateRoom, onO
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-6 h-6 stroke-[2.5]" })
 			})
 		})]
+	});
+};
+// src/components/common/VerifiedBadge.tsx
+function resolveVerificationStatus(params) {
+	const user = params.user;
+	const level = params.level ?? user?.level ?? 0;
+	const vipLevel = params.vipLevel ?? user?.vipLevel ?? 0;
+	const superVipLevel = params.superVipLevel ?? user?.superVipLevel ?? 0;
+	const followers = user?.followersCount ?? 0;
+	const isAdminAccount = Boolean(user?.isAdmin) || (user?.email ? user.email.toLowerCase() === "yaquoobe@gmail.com" : false);
+	const customTag = user?.verifiedTag?.trim();
+	let tier = "none";
+	let reason = "Reach Lv.8, unlock VIP 1, join a verified agency, or receive Admin verification.";
+	if (user?.verificationTier === "gold") {
+		tier = "gold";
+		reason = "Awarded Official Legend Verification.";
+	} else if (user?.verificationTier === "blue") {
+		tier = "blue";
+		reason = "Awarded Official Respect Verification.";
+	} else if (user?.verificationTier === "none") tier = "none";
+	else if (isAdminAccount || level >= 50 || superVipLevel >= 3 || vipLevel >= 6) {
+		tier = "gold";
+		if (isAdminAccount) reason = "Official Lenzo Party Founder & Legend.";
+		else if (level >= 50) reason = `Earned at Level ${level} (Legend Tier Lv.50+).`;
+		else if (superVipLevel >= 3) reason = `Earned via Super VIP ${superVipLevel} Legend status.`;
+		else reason = `Earned via VIP ${vipLevel} Legend status.`;
+	} else if (user?.isVerified || level >= 8 || vipLevel >= 1 || followers >= 1e3 || user?.agencyStatus === "active") {
+		tier = "blue";
+		if (user?.isVerified) reason = "Verified Respected Creator on Lenzo Party.";
+		else if (level >= 8) reason = `Earned at Level ${level} (Respected Member Lv.8+).`;
+		else if (vipLevel >= 1) reason = `Earned via VIP ${vipLevel} Membership.`;
+		else if (followers >= 1e3) reason = "Earned with 1,000+ community followers.";
+		else reason = "Earned as an active verified Agency member.";
+	}
+	if (tier === "gold") return {
+		tier: "gold",
+		isVerified: true,
+		isLegend: true,
+		isRespected: true,
+		tagLabel: customTag || "Legend",
+		badgeTitle: "Verified Legend",
+		subtitle: "Golden Tick · Legends",
+		reason
+	};
+	if (tier === "blue") return {
+		tier: "blue",
+		isVerified: true,
+		isLegend: false,
+		isRespected: true,
+		tagLabel: customTag || "Respect",
+		badgeTitle: "Verified · Respect",
+		subtitle: "Blue Tick · Respect",
+		reason
+	};
+	return {
+		tier: "none",
+		isVerified: false,
+		isLegend: false,
+		isRespected: false,
+		tagLabel: "",
+		badgeTitle: "Not Verified",
+		subtitle: "Verification Tiers",
+		reason
+	};
+}
+var TICK_SIZES = {
+	xs: 15,
+	sm: 18,
+	md: 21,
+	lg: 34
+};
+/**
+* Crisp 12-point scalloped verification seal SVG:
+* - 'blue' => Radiant sapphire/azure Blue Tick for Respect
+* - 'gold' => Gleaming 24K molten-gold Golden Tick for Legends
+*/
+var VerifiedTick = ({ tier, size = "sm", className = "" }) => {
+	const uid = (0, import_react.useId)().replace(/:/g, "");
+	const px = TICK_SIZES[size];
+	const isGold = tier === "gold";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+		width: px,
+		height: px,
+		viewBox: "0 0 32 32",
+		fill: "none",
+		xmlns: "http://www.w3.org/2000/svg",
+		"aria-label": isGold ? "Golden Tick — Verified Legend" : "Blue Tick — Verified for Respect",
+		className: `shrink-0 ${isGold ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]" : "drop-shadow-[0_0_7px_rgba(56,189,248,0.6)]"} ${className}`,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: isGold ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_bg_${uid}`,
+					x1: "3",
+					y1: "2",
+					x2: "29",
+					y2: "30",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#FEF08A"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "35%",
+							stopColor: "#FBBF24"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "72%",
+							stopColor: "#D97706"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#92400E"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_rim_${uid}`,
+					x1: "6",
+					y1: "3",
+					x2: "26",
+					y2: "29",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#FFFBEB",
+							stopOpacity: "0.95"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "55%",
+							stopColor: "#FDE047",
+							stopOpacity: "0.45"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#78350F",
+							stopOpacity: "0.8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+					id: `vt_shine_${uid}`,
+					cx: "34%",
+					cy: "26%",
+					r: "55%",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: "#FFFFFF",
+						stopOpacity: "0.65"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: "#FBBF24",
+						stopOpacity: "0"
+					})]
+				})
+			] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_bg_${uid}`,
+					x1: "3",
+					y1: "2",
+					x2: "29",
+					y2: "30",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#7DD3FC"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "38%",
+							stopColor: "#38BDF8"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "74%",
+							stopColor: "#2563EB"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#1D4ED8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_rim_${uid}`,
+					x1: "6",
+					y1: "3",
+					x2: "26",
+					y2: "29",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#E0F2FE",
+							stopOpacity: "0.95"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "55%",
+							stopColor: "#60A5FA",
+							stopOpacity: "0.45"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#1E3A8A",
+							stopOpacity: "0.8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+					id: `vt_shine_${uid}`,
+					cx: "34%",
+					cy: "26%",
+					r: "55%",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: "#FFFFFF",
+						stopOpacity: "0.55"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: "#38BDF8",
+						stopOpacity: "0"
+					})]
+				})
+			] }) }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M16 1.6 L19.1 4.1 L23.1 3.7 L24.5 7.4 L28.2 8.8 L27.8 12.8 L30.4 16 L27.8 19.2 L28.2 23.2 L24.5 24.6 L23.1 28.3 L19.1 27.9 L16 30.4 L12.9 27.9 L8.9 28.3 L7.5 24.6 L3.8 23.2 L4.2 19.2 L1.6 16 L4.2 12.8 L3.8 8.8 L7.5 7.4 L8.9 3.7 L12.9 4.1 Z",
+				fill: `url(#vt_bg_${uid})`,
+				stroke: `url(#vt_rim_${uid})`,
+				strokeWidth: "1.25",
+				strokeLinejoin: "round"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+				cx: "16",
+				cy: "16",
+				r: "10.2",
+				fill: `url(#vt_shine_${uid})`
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+				cx: "16",
+				cy: "16",
+				r: "9.4",
+				fill: "none",
+				stroke: isGold ? "#FEF9C3" : "#E0F2FE",
+				strokeOpacity: "0.38",
+				strokeWidth: "0.9"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
+				stroke: isGold ? "#78350F" : "#1E3A8A",
+				strokeOpacity: "0.55",
+				strokeWidth: "3.2",
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				transform: "translate(0 0.8)"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
+				stroke: "#FFFFFF",
+				strokeWidth: "2.8",
+				strokeLinecap: "round",
+				strokeLinejoin: "round"
+			})
+		]
+	});
+};
+var VerifiedNameTag = ({ user, level, vipLevel, superVipLevel, variant = "full", showUnverifiedHint = false }) => {
+	const [infoOpen, setInfoOpen] = (0, import_react.useState)(false);
+	const status = resolveVerificationStatus({
+		user,
+		level,
+		vipLevel,
+		superVipLevel
+	});
+	if (status.tier === "none" && !showUnverifiedHint) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "Golden Tick — Verified Legend (Tap for details)",
+			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#3B2608] via-[#2B1B07] to-[#1E1305] border border-[#FBBF24]/55 shadow-[0_0_14px_rgba(251,191,36,0.22)] hover:border-[#FDE047] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+				tier: "gold",
+				size: variant === "compact" ? "sm" : "sm"
+			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FEF08A]",
+						children: "Verified"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FBBF24]/55",
+						children: "·"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FBBF24]",
+						children: status.tagLabel
+					})
+				]
+			})]
+		}),
+		status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "Blue Tick — Verified for Respect (Tap for details)",
+			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#0A2240] via-[#0C1D3A] to-[#0B1730] border border-[#38BDF8]/55 shadow-[0_0_14px_rgba(56,189,248,0.2)] hover:border-[#7DD3FC] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+				tier: "blue",
+				size: variant === "compact" ? "sm" : "sm"
+			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#E0F2FE]",
+						children: "Verified"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#38BDF8]/55",
+						children: "·"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#38BDF8]",
+						children: status.tagLabel
+					})
+				]
+			})]
+		}),
+		status.tier === "none" && showUnverifiedHint && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "View Verified Blue Tick (Respect) & Golden Tick (Legends) requirements",
+			className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-[10px] font-bold text-[#D7CEEB] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center -space-x-1",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+					tier: "blue",
+					size: "xs"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+					tier: "gold",
+					size: "xs"
+				})]
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Verify" })]
+		}),
+		infoOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-md",
+			onClick: () => setInfoOpen(false),
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "w-full max-w-md bg-[#120822] border border-white/15 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden",
+				onClick: (e) => e.stopPropagation(),
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-5 py-4 bg-gradient-to-r from-[#24103F] via-[#1B0C31] to-[#120822] border-b border-white/10 flex items-center justify-between gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center",
+							children: status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "gold",
+								size: "md"
+							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "blue",
+								size: "md"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-[#7DD3FC]" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+							className: "text-sm font-black text-white",
+							children: "Lenzo Verified Badges"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[11px] text-[#C5B9DE]",
+							children: "Respect Blue Tick & Legends Golden Tick"
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: () => setInfoOpen(false),
+						className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "p-5 space-y-3.5",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[10px] font-bold uppercase tracking-wider text-[#B9AECF]",
+										children: "Current Profile Status"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-sm font-black text-white mt-0.5 truncate",
+										children: status.badgeTitle
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE] mt-0.5",
+										children: status.reason
+									})
+								]
+							}), status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "gold",
+								size: "lg"
+							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "blue",
+								size: "lg"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center -space-x-1.5 shrink-0 opacity-75",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "blue",
+									size: "md"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "gold",
+									size: "md"
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `p-4 rounded-2xl border transition-all ${status.tier === "blue" ? "bg-gradient-to-br from-[#0A2548]/90 to-[#0C1732] border-[#38BDF8]/65 shadow-[0_0_24px_rgba(56,189,248,0.18)]" : "bg-[#170C2B] border-white/10"}`,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-start gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "blue",
+									size: "lg",
+									className: "mt-0.5"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 flex-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-sm font-black text-[#E0F2FE]",
+												children: "Blue Tick — For Respect"
+											}), status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#38BDF8]/20 border border-[#38BDF8]/50 text-[10px] font-black text-[#7DD3FC]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3 h-3" }), "ACTIVE"]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-[#C5B9DE] mt-1 leading-relaxed",
+											children: "Honors respected creators, trusted hosts, and valued community members across Lenzo Party."
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#7DD3FC] font-semibold mt-2",
+											children: "Unlock: Level 8+, VIP 1+, Verified Agency, 1,000+ Followers, or Admin Grant."
+										})
+									]
+								})]
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `p-4 rounded-2xl border transition-all ${status.tier === "gold" ? "bg-gradient-to-br from-[#3D2607]/90 to-[#1D1206] border-[#FBBF24]/70 shadow-[0_0_24px_rgba(251,191,36,0.2)]" : "bg-[#170C2B] border-white/10"}`,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-start gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "gold",
+									size: "lg",
+									className: "mt-0.5"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 flex-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-sm font-black text-[#FEF08A] flex items-center gap-1",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3.5 h-3.5 text-[#FBBF24]" }), "Golden Tick — For Legends"]
+											}), status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBBF24]/20 border border-[#FBBF24]/55 text-[10px] font-black text-[#FEF08A]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3" }), "ACTIVE"]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-[#E5D7B8] mt-1 leading-relaxed",
+											children: "Reserved for Lenzo Party Legends — elite high-tier icons, top royalty, and official VIP legends."
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#FBBF24] font-semibold mt-2",
+											children: "Unlock: Level 50+ (Ruby–Royal), VIP 6+, Super VIP 3+, or Official Legend Grant."
+										})
+									]
+								})]
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setInfoOpen(false),
+							className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-extrabold text-white transition-colors",
+							children: "Got It"
+						})
+					]
+				})]
+			})
+		})
+	] });
+};
+// src/components/common/LiveLeaderboardModal.tsx
+var PERIOD_OPTIONS = [
+	{
+		id: "hourly",
+		label: "Hourly"
+	},
+	{
+		id: "daily",
+		label: "Daily"
+	},
+	{
+		id: "weekly",
+		label: "Weekly"
+	},
+	{
+		id: "monthly",
+		label: "Monthly"
+	},
+	{
+		id: "all_time",
+		label: "All-Time"
+	}
+];
+var CATEGORY_OPTIONS = [
+	{
+		id: "all",
+		label: "All",
+		icon: Trophy
+	},
+	{
+		id: "host",
+		label: "Host",
+		icon: Crown
+	},
+	{
+		id: "gifter",
+		label: "Gifter",
+		icon: Gift
+	},
+	{
+		id: "viewer",
+		label: "Top Viewer",
+		icon: Eye
+	}
+];
+function formatCountdown$1(resetAt) {
+	if (!resetAt) return "All-Time";
+	const diffMs = Math.max(0, resetAt - Date.now());
+	const totalMins = Math.floor(diffMs / 6e4);
+	const days = Math.floor(totalMins / 1440);
+	const hours = Math.floor(totalMins % 1440 / 60);
+	const mins = totalMins % 60;
+	if (days > 0) return `Resets ${days}d ${hours}h`;
+	if (hours > 0) return `Resets ${hours}h ${mins}m`;
+	return `Resets ${Math.max(1, mins)}m`;
+}
+function formatCompact$1(n) {
+	if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+	if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+	return String(Math.round(n));
+}
+function renderMetricsSummary(entry, category) {
+	const m = entry.metrics;
+	if (!m) return entry.roleLabel || "";
+	if (category === "gifter") return `${m.giftsCount.toLocaleString()} gifts sent`;
+	if (category === "viewer") {
+		const parts = [];
+		if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact$1(m.giftsCoins)}`);
+		if (m.commentsCount > 0) parts.push(`💬 ${m.commentsCount}`);
+		if (m.likesCount > 0) parts.push(`❤️ ${formatCompact$1(m.likesCount)}`);
+		if (m.watchMinutes > 0) parts.push(`⏱ ${m.watchMinutes}m`);
+		return parts.length > 0 ? parts.join(" · ") : `${m.sessionsCount} joined`;
+	}
+	if (category === "host") {
+		const parts = [];
+		if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact$1(m.giftsCoins)}`);
+		if (m.uniqueViewers > 0) parts.push(`👁 ${m.uniqueViewers}`);
+		if (m.likesCount > 0) parts.push(`❤️ ${formatCompact$1(m.likesCount)}`);
+		return parts.length > 0 ? parts.join(" · ") : entry.isLive ? "Live Now" : "Active Host";
+	}
+	const parts = [];
+	if (entry.roleLabel) parts.push(entry.roleLabel);
+	if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact$1(m.giftsCoins)}`);
+	if (m.uniqueViewers > 0) parts.push(`👁 ${m.uniqueViewers}`);
+	else if (m.commentsCount > 0) parts.push(`💬 ${m.commentsCount}`);
+	return parts.join(" · ");
+}
+var LiveLeaderboardModal = ({ isOpen, onClose, mode, contextId, contextTitle, currentUser, onSelectUser, initialScopeTab = "this_room", initialCategory = "all" }) => {
+	const [scopeTab, setScopeTab] = (0, import_react.useState)(initialScopeTab);
+	const [category, setCategory] = (0, import_react.useState)(initialCategory);
+	const [period, setPeriod] = (0, import_react.useState)("hourly");
+	const [rankings, setRankings] = (0, import_react.useState)([]);
+	const [myRank, setMyRank] = (0, import_react.useState)(null);
+	const [myEntry, setMyEntry] = (0, import_react.useState)(null);
+	const [resetAt, setResetAt] = (0, import_react.useState)(null);
+	const [isLoading, setIsLoading] = (0, import_react.useState)(true);
+	const [followedMap, setFollowedMap] = (0, import_react.useState)({});
+	const refreshTimerRef = (0, import_react.useRef)(null);
+	const loadBoard = (0, import_react.useCallback)(async (silent = false) => {
+		if (!silent) setIsLoading(true);
+		try {
+			const scope = scopeTab === "global" ? "global" : mode === "solo" ? "solo" : "party";
+			const data = await liveAndRoomService.fetchLeaderboard({
+				scope,
+				category,
+				period,
+				contextId: scopeTab === "this_room" ? contextId : void 0,
+				userId: currentUser.id,
+				limit: 50
+			});
+			setRankings(data.rankings);
+			setMyRank(data.myRank);
+			setMyEntry(data.myEntry || null);
+			setResetAt(data.resetAt ?? null);
+		} finally {
+			if (!silent) setIsLoading(false);
+		}
+	}, [
+		scopeTab,
+		mode,
+		category,
+		period,
+		contextId,
+		currentUser.id
+	]);
+	(0, import_react.useEffect)(() => {
+		if (!isOpen) return;
+		loadBoard(false);
+	}, [isOpen, loadBoard]);
+	(0, import_react.useEffect)(() => {
+		if (!isOpen) return;
+		const unsubscribe = liveAndRoomService.addEventListener((event) => {
+			if (event === "rankings:updated" || event === "rankings:config_updated" || event === "live:gift" || event === "room:gift" || event === "live:viewer_joined" || event === "room:participant_joined") {
+				if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+				refreshTimerRef.current = setTimeout(() => {
+					loadBoard(true);
+				}, 350);
+			}
+		});
+		return () => {
+			unsubscribe();
+			if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+		};
+	}, [isOpen, loadBoard]);
+	if (!isOpen) return null;
+	const toggleFollow = async (userId) => {
+		if (!currentUser.id || currentUser.id === "guest" || userId === currentUser.id) return;
+		try {
+			const res = await profileService.toggleFollow(userId, currentUser.id);
+			setFollowedMap((prev) => ({
+				...prev,
+				[userId]: res.isFollowing
+			}));
+		} catch {}
+	};
+	const topThree = rankings.length >= 3 ? rankings.slice(0, 3) : [];
+	const listEntries = rankings.length >= 3 ? rankings.slice(3) : rankings;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick: onClose,
+		className: "fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 animate-fade-in",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick: (e) => e.stopPropagation(),
+			className: "w-full max-w-lg bg-[#120722] border-t sm:border border-[#FFC84A]/35 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[86vh] overflow-hidden text-white",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-4 pt-4 pb-3 bg-gradient-to-r from-[#281048] via-[#1C0B36] to-[#120722] border-b border-white/10 space-y-3",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-2xl bg-gradient-to-br from-[#FFC84A] to-[#F59E0B] text-[#090611] flex items-center justify-center shadow-lg shadow-[#FFC84A]/25 shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-5 h-5" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+											className: "text-sm sm:text-base font-black text-white truncate",
+											children: scopeTab === "this_room" ? mode === "solo" ? "Live Stream Leaderboard" : "Party Room Leaderboard" : scopeTab === "mode_global" ? mode === "solo" ? "Solo Live Rankings" : "Party Rooms Rankings" : "Global App Rankings"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9px] font-black uppercase shrink-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" }), "LIVE"]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE] truncate",
+										children: scopeTab === "this_room" && contextTitle ? contextTitle : "Real-time scores · Hosts, Gifters & Top Viewers"
+									})]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-1.5 shrink-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => loadBoard(false),
+									className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors",
+									title: "Refresh Leaderboard",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}` })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: onClose,
+									className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "grid grid-cols-3 gap-1 p-1 rounded-2xl bg-black/40 border border-white/10",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setScopeTab("this_room"),
+									className: `py-1.5 rounded-xl text-[11px] font-extrabold transition-all ${scopeTab === "this_room" ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow" : "text-[#C5B9DE] hover:text-white"}`,
+									children: mode === "solo" ? "This Live" : "This Party"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setScopeTab("mode_global"),
+									className: `py-1.5 rounded-xl text-[11px] font-extrabold transition-all ${scopeTab === "mode_global" ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow" : "text-[#C5B9DE] hover:text-white"}`,
+									children: mode === "solo" ? "All Solo Live" : "All Parties"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setScopeTab("global"),
+									className: `py-1.5 rounded-xl text-[11px] font-extrabold transition-all ${scopeTab === "global" ? "bg-gradient-to-r from-[#06B6D4] to-[#8B20FF] text-white shadow" : "text-[#C5B9DE] hover:text-white"}`,
+									children: "Global App"
+								})
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "grid grid-cols-4 gap-1.5",
+							children: CATEGORY_OPTIONS.map((cat) => {
+								const Icon = cat.icon;
+								const active = category === cat.id;
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => setCategory(cat.id),
+									className: `py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition-all ${active ? "bg-[#FA26A0]/20 border-[#FA26A0]/70 text-white shadow-sm" : "bg-white/[0.04] border-white/[0.08] text-[#B9AECF] hover:text-white"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: `w-3 h-3 shrink-0 ${active ? "text-[#FFC84A]" : ""}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "truncate",
+										children: cat.label
+									})]
+								}, cat.id);
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-center gap-1 overflow-x-auto no-scrollbar",
+								children: PERIOD_OPTIONS.map((p) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setPeriod(p.id),
+									className: `px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all ${period === p.id ? "bg-white text-[#120722]" : "bg-white/[0.06] text-[#C5B9DE] hover:text-white"}`,
+									children: p.label
+								}, p.id))
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "inline-flex items-center gap-1 text-[10px] font-mono text-[#FFC84A] shrink-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: formatCountdown$1(resetAt) })]
+							})]
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex-1 overflow-y-auto no-scrollbar p-4 space-y-3",
+					children: isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-14 flex flex-col items-center gap-2 text-xs text-[#B9AECF]",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-7 h-7 border-2 border-[#FFC84A] border-t-transparent rounded-full animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Loading real-time rankings..." })]
+					}) : rankings.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "py-12 px-4 rounded-2xl bg-white/[0.03] border border-white/10 text-center space-y-2",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-9 h-9 text-[#FFC84A]/60 mx-auto" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-sm font-extrabold text-white",
+								children: "No Ranked Activity in This Window"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-[#B9AECF] max-w-xs mx-auto leading-relaxed",
+								children: "Send gifts, tap hearts, chat, or stay watching to claim the #1 spot on this live leaderboard!"
+							})
+						]
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [topThree.length === 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "grid grid-cols-3 gap-2 items-end pt-3 pb-1",
+						children: [
+							topThree[1],
+							topThree[0],
+							topThree[2]
+						].map((entry) => {
+							const isFirst = entry.rank === 1;
+							const verified = resolveVerificationStatus({
+								user: entry.user,
+								level: entry.user.level,
+								vipLevel: entry.user.vipLevel,
+								superVipLevel: entry.user.superVipLevel
+							});
+							const borderCls = isFirst ? "border-[#FFC84A]/60 bg-gradient-to-b from-[#331B0E] via-[#210E36] to-[#170928]" : entry.rank === 2 ? "border-slate-300/35 bg-[#1B0D31]" : "border-amber-600/40 bg-[#1B0D31]";
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								onClick: () => {
+									onClose();
+									onSelectUser(entry.user);
+								},
+								className: `rounded-2xl border p-2.5 flex flex-col items-center text-center cursor-pointer transition-transform hover:scale-[1.02] ${borderCls} ${isFirst ? "-mt-3 pb-3.5 shadow-lg shadow-[#FFC84A]/15" : ""}`,
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: `text-[10px] font-black px-2 py-0.5 rounded-full mb-1.5 ${isFirst ? "bg-[#FFC84A] text-[#090611]" : entry.rank === 2 ? "bg-slate-200 text-[#090611]" : "bg-amber-600 text-white"}`,
+										children: ["#", entry.rank]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative",
+										children: [entry.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+											src: entry.user.avatar,
+											alt: entry.user.name,
+											referrerPolicy: "no-referrer",
+											className: `rounded-full object-cover ring-2 ${isFirst ? "w-14 h-14 ring-[#FFC84A]" : "w-11 h-11 ring-white/25"}`
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: `rounded-full bg-[#2A1548] flex items-center justify-center font-black text-white ring-2 ${isFirst ? "w-14 h-14 text-lg ring-[#FFC84A]" : "w-11 h-11 text-sm ring-white/25"}`,
+											children: (entry.user.name || "U").charAt(0).toUpperCase()
+										}), entry.isLive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-[1px] rounded bg-rose-600 text-[8px] font-black text-white uppercase",
+											children: "LIVE"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center gap-1 mt-2 max-w-full",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[11px] font-extrabold text-white truncate",
+											children: entry.user.name
+										}), verified.tier !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+											tier: verified.tier,
+											size: "xs"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[10px] font-mono font-black text-[#FFC84A] mt-0.5 tabular-nums",
+										children: entry.score
+									})
+								]
+							}, entry.user.id);
+						})
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "space-y-2",
+						children: listEntries.map((entry) => {
+							const isFollowed = followedMap[entry.user.id] ?? entry.user.isFollowing;
+							const verified = resolveVerificationStatus({
+								user: entry.user,
+								level: entry.user.level,
+								vipLevel: entry.user.vipLevel,
+								superVipLevel: entry.user.superVipLevel
+							});
+							const badgeCls = entry.rank === 1 ? "bg-[#FFC84A] text-[#090611] border-[#FFC84A]" : entry.rank === 2 ? "bg-slate-200 text-[#090611] border-slate-200" : entry.rank === 3 ? "bg-amber-600 text-white border-amber-500" : "bg-white/[0.06] text-[#D7CEEB] border-white/10";
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								onClick: () => {
+									onClose();
+									onSelectUser(entry.user);
+								},
+								className: `p-2.5 rounded-2xl border flex items-center justify-between gap-2.5 cursor-pointer transition-all ${entry.user.id === currentUser.id ? "bg-[#281249] border-[#FA26A0]/50" : "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08]"}`,
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5 min-w-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: `w-7 h-7 rounded-full border flex items-center justify-center font-mono text-xs font-black shrink-0 ${badgeCls}`,
+											children: entry.rank
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "relative shrink-0",
+											children: [entry.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: entry.user.avatar,
+												alt: entry.user.name,
+												referrerPolicy: "no-referrer",
+												className: "w-10 h-10 rounded-full object-cover ring-1 ring-white/20"
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-10 h-10 rounded-full bg-[#2A1548] flex items-center justify-center text-xs font-black text-white",
+												children: (entry.user.name || "U").charAt(0).toUpperCase()
+											}), entry.isLive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-rose-500 ring-2 ring-[#120722]" })]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-xs font-extrabold text-white truncate",
+														children: entry.user.name
+													}),
+													verified.tier !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+														tier: verified.tier,
+														size: "xs"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+														level: entry.user.level || 0,
+														size: "xs"
+													})
+												]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[10px] text-[#B9AECF] truncate mt-0.5",
+												children: renderMetricsSummary(entry, category)
+											})]
+										})
+									]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2 shrink-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-mono font-black text-[#FFC84A] tabular-nums",
+										children: entry.score
+									}), entry.user.id !== currentUser.id && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: (e) => {
+											e.stopPropagation();
+											toggleFollow(entry.user.id);
+										},
+										className: `w-7 h-7 rounded-full flex items-center justify-center transition-all ${isFollowed ? "bg-white/10 text-[#C5B9DE]" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white"}`,
+										title: isFollowed ? "Following" : "Follow",
+										children: isFollowed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-3.5 h-3.5" })
+									})]
+								})]
+							}, entry.user.id);
+						})
+					})] })
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-4 py-3 bg-[#1A0B30] border-t border-white/10 flex items-center justify-between gap-2 text-xs",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2 min-w-0",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: "w-4 h-4 text-[#FA26A0] shrink-0" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[#C5B9DE] font-semibold",
+								children: "Your Rank:"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "font-mono font-black text-[#FFC84A]",
+								children: myRank ? `#${myRank}` : "Unranked"
+							}),
+							myEntry && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-[11px] font-mono text-white/80 truncate",
+								children: ["· ", myEntry.score]
+							})
+						]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: "inline-flex items-center gap-1 text-[10px] text-[#B9AECF] shrink-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-3 h-3 text-emerald-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Auto-sync" })]
+					})]
+				})
+			]
+		})
 	});
 };
 /*! formdata-polyfill. MIT License. Jimmy W?rting <https://jimmy.warting.se/opensource> */
@@ -110692,6 +111998,68 @@ async function updateFirestoreRoomParticipantCount(roomId, count) {
 		});
 	} catch {}
 }
+function subscribeFirestorePartyRoomDoc(roomId, onStatus) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return () => {};
+	return onSnapshot(doc(db, "party_rooms", roomId), (snap) => {
+		onStatus(snap.exists(), snap.exists() ? snap.data() : null);
+	}, () => {});
+}
+function compactSeatUser(user) {
+	if (!user || !user.id) return null;
+	const clean = {
+		id: String(user.id),
+		name: String(user.name || "User").slice(0, 80),
+		username: String(user.username || ""),
+		displayId: String(user.displayId || ""),
+		avatar: typeof user.avatar === "string" && (!user.avatar.startsWith("data:") || user.avatar.length <= 16e4) ? user.avatar : "",
+		level: typeof user.level === "number" ? user.level : 0,
+		fansCount: String(user.fansCount ?? "0"),
+		followingCount: typeof user.followingCount === "number" ? user.followingCount : 0,
+		likesCount: String(user.likesCount ?? "0"),
+		coins: typeof user.coins === "number" ? user.coins : 0,
+		diamonds: typeof user.diamonds === "number" ? user.diamonds : 0,
+		vipLevel: typeof user.vipLevel === "number" ? user.vipLevel : 0,
+		isVIP: Boolean(user.isVIP),
+		bio: String(user.bio || "").slice(0, 140)
+	};
+	if (typeof user.isVerified === "boolean") clean.isVerified = user.isVerified;
+	if (user.verificationTier) clean.verificationTier = user.verificationTier;
+	if (typeof user.equippedVipFrame === "number") clean.equippedVipFrame = user.equippedVipFrame;
+	if (user.activeFrameType) clean.activeFrameType = user.activeFrameType;
+	return clean;
+}
+async function syncFirestorePartyRoomState(roomId, isHost, patch) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
+	try {
+		const payload = {};
+		if (Array.isArray(patch.seats)) payload.seats = patch.seats.map((s) => compactSeatUser(s));
+		if (Array.isArray(patch.seatRequests)) payload.seatRequests = patch.seatRequests.map((r) => {
+			const u = compactSeatUser(r.user);
+			if (!u) return null;
+			return {
+				id: String(r.id || `sr_${Date.now()}`),
+				user: u,
+				seatIndex: typeof r.seatIndex === "number" ? r.seatIndex : 1,
+				requestedAt: typeof r.requestedAt === "number" ? r.requestedAt : Date.now()
+			};
+		}).filter(Boolean);
+		if (typeof patch.numericParticipants === "number") {
+			const safe = Math.max(0, Math.floor(patch.numericParticipants));
+			payload.numericParticipants = safe;
+			payload.viewersCount = safe;
+			payload.participantCount = patch.participantCount ?? String(safe);
+		}
+		if (typeof patch.likesCount === "number") payload.likesCount = Math.max(0, Math.floor(patch.likesCount));
+		if (isHost) {
+			if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
+			if (typeof patch.isLocked === "boolean") payload.isLocked = patch.isLocked;
+			if (typeof patch.allowJoin === "boolean") payload.allowJoin = patch.allowJoin;
+			if (typeof patch.announcement === "string") payload.announcement = patch.announcement.slice(0, 200);
+		}
+		if (Object.keys(payload).length === 0) return;
+		await updateDoc(doc(db, "party_rooms", roomId), payload);
+	} catch {}
+}
 // src/utils/webrtcMediaService.ts
 var DEFAULT_ICE_SERVERS = [
 	{ urls: "stun:stun.l.google.com:19302" },
@@ -111721,6 +113089,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 	const [isMuted, setIsMuted] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const [showForfeitConfirm, setShowForfeitConfirm] = (0, import_react.useState)(false);
+	const [showLeaderboardModal, setShowLeaderboardModal] = (0, import_react.useState)(false);
 	const [isFollowing, setIsFollowing] = (0, import_react.useState)(stream.host.isFollowing || false);
 	const [streamLikes, setStreamLikes] = (0, import_react.useState)(stream.likesCount || 0);
 	const hostLevelProgress = getUserLevelProgress(stream.host);
@@ -112567,8 +113936,8 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 					className: "w-full max-w-sm bg-[#160C25] border border-white/15 p-6 rounded-3xl text-center space-y-4 shadow-2xl",
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-14 h-14 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto text-2xl",
-							children: "🛑"
+							className: "w-14 h-14 rounded-full bg-rose-500/20 border border-rose-500/35 text-rose-400 flex items-center justify-center mx-auto",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-7 h-7 stroke-[2.5]" })
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
 							className: "text-lg font-black text-white font-display",
@@ -112576,7 +113945,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 							className: "text-xs text-[#B9AECF]",
-							children: "Your stream will be ended and viewers will be redirected. Here is your current stream summary:"
+							children: "Your camera & mic will turn off, your live card will be removed immediately, and viewers will be returned home."
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "grid grid-cols-3 gap-2 bg-[#090611] p-3 rounded-2xl border border-white/10 text-left",
@@ -112621,13 +113990,15 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 										stopMediaStream(mediaStreamRef.current);
 										mediaStreamRef.current = null;
 									}
+									webrtcMediaService.stopLive();
 									await agoraRtcService.leaveChannel().catch(() => {});
-									await liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {});
+									setNativeLiveAudioMode(false);
+									await Promise.all([leaveFirestoreLiveViewer(stream.id).catch(() => {}), liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {})]);
 									onEndLive?.(stream.id);
 									onClose();
 								},
-								className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all",
-								children: "End Stream"
+								className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all",
+								children: "End Broadcast"
 							})]
 						})
 					]
@@ -113355,24 +114726,30 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "relative z-30 flex flex-col p-3 sm:p-5 pt-safe gap-2",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-between",
+					className: "flex items-center justify-between gap-2 min-w-0",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						onClick: () => onSelectUser(stream.host),
-						className: "flex items-center gap-2 bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1.5 pr-2.5 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg",
+						className: "flex items-center gap-1.5 min-w-0 max-w-[54%] bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-2 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg",
 						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
-								avatar: stream.host.avatar,
-								name: stream.host.name,
-								level: stream.host.level || 42,
-								size: "sm"
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "shrink-0",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AvatarWithFrame, {
+									avatar: stream.host.avatar,
+									name: stream.host.name,
+									level: stream.host.level || 0,
+									size: "sm"
+								})
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex flex-col",
+								className: "flex flex-col min-w-0",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-xs font-bold text-white leading-tight flex items-center gap-1",
-									children: [stream.host.name, isActualHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[9px] bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black px-1 rounded-sm uppercase",
-										children: "You (Host)"
+									className: "text-xs font-bold text-white leading-tight flex items-center gap-1 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "truncate",
+										children: stream.host.name
+									}), isActualHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "shrink-0 text-[8px] bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black px-1 py-0.2 rounded-sm uppercase",
+										children: "HOST"
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 									className: "text-[10px] text-[#FFC84A] font-bold leading-tight flex items-center gap-0.5",
@@ -113387,32 +114764,22 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 									onToggleFollow?.(stream.host.id);
 									showToast(nextFollow ? `Followed ${stream.host.name}` : `Unfollowed ${stream.host.name}`);
 								},
-								className: `ml-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 ${isFollowing ? "bg-white/20 text-white" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30"}`,
+								className: `ml-0.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95 shrink-0 ${isFollowing ? "bg-white/20 text-white" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30"}`,
 								children: isFollowing ? "Following" : "Follow"
 							})
 						]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
+						className: "flex items-center gap-1.5 shrink-0",
 						children: [
-							isActualHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => {
-									const nextMode = !isHostMode;
-									setIsHostMode(nextMode);
-									showToast(nextMode ? "Switched to Host Control Mode" : "Switched to Viewer Mode");
-								},
-								className: `px-2.5 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all active:scale-95 shadow ${isHostMode ? "bg-[#FFC84A] text-[#090611] border-[#FFC84A] shadow-[#FFC84A]/30" : "bg-black/60 text-white border-white/20 hover:bg-black/80"}`,
-								title: "Toggle between Host Controls and Viewer View",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isHostMode ? "Host Controls" : "Viewer Mode" })]
-							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-1.5",
+								className: "flex items-center gap-1",
 								children: [viewersList.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									type: "button",
 									onClick: () => {
 										setShowViewersModal(true);
 										loadLiveViewers(1, false);
 									},
-									className: "flex items-center -space-x-2 pr-0.5 cursor-pointer",
+									className: "hidden sm:flex items-center -space-x-2 pr-0.5 cursor-pointer",
 									title: "Real-Time Viewers",
 									children: viewersList.slice(0, 3).map((v) => v.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 										src: v.avatar,
@@ -113428,62 +114795,56 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 										setShowViewersModal(true);
 										loadLiveViewers(1, false);
 									},
-									className: "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow hover:bg-black/75 transition-colors",
+									className: "flex items-center gap-1 px-2 py-1 rounded-full bg-black/55 backdrop-blur-md text-white text-xs font-bold border border-white/10 shadow hover:bg-black/75 transition-colors",
 									title: "View Live Audience List",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5 text-cyan-300" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "font-mono",
-											children: liveViewerCount.toLocaleString()
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "w-4 h-4 rounded-full bg-white/15 flex items-center justify-center text-white",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Info, { className: "w-2.5 h-2.5" })
-										})
-									]
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "font-mono text-[11px]",
+										children: liveViewerCount.toLocaleString()
+									})]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								onClick: () => setShowLeaderboardModal(true),
+								className: "w-8 h-8 sm:w-auto sm:px-2.5 rounded-full bg-gradient-to-r from-[#3A2208]/90 to-[#241136]/90 hover:from-[#4E2E0B] hover:to-[#32174A] backdrop-blur-md border border-[#FFC84A]/50 text-[#FFC84A] text-[11px] font-black shadow-lg flex items-center justify-center gap-1 transition-all active:scale-95 shrink-0",
+								title: "Open Live Leaderboard (Hourly, Daily, Weekly, Monthly)",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "hidden sm:inline",
+									children: "Rank"
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								onClick: handleToggleViewerSound,
-								className: "w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/70 transition-colors",
+								className: "w-8 h-8 rounded-full bg-black/55 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/75 transition-colors shrink-0",
 								title: isMuted ? "Unmute" : "Mute",
 								children: isMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, { className: "w-4 h-4 text-rose-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-4 h-4" })
 							}),
-							isActualHost && (activePKSession ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setShowForfeitConfirm(true),
-								className: "px-2.5 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white text-[11px] font-bold flex items-center gap-1 border border-white/20 shadow active:scale-95 transition-all",
-								title: "Forfeit PK Battle",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flag, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Forfeit" })]
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: onOpenPK,
-								className: "px-3 py-1 rounded-full bg-gradient-to-r from-[#F59E0B] via-[#EF4444] to-[#F328D5] text-white text-[11px] font-black flex items-center gap-1.5 shadow-lg shadow-red-500/25 active:scale-95 transition-all animate-pulse",
-								title: "Challenge eligible host to PK Battle",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Swords, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "PK" })]
-							})),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
 								onClick: () => {
 									if (isActualHost) setShowEndLiveConfirm(true);
 									else onClose();
 								},
-								className: `w-8 h-8 rounded-full backdrop-blur-md border border-white/10 flex items-center justify-center transition-colors ${isActualHost ? "bg-red-600/70 hover:bg-red-600 text-white" : "bg-black/50 hover:bg-black/80 text-white"}`,
-								title: isActualHost ? "End Broadcast" : "Exit Stream",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								"aria-label": isActualHost ? "End Broadcast / Exit Live" : "Exit Live Stream",
+								className: `w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-95 shrink-0 shadow-lg ${isActualHost ? "bg-rose-600/90 hover:bg-rose-600 border-white/25 text-white shadow-rose-900/40" : "bg-black/65 hover:bg-black/85 border-white/15 text-white"}`,
+								title: isActualHost ? "End Broadcast / Exit Live" : "Exit Stream",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4 stroke-[2.5]" })
 							})
 						]
 					})]
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-between pt-0.5",
+					className: "flex items-center justify-between gap-2 pt-0.5",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-1.5",
+						className: "flex items-center gap-1.5 min-w-0",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow",
+							className: "flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-2 py-1 rounded-full border border-white/10 shadow",
 							children: [
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 									className: "px-1.5 py-0.2 rounded-md bg-[#FFC84A] text-[#090611] text-[10px] font-black",
 									children: ["Lv.", hostLevelProgress.currentLevel]
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "w-16 sm:w-24 h-2 rounded-full bg-white/20 overflow-hidden",
+									className: "w-14 sm:w-24 h-2 rounded-full bg-white/20 overflow-hidden",
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 										className: "h-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] rounded-full shadow-[0_0_8px_#FFC84A]",
 										style: { width: `${hostLevelProgress.progressPercent}%` }
@@ -113495,12 +114856,25 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 								})
 							]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30",
+							className: "flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#FF007A] text-white text-[10px] font-black shadow-md shadow-pink-500/30 shrink-0",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-white animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "LIVE" })]
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] font-bold flex items-center gap-1",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: formatDuration(streamSeconds) })]
+						className: "flex items-center gap-1.5 shrink-0",
+						children: [isActualHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => {
+								const nextMode = !isHostMode;
+								setIsHostMode(nextMode);
+								showToast(nextMode ? "Switched to Host Control Mode" : "Switched to Viewer Mode");
+							},
+							className: `px-2 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all active:scale-95 shadow ${isHostMode ? "bg-[#FFC84A] text-[#090611] border-[#FFC84A] shadow-[#FFC84A]/30" : "bg-black/60 text-white border-white/20 hover:bg-black/80"}`,
+							title: "Toggle between Host Controls and Viewer View",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3 h-3" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isHostMode ? "Host" : "Viewer" })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "px-2 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] font-bold flex items-center gap-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: formatDuration(streamSeconds) })]
+						})]
 					})]
 				})]
 			}),
@@ -113615,14 +114989,16 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 							]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "flex items-center gap-1.5 shrink-0",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							children: activePKSession ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: () => setShowForfeitConfirm(true),
+								className: "px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black flex items-center gap-1 shadow active:scale-95",
+								title: "Forfeit PK Battle",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flag, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Forfeit" })]
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: onOpenPK,
 								className: "px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#EF4444] text-white text-xs font-black flex items-center gap-1 shadow active:scale-95",
 								title: "Challenge Host to PK Battle",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Swords, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "hidden sm:inline",
-									children: "PK Battle"
-								})]
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Swords, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "PK" })]
 							})
 						})]
 					}),
@@ -113686,6 +115062,15 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 						]
 					})
 				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LiveLeaderboardModal, {
+				isOpen: showLeaderboardModal,
+				onClose: () => setShowLeaderboardModal(false),
+				mode: "solo",
+				contextId: stream.id,
+				contextTitle: stream.title,
+				currentUser,
+				onSelectUser
 			})
 		]
 	});
@@ -113844,6 +115229,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const seatsRef = (0, import_react.useRef)(seats);
 	seatsRef.current = seats;
 	const [showSettingsSheet, setShowSettingsSheet] = (0, import_react.useState)(false);
+	const [showLeaderboardModal, setShowLeaderboardModal] = (0, import_react.useState)(false);
 	const [showEditAnnouncementModal, setShowEditAnnouncementModal] = (0, import_react.useState)(false);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const [roomAnnouncement, setRoomAnnouncement] = (0, import_react.useState)(room.announcement || "Welcome! Hop on a seat, respect everyone & enjoy the party.");
@@ -113988,6 +115374,26 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				return changed ? next.slice(-60) : prev;
 			});
 		});
+		let roomDocEverExisted = false;
+		const unsubFsRoomDoc = subscribeFirestorePartyRoomDoc(room.id, (exists, data) => {
+			if (!active) return;
+			if (exists && data) {
+				roomDocEverExisted = true;
+				if (Array.isArray(data.seats)) setSeats(normalizeSeats(data.seats, data.maxSeats === 16 ? 16 : maxSeats));
+				if (Array.isArray(data.mutedSeatIndices)) setMutedSeatIndices(data.mutedSeatIndices);
+				if (Array.isArray(data.seatRequests)) setSeatRequests(data.seatRequests);
+				if (typeof data.isLocked === "boolean") setIsSeatLocked(data.isLocked);
+				if (typeof data.allowJoin === "boolean") setIsAllowJoin(data.allowJoin);
+				if (typeof data.announcement === "string") setRoomAnnouncement(data.announcement);
+			} else if (roomDocEverExisted && !isRoomHost) {
+				showToast("Party room was closed by the host");
+				webrtcMediaService.stopPartyVoice();
+				agoraRtcService.leaveChannel().catch(() => {});
+				setTimeout(() => {
+					if (active) onClose();
+				}, 1200);
+			}
+		});
 		const heartbeatInterval = setInterval(() => {
 			liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
 			updateFirestoreRoomParticipantState(room.id, { isSpeaker: seatsRef.current.some((s) => s?.id === currentUser.id) });
@@ -114116,6 +115522,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			unsubWs();
 			unsubFsParticipants();
 			unsubFsMessages();
+			unsubFsRoomDoc();
 			liveAndRoomService.unsubscribeRoom();
 			if (!hasExplicitlyLeftRef.current) {
 				liveAndRoomService.leavePartyRoom(room.id, currentUser.id);
@@ -114384,6 +115791,16 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			isOwnerPresent: participantsList.some((p) => p.userId === room.host.id)
 		};
 		onUpdateRoom?.(nextRoom);
+		syncFirestorePartyRoomState(room.id, isRoomHost, {
+			seats: updatedSeats,
+			seatRequests: nextRoom.seatRequests,
+			numericParticipants: participantTotal,
+			participantCount: String(participantTotal),
+			mutedSeatIndices,
+			isLocked: nextRoom.isLocked,
+			allowJoin: nextRoom.allowJoin,
+			announcement: nextRoom.announcement
+		});
 	};
 	const handleCleanLeaveParty = async () => {
 		setShowExitRoomModal(false);
@@ -114763,6 +116180,16 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-3 h-3 text-cyan-300" }),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: participantTotal })
 							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => setShowLeaderboardModal(true),
+							className: "flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-[#3A2208]/95 to-[#241136]/95 hover:from-[#4E2E0B] hover:to-[#32174A] border border-[#FFC84A]/50 text-[#FFC84A] text-[10px] font-black shadow transition-all active:scale-95 shrink-0",
+							title: "Open Party Leaderboard (Hourly, Daily, Weekly, Monthly)",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "hidden sm:inline",
+								children: "Rank"
+							})]
 						}),
 						isCurrentlySeated && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: () => {
@@ -115788,6 +117215,15 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						})
 					]
 				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LiveLeaderboardModal, {
+				isOpen: showLeaderboardModal,
+				onClose: () => setShowLeaderboardModal(false),
+				mode: "party",
+				contextId: room.id,
+				contextTitle: room.title,
+				currentUser,
+				onSelectUser
 			})
 		]
 	});
@@ -116031,11 +117467,15 @@ var CreateLiveScreen = ({ currentUser, onClose, onStartLive }) => {
 			});
 			streamRef.current = null;
 		}
+		const hostProfile = {
+			...currentUser,
+			id: auth.currentUser.uid
+		};
 		onStartLive({
 			id: `live_${Date.now()}`,
 			title: title.trim(),
 			category,
-			host: currentUser,
+			host: hostProfile,
 			coverImage: coverUrl,
 			viewerCount: "0",
 			numericViewers: 0,
@@ -116382,14 +117822,18 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 			setError("Please enter a room password for private room");
 			return;
 		}
+		const hostProfile = {
+			...currentUser,
+			id: auth.currentUser.uid
+		};
 		const emptySeats = Array(maxSeats).fill(null);
-		emptySeats[0] = currentUser;
+		emptySeats[0] = hostProfile;
 		onCreateRoom({
 			id: `room_${Date.now()}`,
 			displayId: Math.floor(1e4 + Math.random() * 9e4).toString(),
 			title: roomName.trim(),
 			category: "Party",
-			host: currentUser,
+			host: hostProfile,
 			coverImage: coverUrl,
 			iconType: "heart",
 			participantCount: `1/${maxSeats}`,
@@ -116397,7 +117841,7 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 			isAudioRoom: true,
 			maxSeats,
 			roomType: isPrivate ? "private" : "public",
-			password: isPrivate ? password.trim() : void 0,
+			...isPrivate && password.trim() ? { password: password.trim() } : {},
 			announcement: announcement.trim() || "Welcome to my party voice room! Respect everyone and enjoy!",
 			seats: emptySeats,
 			mutedSeatIndices: [],
@@ -116602,46 +118046,182 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 	});
 };
 // src/components/screens/RankingsScreen.tsx
+var SCOPE_TABS = [
+	{
+		id: "global",
+		label: "Global App",
+		icon: Earth
+	},
+	{
+		id: "solo",
+		label: "Solo Live",
+		icon: Video
+	},
+	{
+		id: "party",
+		label: "Party Rooms",
+		icon: Mic
+	}
+];
+var CATEGORY_TABS = [
+	{
+		id: "all",
+		label: "All",
+		icon: Trophy
+	},
+	{
+		id: "host",
+		label: "Top Hosts",
+		icon: Crown
+	},
+	{
+		id: "gifter",
+		label: "Top Gifters",
+		icon: Gift
+	},
+	{
+		id: "viewer",
+		label: "Top Viewers",
+		icon: Eye
+	}
+];
+var PERIOD_TABS = [
+	{
+		id: "hourly",
+		label: "Hourly"
+	},
+	{
+		id: "daily",
+		label: "Daily"
+	},
+	{
+		id: "weekly",
+		label: "Weekly"
+	},
+	{
+		id: "monthly",
+		label: "Monthly"
+	},
+	{
+		id: "all_time",
+		label: "All-Time"
+	}
+];
+function formatCountdown(resetAt) {
+	if (!resetAt) return "All-Time Hall of Fame";
+	const diffMs = Math.max(0, resetAt - Date.now());
+	const totalMins = Math.floor(diffMs / 6e4);
+	const days = Math.floor(totalMins / 1440);
+	const hours = Math.floor(totalMins % 1440 / 60);
+	const mins = totalMins % 60;
+	if (days > 0) return `Resets in ${days}d ${hours}h`;
+	if (hours > 0) return `Resets in ${hours}h ${mins}m`;
+	return `Resets in ${Math.max(1, mins)}m`;
+}
+function formatCompact(n) {
+	if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+	if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+	return String(Math.round(n));
+}
+function buildMetricsLine(entry, category) {
+	const m = entry.metrics;
+	if (!m) return entry.roleLabel || "Active";
+	if (category === "gifter") return `${m.giftsCount.toLocaleString()} gifts sent · ${m.sessionsCount} rooms`;
+	if (category === "viewer") {
+		const parts = [];
+		if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact(m.giftsCoins)}`);
+		if (m.commentsCount > 0) parts.push(`💬 ${m.commentsCount}`);
+		if (m.likesCount > 0) parts.push(`❤️ ${formatCompact(m.likesCount)}`);
+		if (m.watchMinutes > 0) parts.push(`⏱ ${m.watchMinutes}m`);
+		return parts.length > 0 ? parts.join(" · ") : `${m.sessionsCount} sessions joined`;
+	}
+	if (category === "host") {
+		const parts = [];
+		if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact(m.giftsCoins)} coins`);
+		if (m.uniqueViewers > 0) parts.push(`👁 ${m.uniqueViewers} viewers`);
+		if (m.likesCount > 0) parts.push(`❤️ ${formatCompact(m.likesCount)}`);
+		return parts.length > 0 ? parts.join(" · ") : entry.isLive ? "Broadcasting Live" : "Active Host";
+	}
+	const parts = [];
+	if (entry.roleLabel) parts.push(entry.roleLabel);
+	if (m.giftsCoins > 0) parts.push(`🎁 ${formatCompact(m.giftsCoins)}`);
+	if (m.uniqueViewers > 0) parts.push(`👁 ${m.uniqueViewers}`);
+	else if (m.commentsCount > 0) parts.push(`💬 ${m.commentsCount}`);
+	return parts.join(" · ");
+}
 var RankingsScreen = ({ currentUser, onNavigate, onSelectUser }) => {
-	const [activeTab, setActiveTab] = (0, import_react.useState)("Star");
-	const [timeFilter, setTimeFilter] = (0, import_react.useState)("weekly");
+	const [scope, setScope] = (0, import_react.useState)("global");
+	const [category, setCategory] = (0, import_react.useState)("all");
+	const [period, setPeriod] = (0, import_react.useState)("daily");
 	const [rankings, setRankings] = (0, import_react.useState)([]);
+	const [myRank, setMyRank] = (0, import_react.useState)(null);
+	const [myEntry, setMyEntry] = (0, import_react.useState)(null);
+	const [resetAt, setResetAt] = (0, import_react.useState)(null);
 	const [isLoading, setIsLoading] = (0, import_react.useState)(true);
 	const [followedMap, setFollowedMap] = (0, import_react.useState)({});
 	const [showAdminConfig, setShowAdminConfig] = (0, import_react.useState)(false);
 	const [weights, setWeights] = (0, import_react.useState)({
-		giftValueWeight: 5,
-		uniqueViewerWeight: 20,
-		engagementWeight: 3,
-		activeLiveBoost: 100
+		giftValueWeight: 1,
+		uniqueViewerWeight: 25,
+		engagementWeight: 2,
+		activeLiveBoost: 500
 	});
 	const [savingWeights, setSavingWeights] = (0, import_react.useState)(false);
 	const [statusMessage, setStatusMessage] = (0, import_react.useState)(null);
+	const refreshTimerRef = (0, import_react.useRef)(null);
 	const isAdmin = auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
-	const loadRankings = async () => {
-		setIsLoading(true);
+	const loadRankings = (0, import_react.useCallback)(async (silent = false) => {
+		if (!silent) setIsLoading(true);
 		try {
-			const data = await liveAndRoomService.fetchRankings(activeTab, timeFilter, currentUser.id);
+			const data = await liveAndRoomService.fetchLeaderboard({
+				scope,
+				category,
+				period,
+				userId: currentUser.id,
+				limit: 50
+			});
 			setRankings(data.rankings);
+			setMyRank(data.myRank);
+			setMyEntry(data.myEntry || null);
+			setResetAt(data.resetAt ?? null);
 			if (data.config) setWeights(data.config);
 		} catch {
-			setRankings([]);
+			if (!silent) setRankings([]);
 		} finally {
-			setIsLoading(false);
+			if (!silent) setIsLoading(false);
 		}
-	};
+	}, [
+		scope,
+		category,
+		period,
+		currentUser.id
+	]);
 	(0, import_react.useEffect)(() => {
-		loadRankings();
-	}, [activeTab, timeFilter]);
+		loadRankings(false);
+	}, [loadRankings]);
+	(0, import_react.useEffect)(() => {
+		const unsubscribe = liveAndRoomService.addEventListener((event) => {
+			if (event === "rankings:updated" || event === "rankings:config_updated" || event === "live:directory_updated" || event === "room:directory_updated") {
+				if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+				refreshTimerRef.current = setTimeout(() => {
+					loadRankings(true);
+				}, 400);
+			}
+		});
+		return () => {
+			unsubscribe();
+			if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+		};
+	}, [loadRankings]);
 	(0, import_react.useEffect)(() => {
 		if (!isAdmin) return;
 		liveAndRoomService.fetchAdminRankingConfig().then((cfg) => {
 			if (cfg) setWeights(cfg);
 		});
 	}, [isAdmin]);
-	const topUser = rankings[0];
-	const otherRankings = rankings.slice(1);
-	const myEntry = rankings.find((r) => r.user.id === currentUser.id);
+	const topThree = rankings.length >= 3 ? rankings.slice(0, 3) : [];
+	const topSingle = rankings.length > 0 && rankings.length < 3 ? rankings[0] : null;
+	const listRankings = rankings.length >= 3 ? rankings.slice(3) : rankings.slice(1);
 	const toggleFollow = async (userId) => {
 		if (!currentUser.id || currentUser.id === "guest" || userId === currentUser.id) return;
 		try {
@@ -116663,7 +118243,7 @@ var RankingsScreen = ({ currentUser, onNavigate, onSelectUser }) => {
 			setTimeout(() => {
 				setShowAdminConfig(false);
 				setStatusMessage(null);
-				loadRankings();
+				loadRankings(false);
 			}, 900);
 		} catch (err) {
 			setStatusMessage(err?.message || "Failed to update weights.");
@@ -116672,211 +118252,352 @@ var RankingsScreen = ({ currentUser, onNavigate, onSelectUser }) => {
 		}
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "w-full pb-20 sm:pb-12 animate-fade-in",
+		className: "w-full pb-24 sm:pb-12 animate-fade-in",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "max-w-3xl mx-auto px-3.5 sm:px-6 pt-3 space-y-4",
+			className: "max-w-3xl mx-auto px-3.5 sm:px-6 pt-3 space-y-3.5",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "flex items-center justify-between gap-2",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-3",
+						className: "flex items-center gap-3 min-w-0",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: () => onNavigate("home"),
-							className: "w-9 h-9 rounded-full bg-[#160C25] hover:bg-[#211333] border border-white/10 flex items-center justify-center text-white transition-colors",
+							className: "w-9 h-9 rounded-full bg-[#160C25] hover:bg-[#211333] border border-white/10 flex items-center justify-center text-white transition-colors shrink-0",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-4 h-4" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-							className: "text-xl font-extrabold text-white font-display",
-							children: "Rankings"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+									className: "text-xl font-extrabold text-white font-display truncate",
+									children: "Leaderboards"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[9px] font-black uppercase",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" }), "Live"]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "text-[11px] text-[#B9AECF] flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Clock, { className: "w-3 h-3 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: formatCountdown(resetAt) })]
+							})]
 						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [isAdmin && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						className: "flex items-center gap-1.5 shrink-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => loadRankings(false),
+							className: "w-9 h-9 rounded-xl bg-[#160C25] hover:bg-[#211333] border border-white/10 flex items-center justify-center text-white transition-colors",
+							title: "Refresh Rankings",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RefreshCw, { className: `w-4 h-4 ${isLoading ? "animate-spin" : ""}` })
+						}), isAdmin && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => setShowAdminConfig(true),
-							className: "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#211333] hover:bg-[#2d1a46] border border-[#FFC84A]/40 text-[#FFC84A] text-[10px] font-bold transition-colors",
+							className: "flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#211333] hover:bg-[#2d1a46] border border-[#FFC84A]/40 text-[#FFC84A] text-[10px] font-bold transition-colors",
 							title: "Admin Ranking Weights",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Weights" })]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "flex items-center gap-1 bg-[#160C25] p-1 rounded-xl border border-white/10",
-							children: [
-								"daily",
-								"weekly",
-								"monthly"
-							].map((t) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setTimeFilter(t),
-								className: `px-2.5 py-1 rounded-lg text-[10px] font-bold capitalize transition-all ${timeFilter === t ? "bg-[#8B20FF] text-white shadow-sm" : "text-[#B9AECF] hover:text-white"}`,
-								children: t
-							}, t))
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "hidden sm:inline",
+								children: "Weights"
+							})]
 						})]
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex p-1 bg-[#160C25] rounded-2xl border border-white/10",
-					children: [
-						"Star",
-						"Contribution",
-						"Wealth"
-					].map((tab) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: () => setActiveTab(tab),
-						className: `flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${activeTab === tab ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/20" : "text-[#B9AECF] hover:text-white"}`,
-						children: tab
-					}, tab))
+					className: "grid grid-cols-3 gap-1.5 p-1 bg-[#160C25] rounded-2xl border border-white/10",
+					children: SCOPE_TABS.map((tab) => {
+						const Icon = tab.icon;
+						const active = scope === tab.id;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => setScope(tab.id),
+							className: `py-2 px-2 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all ${active ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md" : "text-[#C5B9DE] hover:text-white"}`,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "truncate",
+								children: tab.label
+							})]
+						}, tab.id);
+					})
 				}),
-				isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "py-16 text-center text-xs text-[#B9AECF]",
-					children: "Loading live rankings..."
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "grid grid-cols-4 gap-1.5 p-1 bg-[#160C25] rounded-2xl border border-white/10",
+					children: CATEGORY_TABS.map((tab) => {
+						const Icon = tab.icon;
+						const active = category === tab.id;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => setCategory(tab.id),
+							className: `py-2 px-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${active ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/20" : "text-[#B9AECF] hover:text-white"}`,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "truncate",
+								children: tab.label
+							})]
+						}, tab.id);
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5",
+					children: PERIOD_TABS.map((p) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: () => setPeriod(p.id),
+						className: `px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${period === p.id ? "bg-white text-[#120722] border-white shadow" : "bg-[#160C25] text-[#C5B9DE] border-white/10 hover:text-white hover:border-white/20"}`,
+						children: p.label
+					}, p.id))
+				}),
+				isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "py-16 flex flex-col items-center gap-2 text-xs text-[#B9AECF]",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-8 h-8 border-2 border-[#FFC84A] border-t-transparent rounded-full animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Loading real-time rankings..." })]
 				}) : rankings.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "rounded-3xl bg-[#160C25] border border-white/10 p-10 text-center flex flex-col items-center gap-2.5",
+					className: "rounded-3xl bg-[#160C25] border border-white/10 p-10 text-center flex flex-col items-center gap-3",
 					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-10 h-10 text-[#FFC84A]/50" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-							className: "text-sm font-extrabold text-white",
-							children: "No Ranked Broadcasters Yet"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-xs text-[#B9AECF] max-w-sm",
-							children: "Rankings update automatically from real active broadcasts, gifts, and community engagement."
-						})
-					]
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [topUser && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					onClick: () => onSelectUser(topUser.user),
-					className: "relative w-full rounded-3xl overflow-hidden bg-gradient-to-b from-[#2a1342] via-[#1d0e30] to-[#160C25] border border-[#FFC84A]/40 p-6 flex flex-col items-center text-center cursor-pointer group shadow-xl shadow-[#8B20FF]/20",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 w-60 h-60 bg-gradient-to-b from-[#FFC84A]/25 to-transparent rounded-full blur-2xl pointer-events-none" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "relative flex items-center justify-center my-2",
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trophy, { className: "w-11 h-11 text-[#FFC84A]/55" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+							className: "text-base font-extrabold text-white",
 							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
-									className: "w-16 h-16 sm:w-20 sm:h-20 text-[#FFC84A] opacity-90 drop-shadow-[0_0_10px_#FFC84A] -mr-3",
-									viewBox: "0 0 100 100",
-									fill: "currentColor",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M90 50 C70 10, 30 10, 5 35 C20 40, 40 45, 60 52 C40 55, 20 62, 10 75 C30 70, 60 68, 85 58 Z" })
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative z-10",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "absolute -top-6 left-1/2 -translate-x-1/2 flex items-center justify-center",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "relative",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-8 h-8 text-[#FFC84A] fill-[#FFC84A] drop-shadow-[0_2px_10px_rgba(255,200,74,0.8)] animate-bounce" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "absolute -bottom-1 -right-1 bg-red-600 text-white text-[9px] font-black px-1 rounded-full",
-												children: "#1"
-											})]
-										})
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-tr from-[#FFC84A] via-[#F328D5] to-[#8B20FF] shadow-2xl group-hover:scale-105 transition-transform",
-										children: topUser.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: topUser.user.avatar,
-											alt: topUser.user.name,
-											referrerPolicy: "no-referrer",
-											className: "w-full h-full rounded-full object-cover ring-4 ring-[#160C25]"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-full h-full rounded-full bg-[#211333] ring-4 ring-[#160C25] flex items-center justify-center text-white text-2xl font-black",
-											children: topUser.user.name?.charAt(0) || "U"
-										})
-									})]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
-									className: "w-16 h-16 sm:w-20 sm:h-20 text-[#FFC84A] opacity-90 drop-shadow-[0_0_10px_#FFC84A] -ml-3 scale-x-[-1]",
-									viewBox: "0 0 100 100",
-									fill: "currentColor",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M90 50 C70 10, 30 10, 5 35 C20 40, 40 45, 60 52 C40 55, 20 62, 10 75 C30 70, 60 68, 85 58 Z" })
-								})
+								"No Ranked Activity Yet (",
+								PERIOD_TABS.find((p) => p.id === period)?.label,
+								")"
 							]
 						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-[#B9AECF] max-w-sm leading-relaxed",
+							children: "Rankings update automatically in real time when hosts go live, viewers join & chat, or gifts are sent in Solo Live and Party Rooms."
+						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center gap-1.5 mt-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-								className: "text-lg sm:text-xl font-extrabold text-white font-display group-hover:text-[#FFC84A] transition-colors",
-								children: topUser.user.name
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4 text-[#FFC84A] fill-[#FFC84A]" })]
-						}),
-						topUser.user.displayId && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-							className: "text-xs text-[#B9AECF] font-mono mb-2",
-							children: ["ID: ", topUser.user.displayId]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "px-5 py-1.5 rounded-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black font-mono text-sm shadow-md flex items-center gap-1.5 mt-1",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: topUser.score })
+							className: "flex items-center gap-2 pt-1",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => onNavigate("create_live"),
+								className: "px-4 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold",
+								children: "Start Solo Live"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => onNavigate("rooms"),
+								className: "px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold",
+								children: "Join Party Rooms"
+							})]
 						})
 					]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "space-y-2.5",
-					children: otherRankings.map((entry) => {
-						const isFollowed = followedMap[entry.user.id] ?? entry.user.isFollowing;
-						const rankBadgeColor = entry.rank === 2 ? "text-slate-300 bg-slate-300/10 border-slate-300/30" : entry.rank === 3 ? "text-amber-600 bg-amber-600/10 border-amber-600/30" : "text-[#B9AECF] bg-white/5 border-white/10";
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => onSelectUser(entry.user),
-							className: "flex items-center justify-between p-3.5 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/10 hover:border-[#8B20FF]/50 transition-all cursor-pointer group shadow-md",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 min-w-0",
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+					topThree.length === 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "grid grid-cols-3 gap-2.5 sm:gap-3.5 items-end pt-4 pb-1",
+						children: [
+							topThree[1],
+							topThree[0],
+							topThree[2]
+						].map((entry) => {
+							const isFirst = entry.rank === 1;
+							const verified = resolveVerificationStatus({
+								user: entry.user,
+								level: entry.user.level,
+								vipLevel: entry.user.vipLevel,
+								superVipLevel: entry.user.superVipLevel
+							});
+							const cardCls = isFirst ? "bg-gradient-to-b from-[#3A1C12] via-[#260F3E] to-[#160C25] border-[#FFC84A]/65 shadow-xl shadow-[#FFC84A]/15 -mt-4 py-5" : entry.rank === 2 ? "bg-gradient-to-b from-[#23193A] to-[#160C25] border-slate-300/40 py-4" : "bg-gradient-to-b from-[#2B1928] to-[#160C25] border-amber-600/45 py-4";
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								onClick: () => onSelectUser(entry.user),
+								className: `relative rounded-3xl border px-2.5 sm:px-3.5 flex flex-col items-center text-center cursor-pointer group transition-transform hover:scale-[1.02] ${cardCls}`,
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: `w-7 h-7 rounded-full flex items-center justify-center font-mono font-extrabold text-xs border shrink-0 ${rankBadgeColor}`,
-										children: entry.rank
-									}),
+									isFirst && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-7 h-7 text-[#FFC84A] fill-[#FFC84A] -mt-2 mb-1 drop-shadow-[0_2px_10px_rgba(255,200,74,0.75)]" }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "relative shrink-0",
+										className: "relative",
 										children: [entry.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 											src: entry.user.avatar,
 											alt: entry.user.name,
 											referrerPolicy: "no-referrer",
-											className: "w-11 h-11 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-[#8B20FF] transition-all"
+											className: `rounded-full object-cover ring-2 ${isFirst ? "w-16 h-16 sm:w-20 sm:h-20 ring-[#FFC84A]" : entry.rank === 2 ? "w-13 h-13 sm:w-16 sm:h-16 ring-slate-300" : "w-13 h-13 sm:w-16 sm:h-16 ring-amber-500"}`
 										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-11 h-11 rounded-full bg-[#211333] ring-2 ring-white/10 flex items-center justify-center text-white font-bold text-sm",
-											children: entry.user.name?.charAt(0) || "U"
-										}), entry.rank <= 3 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "absolute -bottom-1 -right-1 bg-[#FFC84A] text-[#090611] p-0.5 rounded-full",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 fill-current" })
+											className: `rounded-full bg-[#241240] flex items-center justify-center font-black text-white ring-2 ${isFirst ? "w-16 h-16 sm:w-20 sm:h-20 text-xl ring-[#FFC84A]" : "w-13 h-13 sm:w-16 sm:h-16 text-base ring-white/30"}`,
+											children: (entry.user.name || "U").charAt(0).toUpperCase()
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: `absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black shadow ${isFirst ? "bg-[#FFC84A] text-[#090611]" : entry.rank === 2 ? "bg-slate-200 text-[#090611]" : "bg-amber-600 text-white"}`,
+											children: ["#", entry.rank]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex flex-col min-w-0",
+										className: "flex items-center justify-center gap-1 mt-3 max-w-full",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate",
+											className: "text-xs sm:text-sm font-extrabold text-white truncate group-hover:text-[#FFC84A] transition-colors",
 											children: entry.user.name
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "text-xs text-[#B9AECF] font-mono",
-											children: [
-												"Lv.",
-												entry.user.level || 1,
-												entry.user.displayId ? ` • ID: ${entry.user.displayId}` : ""
-											]
+										}), verified.tier !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+											tier: verified.tier,
+											size: "xs"
 										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-center gap-1 mt-1 flex-wrap",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+											level: entry.user.level || 0,
+											size: "xs"
+										}), entry.isLive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "px-1.5 py-0.5 rounded bg-rose-600 text-[8px] font-black text-white uppercase",
+											children: "LIVE"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: `mt-2 px-2.5 py-1 rounded-full font-mono font-black text-[11px] tabular-nums ${isFirst ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611]" : "bg-white/10 text-[#FFC84A]"}`,
+										children: entry.score
 									})
 								]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 shrink-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs sm:text-sm font-extrabold text-[#FFC84A] font-mono",
-									children: entry.score
-								}), entry.user.id !== currentUser.id && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: (e) => {
-										e.stopPropagation();
-										toggleFollow(entry.user.id);
-									},
-									className: `w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${isFollowed ? "bg-white/10 text-[#B9AECF] hover:bg-white/20" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/20"}`,
-									title: isFollowed ? "Following" : "Follow",
-									children: isFollowed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4" })
+							}, entry.user.id);
+						})
+					}),
+					topSingle && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						onClick: () => onSelectUser(topSingle.user),
+						className: "relative w-full rounded-3xl overflow-hidden bg-gradient-to-b from-[#2a1342] via-[#1d0e30] to-[#160C25] border border-[#FFC84A]/45 p-6 flex flex-col items-center text-center cursor-pointer group shadow-xl shadow-[#8B20FF]/20",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-0 w-60 h-60 bg-gradient-to-b from-[#FFC84A]/20 to-transparent rounded-full blur-2xl pointer-events-none" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-8 h-8 text-[#FFC84A] fill-[#FFC84A] mb-2 drop-shadow-[0_2px_10px_rgba(255,200,74,0.8)]" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-24 h-24 rounded-full p-1 bg-gradient-to-tr from-[#FFC84A] via-[#F328D5] to-[#8B20FF] shadow-2xl group-hover:scale-105 transition-transform",
+									children: topSingle.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										src: topSingle.user.avatar,
+										alt: topSingle.user.name,
+										referrerPolicy: "no-referrer",
+										className: "w-full h-full rounded-full object-cover ring-4 ring-[#160C25]"
+									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "w-full h-full rounded-full bg-[#211333] ring-4 ring-[#160C25] flex items-center justify-center text-white text-2xl font-black",
+										children: topSingle.user.name?.charAt(0) || "U"
+									})
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "absolute -bottom-1 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-[#FFC84A] text-[#090611] text-[10px] font-black",
+									children: "#1"
 								})]
-							})]
-						}, entry.user.id);
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-center gap-1.5 mt-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+									className: "text-lg sm:text-xl font-extrabold text-white font-display group-hover:text-[#FFC84A] transition-colors",
+									children: topSingle.user.name
+								}), (() => {
+									const v = resolveVerificationStatus({
+										user: topSingle.user,
+										level: topSingle.user.level,
+										vipLevel: topSingle.user.vipLevel,
+										superVipLevel: topSingle.user.superVipLevel
+									});
+									return v.tier !== "none" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+										tier: v.tier,
+										size: "sm"
+									}) : null;
+								})()]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2 mt-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+									level: topSingle.user.level || 0,
+									size: "xs"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xs text-[#B9AECF]",
+									children: buildMetricsLine(topSingle, category)
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "px-5 py-1.5 rounded-full bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] font-black font-mono text-sm shadow-md mt-2.5",
+								children: topSingle.score
+							})
+						]
+					}),
+					listRankings.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "space-y-2",
+						children: listRankings.map((entry) => {
+							const isFollowed = followedMap[entry.user.id] ?? entry.user.isFollowing;
+							const verified = resolveVerificationStatus({
+								user: entry.user,
+								level: entry.user.level,
+								vipLevel: entry.user.vipLevel,
+								superVipLevel: entry.user.superVipLevel
+							});
+							const rankBadgeColor = entry.rank === 2 ? "text-slate-200 bg-slate-300/15 border-slate-300/35" : entry.rank === 3 ? "text-amber-400 bg-amber-600/15 border-amber-500/35" : "text-[#B9AECF] bg-white/5 border-white/10";
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								onClick: () => onSelectUser(entry.user),
+								className: `flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer group shadow-md ${entry.user.id === currentUser.id ? "bg-[#261144] border-[#FA26A0]/50" : "bg-[#160C25] hover:bg-[#211333] border-white/10 hover:border-[#8B20FF]/50"}`,
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-3 min-w-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: `w-7 h-7 rounded-full flex items-center justify-center font-mono font-extrabold text-xs border shrink-0 ${rankBadgeColor}`,
+											children: entry.rank
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "relative shrink-0",
+											children: [entry.user.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: entry.user.avatar,
+												alt: entry.user.name,
+												referrerPolicy: "no-referrer",
+												className: "w-11 h-11 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-[#8B20FF] transition-all"
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-11 h-11 rounded-full bg-[#211333] ring-2 ring-white/10 flex items-center justify-center text-white font-bold text-sm",
+												children: entry.user.name?.charAt(0) || "U"
+											}), entry.isLive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-rose-500 ring-2 ring-[#160C25] flex items-center justify-center",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-2 h-2 text-white" })
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex flex-col min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate",
+														children: entry.user.name
+													}),
+													verified.tier !== "none" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+														tier: verified.tier,
+														size: "xs"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+														level: entry.user.level || 0,
+														size: "xs"
+													})
+												]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[11px] text-[#B9AECF] truncate mt-0.5",
+												children: buildMetricsLine(entry, category)
+											})]
+										})
+									]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5 shrink-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs sm:text-sm font-extrabold text-[#FFC84A] font-mono tabular-nums",
+										children: entry.score
+									}), entry.user.id !== currentUser.id && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										onClick: (e) => {
+											e.stopPropagation();
+											toggleFollow(entry.user.id);
+										},
+										className: `w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${isFollowed ? "bg-white/10 text-[#B9AECF] hover:bg-white/20" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/20"}`,
+										title: isFollowed ? "Following" : "Follow",
+										children: isFollowed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4" })
+									})]
+								})]
+							}, entry.user.id);
+						})
 					})
-				})] }),
+				] }),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "p-3.5 rounded-2xl bg-gradient-to-r from-[#211333] to-[#160C25] border border-white/10 flex items-center justify-between text-xs font-bold text-white",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-[#B9AECF]",
-							children: "My Ranking:"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "text-[#FFC84A] font-mono",
-							children: myEntry ? `#${myEntry.rank}` : "Unranked"
-						})]
+						className: "flex items-center gap-2 min-w-0",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Flame, { className: "w-4 h-4 text-[#FA26A0] shrink-0" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[#B9AECF]",
+								children: "My Ranking:"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[#FFC84A] font-mono",
+								children: myRank ? `#${myRank}` : "Unranked"
+							}),
+							myEntry && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-white/80 font-mono truncate",
+								children: ["· ", myEntry.score]
+							})
+						]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 						onClick: () => onNavigate("profile"),
-						className: "text-[#F328D5] flex items-center gap-1 hover:underline",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "See More" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
+						className: "text-[#F328D5] flex items-center gap-1 hover:underline shrink-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Profile" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-3.5 h-3.5" })]
 					})]
 				})
 			]
@@ -116892,7 +118613,7 @@ var RankingsScreen = ({ currentUser, onNavigate, onSelectUser }) => {
 							className: "flex items-center gap-2",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(SlidersVertical, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
 								className: "text-sm font-extrabold text-white",
-								children: "Broadcaster Ranking Weights"
+								children: "Host Ranking Formula Weights"
 							})]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
@@ -118179,1253 +119900,2455 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 		]
 	});
 };
-// src/components/screens/StoreScreen.tsx
-var STORE_PRODUCTS = [
+// src/assets/images/store_cat_vip_frames_1795168966830.jpg
+var store_cat_vip_frames_1795168966830_default = "/assets/store_cat_vip_frames_1795168966830-BDdPQwha.jpg";
+// src/assets/images/store_cat_special_entry_1795168967865.jpg
+var store_cat_special_entry_1795168967865_default = "/assets/store_cat_special_entry_1795168967865-Ol8b5Jm5.jpg";
+// src/assets/images/store_cat_custom_gift_1795168966908.jpg
+var store_cat_custom_gift_1795168966908_default = "/assets/store_cat_custom_gift_1795168966908-CaomyxCi.jpg";
+// src/assets/images/store_cat_premium_assets_1795168967977.jpg
+var store_cat_premium_assets_1795168967977_default = "/assets/store_cat_premium_assets_1795168967977-Bx3yRfqB.jpg";
+// src/data/storeCatalog.ts
+var STORE_CATEGORY_ICONS = {
+	vip_frames: store_cat_vip_frames_1795168966830_default,
+	special_entry: store_cat_special_entry_1795168967865_default,
+	custom_gift: store_cat_custom_gift_1795168966908_default,
+	premium_assets: store_cat_premium_assets_1795168967977_default
+};
+var DEFAULT_STORE_CATEGORIES = [
 	{
-		id: "ent_supercar",
-		name: "Cyber Lamborghini Supercar",
-		category: "entrance",
-		price: 15e3,
-		currency: "coins",
-		priceDisplay: "15,000",
-		image: "https://images.unsplash.com/photo-1544829099-b9a0c07fad1a?w=400&auto=format&fit=crop&q=80",
-		badge: "HOT",
-		rarity: "legendary",
-		description: "Arrive in party rooms and live streams with a roar of dual-turbo neon engines and high-voltage purple particle trails.",
-		benefits: [
-			"Full-screen entrance animation",
-			"Audio engine sound effect",
-			"Top banner broadcast announcement",
-			"Valid for 30 days"
-		],
-		isPopular: true
+		id: "vip_frames",
+		title: "VIP FRAMES",
+		subtitle: "Royal animated avatar crowns & neon halos",
+		imageUrl: store_cat_vip_frames_1795168966830_default,
+		accentFrom: "#FFC84A",
+		accentTo: "#A855F7",
+		glowColor: "rgba(168, 85, 247, 0.72)",
+		order: 1,
+		enabled: true
 	},
 	{
-		id: "ent_dragon",
-		name: "Imperial Golden Dragon",
-		category: "entrance",
-		price: 35e3,
-		currency: "coins",
-		priceDisplay: "35,000",
-		image: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80",
-		badge: "MYTHIC",
-		rarity: "mythic",
-		description: "A colossal 3D golden dragon circles the entire screen, sending golden sparks and a kingdom announcement to all attendees.",
-		benefits: [
-			"Global room broadcast",
-			"Customizable greeting text",
-			"Gold VIP chat tag badge",
-			"Valid for 60 days"
-		]
+		id: "special_entry",
+		title: "SPECIAL ENTRY",
+		subtitle: "Grand royal gates, red carpets & spotlights",
+		imageUrl: store_cat_special_entry_1795168967865_default,
+		accentFrom: "#F59E0B",
+		accentTo: "#EC4899",
+		glowColor: "rgba(245, 158, 11, 0.65)",
+		order: 2,
+		enabled: true
 	},
 	{
-		id: "ent_phoenix",
-		name: "Neon Cyber Phoenix",
-		category: "entrance",
-		price: 22e3,
-		currency: "coins",
-		priceDisplay: "22,000",
-		image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400&auto=format&fit=crop&q=80",
-		badge: "EXCLUSIVE",
-		rarity: "epic",
-		description: "Soar into any room surrounded by blazing purple and electric blue wings with ambient chime sounds.",
-		benefits: [
-			"Interactive wing flap animation",
-			"Auto-pinned 10s seat highlight",
-			"Valid for 30 days"
-		]
+		id: "custom_gift",
+		title: "CUSTOM GIFT",
+		subtitle: "Luxury animated gift boxes & golden bursts",
+		imageUrl: store_cat_custom_gift_1795168966908_default,
+		accentFrom: "#C084FC",
+		accentTo: "#F59E0B",
+		glowColor: "rgba(192, 132, 252, 0.72)",
+		order: 3,
+		enabled: true
 	},
 	{
-		id: "vip_gold",
-		name: "Royal Gold VIP Pass",
-		category: "vip",
-		price: 9999,
-		currency: "coins",
-		priceDisplay: "9,999",
-		image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?w=400&auto=format&fit=crop&q=80",
-		badge: "BESTSELLER",
-		rarity: "legendary",
-		description: "Upgrade your profile with the coveted Gold Crown frame, exclusive chat colors, and room entry priority.",
-		benefits: [
-			"Golden Name Tag & Chat Bubble",
-			"Anti-Kick room privilege",
-			"2x Daily Level EXP boost",
-			"30 Days validity"
-		],
-		isPopular: true
-	},
-	{
-		id: "vip_emperor",
-		name: "Emperor Supreme VIP Pass",
-		category: "vip",
-		price: 29999,
-		currency: "coins",
-		priceDisplay: "29,999",
-		image: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&auto=format&fit=crop&q=80",
-		badge: "MAX PRIVILEGE",
-		rarity: "mythic",
-		description: "The pinnacle status in Lenzo Party Live. Full room immunity, stealth mode, and personalized concierge.",
-		benefits: [
-			"Exclusive animated Emperor Crown",
-			"Stealth entrance toggle",
-			"Send unlimited room announcements",
-			"60 Days validity"
-		]
-	},
-	{
-		id: "frame_cyber_halo",
-		name: "Cyberpunk Neon Halo Frame",
-		category: "frames",
-		price: 3500,
-		currency: "coins",
-		priceDisplay: "3,500",
-		image: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&auto=format&fit=crop&q=80",
-		badge: "NEW",
-		rarity: "rare",
-		description: "Electric pulsating ring with holographic frequency lines around your avatar in rooms and feed.",
-		benefits: [
-			"Animated profile frame",
-			"Glows when speaking on mic",
-			"Permanent unlock"
-		]
-	},
-	{
-		id: "frame_diamond_wings",
-		name: "Archangel Diamond Wings",
-		category: "frames",
-		price: 8500,
-		currency: "coins",
-		priceDisplay: "8,500",
-		image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
-		badge: "PREMIUM",
-		rarity: "epic",
-		description: "Crystalline wings that gently pulse with iridescent rainbow highlights.",
-		benefits: ["Permanent profile decoration", "Special badge in chat messages"]
-	},
-	{
-		id: "gift_super_yacht",
-		name: "Luxury Mega Yacht 3D",
-		category: "gifts",
-		price: 18e3,
-		currency: "coins",
-		priceDisplay: "18,000",
-		image: "https://images.unsplash.com/photo-1569263979104-865ab7cd8d17?w=400&auto=format&fit=crop&q=80",
-		badge: "3D GIFT",
-		rarity: "epic",
-		description: "Send a magnificent 3D superyacht across the host screen with ocean waves and fireworks.",
-		benefits: [
-			"Full-screen 3D particle effect",
-			"Gives host 9,000 Diamonds",
-			"Level-up point explosion"
-		]
-	},
-	{
-		id: "gift_space_rocket",
-		name: "Galactic Falcon Rocket",
-		category: "gifts",
-		price: 5e4,
-		currency: "coins",
-		priceDisplay: "50,000",
-		image: "https://images.unsplash.com/photo-1517976487507-5b3b194d65c3?w=400&auto=format&fit=crop&q=80",
-		badge: "ULTRA RARE",
-		rarity: "mythic",
-		description: "Blast off a spacecraft that shakes the room and sends golden coins raining for all viewers to tap!",
-		benefits: [
-			"Broadcast to all active rooms",
-			"Spawns 5,000 coin lucky drops",
-			"Permanent top contributor title"
-		],
-		isPopular: true
-	},
-	{
-		id: "bundle_starter",
-		name: "Starter Fortune Pack",
-		category: "coins",
-		price: 250,
-		currency: "diamonds",
-		priceDisplay: "250 Diamonds",
-		image: "https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=400&auto=format&fit=crop&q=80",
-		badge: "+20% BONUS",
-		rarity: "common",
-		description: "Convert 250 Diamonds into 10,000 Coins with a 2,000 Coin bonus gift.",
-		benefits: [
-			"Instant coin conversion",
-			"Zero conversion fee",
-			"Immediate delivery"
-		]
-	},
-	{
-		id: "bundle_whale",
-		name: "High Roller Treasury Pack",
-		category: "coins",
-		price: 1200,
-		currency: "diamonds",
-		priceDisplay: "1,200 Diamonds",
-		image: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=400&auto=format&fit=crop&q=80",
-		badge: "BEST DEAL",
-		rarity: "legendary",
-		description: "Convert 1,200 Diamonds into 60,000 Coins plus a free 7-day Cyber Halo Frame.",
-		benefits: [
-			"60,000 Coins",
-			"Free 7-Day Frame bonus",
-			"Instant upgrade to VIP 2"
-		],
-		isPopular: true
-	},
-	{
-		id: "gear_neon_stage",
-		name: "Neon Cyber DJ Stage Theme",
-		category: "gear",
-		price: 12e3,
-		currency: "coins",
-		priceDisplay: "12,000",
-		image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&auto=format&fit=crop&q=80",
-		badge: "HOST GEAR",
-		rarity: "epic",
-		description: "Transform your audio party room into a cyberpunk underground club with animated laser lights.",
-		benefits: [
-			"Custom room background",
-			"Dynamic equalizer floor beats",
-			"Permanent room custom skin"
-		]
+		id: "premium_assets",
+		title: "PREMIUM ASSETS",
+		subtitle: "Prismatic diamonds, aura crests & media FX",
+		imageUrl: store_cat_premium_assets_1795168967977_default,
+		accentFrom: "#D946EF",
+		accentTo: "#7C3AED",
+		glowColor: "rgba(217, 70, 239, 0.72)",
+		order: 4,
+		enabled: true
 	}
 ];
-var StoreScreen = ({ currentUser, onNavigate, onOpenWallet, onOpenVIP, onUpdateUserBalance }) => {
-	const [selectedCategory, setSelectedCategory] = (0, import_react.useState)("all");
-	const [searchQuery, setSearchQuery] = (0, import_react.useState)("");
-	const [selectedProduct, setSelectedProduct] = (0, import_react.useState)(null);
-	const [cart, setCart] = (0, import_react.useState)([]);
-	const [isCartOpen, setIsCartOpen] = (0, import_react.useState)(false);
-	const [isPurchasing, setIsPurchasing] = (0, import_react.useState)(false);
-	const [purchaseSuccessMessage, setPurchaseSuccessMessage] = (0, import_react.useState)(null);
-	const [purchaseErrorMessage, setPurchaseErrorMessage] = (0, import_react.useState)(null);
-	const categories = [
-		{
-			id: "all",
-			label: "All Items",
-			icon: Sparkles
-		},
-		{
-			id: "entrance",
-			label: "Entrance Effects",
-			icon: Zap
-		},
-		{
-			id: "vip",
-			label: "VIP Passes",
-			icon: Crown
-		},
-		{
-			id: "frames",
-			label: "Avatar Frames",
-			icon: ShieldCheck
-		},
-		{
-			id: "gifts",
-			label: "3D Gifts",
-			icon: Gift
-		},
-		{
-			id: "coins",
-			label: "Coin Packs",
-			icon: Coins
-		},
-		{
-			id: "gear",
-			label: "Stage Themes",
-			icon: Flame
+var STORE_ANIMATION_PRESET_OPTIONS = [
+	{
+		value: "royal_flame",
+		label: "Royal Flame Crown Ring",
+		categoryId: "vip_frames"
+	},
+	{
+		value: "neon_galaxy",
+		label: "Neon Galaxy Orbit Halo",
+		categoryId: "vip_frames"
+	},
+	{
+		value: "diamond_aura",
+		label: "Diamond Aura Prism Frame",
+		categoryId: "vip_frames"
+	},
+	{
+		value: "imperial_carpet",
+		label: "Imperial Red Carpet Walk",
+		categoryId: "special_entry"
+	},
+	{
+		value: "golden_gate",
+		label: "Royal Golden Gate Opening",
+		categoryId: "special_entry"
+	},
+	{
+		value: "phantom_spotlight",
+		label: "Phantom VIP Spotlight Arrival",
+		categoryId: "special_entry"
+	},
+	{
+		value: "velvet_gift_box",
+		label: "Velvet Galaxy Gift Burst",
+		categoryId: "custom_gift"
+	},
+	{
+		value: "golden_ribbon_gift",
+		label: "Golden Ribbon Treasure Box",
+		categoryId: "custom_gift"
+	},
+	{
+		value: "starburst_chest",
+		label: "Starburst Crown Luxury Chest",
+		categoryId: "custom_gift"
+	},
+	{
+		value: "amethyst_prism",
+		label: "Amethyst Prism Diamond Aura",
+		categoryId: "premium_assets"
+	},
+	{
+		value: "neon_diamond_crest",
+		label: "Neon Diamond Crest FX",
+		categoryId: "premium_assets"
+	},
+	{
+		value: "celestial_crystal",
+		label: "Celestial Crystal Orb Pack",
+		categoryId: "premium_assets"
+	}
+];
+var DEFAULT_STORE_PRODUCTS = [
+	{
+		id: "vip_frame_royal_flame",
+		name: "Royal Flame",
+		categoryId: "vip_frames",
+		priceCoins: 2500,
+		description: "Blazing golden crown crest with rotating molten-amber flame ring and rising royal embers around your profile avatar.",
+		animationPreset: "royal_flame",
+		primaryColor: "#FF8A00",
+		secondaryColor: "#FFC84A",
+		accentColor: "#FFE082",
+		glowColor: "rgba(255, 160, 24, 0.75)",
+		badgeText: "POPULAR",
+		durationDays: 0,
+		isFeatured: true,
+		enabled: true,
+		sortOrder: 1
+	},
+	{
+		id: "vip_frame_neon_galaxy",
+		name: "Neon Galaxy",
+		categoryId: "vip_frames",
+		priceCoins: 4800,
+		description: "Orbiting electric magenta-violet cosmic vortex with dual stardust particles and shimmering neon halo.",
+		animationPreset: "neon_galaxy",
+		primaryColor: "#A855F7",
+		secondaryColor: "#EC4899",
+		accentColor: "#38BDF8",
+		glowColor: "rgba(192, 68, 255, 0.8)",
+		badgeText: "HOT",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 2
+	},
+	{
+		id: "vip_frame_diamond_aura",
+		name: "Diamond Aura",
+		categoryId: "vip_frames",
+		priceCoins: 7200,
+		description: "Ultra-luxury crystalline diamond halo with prismatic star-flares, royal platinum rim and sparkling prism aura.",
+		animationPreset: "diamond_aura",
+		primaryColor: "#38BDF8",
+		secondaryColor: "#C084FC",
+		accentColor: "#F8FAFC",
+		glowColor: "rgba(56, 189, 248, 0.8)",
+		badgeText: "LEGENDARY",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 3
+	},
+	{
+		id: "entry_imperial_carpet",
+		name: "Imperial Carpet",
+		categoryId: "special_entry",
+		priceCoins: 6500,
+		description: "Roll out a plush crimson carpet with gleaming golden stanchions and animated twin spotlights every time you enter a room.",
+		animationPreset: "imperial_carpet",
+		primaryColor: "#DC2626",
+		secondaryColor: "#FFC84A",
+		accentColor: "#FDE68A",
+		glowColor: "rgba(245, 158, 11, 0.78)",
+		badgeText: "VIP ENTRY",
+		durationDays: 0,
+		isFeatured: true,
+		enabled: true,
+		sortOrder: 1
+	},
+	{
+		id: "entry_golden_gate",
+		name: "Royal Gate",
+		categoryId: "special_entry",
+		priceCoins: 9800,
+		description: "Twin sculpted golden palace gates swing open with violet laser rays and golden stardust announcing your arrival.",
+		animationPreset: "golden_gate",
+		primaryColor: "#F59E0B",
+		secondaryColor: "#9333EA",
+		accentColor: "#FEF08A",
+		glowColor: "rgba(255, 200, 74, 0.82)",
+		badgeText: "ROYAL",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 2
+	},
+	{
+		id: "entry_phantom_spotlight",
+		name: "Neon Spotlight",
+		categoryId: "special_entry",
+		priceCoins: 14500,
+		description: "Dramatic sweeping purple and magenta stage spotlights with holographic Lenzo banner across live broadcasts.",
+		animationPreset: "phantom_spotlight",
+		primaryColor: "#D946EF",
+		secondaryColor: "#7C3AED",
+		accentColor: "#F0ABFC",
+		glowColor: "rgba(217, 70, 239, 0.85)",
+		badgeText: "MYTHIC",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 3
+	},
+	{
+		id: "gift_velvet_galaxy",
+		name: "Velvet Gift Box",
+		categoryId: "custom_gift",
+		priceCoins: 1800,
+		description: "Glowing violet crystal gift box wrapped in liquid gold ribbon that pops open in a shower of hearts and stardust.",
+		animationPreset: "velvet_gift_box",
+		primaryColor: "#9333EA",
+		secondaryColor: "#FFC84A",
+		accentColor: "#F472B6",
+		glowColor: "rgba(168, 85, 247, 0.8)",
+		badgeText: "CUSTOM",
+		durationDays: 0,
+		isFeatured: true,
+		enabled: true,
+		sortOrder: 1
+	},
+	{
+		id: "gift_golden_ribbon",
+		name: "Golden Ribbon",
+		categoryId: "custom_gift",
+		priceCoins: 3600,
+		description: "Hand-crafted gilded surprise chest with animated satin bow unfurling golden coin rain across the room.",
+		animationPreset: "golden_ribbon_gift",
+		primaryColor: "#F59E0B",
+		secondaryColor: "#EC4899",
+		accentColor: "#FEF08A",
+		glowColor: "rgba(245, 158, 11, 0.8)",
+		badgeText: "LUXURY",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 2
+	},
+	{
+		id: "gift_starburst_chest",
+		name: "Crown Treasure",
+		categoryId: "custom_gift",
+		priceCoins: 8500,
+		description: "Royal amethyst treasure box bursting with a 3D crown hologram, golden sparks, and floating neon gems.",
+		animationPreset: "starburst_chest",
+		primaryColor: "#C026D3",
+		secondaryColor: "#FACC15",
+		accentColor: "#E879F9",
+		glowColor: "rgba(192, 38, 211, 0.85)",
+		badgeText: "EXCLUSIVE",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 3
+	},
+	{
+		id: "asset_amethyst_prism",
+		name: "Amethyst Prism",
+		categoryId: "premium_assets",
+		priceCoins: 3200,
+		description: "Rotating neon purple cut diamond emblem with prismatic violet aura rings for your profile & party seat.",
+		animationPreset: "amethyst_prism",
+		primaryColor: "#A855F7",
+		secondaryColor: "#EC4899",
+		accentColor: "#F5D0FE",
+		glowColor: "rgba(168, 85, 247, 0.82)",
+		badgeText: "PREMIUM",
+		durationDays: 0,
+		isFeatured: true,
+		enabled: true,
+		sortOrder: 1
+	},
+	{
+		id: "asset_neon_diamond_crest",
+		name: "Diamond Crest",
+		categoryId: "premium_assets",
+		priceCoins: 5900,
+		description: "High-gloss violet diamond crest emitting synchronized neon pulse waves and floating crystal shards.",
+		animationPreset: "neon_diamond_crest",
+		primaryColor: "#D946EF",
+		secondaryColor: "#38BDF8",
+		accentColor: "#FDE047",
+		glowColor: "rgba(217, 70, 239, 0.82)",
+		badgeText: "ELITE",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 2
+	},
+	{
+		id: "asset_celestial_crystal",
+		name: "Celestial Orb",
+		categoryId: "premium_assets",
+		priceCoins: 11e3,
+		description: "Complete luxury visual asset bundle: orbital sapphire-amethyst crystal core with animated golden star halo.",
+		animationPreset: "celestial_crystal",
+		primaryColor: "#8B5CF6",
+		secondaryColor: "#F59E0B",
+		accentColor: "#67E8F9",
+		glowColor: "rgba(139, 92, 246, 0.88)",
+		badgeText: "MYTHIC",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 3
+	}
+];
+// src/services/storeService.ts
+function toIsoDate(val) {
+	if (!val) return (/* @__PURE__ */ new Date()).toISOString();
+	if (typeof val === "string") return val;
+	if (val instanceof Timestamp) return val.toDate().toISOString();
+	if (typeof val.toDate === "function") return val.toDate().toISOString();
+	return (/* @__PURE__ */ new Date()).toISOString();
+}
+function isVerifiedAdminSession() {
+	return auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
+}
+async function getAuthHeaders$1() {
+	const headers = { "Content-Type": "application/json" };
+	const user = auth.currentUser;
+	if (user) try {
+		const token = await user.getIdToken();
+		if (token) headers.Authorization = `Bearer ${token}`;
+	} catch {}
+	return headers;
+}
+/**
+* Subscribe to the 4 official Lenzo Store Categories in real time.
+* Always resolves the local ES-bundled 3D emblem fallback if a Firestore doc omits imageUrl.
+*/
+function subscribeStoreCategories(onUpdate) {
+	return onSnapshot(collection(db, "store_categories"), (snap) => {
+		if (snap.empty) {
+			if (isVerifiedAdminSession()) DEFAULT_STORE_CATEGORIES.forEach((cat) => {
+				setDoc(doc(db, "store_categories", cat.id), {
+					id: cat.id,
+					title: cat.title,
+					subtitle: cat.subtitle,
+					accentFrom: cat.accentFrom,
+					accentTo: cat.accentTo,
+					glowColor: cat.glowColor,
+					order: cat.order,
+					enabled: cat.enabled,
+					updatedAt: serverTimestamp()
+				}, { merge: true }).catch(() => {});
+			});
+			onUpdate(DEFAULT_STORE_CATEGORIES);
+			return;
 		}
-	];
-	const filteredProducts = STORE_PRODUCTS.filter((prod) => {
-		const matchesCategory = selectedCategory === "all" || prod.category === selectedCategory;
-		const matchesSearch = prod.name.toLowerCase().includes(searchQuery.toLowerCase()) || prod.description.toLowerCase().includes(searchQuery.toLowerCase());
-		return matchesCategory && matchesSearch;
+		const map = /* @__PURE__ */ new Map();
+		DEFAULT_STORE_CATEGORIES.forEach((c) => map.set(c.id, c));
+		snap.docs.forEach((d) => {
+			const raw = d.data();
+			const id = d.id;
+			if (!map.has(id)) return;
+			const base = map.get(id);
+			map.set(id, {
+				...base,
+				...raw,
+				id,
+				imageUrl: raw.imageUrl && raw.imageUrl.startsWith("http") ? raw.imageUrl : STORE_CATEGORY_ICONS[id]
+			});
+		});
+		onUpdate(Array.from(map.values()).filter((c) => c.enabled !== false).sort((a, b) => (a.order ?? 99) - (b.order ?? 99)));
+	}, () => {
+		onUpdate(DEFAULT_STORE_CATEGORIES);
 	});
-	const cartTotalCoins = cart.reduce((acc, item) => {
-		if (item.product.currency === "coins") return acc + item.product.price * item.quantity;
-		return acc;
-	}, 0);
-	const cartTotalDiamonds = cart.reduce((acc, item) => {
-		if (item.product.currency === "diamonds") return acc + item.product.price * item.quantity;
-		return acc;
-	}, 0);
-	const handleAddToCart = (product) => {
-		setCart((prev) => {
-			if (prev.find((i) => i.product.id === product.id)) return prev.map((i) => i.product.id === product.id ? {
-				...i,
-				quantity: i.quantity + 1
-			} : i);
-			return [...prev, {
-				product,
-				quantity: 1
-			}];
+}
+/**
+* Subscribe to all Store Products in real time from Firestore `store_products`.
+* Automatically falls back to / merges with the default Lenzo catalog if Firestore is empty,
+* and ensures admin edits reflect immediately across Web & Android.
+*/
+function subscribeStoreProducts(onUpdate, options) {
+	const includeDisabled = Boolean(options?.includeDisabled);
+	return onSnapshot(collection(db, "store_products"), (snap) => {
+		if (snap.empty) {
+			if (isVerifiedAdminSession()) DEFAULT_STORE_PRODUCTS.forEach((prod) => {
+				setDoc(doc(db, "store_products", prod.id), {
+					...prod,
+					createdAt: serverTimestamp(),
+					updatedAt: serverTimestamp()
+				}, { merge: true }).catch(() => {});
+			});
+			onUpdate(includeDisabled ? [...DEFAULT_STORE_PRODUCTS] : DEFAULT_STORE_PRODUCTS.filter((p) => p.enabled));
+			return;
+		}
+		const list = snap.docs.map((d) => {
+			const data = d.data();
+			return {
+				id: d.id,
+				name: String(data.name || "Unnamed Item"),
+				categoryId: data.categoryId || "vip_frames",
+				priceCoins: Math.max(0, Math.round(Number(data.priceCoins ?? 0))),
+				description: String(data.description || ""),
+				imageUrl: data.imageUrl ? String(data.imageUrl) : "",
+				animationUrl: data.animationUrl ? String(data.animationUrl) : "",
+				animationPreset: data.animationPreset || "royal_flame",
+				primaryColor: String(data.primaryColor || "#A855F7"),
+				secondaryColor: String(data.secondaryColor || "#FFC84A"),
+				accentColor: String(data.accentColor || "#F0ABFC"),
+				glowColor: String(data.glowColor || "rgba(168, 85, 247, 0.75)"),
+				badgeText: data.badgeText ? String(data.badgeText) : "",
+				durationDays: Number(data.durationDays ?? 0),
+				isFeatured: Boolean(data.isFeatured),
+				enabled: data.enabled !== false,
+				sortOrder: Number(data.sortOrder ?? 99),
+				createdAt: toIsoDate(data.createdAt),
+				updatedAt: toIsoDate(data.updatedAt)
+			};
+		});
+		const filtered = includeDisabled ? list : list.filter((p) => p.enabled);
+		filtered.sort((a, b) => {
+			if (a.categoryId !== b.categoryId) return a.categoryId.localeCompare(b.categoryId);
+			if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+			return a.priceCoins - b.priceCoins;
+		});
+		onUpdate(filtered);
+	}, async () => {
+		try {
+			const res = await fetch("/api/store/catalog");
+			if (res.ok) {
+				const payload = await res.json();
+				if (Array.isArray(payload.products)) {
+					onUpdate(includeDisabled ? payload.products : payload.products.filter((p) => p.enabled !== false));
+					return;
+				}
+			}
+		} catch {}
+		onUpdate(includeDisabled ? [...DEFAULT_STORE_PRODUCTS] : DEFAULT_STORE_PRODUCTS.filter((p) => p.enabled));
+	});
+}
+/**
+* Subscribe to the authenticated user's real-time Store inventory (`user_inventory`).
+*/
+function subscribeUserInventory(userId, onUpdate) {
+	if (!userId) {
+		onUpdate([]);
+		return () => {};
+	}
+	return onSnapshot(query(collection(db, "user_inventory"), where("userId", "==", userId)), (snap) => {
+		const items = snap.docs.map((d) => {
+			const data = d.data();
+			return {
+				id: d.id,
+				userId: String(data.userId || userId),
+				productId: String(data.productId || ""),
+				productName: String(data.productName || ""),
+				categoryId: data.categoryId || "vip_frames",
+				animationPreset: data.animationPreset || "royal_flame",
+				imageUrl: data.imageUrl ? String(data.imageUrl) : "",
+				animationUrl: data.animationUrl ? String(data.animationUrl) : "",
+				pricePaidCoins: Number(data.pricePaidCoins ?? 0),
+				equipped: Boolean(data.equipped),
+				purchasedAt: toIsoDate(data.purchasedAt),
+				expiresAt: data.expiresAt ? toIsoDate(data.expiresAt) : null
+			};
+		});
+		items.sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime());
+		onUpdate(items);
+	}, () => {
+		onUpdate([]);
+	});
+}
+var inFlightPurchases = /* @__PURE__ */ new Set();
+/**
+* Secure, atomic, idempotent Lenzo Store purchase flow:
+* 1. Guards against concurrent double-taps with an in-flight lock.
+* 2. Validates the product, authoritative price, and purchase eligibility with the Lenzo backend API.
+* 3. Runs a Firestore atomic `runTransaction` that:
+*    - Verifies deterministic doc `user_inventory/{uid}_{productId}` does NOT exist (blocks duplicate purchases).
+*    - Reads authoritative balance from `wallets/{uid}` + `users/{uid}` (never trusts client state).
+*    - Deducts exact coins from both `wallets/{uid}` and `users/{uid}`.
+*    - Creates `user_inventory/{uid}_{productId}` and immutable `coin_transactions/{txId}`.
+*/
+async function purchaseStoreProduct(params) {
+	const { userId, product } = params;
+	if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return {
+		success: false,
+		errorCode: "UNAUTHENTICATED",
+		message: "Please sign in to your Lenzo Party account to make a purchase."
+	};
+	const idempotencyKey = `store_${userId}_${product.id}`;
+	if (inFlightPurchases.has(idempotencyKey)) return {
+		success: false,
+		errorCode: "TRANSACTION_FAILED",
+		message: "Purchase is already being processed. Please wait."
+	};
+	inFlightPurchases.add(idempotencyKey);
+	try {
+		let authoritativePrice = Math.max(1, Math.round(Number(product.priceCoins)));
+		let authoritativeName = product.name;
+		let authoritativeCategory = product.categoryId;
+		try {
+			const headers = await getAuthHeaders$1();
+			const validateRes = await fetch("/api/store/purchase/validate", {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					productId: product.id,
+					idempotencyKey
+				})
+			});
+			if (validateRes.ok) {
+				const vData = await validateRes.json();
+				if (vData.alreadyOwned) return {
+					success: false,
+					errorCode: "ALREADY_OWNED",
+					message: `You already own ${product.name}. You can equip it immediately!`
+				};
+				if (vData.product && typeof vData.product.priceCoins === "number") {
+					authoritativePrice = Math.max(1, Math.round(vData.product.priceCoins));
+					authoritativeName = String(vData.product.name || product.name);
+					authoritativeCategory = vData.product.categoryId || product.categoryId;
+				}
+			} else if (validateRes.status === 404 || validateRes.status === 410) return {
+				success: false,
+				errorCode: "PRODUCT_UNAVAILABLE",
+				message: "This store item is no longer available."
+			};
+		} catch {}
+		const walletRef = doc(db, "wallets", userId);
+		const userRef = doc(db, "users", userId);
+		const productRef = doc(db, "store_products", product.id);
+		const inventoryDocId = `${userId}_${product.id}`;
+		const inventoryRef = doc(db, "user_inventory", inventoryDocId);
+		const txId = `storetx_${userId.slice(0, 12)}_${product.id.slice(0, 24)}_${Date.now()}`;
+		const txRef = doc(db, "coin_transactions", txId);
+		let finalBalance = 0;
+		let finalBalanceBefore = 0;
+		let createdInventory = null;
+		await runTransaction(db, async (tx) => {
+			const [walletSnap, userSnap, prodSnap, invSnap] = await Promise.all([
+				tx.get(walletRef),
+				tx.get(userRef),
+				tx.get(productRef),
+				tx.get(inventoryRef)
+			]);
+			if (invSnap.exists()) throw new Error("ERR_ALREADY_OWNED");
+			let txPrice = authoritativePrice;
+			let txName = authoritativeName;
+			let txCategory = authoritativeCategory;
+			let txPreset = product.animationPreset;
+			let txImageUrl = product.imageUrl || "";
+			let txAnimationUrl = product.animationUrl || "";
+			if (prodSnap.exists()) {
+				const pData = prodSnap.data();
+				if (pData.enabled === false) throw new Error("ERR_PRODUCT_UNAVAILABLE");
+				if (typeof pData.priceCoins === "number" && pData.priceCoins > 0) txPrice = Math.round(pData.priceCoins);
+				if (pData.name) txName = String(pData.name);
+				if (pData.categoryId) txCategory = pData.categoryId;
+				if (pData.animationPreset) txPreset = pData.animationPreset;
+				if (typeof pData.imageUrl === "string") txImageUrl = pData.imageUrl;
+				if (typeof pData.animationUrl === "string") txAnimationUrl = pData.animationUrl;
+			}
+			const walletCoins = walletSnap.exists() ? Number(walletSnap.data().walletPurchasedCoins ?? 0) : 0;
+			const userCoins = userSnap.exists() ? Number(userSnap.data().coins ?? 0) : 0;
+			const currentBalance = walletSnap.exists() && walletCoins > 0 ? walletCoins : Math.max(walletCoins, userCoins);
+			if (currentBalance < txPrice) throw new Error("ERR_INSUFFICIENT_COINS");
+			const nextBalance = currentBalance - txPrice;
+			const prevTotalSpent = walletSnap.exists() ? Number(walletSnap.data().totalCoinsSpent ?? 0) : 0;
+			const prevTotalPurchased = walletSnap.exists() ? Number(walletSnap.data().totalCoinsPurchased ?? currentBalance) : currentBalance;
+			finalBalanceBefore = currentBalance;
+			finalBalance = nextBalance;
+			const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+			tx.set(walletRef, {
+				userId,
+				walletPurchasedCoins: nextBalance,
+				totalCoinsPurchased: prevTotalPurchased,
+				totalCoinsSpent: prevTotalSpent + txPrice,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+			if (userSnap.exists()) tx.update(userRef, {
+				coins: nextBalance,
+				updatedAt: serverTimestamp()
+			});
+			const invDoc = {
+				userId,
+				productId: product.id,
+				productName: txName,
+				categoryId: txCategory,
+				animationPreset: txPreset,
+				imageUrl: txImageUrl,
+				animationUrl: txAnimationUrl,
+				pricePaidCoins: txPrice,
+				equipped: false,
+				purchasedAt: serverTimestamp()
+			};
+			tx.set(inventoryRef, invDoc);
+			tx.set(txRef, {
+				userId,
+				type: "store_purchase",
+				productId: product.id,
+				productName: txName,
+				categoryId: txCategory,
+				amount: -txPrice,
+				balanceBefore: currentBalance,
+				balanceAfter: nextBalance,
+				idempotencyKey,
+				status: "completed",
+				createdAt: serverTimestamp()
+			});
+			createdInventory = {
+				id: inventoryDocId,
+				userId,
+				productId: product.id,
+				productName: txName,
+				categoryId: txCategory,
+				animationPreset: txPreset,
+				imageUrl: txImageUrl,
+				animationUrl: txAnimationUrl,
+				pricePaidCoins: txPrice,
+				equipped: false,
+				purchasedAt: nowIso
+			};
+		});
+		try {
+			const headers = await getAuthHeaders$1();
+			await fetch("/api/store/purchase/record", {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					productId: product.id,
+					idempotencyKey,
+					transactionId: txId,
+					pricePaidCoins: finalBalanceBefore - finalBalance,
+					balanceBefore: finalBalanceBefore,
+					balanceAfter: finalBalance
+				})
+			});
+		} catch {}
+		return {
+			success: true,
+			message: `${product.name} unlocked and added to your inventory!`,
+			newBalance: finalBalance,
+			inventoryItem: createdInventory || void 0,
+			transactionId: txId
+		};
+	} catch (err) {
+		const errMsg = err instanceof Error ? err.message : String(err);
+		if (errMsg === "ERR_ALREADY_OWNED") return {
+			success: false,
+			errorCode: "ALREADY_OWNED",
+			message: `You already own ${product.name}. Tap Equip to use it!`
+		};
+		if (errMsg === "ERR_INSUFFICIENT_COINS") return {
+			success: false,
+			errorCode: "INSUFFICIENT_COINS",
+			message: "Not enough coins. Please recharge your Lenzo Wallet."
+		};
+		if (errMsg === "ERR_PRODUCT_UNAVAILABLE") return {
+			success: false,
+			errorCode: "PRODUCT_UNAVAILABLE",
+			message: "This item is currently disabled by Lenzo Store."
+		};
+		console.error("[StoreService] Purchase transaction failed:", err);
+		return {
+			success: false,
+			errorCode: "TRANSACTION_FAILED",
+			message: "Unable to complete purchase right now. No coins were deducted."
+		};
+	} finally {
+		inFlightPurchases.delete(idempotencyKey);
+	}
+}
+/**
+* Equip or unequip an owned Store item in `user_inventory` and mirror the active equip to `users/{uid}`.
+* Ensures only one item per category is equipped at a time.
+*/
+async function toggleEquipInventoryItem(params) {
+	const { userId, item, equip } = params;
+	if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) return {
+		success: false,
+		message: "Please sign in first."
+	};
+	try {
+		const snap = await getDocs(query(collection(db, "user_inventory"), where("userId", "==", userId)));
+		const batch = writeBatch(db);
+		snap.docs.forEach((d) => {
+			const data = d.data();
+			if (data.categoryId === item.categoryId) {
+				const shouldBeEquipped = equip && d.id === item.id;
+				if (Boolean(data.equipped) !== shouldBeEquipped) batch.update(d.ref, {
+					equipped: shouldBeEquipped,
+					updatedAt: serverTimestamp()
+				});
+			}
+		});
+		const userFieldMap = {
+			vip_frames: "equippedStoreFrame",
+			special_entry: "equippedStoreEntry",
+			custom_gift: "equippedStoreGift",
+			premium_assets: "equippedStoreAsset"
+		};
+		const userRef = doc(db, "users", userId);
+		batch.set(userRef, {
+			[userFieldMap[item.categoryId]]: equip ? {
+				productId: item.productId,
+				productName: item.productName,
+				animationPreset: item.animationPreset,
+				imageUrl: item.imageUrl || "",
+				animationUrl: item.animationUrl || ""
+			} : null,
+			updatedAt: serverTimestamp()
+		}, { merge: true });
+		await batch.commit();
+		return {
+			success: true,
+			message: equip ? `${item.productName} is now equipped!` : `${item.productName} unequipped.`
+		};
+	} catch (err) {
+		console.error("[StoreService] Equip error:", err);
+		return {
+			success: false,
+			message: "Could not update equipped item. Please try again."
+		};
+	}
+}
+/**
+* ADMIN CRUD — Create or update a Store Product in Firestore + Backend API.
+* Strictly restricted to verified Lenzo Party Admin (`yaquoobe@gmail.com`).
+*/
+async function adminSaveStoreProduct(product) {
+	if (!isVerifiedAdminSession()) return {
+		success: false,
+		error: "Admin authorization required."
+	};
+	const sanitizedId = product.id?.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || `${product.categoryId}_${Date.now()}`;
+	const payload = {
+		...product,
+		id: sanitizedId,
+		name: product.name.trim().slice(0, 64),
+		description: (product.description || "").trim().slice(0, 320),
+		priceCoins: Math.max(1, Math.round(Number(product.priceCoins || 100))),
+		imageUrl: (product.imageUrl || "").trim(),
+		animationUrl: (product.animationUrl || "").trim(),
+		badgeText: (product.badgeText || "").trim().slice(0, 24),
+		sortOrder: Math.max(0, Math.round(Number(product.sortOrder ?? 10))),
+		enabled: product.enabled !== false,
+		isFeatured: Boolean(product.isFeatured)
+	};
+	try {
+		await setDoc(doc(db, "store_products", sanitizedId), {
+			...payload,
+			updatedAt: serverTimestamp(),
+			createdAt: product.createdAt || serverTimestamp()
+		}, { merge: true });
+		try {
+			const headers = await getAuthHeaders$1();
+			await fetch("/api/admin/store/products", {
+				method: "POST",
+				headers,
+				body: JSON.stringify(payload)
+			});
+		} catch {}
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : "Failed to save store product."
+		};
+	}
+}
+/**
+* ADMIN CRUD — Delete a Store Product from Firestore + Backend API.
+*/
+async function adminDeleteStoreProduct(productId) {
+	if (!isVerifiedAdminSession()) return {
+		success: false,
+		error: "Admin authorization required."
+	};
+	try {
+		await deleteDoc(doc(db, "store_products", productId));
+		try {
+			const headers = await getAuthHeaders$1();
+			await fetch(`/api/admin/store/products/${encodeURIComponent(productId)}`, {
+				method: "DELETE",
+				headers
+			});
+		} catch {}
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : "Failed to delete product."
+		};
+	}
+}
+/**
+* ADMIN UTILITY — Seed default Lenzo Store catalog into Firestore if empty or reset requested.
+*/
+async function adminSeedDefaultStoreCatalog() {
+	if (!isVerifiedAdminSession()) return {
+		success: false,
+		count: 0,
+		error: "Admin authorization required."
+	};
+	try {
+		const batch = writeBatch(db);
+		DEFAULT_STORE_CATEGORIES.forEach((cat) => {
+			batch.set(doc(db, "store_categories", cat.id), {
+				id: cat.id,
+				title: cat.title,
+				subtitle: cat.subtitle,
+				accentFrom: cat.accentFrom,
+				accentTo: cat.accentTo,
+				glowColor: cat.glowColor,
+				order: cat.order,
+				enabled: cat.enabled,
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+		});
+		DEFAULT_STORE_PRODUCTS.forEach((prod) => {
+			batch.set(doc(db, "store_products", prod.id), {
+				...prod,
+				createdAt: serverTimestamp(),
+				updatedAt: serverTimestamp()
+			}, { merge: true });
+		});
+		await batch.commit();
+		return {
+			success: true,
+			count: DEFAULT_STORE_PRODUCTS.length
+		};
+	} catch (err) {
+		return {
+			success: false,
+			count: 0,
+			error: err instanceof Error ? err.message : "Failed to seed catalog."
+		};
+	}
+}
+// src/components/common/StoreAssetPreview.tsx
+var SIZE_CLASSES = {
+	sm: {
+		box: "w-[74px] h-[74px]",
+		avatar: "w-11 h-11",
+		crown: "w-4 h-4"
+	},
+	md: {
+		box: "w-[104px] h-[104px]",
+		avatar: "w-14 h-14",
+		crown: "w-5 h-5"
+	},
+	lg: {
+		box: "w-[126px] h-[126px]",
+		avatar: "w-16 h-16",
+		crown: "w-6 h-6"
+	},
+	xl: {
+		box: "w-[220px] h-[220px]",
+		avatar: "w-28 h-28",
+		crown: "w-9 h-9"
+	}
+};
+function isVideoUrl(url) {
+	if (!url) return false;
+	return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.startsWith("data:video/");
+}
+/**
+* Real GPU-accelerated animated visual showcase for all 4 Lenzo Party Store categories:
+* - VIP FRAMES: rotating flame/galaxy/diamond halos around the user's real avatar
+* - SPECIAL ENTRY: opening golden palace gates, red carpet shimmer & sweeping spotlights
+* - CUSTOM GIFT: bouncing glowing gift box with popping lid & rising particle burst
+* - PREMIUM ASSETS: floating multifaceted neon purple diamond with orbital light rings
+* Also supports admin-uploaded custom image / GIF / video assets seamlessly.
+*/
+var StoreAssetPreview = ({ product, userAvatar, userName = "VIP", size = "md", isPlaying = true, className = "" }) => {
+	const s = SIZE_CLASSES[size];
+	const videoRef = (0, import_react.useRef)(null);
+	const customAnimUrl = product.animationUrl?.trim();
+	const customImgUrl = product.imageUrl?.trim();
+	(0, import_react.useEffect)(() => {
+		const vid = videoRef.current;
+		if (!vid) return;
+		if (isPlaying) vid.play().catch(() => {});
+		else vid.pause();
+	}, [isPlaying, customAnimUrl]);
+	if (customAnimUrl && isVideoUrl(customAnimUrl)) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: `relative ${s.box} rounded-2xl overflow-hidden flex items-center justify-center select-none ${className}`,
+		style: {
+			boxShadow: `0 0 24px ${product.glowColor}`,
+			background: "radial-gradient(circle at center, rgba(139,32,255,0.28), rgba(9,4,18,0.95))"
+		},
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("video", {
+			ref: videoRef,
+			src: customAnimUrl,
+			loop: true,
+			muted: true,
+			playsInline: true,
+			autoPlay: isPlaying,
+			className: "w-full h-full object-cover"
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "pointer-events-none absolute inset-0 rounded-2xl border",
+			style: { borderColor: `${product.accentColor}66` }
+		})]
+	});
+	if (customAnimUrl && !isVideoUrl(customAnimUrl) || customImgUrl) {
+		const mediaSrc = customAnimUrl || customImgUrl;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: `relative ${s.box} rounded-2xl overflow-hidden flex items-center justify-center select-none ${className}`,
+			style: {
+				boxShadow: `0 0 22px ${product.glowColor}`,
+				background: "radial-gradient(circle at center, rgba(139,32,255,0.26), rgba(8,4,16,0.95))"
+			},
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: `absolute inset-0 pointer-events-none ${isPlaying ? "animate-lenzo-glow" : ""}`,
+				style: {
+					background: `radial-gradient(circle, ${product.glowColor} 0%, transparent 70%)`,
+					opacity: .45
+				}
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+				src: mediaSrc,
+				alt: product.name,
+				className: `relative z-10 w-[88%] h-[88%] object-contain rounded-xl ${isPlaying ? "animate-store-diamond" : ""}`
+			})]
+		});
+	}
+	if (product.categoryId === "vip_frames") {
+		const preset = product.animationPreset;
+		const isFlame = preset === "royal_flame";
+		const isDiamond = preset === "diamond_aura";
+		const ringConic = isFlame ? "conic-gradient(from 0deg, #FFF7CC, #FFC84A, #FF6B00, #DC2626, #FF9900, #FFF7CC)" : isDiamond ? "conic-gradient(from 0deg, #FFFFFF, #38BDF8, #C084FC, #E0F2FE, #818CF8, #FFFFFF)" : "conic-gradient(from 0deg, #F0ABFC, #A855F7, #EC4899, #38BDF8, #7C3AED, #F0ABFC)";
+		const outerGlow = isFlame ? "radial-gradient(circle, rgba(255,140,0,0.65) 0%, rgba(255,60,0,0.2) 55%, transparent 75%)" : isDiamond ? "radial-gradient(circle, rgba(56,189,248,0.65) 0%, rgba(192,132,252,0.24) 55%, transparent 75%)" : "radial-gradient(circle, rgba(192,38,211,0.68) 0%, rgba(124,58,237,0.25) 55%, transparent 75%)";
+		const initials = (userName || "LP").slice(0, 2).toUpperCase();
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: `relative ${s.box} flex items-center justify-center select-none ${className}`,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: `absolute inset-0 rounded-full blur-md pointer-events-none ${isPlaying ? isFlame ? "animate-store-flame" : "animate-lenzo-glow" : ""}`,
+				style: { background: outerGlow }
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: `relative flex items-center justify-center rounded-full p-[3.5px] ${size === "xl" ? "w-36 h-36 p-[6px]" : size === "lg" ? "w-[88px] h-[88px] p-[4.5px]" : size === "md" ? "w-[74px] h-[74px] p-[4px]" : "w-[56px] h-[56px] p-[3px]"}`,
+				style: { boxShadow: `0 0 ${size === "xl" ? "34px" : "16px"} ${product.glowColor}` },
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `absolute inset-0 rounded-full ${isPlaying ? "animate-lenzo-orbit-fast" : ""}`,
+						style: { background: ringConic }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `absolute -inset-[3px] rounded-full border border-dashed opacity-75 pointer-events-none ${isPlaying ? "animate-store-reverse-orbit" : ""}`,
+						style: { borderColor: product.accentColor }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "relative z-10 w-full h-full rounded-full overflow-hidden bg-[#120724] ring-2 ring-[#0A0314] flex items-center justify-center",
+						children: userAvatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+							src: userAvatar,
+							alt: userName,
+							referrerPolicy: "no-referrer",
+							className: "w-full h-full object-cover"
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-xs font-black text-amber-200 tracking-wider",
+							children: initials
+						})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: `pointer-events-none absolute ${size === "xl" ? "-top-5 w-11 h-11" : size === "lg" ? "-top-3.5 w-7 h-7" : "-top-2.5 w-5 h-5"} left-1/2 -translate-x-1/2 z-20 rounded-full flex items-center justify-center border shadow-lg ${isPlaying ? "animate-lenzo-particle" : ""}`,
+						style: {
+							background: `linear-gradient(135deg, ${product.secondaryColor}, ${product.primaryColor})`,
+							borderColor: product.accentColor,
+							boxShadow: `0 0 14px ${product.glowColor}`
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: `${size === "xl" ? "w-6 h-6" : "w-3 h-3"} text-white fill-amber-200` })
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `pointer-events-none absolute -top-1 -right-1 w-2 h-2 rounded-full z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+						style: {
+							backgroundColor: product.accentColor,
+							boxShadow: `0 0 10px ${product.accentColor}`
+						}
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: `pointer-events-none absolute bottom-0 -left-1.5 w-1.5 h-1.5 rounded-full z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+						style: {
+							backgroundColor: product.secondaryColor,
+							boxShadow: `0 0 10px ${product.secondaryColor}`,
+							animationDelay: "0.8s"
+						}
+					}),
+					isDiamond && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: `pointer-events-none absolute -bottom-2 right-0 z-20 ${size === "xl" ? "w-6 h-6" : "w-3.5 h-3.5"} text-cyan-200 ${isPlaying ? "animate-lenzo-glow" : ""}` })
+				]
+			})]
+		});
+	}
+	if (product.categoryId === "special_entry") {
+		const isSpotlight = product.animationPreset === "phantom_spotlight";
+		const carpetColor = isSpotlight ? "#9333EA" : "#DC2626";
+		const carpetEdge = isSpotlight ? "#F0ABFC" : "#FACC15";
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: `relative ${s.box} rounded-2xl overflow-hidden flex items-center justify-center select-none ${className}`,
+			style: {
+				background: "radial-gradient(circle at 50% 25%, rgba(147,51,234,0.42) 0%, rgba(16,6,34,0.96) 72%)",
+				boxShadow: `inset 0 0 18px ${product.glowColor}`
+			},
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: `pointer-events-none absolute -top-3 left-1/4 w-10 h-[125%] origin-top blur-[2px] ${isPlaying ? "animate-store-spot-left" : ""}`,
+					style: {
+						background: `linear-gradient(180deg, ${product.secondaryColor}aa 0%, transparent 88%)`,
+						clipPath: "polygon(35% 0%, 65% 0%, 100% 100%, 0% 100%)"
+					}
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: `pointer-events-none absolute -top-3 right-1/4 w-10 h-[125%] origin-top blur-[2px] ${isPlaying ? "animate-store-spot-right" : ""}`,
+					style: {
+						background: `linear-gradient(180deg, ${product.primaryColor}aa 0%, transparent 88%)`,
+						clipPath: "polygon(35% 0%, 65% 0%, 100% 100%, 0% 100%)"
+					}
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+					viewBox: "0 0 120 120",
+					className: "relative z-10 w-[94%] h-[94%]",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+							id: `goldArch_${product.id}`,
+							x1: "0%",
+							y1: "0%",
+							x2: "100%",
+							y2: "100%",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+									offset: "0%",
+									stopColor: "#FFF4B8"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+									offset: "45%",
+									stopColor: "#F59E0B"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+									offset: "100%",
+									stopColor: "#B45309"
+								})
+							]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+							id: `carpet_${product.id}`,
+							x1: "0%",
+							y1: "0%",
+							x2: "0%",
+							y2: "100%",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "0%",
+								stopColor: carpetColor,
+								stopOpacity: "0.95"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "100%",
+								stopColor: "#450A0A"
+							})]
+						})] }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+							cx: "60",
+							cy: "56",
+							rx: "28",
+							ry: "32",
+							fill: product.secondaryColor,
+							opacity: "0.28"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+							points: "43,78 77,78 98,118 22,118",
+							fill: `url(#carpet_${product.id})`,
+							stroke: carpetEdge,
+							strokeWidth: "2.2"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+							x1: "60",
+							y1: "80",
+							x2: "60",
+							y2: "116",
+							stroke: carpetEdge,
+							strokeWidth: "1",
+							strokeDasharray: "3 3",
+							opacity: "0.7"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", {
+							className: isPlaying ? "animate-store-gate-left" : "",
+							style: { transformOrigin: "32px 58px" },
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+									x: "33",
+									y: "36",
+									width: "26",
+									height: "44",
+									rx: "2",
+									fill: "#2A104E",
+									stroke: `url(#goldArch_${product.id})`,
+									strokeWidth: "2.2"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+									x1: "41",
+									y1: "38",
+									x2: "41",
+									y2: "78",
+									stroke: "#FCD34D",
+									strokeWidth: "1.2",
+									opacity: "0.85"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+									x1: "50",
+									y1: "38",
+									x2: "50",
+									y2: "78",
+									stroke: "#FCD34D",
+									strokeWidth: "1.2",
+									opacity: "0.85"
+								})
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", {
+							className: isPlaying ? "animate-store-gate-right" : "",
+							style: { transformOrigin: "88px 58px" },
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+									x: "61",
+									y: "36",
+									width: "26",
+									height: "44",
+									rx: "2",
+									fill: "#2A104E",
+									stroke: `url(#goldArch_${product.id})`,
+									strokeWidth: "2.2"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+									x1: "70",
+									y1: "38",
+									x2: "70",
+									y2: "78",
+									stroke: "#FCD34D",
+									strokeWidth: "1.2",
+									opacity: "0.85"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+									x1: "79",
+									y1: "38",
+									x2: "79",
+									y2: "78",
+									stroke: "#FCD34D",
+									strokeWidth: "1.2",
+									opacity: "0.85"
+								})
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+							d: "M24 84 L24 44 C24 22 96 22 96 44 L96 84",
+							fill: "none",
+							stroke: `url(#goldArch_${product.id})`,
+							strokeWidth: "6.5",
+							strokeLinecap: "round"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+							d: "M48 21 L52 11 L60 17 L68 11 L72 21 Z",
+							fill: `url(#goldArch_${product.id})`,
+							stroke: "#FFFBEB",
+							strokeWidth: "1"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+							cx: "24",
+							cy: "90",
+							r: "3",
+							fill: "#FDE047"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+							x1: "24",
+							y1: "93",
+							x2: "24",
+							y2: "112",
+							stroke: "#F59E0B",
+							strokeWidth: "2.5"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+							cx: "96",
+							cy: "90",
+							r: "3",
+							fill: "#FDE047"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+							x1: "96",
+							y1: "93",
+							x2: "96",
+							y2: "112",
+							stroke: "#F59E0B",
+							strokeWidth: "2.5"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: `pointer-events-none absolute bottom-4 left-1/2 w-2 h-2 rounded-full bg-amber-300 z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+					style: { boxShadow: "0 0 10px #FDE047" }
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: `pointer-events-none absolute bottom-6 left-1/3 w-1.5 h-1.5 rounded-full bg-fuchsia-300 z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+					style: {
+						boxShadow: "0 0 10px #F0ABFC",
+						animationDelay: "0.7s"
+					}
+				})
+			]
+		});
+	}
+	if (product.categoryId === "custom_gift") return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: `relative ${s.box} rounded-2xl overflow-hidden flex items-center justify-center select-none ${className}`,
+		style: { background: "radial-gradient(circle at 50% 55%, rgba(168,85,247,0.42) 0%, rgba(14,5,28,0.96) 72%)" },
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: `pointer-events-none absolute w-20 h-20 rounded-full blur-xl ${isPlaying ? "animate-lenzo-glow" : ""}`,
+				style: {
+					background: product.glowColor,
+					opacity: .65
+				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: `pointer-events-none absolute top-1/3 left-1/3 w-2 h-2 rounded-full bg-amber-300 z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+				style: { boxShadow: "0 0 10px #FACC15" }
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: `pointer-events-none absolute top-1/3 right-1/3 w-2 h-2 rounded-full bg-pink-400 z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+				style: {
+					boxShadow: "0 0 10px #F472B6",
+					animationDelay: "0.55s"
+				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: `pointer-events-none absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-cyan-300 z-20 ${isPlaying ? "animate-store-sparkle-rise" : ""}`,
+				style: {
+					boxShadow: "0 0 8px #67E8F9",
+					animationDelay: "1.1s"
+				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+				viewBox: "0 0 120 120",
+				className: `relative z-10 w-[86%] h-[86%] drop-shadow-[0_6px_14px_rgba(168,85,247,0.65)] ${isPlaying ? "animate-store-gift-bounce" : ""}`,
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+						id: `boxBody_${product.id}`,
+						x1: "0%",
+						y1: "0%",
+						x2: "100%",
+						y2: "100%",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: product.primaryColor
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#3B0764"
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+						id: `ribbonGold_${product.id}`,
+						x1: "0%",
+						y1: "0%",
+						x2: "100%",
+						y2: "100%",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "0%",
+								stopColor: "#FEF08A"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "50%",
+								stopColor: "#F59E0B"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "100%",
+								stopColor: "#B45309"
+							})
+						]
+					})] }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+						x: "24",
+						y: "52",
+						width: "72",
+						height: "50",
+						rx: "10",
+						fill: `url(#boxBody_${product.id})`,
+						stroke: "#E879F9",
+						strokeWidth: "2.2"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+						x: "52",
+						y: "52",
+						width: "16",
+						height: "50",
+						fill: `url(#ribbonGold_${product.id})`
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+						x: "30",
+						y: "58",
+						width: "14",
+						height: "36",
+						rx: "4",
+						fill: "#FFFFFF",
+						opacity: "0.14"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", {
+						className: isPlaying ? "animate-store-gift-lid" : "",
+						style: { transformOrigin: "60px 52px" },
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+								x: "18",
+								y: "36",
+								width: "84",
+								height: "19",
+								rx: "6",
+								fill: `url(#boxBody_${product.id})`,
+								stroke: "#F0ABFC",
+								strokeWidth: "2.2"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+								x: "52",
+								y: "36",
+								width: "16",
+								height: "19",
+								fill: `url(#ribbonGold_${product.id})`
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+								d: "M60 36 C46 14 26 22 36 35 C42 40 54 37 60 36 Z",
+								fill: `url(#ribbonGold_${product.id})`,
+								stroke: "#FFFBEB",
+								strokeWidth: "1.2"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+								d: "M60 36 C74 14 94 22 84 35 C78 40 66 37 60 36 Z",
+								fill: `url(#ribbonGold_${product.id})`,
+								stroke: "#FFFBEB",
+								strokeWidth: "1.2"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+								cx: "60",
+								cy: "35",
+								r: "5.5",
+								fill: "#FEF08A",
+								stroke: "#D97706",
+								strokeWidth: "1.5"
+							})
+						]
+					})
+				]
+			})
+		]
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: `relative ${s.box} rounded-2xl overflow-hidden flex items-center justify-center select-none ${className}`,
+		style: { background: "radial-gradient(circle at center, rgba(168,85,247,0.38) 0%, rgba(11,4,24,0.96) 72%)" },
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: `pointer-events-none absolute w-[86%] h-[86%] rounded-full border-2 opacity-75 ${isPlaying ? "animate-lenzo-orbit" : ""}`,
+				style: {
+					borderColor: `${product.primaryColor} transparent ${product.secondaryColor} transparent`,
+					boxShadow: `0 0 18px ${product.glowColor}`
+				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: `pointer-events-none absolute w-[72%] h-[72%] rounded-full border border-dashed opacity-70 ${isPlaying ? "animate-store-reverse-orbit" : ""}`,
+				style: { borderColor: product.accentColor }
+			}),
+			isPlaying && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute inset-y-0 w-10 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-store-shimmer" }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+				viewBox: "0 0 120 120",
+				className: `relative z-10 w-[72%] h-[72%] drop-shadow-[0_0_16px_rgba(217,70,239,0.85)] ${isPlaying ? "animate-store-diamond" : ""}`,
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+						id: `gemTop_${product.id}`,
+						x1: "0%",
+						y1: "0%",
+						x2: "100%",
+						y2: "100%",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "0%",
+								stopColor: "#FDF4FF"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "45%",
+								stopColor: product.primaryColor
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "100%",
+								stopColor: product.secondaryColor
+							})
+						]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+						id: `gemBot_${product.id}`,
+						x1: "0%",
+						y1: "0%",
+						x2: "100%",
+						y2: "100%",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "0%",
+								stopColor: product.secondaryColor
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "55%",
+								stopColor: "#6D28D9"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+								offset: "100%",
+								stopColor: "#2E1065"
+							})
+						]
+					})] }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+						points: "32,26 88,26 104,50 16,50",
+						fill: `url(#gemTop_${product.id})`,
+						stroke: "#FDE047",
+						strokeWidth: "2"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+						points: "16,50 104,50 60,104",
+						fill: `url(#gemBot_${product.id})`,
+						stroke: "#FDE047",
+						strokeWidth: "2"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polyline", {
+						points: "32,26 42,50 60,104 78,50 88,26",
+						fill: "none",
+						stroke: "#F5D0FE",
+						strokeWidth: "1.5",
+						opacity: "0.85"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polyline", {
+						points: "42,50 60,26 78,50",
+						fill: "none",
+						stroke: "#FFFFFF",
+						strokeWidth: "1.5",
+						opacity: "0.85"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+						points: "42,50 78,50 60,104",
+						fill: "#FFFFFF",
+						opacity: "0.14"
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: `pointer-events-none absolute top-2 right-2 w-3.5 h-3.5 text-amber-300 z-20 ${isPlaying ? "animate-lenzo-particle" : ""}` }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, {
+				className: `pointer-events-none absolute bottom-2 left-2 w-3 h-3 text-fuchsia-300 z-20 ${isPlaying ? "animate-lenzo-particle" : ""}`,
+				style: { animationDelay: "0.9s" }
+			})
+		]
+	});
+};
+// src/components/screens/StoreScreen.tsx
+/**
+* Reusable glossy metallic golden coin emblem
+*/
+var GoldenCoinIcon = ({ className = "w-4 h-4" }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+	viewBox: "0 0 24 24",
+	className: `shrink-0 ${className}`,
+	"aria-hidden": "true",
+	children: [
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+			id: "lenzoGoldCoinGrad",
+			cx: "35%",
+			cy: "30%",
+			r: "70%",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "0%",
+					stopColor: "#FFF7CC"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "45%",
+					stopColor: "#FFC84A"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "85%",
+					stopColor: "#D97706"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "100%",
+					stopColor: "#92400E"
+				})
+			]
+		}) }),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "12",
+			cy: "12",
+			r: "10.5",
+			fill: "url(#lenzoGoldCoinGrad)",
+			stroke: "#FEF08A",
+			strokeWidth: "1.2"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "12",
+			cy: "12",
+			r: "7.5",
+			fill: "none",
+			stroke: "#FFFBEB",
+			strokeOpacity: "0.65",
+			strokeWidth: "1"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+			d: "M12 7.2 L13.4 10.3 L16.8 10.7 L14.2 12.9 L14.9 16.3 L12 14.5 L9.1 16.3 L9.8 12.9 L7.2 10.7 L10.6 10.3 Z",
+			fill: "#FFFBEB",
+			opacity: "0.92"
+		})
+	]
+});
+/**
+* Sculpted Golden Royal Crown Emblem above STORE title
+*/
+var StoreHeroCrown = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+	viewBox: "0 0 96 52",
+	className: "w-16 h-9 mx-auto drop-shadow-[0_0_16px_rgba(255,200,74,0.85)]",
+	"aria-hidden": "true",
+	children: [
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+			id: "storeCrownGold",
+			x1: "0%",
+			y1: "0%",
+			x2: "100%",
+			y2: "100%",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "0%",
+					stopColor: "#FFF8D6"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "38%",
+					stopColor: "#FFC84A"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "72%",
+					stopColor: "#EAB308"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "100%",
+					stopColor: "#B45309"
+				})
+			]
+		}) }),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+			d: "M14 42 L8 16 L29 27 L48 8 L67 27 L88 16 L82 42 Z",
+			fill: "url(#storeCrownGold)",
+			stroke: "#FEF08A",
+			strokeWidth: "2",
+			strokeLinejoin: "round"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("rect", {
+			x: "14",
+			y: "40",
+			width: "68",
+			height: "8",
+			rx: "4",
+			fill: "url(#storeCrownGold)",
+			stroke: "#FFFBEB",
+			strokeWidth: "1.4"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "8",
+			cy: "14",
+			r: "4",
+			fill: "#FEF08A",
+			stroke: "#D97706",
+			strokeWidth: "1.2"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "48",
+			cy: "6",
+			r: "4.8",
+			fill: "#FFFBEB",
+			stroke: "#D97706",
+			strokeWidth: "1.2"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "88",
+			cy: "14",
+			r: "4",
+			fill: "#FEF08A",
+			stroke: "#D97706",
+			strokeWidth: "1.2"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
+			points: "48,22 54,30 48,37 42,30",
+			fill: "#C084FC",
+			stroke: "#FFFBEB",
+			strokeWidth: "1"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "30",
+			cy: "33",
+			r: "2.8",
+			fill: "#F472B6"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+			cx: "66",
+			cy: "33",
+			r: "2.8",
+			fill: "#F472B6"
+		})
+	]
+});
+/**
+* Decorative Golden Laurel Wreath Branch flanking the STORE heading
+*/
+var GoldenLaurelBranch = ({ mirrored = false }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+	viewBox: "0 0 68 42",
+	className: `w-12 h-8 sm:w-14 sm:h-9 shrink-0 drop-shadow-[0_0_10px_rgba(255,200,74,0.6)] ${mirrored ? "-scale-x-100" : ""}`,
+	"aria-hidden": "true",
+	children: [
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+			id: "laurelGold",
+			x1: "0%",
+			y1: "0%",
+			x2: "100%",
+			y2: "100%",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "0%",
+					stopColor: "#FFF7CC"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "55%",
+					stopColor: "#FFC84A"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+					offset: "100%",
+					stopColor: "#B45309"
+				})
+			]
+		}) }),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+			d: "M58 36 C36 35 18 24 10 6",
+			fill: "none",
+			stroke: "url(#laurelGold)",
+			strokeWidth: "2.4",
+			strokeLinecap: "round"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "14",
+			cy: "12",
+			rx: "6.5",
+			ry: "3.2",
+			transform: "rotate(-35 14 12)",
+			fill: "url(#laurelGold)"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "22",
+			cy: "18",
+			rx: "7",
+			ry: "3.4",
+			transform: "rotate(-24 22 18)",
+			fill: "url(#laurelGold)"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "32",
+			cy: "24",
+			rx: "7.2",
+			ry: "3.5",
+			transform: "rotate(-14 32 24)",
+			fill: "url(#laurelGold)"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "44",
+			cy: "30",
+			rx: "7.4",
+			ry: "3.5",
+			transform: "rotate(-4 44 30)",
+			fill: "url(#laurelGold)"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "19",
+			cy: "25",
+			rx: "6",
+			ry: "3",
+			transform: "rotate(28 19 25)",
+			fill: "url(#laurelGold)",
+			opacity: "0.88"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "30",
+			cy: "32",
+			rx: "6.5",
+			ry: "3.2",
+			transform: "rotate(20 30 32)",
+			fill: "url(#laurelGold)",
+			opacity: "0.88"
+		}),
+		/* @__PURE__ */ (0, import_jsx_runtime.jsx)("ellipse", {
+			cx: "43",
+			cy: "36",
+			rx: "6.5",
+			ry: "3",
+			transform: "rotate(12 43 36)",
+			fill: "url(#laurelGold)",
+			opacity: "0.88"
+		})
+	]
+});
+var StoreScreen = ({ currentUser, onNavigate, onOpenWallet, onUpdateUserBalance }) => {
+	const [categories, setCategories] = (0, import_react.useState)(DEFAULT_STORE_CATEGORIES);
+	const [products, setProducts] = (0, import_react.useState)(DEFAULT_STORE_PRODUCTS);
+	const [inventory, setInventory] = (0, import_react.useState)([]);
+	const [walletCoins, setWalletCoins] = (0, import_react.useState)(currentUser.coins ?? 0);
+	const [selectedCategoryId, setSelectedCategoryId] = (0, import_react.useState)("vip_frames");
+	const [selectedProductId, setSelectedProductId] = (0, import_react.useState)("vip_frame_royal_flame");
+	const [previewModalProduct, setPreviewModalProduct] = (0, import_react.useState)(null);
+	const [previewReplayKey, setPreviewReplayKey] = (0, import_react.useState)(0);
+	const [confirmPurchaseProduct, setConfirmPurchaseProduct] = (0, import_react.useState)(null);
+	const [isPurchasing, setIsPurchasing] = (0, import_react.useState)(false);
+	const [equippingId, setEquippingId] = (0, import_react.useState)(null);
+	const [purchaseSuccessModal, setPurchaseSuccessModal] = (0, import_react.useState)(null);
+	const [toast, setToast] = (0, import_react.useState)(null);
+	const showToast = (text, type = "info") => {
+		setToast({
+			type,
+			text
+		});
+		window.setTimeout(() => {
+			setToast((prev) => prev?.text === text ? null : prev);
+		}, 3200);
+	};
+	(0, import_react.useEffect)(() => {
+		const unsubCats = subscribeStoreCategories(setCategories);
+		const unsubProds = subscribeStoreProducts(setProducts);
+		const unsubInv = currentUser.id ? subscribeUserInventory(currentUser.id, setInventory) : () => {};
+		const unsubWallet = currentUser.id ? subscribeUserWallet(currentUser.id, (w) => {
+			const synced = w.walletPurchasedCoins > 0 ? w.walletPurchasedCoins : Math.max(w.walletPurchasedCoins, currentUser.coins ?? 0);
+			setWalletCoins(synced);
+		}) : () => {};
+		return () => {
+			unsubCats();
+			unsubProds();
+			unsubInv();
+			unsubWallet();
+			setPreviewModalProduct(null);
+		};
+	}, [currentUser.id]);
+	(0, import_react.useEffect)(() => {
+		if (typeof currentUser.coins === "number") setWalletCoins((prev) => currentUser.coins > prev ? currentUser.coins : prev || currentUser.coins);
+	}, [currentUser.coins]);
+	const categoryProducts = (0, import_react.useMemo)(() => {
+		return products.filter((p) => p.enabled !== false && p.categoryId === selectedCategoryId).sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+	}, [products, selectedCategoryId]);
+	const featuredProduct = (0, import_react.useMemo)(() => {
+		if (categoryProducts.length === 0) return null;
+		const found = categoryProducts.find((p) => p.id === selectedProductId);
+		if (found) return found;
+		return categoryProducts.find((p) => p.isFeatured) || categoryProducts[0];
+	}, [categoryProducts, selectedProductId]);
+	const inventoryByProductId = (0, import_react.useMemo)(() => {
+		const map = /* @__PURE__ */ new Map();
+		inventory.forEach((item) => map.set(item.productId, item));
+		return map;
+	}, [inventory]);
+	const handleSelectCategory = (catId) => {
+		setPreviewModalProduct(null);
+		setConfirmPurchaseProduct(null);
+		setSelectedCategoryId(catId);
+		const matching = products.filter((p) => p.enabled !== false && p.categoryId === catId).sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+		const nextFeatured = matching.find((p) => p.isFeatured) || matching[0];
+		if (nextFeatured) setSelectedProductId(nextFeatured.id);
+	};
+	const handleOpenPreviewAnimation = (product) => {
+		setSelectedProductId(product.id);
+		setPreviewReplayKey((k) => k + 1);
+		setPreviewModalProduct(product);
+	};
+	const handleTapGetNow = (product) => {
+		const owned = inventoryByProductId.get(product.id);
+		if (owned) {
+			handleToggleEquip(owned, !owned.equipped);
+			return;
+		}
+		const effectiveCoins = Math.max(walletCoins, currentUser.coins ?? 0);
+		if (effectiveCoins < product.priceCoins) {
+			showToast(`You need ${(product.priceCoins - effectiveCoins).toLocaleString()} more coins. Opening Coin Recharge...`, "info");
+			onOpenWallet();
+			return;
+		}
+		setConfirmPurchaseProduct(product);
+	};
+	const handleConfirmPurchase = async () => {
+		if (!confirmPurchaseProduct || isPurchasing) return;
+		setIsPurchasing(true);
+		const targetProduct = confirmPurchaseProduct;
+		const result = await purchaseStoreProduct({
+			userId: currentUser.id,
+			product: targetProduct,
+			fallbackBalanceCoins: Math.max(walletCoins, currentUser.coins ?? 0)
+		});
+		setIsPurchasing(false);
+		setConfirmPurchaseProduct(null);
+		if (!result.success) {
+			if (result.errorCode === "INSUFFICIENT_COINS") {
+				showToast(result.message, "info");
+				onOpenWallet();
+				return;
+			}
+			showToast(result.message, result.errorCode === "ALREADY_OWNED" ? "info" : "error");
+			return;
+		}
+		if (typeof result.newBalance === "number") {
+			setWalletCoins(result.newBalance);
+			onUpdateUserBalance(result.newBalance, currentUser.diamonds ?? 0);
+		}
+		setPurchaseSuccessModal({
+			product: targetProduct,
+			inventoryItem: result.inventoryItem,
+			newBalance: result.newBalance ?? walletCoins
 		});
 	};
-	const handleUpdateQuantity = (productId, delta) => {
-		setCart((prev) => prev.map((item) => {
-			if (item.product.id === productId) {
-				const newQ = item.quantity + delta;
-				return newQ > 0 ? {
-					...item,
-					quantity: newQ
-				} : null;
-			}
-			return item;
-		}).filter(Boolean));
+	const handleToggleEquip = async (item, nextEquip) => {
+		if (equippingId) return;
+		setEquippingId(item.productId);
+		const res = await toggleEquipInventoryItem({
+			userId: currentUser.id,
+			item,
+			equip: nextEquip
+		});
+		setEquippingId(null);
+		showToast(res.message, res.success ? "success" : "error");
 	};
-	const handleDirectBuy = async (product) => {
-		setIsPurchasing(true);
-		setPurchaseErrorMessage(null);
-		try {
-			const res = await purchaseStoreItem(currentUser.id, product, 1);
-			if (res.success) {
-				setPurchaseSuccessMessage(`Successfully purchased ${product.name}! Enjoy your exclusive reward.`);
-				if (product.currency === "coins" && onUpdateUserBalance) onUpdateUserBalance(res.newBalance, currentUser.diamonds);
-				else if (product.currency === "diamonds" && onUpdateUserBalance) onUpdateUserBalance(currentUser.coins, res.newBalance);
-				setSelectedProduct(null);
-				setTimeout(() => setPurchaseSuccessMessage(null), 4e3);
-			} else {
-				setPurchaseErrorMessage(res.error || "Failed to complete purchase");
-				setTimeout(() => setPurchaseErrorMessage(null), 4e3);
-			}
-		} catch (e) {
-			setPurchaseErrorMessage(e?.message || "Error executing purchase");
-		} finally {
-			setIsPurchasing(false);
-		}
-	};
-	const handleCheckoutCart = async () => {
-		if (cart.length === 0) return;
-		setIsPurchasing(true);
-		setPurchaseErrorMessage(null);
-		let hadError = false;
-		for (const item of cart) {
-			const res = await purchaseStoreItem(currentUser.id, item.product, item.quantity);
-			if (!res.success) {
-				hadError = true;
-				setPurchaseErrorMessage(res.error || `Purchase of ${item.product.name} failed`);
-				break;
-			}
-		}
-		if (!hadError) {
-			setPurchaseSuccessMessage("All items purchased successfully! Check your inventory and profile.");
-			setCart([]);
-			setIsCartOpen(false);
-			setTimeout(() => setPurchaseSuccessMessage(null), 4e3);
-		}
-		setIsPurchasing(false);
-	};
+	const activeCategoryObj = categories.find((c) => c.id === selectedCategoryId) || DEFAULT_STORE_CATEGORIES[0];
+	const featuredOwned = featuredProduct ? inventoryByProductId.get(featuredProduct.id) : void 0;
+	const displayedCoins = Math.max(walletCoins, currentUser.coins ?? 0);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "min-h-screen bg-[#080511] text-white pb-24 md:pb-8 flex flex-col",
+		className: "relative min-h-screen w-full overflow-x-hidden pb-28 md:pb-12 text-white select-none",
+		style: { background: "radial-gradient(ellipse 90% 55% at 50% 0%, #360E6B 0%, #17062E 38%, #090314 76%, #05010B 100%)" },
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("header", {
-				className: "sticky top-0 z-30 bg-[#0c0718]/90 backdrop-blur-xl border-b border-white/[0.08] px-4 py-3",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "max-w-6xl mx-auto flex items-center justify-between gap-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: () => onNavigate("home"),
-							className: "w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors",
-							"aria-label": "Back",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-5 h-5 text-white" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
-							className: "text-lg md:text-xl font-black bg-gradient-to-r from-white via-purple-200 to-[#F328D5] bg-clip-text text-transparent flex items-center gap-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingBag, { className: "w-5 h-5 text-[#F328D5]" }), "Lenzo Store"]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-[11px] text-[#A59AB8]",
-							children: "Exclusive Entrance Effects, VIP Passes & Virtual Rewards"
-						})] })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								onClick: onOpenWallet,
-								className: "flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/30 cursor-pointer hover:border-amber-400 transition-colors",
-								title: "Click to recharge coins",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-4 h-4 text-amber-400 animate-pulse" }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-xs font-bold text-amber-300",
-										children: currentUser.coins.toLocaleString()
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 text-amber-400" })
-								]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								onClick: onOpenWallet,
-								className: "hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/20 to-blue-500/10 border border-cyan-500/30 cursor-pointer hover:border-cyan-400 transition-colors",
-								title: "Diamond earnings",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: "w-4 h-4 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-xs font-bold text-cyan-300",
-									children: currentUser.diamonds.toLocaleString()
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								onClick: () => setIsCartOpen(true),
-								className: "relative w-9 h-9 rounded-full bg-[#1b122c] border border-white/10 hover:border-[#F328D5] flex items-center justify-center transition-colors",
-								"aria-label": "Cart",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingCart, { className: "w-4 h-4 text-[#F328D5]" }), cart.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#F328D5] text-[10px] font-black text-white flex items-center justify-center shadow-lg",
-									children: cart.reduce((a, b) => a + b.quantity, 0)
-								})]
-							})
-						]
-					})]
-				})
-			}),
-			purchaseSuccessMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-600/95 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.5)] border border-emerald-400 text-xs font-bold flex items-center gap-2 animate-bounce",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: purchaseSuccessMessage })]
-			}),
-			purchaseErrorMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-rose-600/95 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_30px_rgba(225,29,72,0.5)] border border-rose-400 text-xs font-bold flex items-center gap-2",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: purchaseErrorMessage })]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "max-w-6xl mx-auto w-full px-4 pt-4",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "relative rounded-3xl overflow-hidden p-6 md:p-8 bg-gradient-to-r from-[#2c0847] via-[#1a0e36] to-[#0a122e] border border-white/10 shadow-[0_15px_40px_rgba(139,32,255,0.2)]",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute -right-8 -bottom-10 w-64 h-64 bg-[#F328D5]/20 rounded-full blur-3xl pointer-events-none" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative z-10 max-w-lg",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-								className: "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-[#F328D5]/20 text-[#ff7bf0] border border-[#F328D5]/30 mb-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3" }), " Season 4 Exclusive"]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-								className: "text-2xl md:text-3xl font-black text-white leading-tight",
-								children: "Dominant Room Entrances & VIP Privileges"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs md:text-sm text-[#c0b4d6] mt-2 leading-relaxed",
-								children: "Equip legendary 3D animations, custom sound effects, and full screen banners that announce your presence everywhere in Lenzo Party Live."
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 mt-4",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => setSelectedCategory("entrance"),
-									className: "px-5 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-[0_5px_15px_rgba(243,40,213,0.4)] active:scale-95 transition-all",
-									children: "Explore Entrances"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: onOpenVIP,
-									className: "px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 active:scale-95 transition-all",
-									children: "VIP Benefits"
-								})]
-							})
-						]
-					})]
-				})
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "pointer-events-none fixed inset-0 overflow-hidden z-0",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "absolute -top-24 left-1/2 -translate-x-1/2 w-[520px] h-[300px] rounded-full blur-[110px] opacity-40",
+						style: { background: "radial-gradient(circle, #9333EA 0%, #EC4899 48%, transparent 75%)" }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "absolute bottom-24 -left-16 w-64 h-64 rounded-full blur-[100px] opacity-25",
+						style: { background: "#7C3AED" }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "absolute bottom-40 -right-16 w-64 h-64 rounded-full blur-[100px] opacity-20",
+						style: { background: "#F59E0B" }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute top-24 left-[12%] w-1.5 h-1.5 rounded-full bg-amber-300/70 animate-lenzo-particle" }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "absolute top-36 right-[16%] w-1.5 h-1.5 rounded-full bg-fuchsia-400/80 animate-lenzo-particle",
+						style: { animationDelay: "0.7s" }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "absolute top-60 left-[84%] w-1 h-1 rounded-full bg-violet-300/80 animate-lenzo-particle",
+						style: { animationDelay: "1.3s" }
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "absolute top-[460px] left-[8%] w-1.5 h-1.5 rounded-full bg-amber-200/60 animate-lenzo-particle",
+						style: { animationDelay: "1.8s" }
+					})
+				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "max-w-6xl mx-auto w-full px-4 mt-6",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "relative",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8e82a3]" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-							type: "text",
-							value: searchQuery,
-							onChange: (e) => setSearchQuery(e.target.value),
-							placeholder: "Search effects, VIP passes, gifts, frames...",
-							className: "w-full bg-[#120a21] border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#786c8f] focus:outline-none focus:border-[#F328D5] transition-colors"
-						}),
-						searchQuery && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: () => setSearchQuery(""),
-							className: "absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
-						})
-					]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex items-center gap-2 overflow-x-auto no-scrollbar py-3 mt-2",
-					children: categories.map((cat) => {
-						const Icon = cat.icon;
-						const isSelected = selectedCategory === cat.id;
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: () => setSelectedCategory(cat.id),
-							className: `flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${isSelected ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-[0_4px_12px_rgba(243,40,213,0.4)]" : "bg-[#150d24] text-[#A59AB8] hover:text-white hover:bg-[#1f1336] border border-white/[0.06]"}`,
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { className: `w-3.5 h-3.5 ${isSelected ? "text-white" : "text-[#A59AB8]"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: cat.label })]
-						}, cat.id);
-					})
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "max-w-6xl mx-auto w-full px-4 mt-3 flex-1",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4",
-					children: filteredProducts.map((prod) => {
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "group relative rounded-2xl bg-[#110a20] border border-white/[0.08] hover:border-[#F328D5]/60 transition-all overflow-hidden flex flex-col justify-between",
+				className: "relative z-10 max-w-xl mx-auto px-3.5 sm:px-5 pt-safe",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("header", {
+						className: "sticky top-0 z-30 -mx-3.5 sm:-mx-5 px-3.5 sm:px-5 py-3 backdrop-blur-xl bg-[#0D041D]/75 border-b border-purple-500/20",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-2",
 							children: [
-								prod.badge && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md",
-									children: prod.badge
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => onNavigate("home"),
+									"aria-label": "Go Back",
+									className: "w-9 h-9 rounded-xl bg-white/[0.06] border border-purple-400/30 flex items-center justify-center text-white hover:bg-purple-500/20 hover:border-purple-300/60 active:scale-95 transition-all shadow-[0_0_12px_rgba(168,85,247,0.28)]",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronLeft, { className: "w-5 h-5" })
 								}),
-								prod.rarity && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: `absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase border ${{
-										common: "text-gray-300 border-gray-600/40 bg-gray-600/10",
-										rare: "text-blue-400 border-blue-500/40 bg-blue-500/10",
-										epic: "text-purple-400 border-purple-500/40 bg-purple-500/10",
-										legendary: "text-amber-400 border-amber-500/40 bg-amber-500/10",
-										mythic: "text-rose-400 border-rose-500/40 bg-rose-500/10"
-									}[prod.rarity] || ""}`,
-									children: prod.rarity
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "flex items-center gap-1.5 min-w-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "font-display text-lg sm:text-xl font-black tracking-tight bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(217,70,239,0.55)]",
+										style: { backgroundImage: "linear-gradient(90deg, #FFFFFF 0%, #F5D0FE 42%, #FFC84A 100%)" },
+										children: "Lenzo Party"
+									})
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									onClick: () => setSelectedProduct(prod),
-									className: "relative aspect-square w-full overflow-hidden bg-black/40 cursor-pointer",
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: onOpenWallet,
+									className: "group flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full bg-[#190933]/90 border border-amber-400/45 shadow-[0_0_16px_rgba(255,200,74,0.24)] hover:border-amber-300 active:scale-95 transition-all",
+									title: "Recharge Lenzo Coins",
 									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: prod.image,
-											alt: prod.name,
-											className: "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300",
-											loading: "lazy"
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenCoinIcon, { className: "w-4 h-4" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-xs sm:text-sm font-black text-amber-200 tabular-nums tracking-tight",
+											children: displayedCoins.toLocaleString()
 										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-[#110a20] via-transparent to-transparent opacity-80" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "absolute bottom-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5 text-white" })
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "w-6 h-6 rounded-full bg-gradient-to-br from-[#FFC84A] via-[#F59E0B] to-[#D97706] text-[#1A0826] flex items-center justify-center shadow-[0_0_10px_rgba(255,200,74,0.65)] group-hover:scale-105 transition-transform",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 stroke-[3]" })
 										})
 									]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 flex-1 flex flex-col justify-between",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-										onClick: () => setSelectedProduct(prod),
-										className: "text-xs md:text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate cursor-pointer",
-										children: prod.name
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-[10px] text-[#9a8ea8] line-clamp-2 mt-1 leading-normal",
-										children: prod.description
-									})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "mt-3 pt-2 border-t border-white/[0.06] flex items-center justify-between",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1",
-											children: [prod.currency === "coins" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-3.5 h-3.5 text-amber-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: "w-3.5 h-3.5 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-xs font-black text-white",
-												children: prod.priceDisplay
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1.5",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-												onClick: () => handleAddToCart(prod),
-												title: "Add to cart",
-												className: "w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors active:scale-95",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingCart, { className: "w-3.5 h-3.5" })
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-												onClick: () => handleDirectBuy(prod),
-												className: "px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#8B20FF] to-[#F328D5] hover:opacity-90 text-[10px] font-bold text-white shadow-sm active:scale-95 transition-all",
-												children: "Buy"
-											})]
-										})]
-									})]
-								})
-							]
-						}, prod.id);
-					})
-				})
-			}),
-			selectedProduct && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "relative w-full max-w-md rounded-3xl bg-[#140b25] border border-white/15 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: () => setSelectedProduct(null),
-							className: "absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center text-white transition-colors",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "relative h-56 w-full bg-black/50 overflow-hidden",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-									src: selectedProduct.image,
-									alt: selectedProduct.name,
-									className: "w-full h-full object-cover"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-[#140b25] via-transparent to-transparent" }),
-								selectedProduct.badge && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "absolute top-3 left-3 px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-[#F328D5] text-white",
-									children: selectedProduct.badge
-								})
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-5 overflow-y-auto no-scrollbar space-y-4",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-									className: "text-lg font-black text-white",
-									children: selectedProduct.name
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-xs text-[#b0a3c4] mt-1",
-									children: selectedProduct.description
-								})] }),
-								selectedProduct.benefits && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/[0.06] space-y-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h4", {
-										className: "text-xs font-bold text-[#F328D5] flex items-center gap-1.5",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5" }), " Perks & Privileges Included"]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-										className: "space-y-1.5",
-										children: selectedProduct.benefits.map((b, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
-											className: "text-[11px] text-[#d6cce6] flex items-center gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5 text-emerald-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: b })]
-										}, i))
-									})]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-purple-900/30 to-pink-900/20 border border-purple-500/20",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-xs text-[#a99cbf]",
-										children: "Total Price:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-1.5",
-										children: [selectedProduct.currency === "coins" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-4 h-4 text-amber-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: "w-4 h-4 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-base font-black text-white",
-											children: selectedProduct.priceDisplay
-										})]
-									})]
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-3 pt-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										onClick: () => {
-											handleAddToCart(selectedProduct);
-											setSelectedProduct(null);
-										},
-										className: "flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors active:scale-95",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingCart, { className: "w-4 h-4" }), "Add to Cart"]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-										disabled: isPurchasing,
-										onClick: () => handleDirectBuy(selectedProduct),
-										className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#c415f5] text-white text-xs font-bold shadow-[0_4px_20px_rgba(243,40,213,0.5)] flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className: "w-4 h-4" }), isPurchasing ? "Processing..." : "Unlock Now"]
-									})]
 								})
 							]
 						})
-					]
-				})
-			}),
-			isCartOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: "fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-end animate-in fade-in",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "w-full max-w-md h-full bg-[#120a22] border-l border-white/10 flex flex-col p-5 shadow-2xl",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between pb-4 border-b border-white/[0.08]",
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+						className: "pt-4 pb-5 text-center",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreHeroCrown, {}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "mt-0.5 flex items-center justify-center gap-2 sm:gap-3",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenLaurelBranch, {}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+									className: "font-display text-[32px] sm:text-[38px] leading-none font-black tracking-[0.14em] bg-clip-text text-transparent",
+									style: {
+										backgroundImage: "linear-gradient(180deg, #FFFDF2 0%, #FFE484 44%, #F59E0B 82%, #D97706 100%)",
+										filter: "drop-shadow(0 0 18px rgba(255, 200, 74, 0.55))"
+									},
+									children: "STORE"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenLaurelBranch, { mirrored: true })
+							]
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("section", {
+						"aria-label": "Store Categories",
+						className: "grid grid-cols-2 gap-3 sm:gap-3.5",
+						children: categories.slice(0, 4).map((cat) => {
+							const isSelected = cat.id === selectedCategoryId;
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => handleSelectCategory(cat.id),
+								className: `group relative rounded-[22px] p-[1.5px] text-left transition-all duration-300 active:scale-[0.97] ${isSelected ? "scale-[1.01]" : "opacity-90 hover:opacity-100"}`,
+								style: {
+									background: isSelected ? `linear-gradient(135deg, #FFC84A 0%, #EC4899 50%, #9333EA 100%)` : "linear-gradient(135deg, rgba(168,85,247,0.52) 0%, rgba(236,72,153,0.28) 55%, rgba(255,200,74,0.34) 100%)",
+									boxShadow: isSelected ? `0 0 26px ${cat.glowColor}, 0 8px 22px rgba(0,0,0,0.6)` : "0 6px 18px rgba(0,0,0,0.5)"
+								},
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "relative h-full rounded-[20.5px] px-2.5 pt-2.5 pb-3 flex flex-col items-center justify-between overflow-hidden",
+									style: { background: isSelected ? "radial-gradient(circle at 50% 25%, #2D0D5C 0%, #140529 66%, #0B0318 100%)" : "radial-gradient(circle at 50% 25%, #210A42 0%, #100421 70%, #090213 100%)" },
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute top-0 inset-x-4 h-[1px] bg-gradient-to-r from-transparent via-white/45 to-transparent" }),
+										isSelected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_#FFC84A] animate-pulse" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "relative w-[86px] h-[86px] sm:w-[98px] sm:h-[98px] rounded-2xl overflow-hidden flex items-center justify-center",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: `pointer-events-none absolute inset-1 rounded-full blur-lg transition-opacity duration-300 ${isSelected ? "opacity-65" : "opacity-30 group-hover:opacity-50"}`,
+												style: { background: cat.glowColor }
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: cat.imageUrl,
+												alt: cat.title,
+												className: `relative z-10 w-full h-full object-cover rounded-2xl transition-transform duration-300 ${isSelected ? "scale-105" : "group-hover:scale-105"}`
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "mt-2 text-center",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: `font-display text-[13px] sm:text-sm font-black tracking-[0.08em] uppercase ${isSelected ? "text-amber-200 drop-shadow-[0_0_10px_rgba(255,200,74,0.65)]" : "text-white/95"}`,
+												children: cat.title
+											})
+										})
+									]
+								})
+							}, cat.id);
+						})
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+						className: "mt-6",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between mb-3 px-0.5",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "w-1.5 h-5 rounded-full",
+									style: {
+										background: `linear-gradient(180deg, ${activeCategoryObj.accentFrom}, ${activeCategoryObj.accentTo})`,
+										boxShadow: `0 0 10px ${activeCategoryObj.glowColor}`
+									}
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+									className: "font-display text-sm sm:text-base font-black tracking-[0.1em] uppercase text-white",
+									children: activeCategoryObj.title
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-[11px] font-bold text-purple-200/80",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingCart, { className: "w-5 h-5 text-[#F328D5]" }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-										className: "text-base font-black text-white",
-										children: "Your Shopping Cart"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "text-xs text-[#a99cbf]",
+									categoryProducts.length,
+									" ",
+									categoryProducts.length === 1 ? "Item" : "Items"
+								]
+							})]
+						}), categoryProducts.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "rounded-2xl border border-purple-500/30 bg-[#140729]/80 p-6 text-center",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-7 h-7 text-purple-300 mx-auto mb-2" }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+									className: "text-sm font-bold text-white",
+									children: ["No active items in ", activeCategoryObj.title]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-purple-200/70 mt-1",
+									children: "New luxury items added from Lenzo Admin will appear here automatically."
+								})
+							]
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "grid grid-cols-3 gap-2.5 sm:gap-3",
+							children: categoryProducts.map((product) => {
+								const isSelected = featuredProduct?.id === product.id;
+								const ownedItem = inventoryByProductId.get(product.id);
+								const isEquipped = Boolean(ownedItem?.equipped);
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									onClick: () => setSelectedProductId(product.id),
+									role: "button",
+									tabIndex: 0,
+									onKeyDown: (e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											setSelectedProductId(product.id);
+										}
+									},
+									className: `group relative rounded-[18px] p-[1.5px] cursor-pointer transition-all duration-200 active:scale-[0.97] ${isSelected ? "-translate-y-0.5" : "hover:-translate-y-0.5"}`,
+									style: {
+										background: isSelected ? "linear-gradient(155deg, #FFC84A 0%, #EC4899 52%, #8B5CF6 100%)" : "linear-gradient(155deg, rgba(168,85,247,0.5) 0%, rgba(124,58,237,0.2) 100%)",
+										boxShadow: isSelected ? `0 0 22px ${product.glowColor}` : "0 4px 14px rgba(0,0,0,0.45)"
+									},
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative h-full rounded-[16.5px] px-2 pt-2.5 pb-2.5 flex flex-col items-center text-center overflow-hidden",
+										style: { background: isSelected ? "linear-gradient(180deg, #270D4F 0%, #120526 100%)" : "linear-gradient(180deg, #1B0938 0%, #0E041E 100%)" },
 										children: [
-											"(",
-											cart.length,
-											" items)"
+											ownedItem && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: `absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider ${isEquipped ? "bg-emerald-500/90 text-white shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-purple-500/80 text-white"}`,
+												children: isEquipped ? "ON" : "OWNED"
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "my-0.5 flex items-center justify-center",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+													product,
+													userAvatar: currentUser.avatar,
+													userName: currentUser.name,
+													size: "sm",
+													isPlaying: isSelected
+												})
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "mt-1.5 w-full truncate font-display text-[11px] sm:text-xs font-extrabold text-white tracking-tight",
+												children: product.name
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "mt-1 flex items-center justify-center gap-1",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenCoinIcon, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-[11px] sm:text-xs font-black text-amber-300 tabular-nums",
+													children: product.priceCoins.toLocaleString()
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+												type: "button",
+												onClick: (e) => {
+													e.stopPropagation();
+													handleOpenPreviewAnimation(product);
+												},
+												className: "mt-2 w-full py-1.5 px-2 rounded-lg bg-gradient-to-r from-[#7C3AED]/85 via-[#A855F7]/85 to-[#D946EF]/85 hover:from-[#8B5CF6] hover:to-[#EC4899] border border-purple-300/40 text-[10px] font-black uppercase tracking-wider text-white flex items-center justify-center gap-1 shadow-[0_0_12px_rgba(168,85,247,0.45)] active:scale-95 transition-all",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-2.5 h-2.5 fill-current" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Preview" })]
+											})
 										]
 									})
-								]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setIsCartOpen(false),
-								className: "w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "flex-1 overflow-y-auto no-scrollbar py-4 space-y-3",
-							children: cart.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "h-full flex flex-col items-center justify-center text-center p-6 text-[#9a8cae]",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShoppingBag, { className: "w-12 h-12 stroke-[1.2] opacity-40 mb-3 text-[#F328D5]" }),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-sm font-semibold text-white",
-										children: "Your cart is empty"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-xs mt-1",
-										children: "Explore our exclusive entrance effects, frames, and VIP passes!"
-									})
-								]
-							}) : cart.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-3 rounded-2xl bg-[#1a0e30] border border-white/[0.06] flex items-center gap-3",
-								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-										src: item.product.image,
-										alt: item.product.name,
-										className: "w-14 h-14 rounded-xl object-cover bg-black/40"
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								}, product.id);
+							})
+						})]
+					}),
+					featuredProduct && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("section", {
+						"aria-label": "Featured Product Preview",
+						className: "mt-5",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "relative rounded-[24px] p-[1.5px]",
+							style: {
+								background: "linear-gradient(135deg, #FFC84A 0%, #EC4899 45%, #8B5CF6 100%)",
+								boxShadow: `0 0 32px ${featuredProduct.glowColor}, 0 14px 30px rgba(0,0,0,0.65)`
+							},
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative rounded-[22.5px] p-4 sm:p-5 overflow-hidden",
+								style: { background: "radial-gradient(circle at 22% 50%, #340F68 0%, #16062E 52%, #0B0319 100%)" },
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute top-0 inset-x-8 h-[1px] bg-gradient-to-r from-transparent via-amber-200/70 to-transparent" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-4 sm:gap-5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										onClick: () => handleOpenPreviewAnimation(featuredProduct),
+										role: "button",
+										tabIndex: 0,
+										onKeyDown: (e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault();
+												handleOpenPreviewAnimation(featuredProduct);
+											}
+										},
+										className: "relative shrink-0 cursor-pointer group",
+										title: "Tap to open full-stage animation preview",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "rounded-2xl p-2 border border-purple-400/35 bg-[#120526]/85 flex items-center justify-center",
+											style: { boxShadow: `inset 0 0 22px ${featuredProduct.glowColor}` },
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+												product: featuredProduct,
+												userAvatar: currentUser.avatar,
+												userName: currentUser.name,
+												size: "lg",
+												isPlaying: !previewModalProduct
+											})
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-[#190833] border border-purple-400/50 text-[9px] font-black uppercase tracking-wider text-purple-200 whitespace-nowrap shadow",
+											children: "Live FX"
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex-1 min-w-0",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
-											className: "text-xs font-bold text-white truncate",
-											children: item.product.name
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-1 mt-1",
-											children: [item.product.currency === "coins" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-3 h-3 text-amber-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: "w-3 h-3 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-xs font-extrabold text-[#F328D5]",
-												children: (item.product.price * item.quantity).toLocaleString()
-											})]
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1.5 flex-wrap",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-[10px] font-black uppercase tracking-[0.12em] text-fuchsia-300",
+													children: activeCategoryObj.title
+												}), featuredProduct.badgeText && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "px-1.5 py-0.5 rounded bg-amber-400/20 border border-amber-300/45 text-[9px] font-black uppercase text-amber-200",
+													children: featuredProduct.badgeText
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+												className: "mt-1 font-display text-xl sm:text-2xl font-black text-white leading-tight truncate",
+												children: featuredProduct.name
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "mt-1.5 flex items-center gap-1.5",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenCoinIcon, { className: "w-5 h-5" }),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-lg sm:text-xl font-black text-amber-300 tabular-nums",
+														children: featuredProduct.priceCoins.toLocaleString()
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-xs font-bold text-amber-200/80 uppercase",
+														children: "Coins"
+													})
+												]
+											}),
+											featuredProduct.description && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "mt-1.5 text-[11px] leading-relaxed text-purple-100/75 line-clamp-2",
+												children: featuredProduct.description
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "mt-3.5 flex flex-col sm:flex-row gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+													type: "button",
+													onClick: () => handleOpenPreviewAnimation(featuredProduct),
+													className: "flex-1 py-2.5 px-3 rounded-xl bg-purple-600/35 hover:bg-purple-600/55 border border-purple-300/50 text-[11px] font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 shadow-[0_0_16px_rgba(168,85,247,0.35)] active:scale-95 transition-all",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3.5 h-3.5 fill-current text-fuchsia-200" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "whitespace-nowrap",
+														children: "Preview Animation"
+													})]
+												}), featuredOwned ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+													type: "button",
+													disabled: equippingId === featuredProduct.id,
+													onClick: () => void handleToggleEquip(featuredOwned, !featuredOwned.equipped),
+													className: `flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 transition-all ${featuredOwned.equipped ? "bg-emerald-500/25 border border-emerald-400/70 text-emerald-200 shadow-[0_0_16px_rgba(16,185,129,0.35)]" : "bg-gradient-to-r from-[#9333EA] to-[#EC4899] border border-pink-300/50 text-white shadow-[0_0_18px_rgba(236,72,153,0.5)]"}`,
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 stroke-[3]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: equippingId === featuredProduct.id ? "Updating..." : featuredOwned.equipped ? "Equipped" : "Equip Now" })]
+												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+													type: "button",
+													onClick: () => handleTapGetNow(featuredProduct),
+													className: "flex-1 py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-[#1C072B] flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-[0_0_22px_rgba(255,200,74,0.55)]",
+													style: { background: "linear-gradient(135deg, #FFF3B0 0%, #FFC84A 48%, #F59E0B 100%)" },
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Get Now" })]
+												})]
+											})
+										]
+									})]
+								})]
+							})
+						})
+					})
+				]
+			}),
+			toast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed top-20 left-1/2 -translate-x-1/2 z-[80] w-[92%] max-w-sm pointer-events-none",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: `px-4 py-3 rounded-2xl border backdrop-blur-xl text-xs font-bold text-center shadow-2xl ${toast.type === "success" ? "bg-emerald-950/90 border-emerald-400/60 text-emerald-100" : toast.type === "error" ? "bg-rose-950/90 border-rose-400/60 text-rose-100" : "bg-[#1D0A3D]/95 border-purple-400/60 text-purple-100"}`,
+					children: toast.text
+				})
+			}),
+			previewModalProduct && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-[70] bg-black/85 backdrop-blur-md flex items-center justify-center p-4",
+				onClick: () => setPreviewModalProduct(null),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "relative w-full max-w-sm rounded-[28px] p-[1.5px]",
+					style: {
+						background: "linear-gradient(145deg, #FFC84A 0%, #EC4899 50%, #7C3AED 100%)",
+						boxShadow: `0 0 48px ${previewModalProduct.glowColor}`
+					},
+					onClick: (e) => e.stopPropagation(),
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "relative rounded-[26.5px] p-5 text-center overflow-hidden",
+						style: { background: "radial-gradient(circle at 50% 28%, #36106B 0%, #140529 58%, #090214 100%)" },
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => setPreviewModalProduct(null),
+								"aria-label": "Close Preview",
+								className: "absolute top-3.5 right-3.5 z-20 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "text-[10px] font-black uppercase tracking-[0.16em] text-amber-300",
+								children: "Live Animation Preview"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+								className: "mt-1 font-display text-2xl font-black text-white",
+								children: previewModalProduct.name
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "my-5 flex items-center justify-center",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "p-4 rounded-3xl border border-purple-400/35 bg-[#0C031A]/80 shadow-inner",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+										product: previewModalProduct,
+										userAvatar: currentUser.avatar,
+										userName: currentUser.name,
+										size: "xl",
+										isPlaying: true
+									})
+								}, `${previewModalProduct.id}_${previewReplayKey}`)
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-purple-100/80 leading-relaxed px-2",
+								children: previewModalProduct.description
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-4 flex items-center justify-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenCoinIcon, { className: "w-5 h-5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-xl font-black text-amber-300 tabular-nums",
+									children: [previewModalProduct.priceCoins.toLocaleString(), " Coins"]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-5 grid grid-cols-2 gap-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => setPreviewReplayKey((k) => k + 1),
+									className: "py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-purple-300/35 text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-1.5 active:scale-95 transition-all",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RotateCcw, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Replay FX" })]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => {
+										const target = previewModalProduct;
+										setPreviewModalProduct(null);
+										handleTapGetNow(target);
+									},
+									className: "py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider text-[#1C072B] flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,200,74,0.55)]",
+									style: { background: "linear-gradient(135deg, #FFF3B0 0%, #FFC84A 48%, #F59E0B 100%)" },
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: inventoryByProductId.has(previewModalProduct.id) ? inventoryByProductId.get(previewModalProduct.id)?.equipped ? "Unequip" : "Equip Now" : "Get Now" })]
+								})]
+							})
+						]
+					})
+				})
+			}),
+			confirmPurchaseProduct && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-[75] bg-black/85 backdrop-blur-md flex items-center justify-center p-4",
+				onClick: () => !isPurchasing && setConfirmPurchaseProduct(null),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "w-full max-w-sm rounded-[26px] p-[1.5px]",
+					style: {
+						background: "linear-gradient(145deg, #FFC84A 0%, #A855F7 55%, #EC4899 100%)",
+						boxShadow: "0 0 40px rgba(168,85,247,0.55)"
+					},
+					onClick: (e) => e.stopPropagation(),
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "rounded-[24.5px] bg-[#130527] p-5",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between mb-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-amber-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "font-display text-base font-black uppercase tracking-wide text-white",
+										children: "Confirm Purchase"
+									})]
+								}), !isPurchasing && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setConfirmPurchaseProduct(null),
+									className: "w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/80 hover:text-white",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3.5 p-3 rounded-2xl bg-white/[0.04] border border-purple-400/25",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+									product: confirmPurchaseProduct,
+									userAvatar: currentUser.avatar,
+									userName: currentUser.name,
+									size: "sm",
+									isPlaying: true
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 flex-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "font-display text-base font-black text-white truncate",
+										children: confirmPurchaseProduct.name
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "mt-1 flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GoldenCoinIcon, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "text-sm font-black text-amber-300 tabular-nums",
+											children: [confirmPurchaseProduct.priceCoins.toLocaleString(), " Coins"]
+										})]
+									})]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-4 space-y-2 rounded-2xl bg-[#0B0318] border border-white/10 p-3.5 text-xs",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between text-purple-200/80",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "flex items-center gap-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-3.5 h-3.5 text-amber-300" }), "Current Balance"]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "font-bold text-white tabular-nums",
+											children: [displayedCoins.toLocaleString(), " Coins"]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center bg-[#251545] rounded-lg p-0.5 border border-white/10",
+										className: "flex items-center justify-between text-purple-200/80",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "flex items-center gap-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-3.5 h-3.5 text-fuchsia-300" }), "Item Price"]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "font-bold text-rose-300 tabular-nums",
 											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => handleUpdateQuantity(item.product.id, -1),
-													className: "w-6 h-6 flex items-center justify-center text-white hover:text-[#F328D5]",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Minus, { className: "w-3 h-3" })
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white px-1.5",
-													children: item.quantity
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													onClick: () => handleUpdateQuantity(item.product.id, 1),
-													className: "w-6 h-6 flex items-center justify-center text-white hover:text-[#F328D5]",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3 h-3" })
-												})
+												"-",
+												confirmPurchaseProduct.priceCoins.toLocaleString(),
+												" Coins"
 											]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-											onClick: () => handleUpdateQuantity(item.product.id, -item.quantity),
-											className: "text-gray-400 hover:text-rose-400 p-1",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-4 h-4" })
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "pt-2 border-t border-white/10 flex items-center justify-between",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "font-bold text-white",
+											children: "Balance After"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "font-black text-amber-300 tabular-nums",
+											children: [Math.max(0, displayedCoins - confirmPurchaseProduct.priceCoins).toLocaleString(), " Coins"]
 										})]
 									})
 								]
-							}, item.product.id))
-						}),
-						cart.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "pt-4 border-t border-white/[0.08] space-y-3",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "space-y-1.5",
-								children: [cartTotalCoins > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between text-xs",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[#a99cbf]",
-										children: "Coins Total:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-1 font-bold text-amber-300",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Coins, { className: "w-3.5 h-3.5 text-amber-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: cartTotalCoins.toLocaleString() })]
-									})]
-								}), cartTotalDiamonds > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between text-xs",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-[#a99cbf]",
-										children: "Diamonds Total:"
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-1 font-bold text-cyan-300",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gem, { className: "w-3.5 h-3.5 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: cartTotalDiamonds.toLocaleString() })]
-									})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-5 grid grid-cols-2 gap-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled: isPurchasing,
+									onClick: () => setConfirmPurchaseProduct(null),
+									className: "py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-purple-100 disabled:opacity-50",
+									children: "Cancel"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									disabled: isPurchasing,
+									onClick: () => void handleConfirmPurchase(),
+									className: "py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-[#1C072B] disabled:opacity-60 shadow-[0_0_20px_rgba(255,200,74,0.5)]",
+									style: { background: "linear-gradient(135deg, #FFF3B0 0%, #FFC84A 48%, #F59E0B 100%)" },
+									children: isPurchasing ? "Processing..." : "Confirm Buy"
 								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-								disabled: isPurchasing,
-								onClick: handleCheckoutCart,
-								className: "w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#c415f5] text-white text-xs font-black shadow-[0_6px_25px_rgba(243,40,213,0.5)] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { className: "w-4 h-4" }), isPurchasing ? "Processing Checkout..." : "Confirm & Purchase All"]
-							})]
-						})
-					]
-				})
-			})
-		]
-	});
-};
-// src/components/common/VerifiedBadge.tsx
-function resolveVerificationStatus(params) {
-	const user = params.user;
-	const level = params.level ?? user?.level ?? 0;
-	const vipLevel = params.vipLevel ?? user?.vipLevel ?? 0;
-	const superVipLevel = params.superVipLevel ?? user?.superVipLevel ?? 0;
-	const followers = user?.followersCount ?? 0;
-	const isAdminAccount = Boolean(user?.isAdmin) || (user?.email ? user.email.toLowerCase() === "yaquoobe@gmail.com" : false);
-	const customTag = user?.verifiedTag?.trim();
-	let tier = "none";
-	let reason = "Reach Lv.8, unlock VIP 1, join a verified agency, or receive Admin verification.";
-	if (user?.verificationTier === "gold") {
-		tier = "gold";
-		reason = "Awarded Official Legend Verification.";
-	} else if (user?.verificationTier === "blue") {
-		tier = "blue";
-		reason = "Awarded Official Respect Verification.";
-	} else if (user?.verificationTier === "none") tier = "none";
-	else if (isAdminAccount || level >= 50 || superVipLevel >= 3 || vipLevel >= 6) {
-		tier = "gold";
-		if (isAdminAccount) reason = "Official Lenzo Party Founder & Legend.";
-		else if (level >= 50) reason = `Earned at Level ${level} (Legend Tier Lv.50+).`;
-		else if (superVipLevel >= 3) reason = `Earned via Super VIP ${superVipLevel} Legend status.`;
-		else reason = `Earned via VIP ${vipLevel} Legend status.`;
-	} else if (user?.isVerified || level >= 8 || vipLevel >= 1 || followers >= 1e3 || user?.agencyStatus === "active") {
-		tier = "blue";
-		if (user?.isVerified) reason = "Verified Respected Creator on Lenzo Party.";
-		else if (level >= 8) reason = `Earned at Level ${level} (Respected Member Lv.8+).`;
-		else if (vipLevel >= 1) reason = `Earned via VIP ${vipLevel} Membership.`;
-		else if (followers >= 1e3) reason = "Earned with 1,000+ community followers.";
-		else reason = "Earned as an active verified Agency member.";
-	}
-	if (tier === "gold") return {
-		tier: "gold",
-		isVerified: true,
-		isLegend: true,
-		isRespected: true,
-		tagLabel: customTag || "Legend",
-		badgeTitle: "Verified Legend",
-		subtitle: "Golden Tick · Legends",
-		reason
-	};
-	if (tier === "blue") return {
-		tier: "blue",
-		isVerified: true,
-		isLegend: false,
-		isRespected: true,
-		tagLabel: customTag || "Respect",
-		badgeTitle: "Verified · Respect",
-		subtitle: "Blue Tick · Respect",
-		reason
-	};
-	return {
-		tier: "none",
-		isVerified: false,
-		isLegend: false,
-		isRespected: false,
-		tagLabel: "",
-		badgeTitle: "Not Verified",
-		subtitle: "Verification Tiers",
-		reason
-	};
-}
-var TICK_SIZES = {
-	xs: 15,
-	sm: 18,
-	md: 21,
-	lg: 34
-};
-/**
-* Crisp 12-point scalloped verification seal SVG:
-* - 'blue' => Radiant sapphire/azure Blue Tick for Respect
-* - 'gold' => Gleaming 24K molten-gold Golden Tick for Legends
-*/
-var VerifiedTick = ({ tier, size = "sm", className = "" }) => {
-	const uid = (0, import_react.useId)().replace(/:/g, "");
-	const px = TICK_SIZES[size];
-	const isGold = tier === "gold";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-		width: px,
-		height: px,
-		viewBox: "0 0 32 32",
-		fill: "none",
-		xmlns: "http://www.w3.org/2000/svg",
-		"aria-label": isGold ? "Golden Tick — Verified Legend" : "Blue Tick — Verified for Respect",
-		className: `shrink-0 ${isGold ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]" : "drop-shadow-[0_0_7px_rgba(56,189,248,0.6)]"} ${className}`,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: isGold ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-					id: `vt_bg_${uid}`,
-					x1: "3",
-					y1: "2",
-					x2: "29",
-					y2: "30",
-					gradientUnits: "userSpaceOnUse",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "0%",
-							stopColor: "#FEF08A"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "35%",
-							stopColor: "#FBBF24"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "72%",
-							stopColor: "#D97706"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "100%",
-							stopColor: "#92400E"
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-					id: `vt_rim_${uid}`,
-					x1: "6",
-					y1: "3",
-					x2: "26",
-					y2: "29",
-					gradientUnits: "userSpaceOnUse",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "0%",
-							stopColor: "#FFFBEB",
-							stopOpacity: "0.95"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "55%",
-							stopColor: "#FDE047",
-							stopOpacity: "0.45"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "100%",
-							stopColor: "#78350F",
-							stopOpacity: "0.8"
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
-					id: `vt_shine_${uid}`,
-					cx: "34%",
-					cy: "26%",
-					r: "55%",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-						offset: "0%",
-						stopColor: "#FFFFFF",
-						stopOpacity: "0.65"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-						offset: "100%",
-						stopColor: "#FBBF24",
-						stopOpacity: "0"
-					})]
-				})
-			] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-					id: `vt_bg_${uid}`,
-					x1: "3",
-					y1: "2",
-					x2: "29",
-					y2: "30",
-					gradientUnits: "userSpaceOnUse",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "0%",
-							stopColor: "#7DD3FC"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "38%",
-							stopColor: "#38BDF8"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "74%",
-							stopColor: "#2563EB"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "100%",
-							stopColor: "#1D4ED8"
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-					id: `vt_rim_${uid}`,
-					x1: "6",
-					y1: "3",
-					x2: "26",
-					y2: "29",
-					gradientUnits: "userSpaceOnUse",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "0%",
-							stopColor: "#E0F2FE",
-							stopOpacity: "0.95"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "55%",
-							stopColor: "#60A5FA",
-							stopOpacity: "0.45"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-							offset: "100%",
-							stopColor: "#1E3A8A",
-							stopOpacity: "0.8"
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
-					id: `vt_shine_${uid}`,
-					cx: "34%",
-					cy: "26%",
-					r: "55%",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-						offset: "0%",
-						stopColor: "#FFFFFF",
-						stopOpacity: "0.55"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-						offset: "100%",
-						stopColor: "#38BDF8",
-						stopOpacity: "0"
-					})]
-				})
-			] }) }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-				d: "M16 1.6 L19.1 4.1 L23.1 3.7 L24.5 7.4 L28.2 8.8 L27.8 12.8 L30.4 16 L27.8 19.2 L28.2 23.2 L24.5 24.6 L23.1 28.3 L19.1 27.9 L16 30.4 L12.9 27.9 L8.9 28.3 L7.5 24.6 L3.8 23.2 L4.2 19.2 L1.6 16 L4.2 12.8 L3.8 8.8 L7.5 7.4 L8.9 3.7 L12.9 4.1 Z",
-				fill: `url(#vt_bg_${uid})`,
-				stroke: `url(#vt_rim_${uid})`,
-				strokeWidth: "1.25",
-				strokeLinejoin: "round"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-				cx: "16",
-				cy: "16",
-				r: "10.2",
-				fill: `url(#vt_shine_${uid})`
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-				cx: "16",
-				cy: "16",
-				r: "9.4",
-				fill: "none",
-				stroke: isGold ? "#FEF9C3" : "#E0F2FE",
-				strokeOpacity: "0.38",
-				strokeWidth: "0.9"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
-				stroke: isGold ? "#78350F" : "#1E3A8A",
-				strokeOpacity: "0.55",
-				strokeWidth: "3.2",
-				strokeLinecap: "round",
-				strokeLinejoin: "round",
-				transform: "translate(0 0.8)"
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
-				stroke: "#FFFFFF",
-				strokeWidth: "2.8",
-				strokeLinecap: "round",
-				strokeLinejoin: "round"
-			})
-		]
-	});
-};
-var VerifiedNameTag = ({ user, level, vipLevel, superVipLevel, variant = "full", showUnverifiedHint = false }) => {
-	const [infoOpen, setInfoOpen] = (0, import_react.useState)(false);
-	const status = resolveVerificationStatus({
-		user,
-		level,
-		vipLevel,
-		superVipLevel
-	});
-	if (status.tier === "none" && !showUnverifiedHint) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-		status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			onClick: () => setInfoOpen(true),
-			title: "Golden Tick — Verified Legend (Tap for details)",
-			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#3B2608] via-[#2B1B07] to-[#1E1305] border border-[#FBBF24]/55 shadow-[0_0_14px_rgba(251,191,36,0.22)] hover:border-[#FDE047] active:scale-95 transition-all shrink-0",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-				tier: "gold",
-				size: variant === "compact" ? "sm" : "sm"
-			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#FEF08A]",
-						children: "Verified"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#FBBF24]/55",
-						children: "·"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#FBBF24]",
-						children: status.tagLabel
+							})
+						]
 					})
-				]
-			})]
-		}),
-		status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			onClick: () => setInfoOpen(true),
-			title: "Blue Tick — Verified for Respect (Tap for details)",
-			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#0A2240] via-[#0C1D3A] to-[#0B1730] border border-[#38BDF8]/55 shadow-[0_0_14px_rgba(56,189,248,0.2)] hover:border-[#7DD3FC] active:scale-95 transition-all shrink-0",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-				tier: "blue",
-				size: variant === "compact" ? "sm" : "sm"
-			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#E0F2FE]",
-						children: "Verified"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#38BDF8]/55",
-						children: "·"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#38BDF8]",
-						children: status.tagLabel
-					})
-				]
-			})]
-		}),
-		status.tier === "none" && showUnverifiedHint && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			onClick: () => setInfoOpen(true),
-			title: "View Verified Blue Tick (Respect) & Golden Tick (Legends) requirements",
-			className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-[10px] font-bold text-[#D7CEEB] active:scale-95 transition-all shrink-0",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: "inline-flex items-center -space-x-1",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-					tier: "blue",
-					size: "xs"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-					tier: "gold",
-					size: "xs"
-				})]
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Verify" })]
-		}),
-		infoOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: "fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-md",
-			onClick: () => setInfoOpen(false),
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "w-full max-w-md bg-[#120822] border border-white/15 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden",
-				onClick: (e) => e.stopPropagation(),
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "px-5 py-4 bg-gradient-to-r from-[#24103F] via-[#1B0C31] to-[#120822] border-b border-white/10 flex items-center justify-between gap-3",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2.5",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: "w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center",
-							children: status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-								tier: "gold",
-								size: "md"
-							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-								tier: "blue",
-								size: "md"
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-[#7DD3FC]" })
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-							className: "text-sm font-black text-white",
-							children: "Lenzo Verified Badges"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-[11px] text-[#C5B9DE]",
-							children: "Respect Blue Tick & Legends Golden Tick"
-						})] })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						onClick: () => setInfoOpen(false),
-						className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-					})]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "p-5 space-y-3.5",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "min-w-0",
+				})
+			}),
+			purchaseSuccessModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed inset-0 z-[78] bg-black/85 backdrop-blur-md flex items-center justify-center p-4",
+				onClick: () => setPurchaseSuccessModal(null),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "w-full max-w-sm rounded-[26px] p-[1.5px]",
+					style: {
+						background: "linear-gradient(145deg, #34D399 0%, #FFC84A 50%, #A855F7 100%)",
+						boxShadow: "0 0 44px rgba(52,211,153,0.45)"
+					},
+					onClick: (e) => e.stopPropagation(),
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "rounded-[24.5px] bg-[#130527] p-6 text-center",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-400/60 flex items-center justify-center mx-auto mb-3 shadow-[0_0_20px_rgba(16,185,129,0.5)]",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-7 h-7 text-emerald-300" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+								className: "font-display text-xl font-black text-white",
+								children: "Purchase Successful!"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+								className: "mt-1 text-xs text-purple-200/80",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-[10px] font-bold uppercase tracking-wider text-[#B9AECF]",
-										children: "Current Profile Status"
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "font-bold text-amber-200",
+										children: purchaseSuccessModal.product.name
 									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-sm font-black text-white mt-0.5 truncate",
-										children: status.badgeTitle
-									}),
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-										className: "text-[11px] text-[#C5B9DE] mt-0.5",
-										children: status.reason
-									})
+									" ",
+									"has been added to your Lenzo Party inventory."
 								]
-							}), status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-								tier: "gold",
-								size: "lg"
-							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-								tier: "blue",
-								size: "lg"
-							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center -space-x-1.5 shrink-0 opacity-75",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-									tier: "blue",
-									size: "md"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-									tier: "gold",
-									size: "md"
-								})]
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: `p-4 rounded-2xl border transition-all ${status.tier === "blue" ? "bg-gradient-to-br from-[#0A2548]/90 to-[#0C1732] border-[#38BDF8]/65 shadow-[0_0_24px_rgba(56,189,248,0.18)]" : "bg-[#170C2B] border-white/10"}`,
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-start gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-									tier: "blue",
-									size: "lg",
-									className: "mt-0.5"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "min-w-0 flex-1",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "text-sm font-black text-[#E0F2FE]",
-												children: "Blue Tick — For Respect"
-											}), status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#38BDF8]/20 border border-[#38BDF8]/50 text-[10px] font-black text-[#7DD3FC]",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3 h-3" }), "ACTIVE"]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-xs text-[#C5B9DE] mt-1 leading-relaxed",
-											children: "Honors respected creators, trusted hosts, and valued community members across Lenzo Party."
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-[11px] text-[#7DD3FC] font-semibold mt-2",
-											children: "Unlock: Level 8+, VIP 1+, Verified Agency, 1,000+ Followers, or Admin Grant."
-										})
-									]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "my-4 flex justify-center",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+									product: purchaseSuccessModal.product,
+									userAvatar: currentUser.avatar,
+									userName: currentUser.name,
+									size: "md",
+									isPlaying: true
+								})
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "text-[11px] font-bold text-amber-200/90 mb-4",
+								children: [
+									"Remaining Balance: ",
+									purchaseSuccessModal.newBalance.toLocaleString(),
+									" Coins"
+								]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "grid grid-cols-2 gap-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setPurchaseSuccessModal(null),
+									className: "py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white",
+									children: "Done"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: async () => {
+										const inv = purchaseSuccessModal.inventoryItem || inventoryByProductId.get(purchaseSuccessModal.product.id);
+										setPurchaseSuccessModal(null);
+										if (inv) await handleToggleEquip(inv, true);
+									},
+									className: "py-2.5 rounded-xl bg-gradient-to-r from-[#9333EA] to-[#EC4899] text-xs font-black uppercase tracking-wider text-white shadow-[0_0_18px_rgba(236,72,153,0.55)]",
+									children: "Equip Now"
 								})]
 							})
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: `p-4 rounded-2xl border transition-all ${status.tier === "gold" ? "bg-gradient-to-br from-[#3D2607]/90 to-[#1D1206] border-[#FBBF24]/70 shadow-[0_0_24px_rgba(251,191,36,0.2)]" : "bg-[#170C2B] border-white/10"}`,
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-start gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
-									tier: "gold",
-									size: "lg",
-									className: "mt-0.5"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "min-w-0 flex-1",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center justify-between gap-2",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "text-sm font-black text-[#FEF08A] flex items-center gap-1",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3.5 h-3.5 text-[#FBBF24]" }), "Golden Tick — For Legends"]
-											}), status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBBF24]/20 border border-[#FBBF24]/55 text-[10px] font-black text-[#FEF08A]",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3" }), "ACTIVE"]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-xs text-[#E5D7B8] mt-1 leading-relaxed",
-											children: "Reserved for Lenzo Party Legends — elite high-tier icons, top royalty, and official VIP legends."
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-											className: "text-[11px] text-[#FBBF24] font-semibold mt-2",
-											children: "Unlock: Level 50+ (Ruby–Royal), VIP 6+, Super VIP 3+, or Official Legend Grant."
-										})
-									]
-								})]
-							})
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							onClick: () => setInfoOpen(false),
-							className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-extrabold text-white transition-colors",
-							children: "Got It"
-						})
-					]
-				})]
+						]
+					})
+				})
 			})
-		})
-	] });
+		]
+	});
 };
 // src/components/common/AchievementBadgeArt.tsx
 function renderAchievementIcon(iconKey, className = "w-4 h-4") {
@@ -123216,17 +126139,17 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 						className: "lg:col-span-5 space-y-4",
 						children: [
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3.5",
+								className: "p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] flex flex-col gap-3.5",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-start justify-between gap-2.5",
+										className: "grid grid-cols-[minmax(0,1fr)_auto] items-start sm:items-center gap-x-3 sm:gap-x-4 gap-y-3",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "min-w-0 flex-1",
+											className: "min-w-0 flex flex-col gap-2.5",
 											children: [
 												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2 flex-wrap",
+													className: "flex flex-wrap items-center gap-x-2 gap-y-1.5 min-w-0",
 													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
-														className: "text-xl sm:text-2xl font-black text-white tracking-tight truncate max-w-full",
+														className: "text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate max-w-full",
 														children: activeUser.name
 													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedNameTag, {
 														user: activeUser,
@@ -123237,7 +126160,26 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 													})]
 												}),
 												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2 mt-2 flex-wrap",
+													className: "flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs",
+													children: [
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-[#FA26A0] font-mono font-bold truncate max-w-[165px]",
+															children: activeUser.username || `@${activeUser.displayId.toLowerCase()}`
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-white/25 select-none",
+															children: "·"
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+															type: "button",
+															onClick: handleCopyId,
+															className: "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["ID: ", activeUser.displayId] }), copiedId ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3 text-emerald-400 shrink-0" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3 h-3 text-[#B9AECF] shrink-0" })]
+														})
+													]
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex flex-wrap items-center gap-2",
 													children: [
 														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
 															level: fullProgression.currentLevel,
@@ -123256,81 +126198,18 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 															onClick: () => openProgressionHub("super_vip")
 														})
 													]
-												}),
-												equippedBadges.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "flex items-center gap-1.5 mt-2 flex-wrap",
-													children: equippedBadges.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-														type: "button",
-														onClick: () => setIsBadgeVaultOpen(true),
-														className: "inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors",
-														children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
-															shape: b.shape,
-															iconKey: b.iconKey,
-															accentFrom: b.accentFrom,
-															accentTo: b.accentTo,
-															borderHex: b.borderHex,
-															isEarned: true,
-															size: "xs"
-														}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: b.name })]
-													}, b.id))
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2 mt-1.5 flex-wrap text-xs",
-													children: [
-														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-															className: "text-[#FA26A0] font-mono font-bold truncate max-w-[160px]",
-															children: activeUser.username || `@${activeUser.displayId.toLowerCase()}`
-														}),
-														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-															className: "text-white/25",
-															children: "·"
-														}),
-														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-															onClick: handleCopyId,
-															className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["ID: ", activeUser.displayId] }), copiedId ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3 text-emerald-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3 h-3 text-[#B9AECF]" })]
-														})
-													]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-													className: "flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]",
-													children: [
-														activeUser.country && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: getCountryFlag(activeUser.country) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.country })]
-														}),
-														(displayGender || displayAge !== null) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
-															children: [
-																displayGender && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: displayGender }),
-																displayGender && displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "·" }),
-																displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-																	className: "tabular-nums",
-																	children: [displayAge, " yrs"]
-																})
-															]
-														}),
-														showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `w-2 h-2 rounded-full ${isOnlineNow ? "bg-emerald-400" : "bg-slate-400"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isOnlineNow ? "Online" : "Offline" })]
-														}),
-														activeUser.crewBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold",
-															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3 h-3 text-[#C084FC]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: activeUser.crewBadge })]
-														})
-													]
 												})
 											]
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 											type: "button",
 											onClick: () => openProgressionHub("roadmap"),
 											"aria-label": `Level ${fullProgression.currentLevel} Emblem — Tap to view all levels 0 to 100`,
-											className: "group shrink-0 self-center flex flex-col items-center justify-center pl-1 py-1 rounded-2xl transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]",
+											className: "group shrink-0 self-start sm:self-center flex flex-col items-center justify-center px-2.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] transition-all duration-200 hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelEmblemBadge, {
 												level: fullProgression.currentLevel,
 												size: "hero"
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "mt-1 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums",
+												className: "mt-1.5 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums",
 												children: [
 													"LV.",
 													fullProgression.currentLevel,
@@ -123339,6 +126218,69 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 												]
 											})]
 										})]
+									}),
+									equippedBadges.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "flex flex-wrap items-center gap-2",
+										children: equippedBadges.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => setIsBadgeVaultOpen(true),
+											className: "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AchievementBadgeEmblem, {
+												shape: b.shape,
+												iconKey: b.iconKey,
+												accentFrom: b.accentFrom,
+												accentTo: b.accentTo,
+												borderHex: b.borderHex,
+												isEarned: true,
+												size: "xs"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: b.name })]
+										}, b.id))
+									}),
+									(activeUser.country || displayGender || displayAge !== null || showOnline || activeUser.crewBadge) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex flex-wrap items-center gap-2 pt-2.5 border-t border-white/[0.06] text-[11px] text-[#D7CEEB]",
+										children: [
+											activeUser.country && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "leading-none",
+													children: getCountryFlag(activeUser.country)
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "font-medium leading-none",
+													children: activeUser.country
+												})]
+											}),
+											(displayGender || displayAge !== null) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]",
+												children: [
+													displayGender && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "leading-none",
+														children: displayGender
+													}),
+													displayGender && displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+														className: "text-white/30 leading-none",
+														children: "·"
+													}),
+													displayAge !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+														className: "tabular-nums leading-none",
+														children: [displayAge, " yrs"]
+													})
+												]
+											}),
+											showOnline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `w-2 h-2 rounded-full shrink-0 ${isOnlineNow ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.75)]" : "bg-slate-400"}` }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "font-medium leading-none",
+													children: isOnlineNow ? "Online" : "Offline"
+												})]
+											}),
+											activeUser.crewBadge && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5 text-[#C084FC] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "leading-none",
+													children: activeUser.crewBadge
+												})]
+											})
+										]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 										className: "text-xs text-[#D7CEEB] leading-relaxed pt-2 border-t border-white/[0.07]",
@@ -129324,6 +132266,560 @@ var LevelUpCelebrationModal = ({ isOpen, onClose, oldLevel, newLevel, coinsSpent
 		})
 	});
 };
+// src/components/screens/AdminStoreTab.tsx
+var DEFAULT_COLORS_BY_CATEGORY = {
+	vip_frames: {
+		primaryColor: "#FF8A00",
+		secondaryColor: "#FFC84A",
+		accentColor: "#FFE082",
+		glowColor: "rgba(255, 160, 24, 0.75)",
+		preset: "royal_flame"
+	},
+	special_entry: {
+		primaryColor: "#F59E0B",
+		secondaryColor: "#9333EA",
+		accentColor: "#FEF08A",
+		glowColor: "rgba(245, 158, 11, 0.78)",
+		preset: "imperial_carpet"
+	},
+	custom_gift: {
+		primaryColor: "#9333EA",
+		secondaryColor: "#FFC84A",
+		accentColor: "#F472B6",
+		glowColor: "rgba(168, 85, 247, 0.8)",
+		preset: "velvet_gift_box"
+	},
+	premium_assets: {
+		primaryColor: "#A855F7",
+		secondaryColor: "#EC4899",
+		accentColor: "#F5D0FE",
+		glowColor: "rgba(168, 85, 247, 0.82)",
+		preset: "amethyst_prism"
+	}
+};
+function createEmptyDraft(categoryId = "vip_frames") {
+	const palette = DEFAULT_COLORS_BY_CATEGORY[categoryId];
+	return {
+		id: "",
+		name: "",
+		categoryId,
+		priceCoins: 2500,
+		description: "",
+		imageUrl: "",
+		animationUrl: "",
+		animationPreset: palette.preset,
+		primaryColor: palette.primaryColor,
+		secondaryColor: palette.secondaryColor,
+		accentColor: palette.accentColor,
+		glowColor: palette.glowColor,
+		badgeText: "",
+		durationDays: 0,
+		isFeatured: false,
+		enabled: true,
+		sortOrder: 10
+	};
+}
+var AdminStoreTab = ({ onNotify, onError }) => {
+	const [products, setProducts] = (0, import_react.useState)([]);
+	const [filterCat, setFilterCat] = (0, import_react.useState)("all");
+	const [editing, setEditing] = (0, import_react.useState)(null);
+	const [saving, setSaving] = (0, import_react.useState)(false);
+	const [uploadingField, setUploadingField] = (0, import_react.useState)(null);
+	const [confirmDeleteId, setConfirmDeleteId] = (0, import_react.useState)(null);
+	const [seeding, setSeeding] = (0, import_react.useState)(false);
+	(0, import_react.useEffect)(() => {
+		const unsub = subscribeStoreProducts(setProducts, { includeDisabled: true });
+		return () => unsub();
+	}, []);
+	const filteredProducts = (0, import_react.useMemo)(() => {
+		if (filterCat === "all") return products;
+		return products.filter((p) => p.categoryId === filterCat);
+	}, [products, filterCat]);
+	const handleUploadAsset = async (file, field) => {
+		if (!editing) return;
+		setUploadingField(field);
+		try {
+			const dataUrl = await new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(String(reader.result || ""));
+				reader.onerror = () => reject(/* @__PURE__ */ new Error("Failed to read file"));
+				reader.readAsDataURL(file);
+			});
+			const token = await auth.currentUser?.getIdToken();
+			const res = await apiFetch("/api/media/upload", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...token ? { Authorization: `Bearer ${token}` } : {}
+				},
+				body: JSON.stringify({
+					dataUrl,
+					filename: file.name,
+					folder: "store_assets"
+				})
+			});
+			const json = await res.json().catch(() => ({}));
+			if (res.ok && json.url) {
+				setEditing((prev) => prev ? {
+					...prev,
+					[field]: json.url
+				} : null);
+				onNotify(`Uploaded ${field === "imageUrl" ? "product image" : "animation asset"}!`);
+			} else if (file.size < 45e4) {
+				setEditing((prev) => prev ? {
+					...prev,
+					[field]: dataUrl
+				} : null);
+				onNotify("Asset attached directly to product.");
+			} else onError(json.error || "Upload failed. Try a smaller file or paste an HTTPS URL.");
+		} catch (err) {
+			onError(err instanceof Error ? err.message : "Asset upload failed.");
+		} finally {
+			setUploadingField(null);
+		}
+	};
+	const handleSave = async () => {
+		if (!editing) return;
+		if (!editing.name.trim()) {
+			onError("Product name is required.");
+			return;
+		}
+		if (!editing.priceCoins || editing.priceCoins < 1) {
+			onError("Coin price must be greater than 0.");
+			return;
+		}
+		setSaving(true);
+		const res = await adminSaveStoreProduct(editing);
+		setSaving(false);
+		if (!res.success) {
+			onError(res.error || "Failed to save product.");
+			return;
+		}
+		setEditing(null);
+		onNotify(`Saved "${editing.name}" — Store updated live!`);
+	};
+	const handleQuickToggle = async (product, patch, label) => {
+		const res = await adminSaveStoreProduct({
+			...product,
+			...patch
+		});
+		if (res.success) onNotify(`${product.name}: ${label}`);
+		else onError(res.error || "Failed to update product.");
+	};
+	const handleDelete = async (productId, productName) => {
+		const res = await adminDeleteStoreProduct(productId);
+		setConfirmDeleteId(null);
+		if (res.success) onNotify(`Deleted "${productName}" from Lenzo Store.`);
+		else onError(res.error || "Failed to delete product.");
+	};
+	const handleSeedDefaults = async () => {
+		setSeeding(true);
+		const res = await adminSeedDefaultStoreCatalog();
+		setSeeding(false);
+		if (res.success) onNotify(`Synced ${res.count} official Lenzo Store products to Firestore!`);
+		else onError(res.error || "Failed to seed catalog.");
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "space-y-4",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex flex-wrap items-center justify-between gap-2",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+					className: "text-xs font-black uppercase tracking-wider text-[#FFC84A]",
+					children: [
+						"Lenzo Store Catalog Manager (",
+						products.length,
+						" Products)"
+					]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "text-[11px] text-[#B9AECF]",
+					children: "Add, edit, price, enable/disable, or upload animated assets. Changes sync live to Store."
+				})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-2",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						type: "button",
+						disabled: seeding,
+						onClick: () => void handleSeedDefaults(),
+						className: "px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] border border-white/10 text-[11px] font-bold text-purple-200 flex items-center gap-1.5 disabled:opacity-50",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Database, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: seeding ? "Syncing..." : "Sync Default Catalog" })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						type: "button",
+						onClick: () => setEditing(createEmptyDraft(filterCat === "all" ? "vip_frames" : filterCat)),
+						className: "px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-black flex items-center gap-1.5 shadow",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-3.5 h-3.5 stroke-[3]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Add Product" })]
+					})]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					onClick: () => setFilterCat("all"),
+					className: `px-3 py-1.5 rounded-lg text-[11px] font-extrabold shrink-0 ${filterCat === "all" ? "bg-purple-600 text-white" : "bg-white/[0.05] text-[#C5B9DE] hover:text-white"}`,
+					children: [
+						"All (",
+						products.length,
+						")"
+					]
+				}), DEFAULT_STORE_CATEGORIES.map((cat) => {
+					const count = products.filter((p) => p.categoryId === cat.id).length;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						type: "button",
+						onClick: () => setFilterCat(cat.id),
+						className: `px-3 py-1.5 rounded-lg text-[11px] font-extrabold shrink-0 ${filterCat === cat.id ? "bg-purple-600 text-white" : "bg-white/[0.05] text-[#C5B9DE] hover:text-white"}`,
+						children: [
+							cat.title,
+							" (",
+							count,
+							")"
+						]
+					}, cat.id);
+				})]
+			}),
+			editing && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "rounded-2xl border border-[#FFC84A]/45 bg-[#180A32] p-4 space-y-4",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center justify-between",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
+						className: "text-xs font-black uppercase tracking-wider text-[#FFC84A]",
+						children: editing.id ? `Edit Store Product (${editing.id})` : "Create New Store Product"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: () => setEditing(null),
+						className: "w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "grid grid-cols-1 md:grid-cols-3 gap-4",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "rounded-2xl bg-[#0C041A] border border-purple-500/30 p-4 flex flex-col items-center justify-center text-center",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[10px] font-black uppercase tracking-widest text-purple-300 mb-3",
+								children: "Live Store Preview"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+								product: editing,
+								size: "lg",
+								isPlaying: true
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "mt-3 text-sm font-black text-white",
+								children: editing.name || "Product Name"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "text-xs font-bold text-amber-300",
+								children: [(editing.priceCoins || 0).toLocaleString(), " Coins"]
+							})
+						]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Product Name"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								value: editing.name,
+								onChange: (e) => setEditing({
+									...editing,
+									name: e.target.value
+								}),
+								placeholder: "e.g. Royal Flame",
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white"
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Store Category"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("select", {
+								value: editing.categoryId,
+								onChange: (e) => {
+									const nextCat = e.target.value;
+									const defaults = DEFAULT_COLORS_BY_CATEGORY[nextCat];
+									setEditing({
+										...editing,
+										categoryId: nextCat,
+										animationPreset: defaults.preset,
+										primaryColor: defaults.primaryColor,
+										secondaryColor: defaults.secondaryColor,
+										accentColor: defaults.accentColor,
+										glowColor: defaults.glowColor
+									});
+								},
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white",
+								children: DEFAULT_STORE_CATEGORIES.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+									value: c.id,
+									className: "bg-[#140A24]",
+									children: c.title
+								}, c.id))
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Coin Price"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "number",
+								min: 1,
+								value: editing.priceCoins,
+								onChange: (e) => setEditing({
+									...editing,
+									priceCoins: Math.max(0, Number(e.target.value))
+								}),
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-amber-300 font-bold"
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Animation Preset FX"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("select", {
+								value: editing.animationPreset,
+								onChange: (e) => setEditing({
+									...editing,
+									animationPreset: e.target.value
+								}),
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white",
+								children: STORE_ANIMATION_PRESET_OPTIONS.map((opt) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+									value: opt.value,
+									className: "bg-[#140A24]",
+									children: opt.label
+								}, opt.value))
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Badge Label (Optional)"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								value: editing.badgeText || "",
+								onChange: (e) => setEditing({
+									...editing,
+									badgeText: e.target.value
+								}),
+								placeholder: "POPULAR / HOT / ROYAL",
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white"
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Sort Order"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "number",
+								min: 0,
+								value: editing.sortOrder,
+								onChange: (e) => setEditing({
+									...editing,
+									sortOrder: Number(e.target.value) || 0
+								}),
+								className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white"
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Custom Image URL (Optional)"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+									value: editing.imageUrl || "",
+									onChange: (e) => setEditing({
+										...editing,
+										imageUrl: e.target.value
+									}),
+									placeholder: "https://... or upload",
+									className: "flex-1 min-w-0 px-2.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+									className: "px-2.5 py-2 rounded-xl bg-purple-600/35 hover:bg-purple-600/55 border border-purple-400/40 text-white cursor-pointer flex items-center gap-1 shrink-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Upload, { className: "w-3.5 h-3.5" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: uploadingField === "imageUrl" ? "..." : "Up" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "file",
+											accept: "image/*",
+											className: "hidden",
+											onChange: (e) => {
+												const file = e.target.files?.[0];
+												if (file) handleUploadAsset(file, "imageUrl");
+											}
+										})
+									]
+								})]
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+								className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+								children: "Animation Asset URL (GIF/WebM/MP4)"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+									value: editing.animationUrl || "",
+									onChange: (e) => setEditing({
+										...editing,
+										animationUrl: e.target.value
+									}),
+									placeholder: "https://... or upload",
+									className: "flex-1 min-w-0 px-2.5 py-2 rounded-xl bg-black/40 border border-white/15 text-white"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+									className: "px-2.5 py-2 rounded-xl bg-purple-600/35 hover:bg-purple-600/55 border border-purple-400/40 text-white cursor-pointer flex items-center gap-1 shrink-0",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Upload, { className: "w-3.5 h-3.5" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: uploadingField === "animationUrl" ? "..." : "Up" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "file",
+											accept: "image/gif,image/webp,video/mp4,video/webm",
+											className: "hidden",
+											onChange: (e) => {
+												const file = e.target.files?.[0];
+												if (file) handleUploadAsset(file, "animationUrl");
+											}
+										})
+									]
+								})]
+							})] }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "sm:col-span-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+									className: "text-[10px] font-bold text-[#B9AECF] uppercase block mb-1",
+									children: "Description"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+									rows: 2,
+									value: editing.description,
+									onChange: (e) => setEditing({
+										...editing,
+										description: e.target.value
+									}),
+									placeholder: "Describe the luxury visual effect and animation...",
+									className: "w-full px-3 py-2 rounded-xl bg-black/40 border border-white/15 text-white resize-none"
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "sm:col-span-2 flex flex-wrap items-center justify-between gap-3 pt-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-4",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+										className: "flex items-center gap-2 cursor-pointer text-xs font-bold text-white",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "checkbox",
+											checked: editing.enabled,
+											onChange: (e) => setEditing({
+												...editing,
+												enabled: e.target.checked
+											}),
+											className: "accent-emerald-400 w-4 h-4"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Enabled in Store" })]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", {
+										className: "flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-200",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "checkbox",
+											checked: editing.isFeatured,
+											onChange: (e) => setEditing({
+												...editing,
+												isFeatured: e.target.checked
+											}),
+											className: "accent-amber-400 w-4 h-4"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Featured Product" })]
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => setEditing(null),
+										className: "px-3.5 py-2 rounded-xl bg-white/10 text-xs font-bold text-white",
+										children: "Cancel"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										disabled: saving,
+										onClick: () => void handleSave(),
+										className: "px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#07140E] text-xs font-black flex items-center gap-1.5 disabled:opacity-50",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Save, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: saving ? "Saving..." : "Save Product" })]
+									})]
+								})]
+							})
+						]
+					})]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
+				children: filteredProducts.map((prod) => {
+					const catTitle = DEFAULT_STORE_CATEGORIES.find((c) => c.id === prod.categoryId)?.title || prod.categoryId;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: `p-3.5 rounded-2xl border flex items-center gap-3 transition-all ${prod.enabled ? "bg-white/[0.04] border-white/10" : "bg-white/[0.02] border-rose-500/25 opacity-65"}`,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StoreAssetPreview, {
+								product: prod,
+								size: "sm",
+								isPlaying: false
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex-1 min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5 flex-wrap",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-500/25 text-purple-200",
+												children: catTitle
+											}),
+											prod.isFeatured && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400/25 text-amber-200 flex items-center gap-0.5",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Star, { className: "w-2.5 h-2.5 fill-current" }), "Featured"]
+											}),
+											!prod.enabled && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-500/25 text-rose-200",
+												children: "Disabled"
+											})
+										]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "mt-1 text-sm font-black text-white truncate",
+										children: prod.name
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "text-xs font-extrabold text-amber-300 tabular-nums",
+										children: [prod.priceCoins.toLocaleString(), " Coins"]
+									})
+								]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex flex-col gap-1.5 shrink-0",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											title: prod.isFeatured ? "Unmark Featured" : "Mark Featured",
+											onClick: () => void handleQuickToggle(prod, { isFeatured: !prod.isFeatured }, prod.isFeatured ? "Removed featured badge" : "Marked as Featured"),
+											className: `p-1.5 rounded-lg border ${prod.isFeatured ? "bg-amber-400/25 border-amber-300/50 text-amber-200" : "bg-white/5 border-white/10 text-[#B9AECF] hover:text-white"}`,
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3.5 h-3.5" })
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											title: prod.enabled ? "Disable Product" : "Enable Product",
+											onClick: () => void handleQuickToggle(prod, { enabled: !prod.enabled }, prod.enabled ? "Disabled in Store" : "Enabled in Store"),
+											className: `p-1.5 rounded-lg border ${prod.enabled ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-300" : "bg-rose-500/20 border-rose-400/40 text-rose-300"}`,
+											children: prod.enabled ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EyeOff, { className: "w-3.5 h-3.5" })
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											title: "Edit Product",
+											onClick: () => setEditing({ ...prod }),
+											className: "p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PenLine, { className: "w-3.5 h-3.5" })
+										}),
+										confirmDeleteId === prod.id ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											title: "Confirm Delete",
+											onClick: () => void handleDelete(prod.id, prod.name),
+											className: "px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-black flex items-center gap-0.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3 h-3" }), "Del"]
+										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											title: "Delete Product",
+											onClick: () => setConfirmDeleteId(prod.id),
+											className: "p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3.5 h-3.5" })
+										})
+									]
+								})
+							})
+						]
+					}, prod.id);
+				})
+			})
+		]
+	});
+};
 // src/components/screens/AdminProgressionModal.tsx
 var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 	const [activeTab, setActiveTab] = (0, import_react.useState)("levels");
@@ -129537,6 +133033,11 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 							id: "achievements",
 							label: "Achievements",
 							icon: Award
+						},
+						{
+							id: "store",
+							label: "Store Catalog",
+							icon: ShoppingBag
 						},
 						{
 							id: "users",
@@ -130051,6 +133552,10 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 									})]
 								}, u.userId))]
 							})]
+						}),
+						activeTab === "store" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AdminStoreTab, {
+							onNotify: (msg) => notify(msg),
+							onError: (msg) => setError(msg)
 						}),
 						activeTab === "audit" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "space-y-3",
@@ -131003,16 +134508,22 @@ function App() {
 			setLiveStreams((prev) => {
 				const merged = /* @__PURE__ */ new Map();
 				remoteStreams.forEach((s) => {
-					if (!endedLiveIdsRef.current.has(s.id)) merged.set(s.id, s);
+					if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) merged.set(s.id, s);
 				});
 				prev.forEach((existing) => {
 					if (endedLiveIdsRef.current.has(existing.id)) return;
 					if (backendLiveIdsRef.current.has(existing.id)) {
 						const fsItem = merged.get(existing.id);
-						merged.set(existing.id, fsItem ? {
-							...fsItem,
-							...existing
-						} : existing);
+						if (fsItem) {
+							const bestViewers = Math.max(fsItem.numericViewers || 0, existing.numericViewers || 0);
+							merged.set(existing.id, {
+								...existing,
+								...fsItem,
+								numericViewers: bestViewers,
+								viewerCount: String(bestViewers),
+								likesCount: Math.max(fsItem.likesCount || 0, existing.likesCount || 0)
+							});
+						} else merged.set(existing.id, existing);
 					}
 				});
 				return Array.from(merged.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
@@ -131028,10 +134539,12 @@ function App() {
 					if (endedRoomIdsRef.current.has(existing.id)) return;
 					if (backendRoomIdsRef.current.has(existing.id)) {
 						const fsItem = merged.get(existing.id);
-						merged.set(existing.id, fsItem ? {
+						if (fsItem) merged.set(existing.id, {
+							...existing,
 							...fsItem,
-							...existing
-						} : existing);
+							numericParticipants: Math.max(fsItem.numericParticipants || 0, existing.numericParticipants || 0)
+						});
+						else merged.set(existing.id, existing);
 					}
 				});
 				return Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
@@ -131086,8 +134599,18 @@ function App() {
 		setCurrentScreen("audio_room");
 	};
 	const handleStartLive = async (newStream) => {
-		endedLiveIdsRef.current.delete(newStream.id);
-		backendLiveIdsRef.current.add(newStream.id);
+		const activeUid = auth.currentUser?.uid || newStream.host.id;
+		const normalizedStream = {
+			...newStream,
+			isLive: true,
+			startTime: newStream.startTime || Date.now(),
+			host: {
+				...newStream.host,
+				id: activeUid
+			}
+		};
+		endedLiveIdsRef.current.delete(normalizedStream.id);
+		backendLiveIdsRef.current.add(normalizedStream.id);
 		const withTimeout = (promise, ms, fallback) => new Promise((resolve) => {
 			let settled = false;
 			const timer = setTimeout(() => {
@@ -131110,11 +134633,23 @@ function App() {
 				}
 			});
 		});
-		const [confirmedStream] = await Promise.all([withTimeout(liveAndRoomService.startLiveStream(newStream), 3e3, newStream), createFirestoreLiveStream(newStream).catch((err) => {
-			console.warn("[Firestore] Live stream creation notice:", err);
-		})]);
-		setLiveStreams((prev) => [confirmedStream, ...prev.filter((s) => s.id !== confirmedStream.id)]);
-		setActiveLiveStream(confirmedStream);
+		const firestorePromise = createFirestoreLiveStream(normalizedStream).catch((err) => {
+			console.error("[Firestore] Live stream card creation failed:", err);
+			return null;
+		});
+		const [confirmedStream] = await Promise.all([withTimeout(liveAndRoomService.startLiveStream(normalizedStream), 3e3, normalizedStream), withTimeout(firestorePromise, 4e3, null)]);
+		const finalStream = {
+			...normalizedStream,
+			...confirmedStream,
+			id: normalizedStream.id,
+			host: {
+				...confirmedStream.host || normalizedStream.host,
+				id: activeUid
+			},
+			isLive: true
+		};
+		setLiveStreams((prev) => [finalStream, ...prev.filter((s) => s.id !== finalStream.id)]);
+		setActiveLiveStream(finalStream);
 		setCurrentScreen("live_active");
 		liveAndRoomService.fetchTopBroadcasters().then(({ broadcasters }) => setTopBroadcasters(broadcasters)).catch(() => {});
 	};
@@ -131131,17 +134666,29 @@ function App() {
 		liveAndRoomService.fetchTopBroadcasters().then(({ broadcasters }) => setTopBroadcasters(broadcasters)).catch(() => {});
 	};
 	const handleCreateRoom = async (newRoom) => {
-		endedRoomIdsRef.current.delete(newRoom.id);
-		backendRoomIdsRef.current.add(newRoom.id);
-		const backendPromise = new Promise((resolve) => {
+		const activeUid = auth.currentUser?.uid || newRoom.host.id;
+		const normalizedHost = {
+			...newRoom.host,
+			id: activeUid
+		};
+		const normalizedSeats = Array.isArray(newRoom.seats) ? newRoom.seats.map((seat, idx) => seat && (idx === 0 || seat.id === newRoom.host.id) ? normalizedHost : seat) : [normalizedHost, ...Array((newRoom.maxSeats === 16 ? 16 : 8) - 1).fill(null)];
+		const normalizedRoom = {
+			...newRoom,
+			host: normalizedHost,
+			seats: normalizedSeats,
+			startTime: newRoom.startTime || Date.now()
+		};
+		endedRoomIdsRef.current.delete(normalizedRoom.id);
+		backendRoomIdsRef.current.add(normalizedRoom.id);
+		const withTimeout = (promise, ms, fallback) => new Promise((resolve) => {
 			let settled = false;
 			const timer = setTimeout(() => {
 				if (!settled) {
 					settled = true;
-					resolve(newRoom);
+					resolve(fallback);
 				}
-			}, 3e3);
-			liveAndRoomService.createPartyRoom(newRoom).then((res) => {
+			}, ms);
+			promise.then((res) => {
 				if (!settled) {
 					settled = true;
 					clearTimeout(timer);
@@ -131151,15 +134698,26 @@ function App() {
 				if (!settled) {
 					settled = true;
 					clearTimeout(timer);
-					resolve(newRoom);
+					resolve(fallback);
 				}
 			});
 		});
-		const [confirmedRoom] = await Promise.all([backendPromise, createFirestorePartyRoom(newRoom).catch((err) => {
-			console.warn("[Firestore] Party room creation notice:", err);
-		})]);
-		setPartyRooms((prev) => [confirmedRoom, ...prev.filter((r) => r.id !== confirmedRoom.id)]);
-		setActiveAudioRoom(confirmedRoom);
+		const firestoreRoomPromise = createFirestorePartyRoom(normalizedRoom).catch((err) => {
+			console.error("[Firestore] Party room card creation failed:", err);
+			return null;
+		});
+		const [confirmedRoom] = await Promise.all([withTimeout(liveAndRoomService.createPartyRoom(normalizedRoom), 3e3, normalizedRoom), withTimeout(firestoreRoomPromise, 4e3, null)]);
+		const finalRoom = {
+			...normalizedRoom,
+			...confirmedRoom,
+			id: normalizedRoom.id,
+			host: {
+				...confirmedRoom.host || normalizedHost,
+				id: activeUid
+			}
+		};
+		setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
+		setActiveAudioRoom(finalRoom);
 		setCurrentScreen("audio_room");
 	};
 	const handleCameraRecordingComplete = (blob, url) => {

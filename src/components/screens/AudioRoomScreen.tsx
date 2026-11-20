@@ -24,7 +24,9 @@ import {
   AlertTriangle,
   Lock,
   Users,
+  Trophy,
 } from 'lucide-react';
+import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
 import {
   PartyRoom,
   UserProfile,
@@ -49,8 +51,10 @@ import {
   joinFirestoreRoomParticipant,
   leaveFirestoreRoomParticipant,
   sendFirestoreRoomMessage,
+  subscribeFirestorePartyRoomDoc,
   subscribeFirestoreRoomMessages,
   subscribeFirestoreRoomParticipants,
+  syncFirestorePartyRoomState,
   updateFirestoreRoomParticipantCount,
   updateFirestoreRoomParticipantState,
 } from '../../services/firestoreRealtimeService';
@@ -162,6 +166,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   // Settings & Announcements
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showEditAnnouncementModal, setShowEditAnnouncementModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [roomAnnouncement, setRoomAnnouncement] = useState(
@@ -354,6 +359,34 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       });
     });
 
+    // Cloud Firestore real-time parent party room doc subscription (syncs seats, requests & host close across Web + Android)
+    let roomDocEverExisted = false;
+    const unsubFsRoomDoc = subscribeFirestorePartyRoomDoc(room.id, (exists, data) => {
+      if (!active) return;
+      if (exists && data) {
+        roomDocEverExisted = true;
+        if (Array.isArray(data.seats)) {
+          setSeats(normalizeSeats(data.seats, data.maxSeats === 16 ? 16 : maxSeats));
+        }
+        if (Array.isArray(data.mutedSeatIndices)) {
+          setMutedSeatIndices(data.mutedSeatIndices);
+        }
+        if (Array.isArray(data.seatRequests)) {
+          setSeatRequests(data.seatRequests as SeatRequest[]);
+        }
+        if (typeof data.isLocked === 'boolean') setIsSeatLocked(data.isLocked);
+        if (typeof data.allowJoin === 'boolean') setIsAllowJoin(data.allowJoin);
+        if (typeof data.announcement === 'string') setRoomAnnouncement(data.announcement);
+      } else if (roomDocEverExisted && !isRoomHost) {
+        showToast('Party room was closed by the host');
+        webrtcMediaService.stopPartyVoice();
+        agoraRtcService.leaveChannel().catch(() => {});
+        setTimeout(() => {
+          if (active) onClose();
+        }, 1200);
+      }
+    });
+
     const heartbeatInterval = setInterval(() => {
       liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
       void updateFirestoreRoomParticipantState(room.id, {
@@ -519,6 +552,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       unsubWs();
       unsubFsParticipants();
       unsubFsMessages();
+      unsubFsRoomDoc();
       liveAndRoomService.unsubscribeRoom();
       if (!hasExplicitlyLeftRef.current) {
         liveAndRoomService.leavePartyRoom(room.id, currentUser.id);
@@ -847,6 +881,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       isOwnerPresent: participantsList.some((p) => p.userId === room.host.id),
     };
     onUpdateRoom?.(nextRoom);
+    void syncFirestorePartyRoomState(room.id, isRoomHost, {
+      seats: updatedSeats,
+      seatRequests: nextRoom.seatRequests,
+      numericParticipants: participantTotal,
+      participantCount: String(participantTotal),
+      mutedSeatIndices,
+      isLocked: nextRoom.isLocked,
+      allowJoin: nextRoom.allowJoin,
+      announcement: nextRoom.announcement,
+    });
   };
 
   // Cleanly exit party room (vacates seat, removes pending request, disconnects voice & leaves server room)
@@ -1324,6 +1368,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             )}
             <Users className="w-3 h-3 text-cyan-300" />
             <span>{participantTotal}</span>
+          </button>
+
+          {/* Real-Time Party Room & Global Leaderboard Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowLeaderboardModal(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-[#3A2208]/95 to-[#241136]/95 hover:from-[#4E2E0B] hover:to-[#32174A] border border-[#FFC84A]/50 text-[#FFC84A] text-[10px] font-black shadow transition-all active:scale-95 shrink-0"
+            title="Open Party Leaderboard (Hourly, Daily, Weekly, Monthly)"
+          >
+            <Trophy className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Rank</span>
           </button>
 
           {/* Local Mic Mute (visible ONLY when currently seated) */}
@@ -2473,6 +2528,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           </div>
         </div>
       )}
+      <LiveLeaderboardModal
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+        mode="party"
+        contextId={room.id}
+        contextTitle={room.title}
+        currentUser={currentUser}
+        onSelectUser={onSelectUser}
+      />
     </div>
   );
 };
