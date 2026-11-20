@@ -78,6 +78,9 @@ service cloud.firestore {
         && (!('equippedBadges' in data) || (data.equippedBadges is list && data.equippedBadges.size() <= 3))
         && (!('isVIP' in data) || data.isVIP is bool)
         && (!('isSuperVIP' in data) || data.isSuperVIP is bool)
+        && (!('isVerified' in data) || data.isVerified is bool)
+        && (!('verificationTier' in data) || data.verificationTier in ['none', 'blue', 'gold'])
+        && (!('verifiedTag' in data) || (data.verifiedTag is string && data.verifiedTag.size() <= 32))
         && (!('isOnline' in data) || data.isOnline is bool);
     }
 

@@ -40,6 +40,7 @@ import { UserProfile, ScreenType, VideoItem, Conversation } from '../../types';
 import { AvatarWithFrame, SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
 import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
+import { VerifiedNameTag } from '../common/VerifiedBadge';
 import { AchievementBadgeEmblem } from '../common/AchievementBadgeArt';
 import { getUserLevelProgress } from '../../utils/levelSystem';
 import {
@@ -968,17 +969,47 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           {/* LEFT COLUMN: Identity, Stats, Level & VIP, Agency & Crew, Badges */}
           <div className="lg:col-span-5 space-y-4">
             {/* 2. USER INFORMATION SECTION */}
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3.5">
-              <div className="flex items-start justify-between gap-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate">
+            <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] flex flex-col gap-3.5">
+              {/* Header Flex-Grid: Identity & Primary Badges (Left) + Hero Level Emblem (Right) */}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start sm:items-center gap-x-3 sm:gap-x-4 gap-y-3">
+                {/* Left Identity & Badge Stack */}
+                <div className="min-w-0 flex flex-col gap-2.5">
+                  {/* Row 1: Display Name + Verification Tag (Blue Tick Respect / Golden Tick Legends) */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight truncate max-w-full">
                       {activeUser.name}
                     </h1>
+                    <VerifiedNameTag
+                      user={activeUser}
+                      level={fullProgression.currentLevel}
+                      vipLevel={vipTier}
+                      superVipLevel={superVipTier}
+                      showUnverifiedHint={isOwner}
+                    />
                   </div>
 
-                  {/* Prominent Clickable Level Badge + VIP Badge + Super VIP Badge */}
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {/* Row 2: @username + Copyable Lenzo Party ID */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+                    <span className="text-[#FA26A0] font-mono font-bold truncate max-w-[165px]">
+                      {activeUser.username || `@${activeUser.displayId.toLowerCase()}`}
+                    </span>
+                    <span className="text-white/25 select-none">·</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyId}
+                      className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors"
+                    >
+                      <span>ID: {activeUser.displayId}</span>
+                      {copiedId ? (
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-[#B9AECF] shrink-0" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Row 3: Progression & Membership Badges Rail (Level + VIP + Super VIP) */}
+                  <div className="flex flex-wrap items-center gap-2">
                     <LevelBadge
                       level={fullProgression.currentLevel}
                       size="profile"
@@ -998,104 +1029,95 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       />
                     )}
                   </div>
-
-                  {/* Equipped Independent Achievement Badges (up to 3) */}
-                  {equippedBadges.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {equippedBadges.map((b) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => setIsBadgeVaultOpen(true)}
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors"
-                        >
-                          <AchievementBadgeEmblem
-                            shape={b.shape}
-                            iconKey={b.iconKey}
-                            accentFrom={b.accentFrom}
-                            accentTo={b.accentTo}
-                            borderHex={b.borderHex}
-                            isEarned={true}
-                            size="xs"
-                          />
-                          <span>{b.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* @username + Lenzo Party ID Copy */}
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs">
-                    <span className="text-[#FA26A0] font-mono font-bold truncate max-w-[160px]">
-                      {activeUser.username || `@${activeUser.displayId.toLowerCase()}`}
-                    </span>
-                    <span className="text-white/25">·</span>
-                    <button
-                      onClick={handleCopyId}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[#D7CEEB] font-mono text-[11px] transition-colors"
-                    >
-                      <span>ID: {activeUser.displayId}</span>
-                      {copiedId ? (
-                        <Check className="w-3 h-3 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-[#B9AECF]" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Metadata row: Country, Gender/Age (privacy-aware), Online status */}
-                  <div className="flex items-center gap-2 mt-2.5 flex-wrap text-[11px] text-[#D7CEEB]">
-                    {activeUser.country && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                        <span>{getCountryFlag(activeUser.country)}</span>
-                        <span>{activeUser.country}</span>
-                      </span>
-                    )}
-
-                    {(displayGender || displayAge !== null) && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                        {displayGender && <span>{displayGender}</span>}
-                        {displayGender && displayAge !== null && <span>·</span>}
-                        {displayAge !== null && <span className="tabular-nums">{displayAge} yrs</span>}
-                      </span>
-                    )}
-
-                    {showOnline && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] border border-white/[0.06]">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isOnlineNow ? 'bg-emerald-400' : 'bg-slate-400'
-                          }`}
-                        />
-                        <span>{isOnlineNow ? 'Online' : 'Offline'}</span>
-                      </span>
-                    )}
-
-                    {activeUser.crewBadge && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold">
-                        <ShieldCheck className="w-3 h-3 text-[#C084FC]" />
-                        <span>{activeUser.crewBadge}</span>
-                      </span>
-                    )}
-                  </div>
                 </div>
 
-                {/* Prominent Clickable Level Emblem Shield (0–100) in Right Open Space */}
+                {/* Right Slot: Prominent Clickable Level Emblem Shield (0–100) */}
                 <button
                   type="button"
                   onClick={() => openProgressionHub('roadmap')}
                   aria-label={`Level ${fullProgression.currentLevel} Emblem — Tap to view all levels 0 to 100`}
-                  className="group shrink-0 self-center flex flex-col items-center justify-center pl-1 py-1 rounded-2xl transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]"
+                  className="group shrink-0 self-start sm:self-center flex flex-col items-center justify-center px-2.5 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] transition-all duration-200 hover:scale-[1.03] active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FA26A0]"
                 >
                   <LevelEmblemBadge
                     level={fullProgression.currentLevel}
                     size="hero"
                   />
-                  <span className="mt-1 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums">
+                  <span className="mt-1.5 text-[10px] font-black tracking-wider uppercase text-[#E9D5FF] group-hover:text-[#FFC84A] transition-colors whitespace-nowrap tabular-nums">
                     LV.{fullProgression.currentLevel} · {fullProgression.currentTierName}
                   </span>
                 </button>
               </div>
+
+              {/* Full-Width Equipped Achievement Badges Strip (up to 3) */}
+              {equippedBadges.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {equippedBadges.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setIsBadgeVaultOpen(true)}
+                      className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[#1D0F38] hover:bg-[#29154E] border border-white/10 text-[10px] font-bold text-white transition-colors"
+                    >
+                      <AchievementBadgeEmblem
+                        shape={b.shape}
+                        iconKey={b.iconKey}
+                        accentFrom={b.accentFrom}
+                        accentTo={b.accentTo}
+                        borderHex={b.borderHex}
+                        isEarned={true}
+                        size="xs"
+                      />
+                      <span>{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Full-Width Status Icons & Metadata Rail: Country, Gender/Age, Online Status, Crew */}
+              {(activeUser.country || displayGender || displayAge !== null || showOnline || activeUser.crewBadge) && (
+                <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-white/[0.06] text-[11px] text-[#D7CEEB]">
+                  {activeUser.country && (
+                    <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]">
+                      <span className="leading-none">{getCountryFlag(activeUser.country)}</span>
+                      <span className="font-medium leading-none">{activeUser.country}</span>
+                    </span>
+                  )}
+
+                  {(displayGender || displayAge !== null) && (
+                    <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]">
+                      {displayGender && <span className="leading-none">{displayGender}</span>}
+                      {displayGender && displayAge !== null && (
+                        <span className="text-white/30 leading-none">·</span>
+                      )}
+                      {displayAge !== null && (
+                        <span className="tabular-nums leading-none">{displayAge} yrs</span>
+                      )}
+                    </span>
+                  )}
+
+                  {showOnline && (
+                    <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-white/[0.05] border border-white/[0.07]">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          isOnlineNow
+                            ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.75)]'
+                            : 'bg-slate-400'
+                        }`}
+                      />
+                      <span className="font-medium leading-none">
+                        {isOnlineNow ? 'Online' : 'Offline'}
+                      </span>
+                    </span>
+                  )}
+
+                  {activeUser.crewBadge && (
+                    <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg bg-[#8B20FF]/20 border border-[#8B20FF]/40 text-[#E9D5FF] font-bold">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#C084FC] shrink-0" />
+                      <span className="leading-none">{activeUser.crewBadge}</span>
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Bio */}
               <p className="text-xs text-[#D7CEEB] leading-relaxed pt-2 border-t border-white/[0.07]">

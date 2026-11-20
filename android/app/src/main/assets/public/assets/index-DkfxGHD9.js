@@ -53502,6 +53502,9 @@ function mapFirestoreUserToProfile(data, fallbackUser) {
 		showGender: data.showGender ?? true,
 		showAge: data.showAge ?? true,
 		showOnlineStatus: data.showOnlineStatus ?? true,
+		isVerified: data.isVerified,
+		verificationTier: data.verificationTier,
+		verifiedTag: data.verifiedTag || "",
 		equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges.slice(0, 3) : [],
 		agencyId: data.agencyId || "",
 		agencyName: data.agencyName || "",
@@ -54797,7 +54800,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-yJeVyann.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-Dzfqs5aW.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -54849,7 +54852,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-DknTE997.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-B_tuBWSN.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -118935,6 +118938,495 @@ var StoreScreen = ({ currentUser, onNavigate, onOpenWallet, onOpenVIP, onUpdateU
 		]
 	});
 };
+// src/components/common/VerifiedBadge.tsx
+function resolveVerificationStatus(params) {
+	const user = params.user;
+	const level = params.level ?? user?.level ?? 0;
+	const vipLevel = params.vipLevel ?? user?.vipLevel ?? 0;
+	const superVipLevel = params.superVipLevel ?? user?.superVipLevel ?? 0;
+	const followers = user?.followersCount ?? 0;
+	const isAdminAccount = Boolean(user?.isAdmin) || (user?.email ? user.email.toLowerCase() === "yaquoobe@gmail.com" : false);
+	const customTag = user?.verifiedTag?.trim();
+	let tier = "none";
+	let reason = "Reach Lv.8, unlock VIP 1, join a verified agency, or receive Admin verification.";
+	if (user?.verificationTier === "gold") {
+		tier = "gold";
+		reason = "Awarded Official Legend Verification.";
+	} else if (user?.verificationTier === "blue") {
+		tier = "blue";
+		reason = "Awarded Official Respect Verification.";
+	} else if (user?.verificationTier === "none") tier = "none";
+	else if (isAdminAccount || level >= 50 || superVipLevel >= 3 || vipLevel >= 6) {
+		tier = "gold";
+		if (isAdminAccount) reason = "Official Lenzo Party Founder & Legend.";
+		else if (level >= 50) reason = `Earned at Level ${level} (Legend Tier Lv.50+).`;
+		else if (superVipLevel >= 3) reason = `Earned via Super VIP ${superVipLevel} Legend status.`;
+		else reason = `Earned via VIP ${vipLevel} Legend status.`;
+	} else if (user?.isVerified || level >= 8 || vipLevel >= 1 || followers >= 1e3 || user?.agencyStatus === "active") {
+		tier = "blue";
+		if (user?.isVerified) reason = "Verified Respected Creator on Lenzo Party.";
+		else if (level >= 8) reason = `Earned at Level ${level} (Respected Member Lv.8+).`;
+		else if (vipLevel >= 1) reason = `Earned via VIP ${vipLevel} Membership.`;
+		else if (followers >= 1e3) reason = "Earned with 1,000+ community followers.";
+		else reason = "Earned as an active verified Agency member.";
+	}
+	if (tier === "gold") return {
+		tier: "gold",
+		isVerified: true,
+		isLegend: true,
+		isRespected: true,
+		tagLabel: customTag || "Legend",
+		badgeTitle: "Verified Legend",
+		subtitle: "Golden Tick · Legends",
+		reason
+	};
+	if (tier === "blue") return {
+		tier: "blue",
+		isVerified: true,
+		isLegend: false,
+		isRespected: true,
+		tagLabel: customTag || "Respect",
+		badgeTitle: "Verified · Respect",
+		subtitle: "Blue Tick · Respect",
+		reason
+	};
+	return {
+		tier: "none",
+		isVerified: false,
+		isLegend: false,
+		isRespected: false,
+		tagLabel: "",
+		badgeTitle: "Not Verified",
+		subtitle: "Verification Tiers",
+		reason
+	};
+}
+var TICK_SIZES = {
+	xs: 15,
+	sm: 18,
+	md: 21,
+	lg: 34
+};
+/**
+* Crisp 12-point scalloped verification seal SVG:
+* - 'blue' => Radiant sapphire/azure Blue Tick for Respect
+* - 'gold' => Gleaming 24K molten-gold Golden Tick for Legends
+*/
+var VerifiedTick = ({ tier, size = "sm", className = "" }) => {
+	const uid = (0, import_react.useId)().replace(/:/g, "");
+	const px = TICK_SIZES[size];
+	const isGold = tier === "gold";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+		width: px,
+		height: px,
+		viewBox: "0 0 32 32",
+		fill: "none",
+		xmlns: "http://www.w3.org/2000/svg",
+		"aria-label": isGold ? "Golden Tick — Verified Legend" : "Blue Tick — Verified for Respect",
+		className: `shrink-0 ${isGold ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]" : "drop-shadow-[0_0_7px_rgba(56,189,248,0.6)]"} ${className}`,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: isGold ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_bg_${uid}`,
+					x1: "3",
+					y1: "2",
+					x2: "29",
+					y2: "30",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#FEF08A"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "35%",
+							stopColor: "#FBBF24"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "72%",
+							stopColor: "#D97706"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#92400E"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_rim_${uid}`,
+					x1: "6",
+					y1: "3",
+					x2: "26",
+					y2: "29",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#FFFBEB",
+							stopOpacity: "0.95"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "55%",
+							stopColor: "#FDE047",
+							stopOpacity: "0.45"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#78350F",
+							stopOpacity: "0.8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+					id: `vt_shine_${uid}`,
+					cx: "34%",
+					cy: "26%",
+					r: "55%",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: "#FFFFFF",
+						stopOpacity: "0.65"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: "#FBBF24",
+						stopOpacity: "0"
+					})]
+				})
+			] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_bg_${uid}`,
+					x1: "3",
+					y1: "2",
+					x2: "29",
+					y2: "30",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#7DD3FC"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "38%",
+							stopColor: "#38BDF8"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "74%",
+							stopColor: "#2563EB"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#1D4ED8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
+					id: `vt_rim_${uid}`,
+					x1: "6",
+					y1: "3",
+					x2: "26",
+					y2: "29",
+					gradientUnits: "userSpaceOnUse",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "0%",
+							stopColor: "#E0F2FE",
+							stopOpacity: "0.95"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "55%",
+							stopColor: "#60A5FA",
+							stopOpacity: "0.45"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+							offset: "100%",
+							stopColor: "#1E3A8A",
+							stopOpacity: "0.8"
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("radialGradient", {
+					id: `vt_shine_${uid}`,
+					cx: "34%",
+					cy: "26%",
+					r: "55%",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "0%",
+						stopColor: "#FFFFFF",
+						stopOpacity: "0.55"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
+						offset: "100%",
+						stopColor: "#38BDF8",
+						stopOpacity: "0"
+					})]
+				})
+			] }) }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M16 1.6 L19.1 4.1 L23.1 3.7 L24.5 7.4 L28.2 8.8 L27.8 12.8 L30.4 16 L27.8 19.2 L28.2 23.2 L24.5 24.6 L23.1 28.3 L19.1 27.9 L16 30.4 L12.9 27.9 L8.9 28.3 L7.5 24.6 L3.8 23.2 L4.2 19.2 L1.6 16 L4.2 12.8 L3.8 8.8 L7.5 7.4 L8.9 3.7 L12.9 4.1 Z",
+				fill: `url(#vt_bg_${uid})`,
+				stroke: `url(#vt_rim_${uid})`,
+				strokeWidth: "1.25",
+				strokeLinejoin: "round"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+				cx: "16",
+				cy: "16",
+				r: "10.2",
+				fill: `url(#vt_shine_${uid})`
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+				cx: "16",
+				cy: "16",
+				r: "9.4",
+				fill: "none",
+				stroke: isGold ? "#FEF9C3" : "#E0F2FE",
+				strokeOpacity: "0.38",
+				strokeWidth: "0.9"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
+				stroke: isGold ? "#78350F" : "#1E3A8A",
+				strokeOpacity: "0.55",
+				strokeWidth: "3.2",
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				transform: "translate(0 0.8)"
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+				d: "M11.2 16.6 L14.5 19.9 L21.4 12.6",
+				stroke: "#FFFFFF",
+				strokeWidth: "2.8",
+				strokeLinecap: "round",
+				strokeLinejoin: "round"
+			})
+		]
+	});
+};
+var VerifiedNameTag = ({ user, level, vipLevel, superVipLevel, variant = "full", showUnverifiedHint = false }) => {
+	const [infoOpen, setInfoOpen] = (0, import_react.useState)(false);
+	const status = resolveVerificationStatus({
+		user,
+		level,
+		vipLevel,
+		superVipLevel
+	});
+	if (status.tier === "none" && !showUnverifiedHint) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+		status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "Golden Tick — Verified Legend (Tap for details)",
+			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#3B2608] via-[#2B1B07] to-[#1E1305] border border-[#FBBF24]/55 shadow-[0_0_14px_rgba(251,191,36,0.22)] hover:border-[#FDE047] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+				tier: "gold",
+				size: variant === "compact" ? "sm" : "sm"
+			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FEF08A]",
+						children: "Verified"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FBBF24]/55",
+						children: "·"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FBBF24]",
+						children: status.tagLabel
+					})
+				]
+			})]
+		}),
+		status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "Blue Tick — Verified for Respect (Tap for details)",
+			className: variant === "compact" ? "inline-flex items-center justify-center shrink-0 hover:scale-110 transition-transform" : "inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#0A2240] via-[#0C1D3A] to-[#0B1730] border border-[#38BDF8]/55 shadow-[0_0_14px_rgba(56,189,248,0.2)] hover:border-[#7DD3FC] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+				tier: "blue",
+				size: variant === "compact" ? "sm" : "sm"
+			}), variant === "full" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center gap-1 text-[10px] font-black tracking-wide uppercase leading-none",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#E0F2FE]",
+						children: "Verified"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#38BDF8]/55",
+						children: "·"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#38BDF8]",
+						children: status.tagLabel
+					})
+				]
+			})]
+		}),
+		status.tier === "none" && showUnverifiedHint && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			onClick: () => setInfoOpen(true),
+			title: "View Verified Blue Tick (Respect) & Golden Tick (Legends) requirements",
+			className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-[10px] font-bold text-[#D7CEEB] active:scale-95 transition-all shrink-0",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: "inline-flex items-center -space-x-1",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+					tier: "blue",
+					size: "xs"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+					tier: "gold",
+					size: "xs"
+				})]
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Verify" })]
+		}),
+		infoOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4 bg-black/80 backdrop-blur-md",
+			onClick: () => setInfoOpen(false),
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "w-full max-w-md bg-[#120822] border border-white/15 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden",
+				onClick: (e) => e.stopPropagation(),
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "px-5 py-4 bg-gradient-to-r from-[#24103F] via-[#1B0C31] to-[#120822] border-b border-white/10 flex items-center justify-between gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center",
+							children: status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "gold",
+								size: "md"
+							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "blue",
+								size: "md"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-[#7DD3FC]" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+							className: "text-sm font-black text-white",
+							children: "Lenzo Verified Badges"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[11px] text-[#C5B9DE]",
+							children: "Respect Blue Tick & Legends Golden Tick"
+						})] })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: () => setInfoOpen(false),
+						className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "p-5 space-y-3.5",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[10px] font-bold uppercase tracking-wider text-[#B9AECF]",
+										children: "Current Profile Status"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-sm font-black text-white mt-0.5 truncate",
+										children: status.badgeTitle
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE] mt-0.5",
+										children: status.reason
+									})
+								]
+							}), status.tier === "gold" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "gold",
+								size: "lg"
+							}) : status.tier === "blue" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+								tier: "blue",
+								size: "lg"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center -space-x-1.5 shrink-0 opacity-75",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "blue",
+									size: "md"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "gold",
+									size: "md"
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `p-4 rounded-2xl border transition-all ${status.tier === "blue" ? "bg-gradient-to-br from-[#0A2548]/90 to-[#0C1732] border-[#38BDF8]/65 shadow-[0_0_24px_rgba(56,189,248,0.18)]" : "bg-[#170C2B] border-white/10"}`,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-start gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "blue",
+									size: "lg",
+									className: "mt-0.5"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 flex-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-sm font-black text-[#E0F2FE]",
+												children: "Blue Tick — For Respect"
+											}), status.tier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#38BDF8]/20 border border-[#38BDF8]/50 text-[10px] font-black text-[#7DD3FC]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-3 h-3" }), "ACTIVE"]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-[#C5B9DE] mt-1 leading-relaxed",
+											children: "Honors respected creators, trusted hosts, and valued community members across Lenzo Party."
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#7DD3FC] font-semibold mt-2",
+											children: "Unlock: Level 8+, VIP 1+, Verified Agency, 1,000+ Followers, or Admin Grant."
+										})
+									]
+								})]
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: `p-4 rounded-2xl border transition-all ${status.tier === "gold" ? "bg-gradient-to-br from-[#3D2607]/90 to-[#1D1206] border-[#FBBF24]/70 shadow-[0_0_24px_rgba(251,191,36,0.2)]" : "bg-[#170C2B] border-white/10"}`,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-start gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+									tier: "gold",
+									size: "lg",
+									className: "mt-0.5"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0 flex-1",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "text-sm font-black text-[#FEF08A] flex items-center gap-1",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-3.5 h-3.5 text-[#FBBF24]" }), "Golden Tick — For Legends"]
+											}), status.tier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBBF24]/20 border border-[#FBBF24]/55 text-[10px] font-black text-[#FEF08A]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-3 h-3" }), "ACTIVE"]
+											})]
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs text-[#E5D7B8] mt-1 leading-relaxed",
+											children: "Reserved for Lenzo Party Legends — elite high-tier icons, top royalty, and official VIP legends."
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] text-[#FBBF24] font-semibold mt-2",
+											children: "Unlock: Level 50+ (Ruby–Royal), VIP 6+, Super VIP 3+, or Official Legend Grant."
+										})
+									]
+								})]
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setInfoOpen(false),
+							className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-extrabold text-white transition-colors",
+							children: "Got It"
+						})
+					]
+				})]
+			})
+		})
+	] });
+};
 // src/components/common/AchievementBadgeArt.tsx
 function renderAchievementIcon(iconKey, className = "w-4 h-4") {
 	switch (iconKey) {
@@ -122731,12 +123223,18 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], onUpdatePro
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 											className: "min-w-0 flex-1",
 											children: [
-												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 													className: "flex items-center gap-2 flex-wrap",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
-														className: "text-xl sm:text-2xl font-black text-white tracking-tight truncate",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+														className: "text-xl sm:text-2xl font-black text-white tracking-tight truncate max-w-full",
 														children: activeUser.name
-													})
+													}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedNameTag, {
+														user: activeUser,
+														level: fullProgression.currentLevel,
+														vipLevel: vipTier,
+														superVipLevel: superVipTier,
+														showUnverifiedHint: isOwner
+													})]
 												}),
 												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 													className: "flex items-center gap-2 mt-2 flex-wrap",
@@ -128837,8 +129335,10 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 	const [editingSuperVip, setEditingSuperVip] = (0, import_react.useState)(null);
 	const [editingAch, setEditingAch] = (0, import_react.useState)(null);
 	const [adjustTargetUid, setAdjustTargetUid] = (0, import_react.useState)("");
-	const [adjustCoins, setAdjustCoins] = (0, import_react.useState)("1000000");
+	const [adjustCoins, setAdjustCoins] = (0, import_react.useState)("0");
 	const [adjustAchId, setAdjustAchId] = (0, import_react.useState)("");
+	const [adjustVerificationTier, setAdjustVerificationTier] = (0, import_react.useState)("");
+	const [adjustVerifiedTag, setAdjustVerifiedTag] = (0, import_react.useState)("");
 	const [adjustReason, setAdjustReason] = (0, import_react.useState)("Admin QA / Support Verification");
 	const getTokenHeaders = async () => {
 		const token = await auth.currentUser?.getIdToken(true);
@@ -128899,14 +129399,17 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 			setError("Target User ID is required.");
 			return;
 		}
+		const targetUid = adjustTargetUid.trim();
 		try {
 			const res = await apiFetch("/api/admin/progression/adjust-user", {
 				method: "POST",
 				headers: await getTokenHeaders(),
 				body: JSON.stringify({
-					targetUserId: adjustTargetUid.trim(),
+					targetUserId: targetUid,
 					addCoins: Number(adjustCoins || 0),
 					awardAchievementId: adjustAchId || void 0,
+					verificationTier: adjustVerificationTier || void 0,
+					verifiedTag: adjustVerifiedTag.trim() ? adjustVerifiedTag.trim() : void 0,
 					reason: adjustReason.trim() || "Admin adjustment"
 				})
 			});
@@ -128915,7 +129418,20 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 				setError(data.error || "Adjustment failed");
 				return;
 			}
-			notify(`Updated user ${adjustTargetUid} → Level ${data.progression?.currentLevel}`);
+			if (adjustVerificationTier === "blue" || adjustVerificationTier === "gold" || adjustVerificationTier === "none") try {
+				const userRef = doc(db, "users", targetUid);
+				const patch = {
+					verificationTier: adjustVerificationTier,
+					isVerified: adjustVerificationTier !== "none"
+				};
+				if (adjustVerifiedTag.trim()) patch.verifiedTag = adjustVerifiedTag.trim().slice(0, 32);
+				else if (adjustVerificationTier === "none") patch.verifiedTag = "";
+				await updateDoc(userRef, patch);
+			} catch (fsErr) {
+				console.warn("Firestore user verification sync notice:", fsErr);
+			}
+			const verifySummary = adjustVerificationTier === "gold" ? " · Golden Tick (Legend)" : adjustVerificationTier === "blue" ? " · Blue Tick (Respect)" : adjustVerificationTier === "none" ? " · Unverified" : "";
+			notify(`Updated user ${targetUid} → Level ${data.progression?.currentLevel}${verifySummary}`);
 			await fetchOverview();
 		} catch (err) {
 			setError(err?.message || "Adjustment failed");
@@ -129423,11 +129939,45 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 													]
 												}, a.id))]
 											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+												value: adjustVerificationTier,
+												onChange: (e) => setAdjustVerificationTier(e.target.value),
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "",
+														children: "Verification Badge: Keep Current"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "blue",
+														children: "Blue Tick — Verified for Respect"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "gold",
+														children: "Golden Tick — Verified for Legends"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "none",
+														children: "Remove Verification Tick"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "auto",
+														children: "Auto (Level / VIP Based)"
+													})
+												]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												value: adjustVerifiedTag,
+												onChange: (e) => setAdjustVerifiedTag(e.target.value),
+												maxLength: 32,
+												placeholder: "Optional Custom Tag (e.g. Respect / Legend)",
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+											}),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 												value: adjustReason,
 												onChange: (e) => setAdjustReason(e.target.value),
 												placeholder: "Audit Reason (Required)",
-												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+												className: "px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white sm:col-span-2"
 											})
 										]
 									}),
@@ -129459,6 +130009,14 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 													className: "text-xs font-bold text-white",
 													children: u.userName || u.userId
+												}),
+												u.verificationTier === "gold" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+													tier: "gold",
+													size: "xs"
+												}),
+												u.verificationTier === "blue" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VerifiedTick, {
+													tier: "blue",
+													size: "xs"
 												}),
 												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
 													level: u.progression.currentLevel,

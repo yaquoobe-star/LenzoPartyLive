@@ -112,6 +112,20 @@
           "type": "boolean",
           "description": "Whether user has unlocked Super VIP status (Lv 12+)"
         },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Whether the user holds a verified badge"
+        },
+        "verificationTier": {
+          "type": "string",
+          "description": "Verification tick tier: blue (Respect) or gold (Legends)",
+          "enum": ["none", "blue", "gold"]
+        },
+        "verifiedTag": {
+          "type": "string",
+          "description": "Optional custom verified tag label displayed next to name",
+          "maxLength": 32
+        },
         "accountStatus": {
           "type": "string",
           "description": "Status of the user account",

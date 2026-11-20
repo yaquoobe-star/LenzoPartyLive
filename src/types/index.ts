@@ -49,6 +49,8 @@ export type LevelTier =
   | 'crown'
   | 'royal';
 
+export type VerificationTier = 'none' | 'blue' | 'gold';
+
 export interface UserProfile {
   id: string;
   displayId: string;
@@ -89,6 +91,9 @@ export interface UserProfile {
   showAge?: boolean;
   showOnlineStatus?: boolean;
   isFollowing?: boolean;
+  isVerified?: boolean;
+  verificationTier?: VerificationTier;
+  verifiedTag?: string;
   equippedBadges?: string[]; // max 3 achievement badge IDs
   earnedAchievements?: Array<{ badgeId: string; earnedAt: string; source?: string }>;
   agencyId?: string;

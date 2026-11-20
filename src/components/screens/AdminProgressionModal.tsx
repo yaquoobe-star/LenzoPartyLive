@@ -13,7 +13,8 @@ import {
   Save,
   RefreshCw,
 } from 'lucide-react';
-import { auth } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase';
 import { apiFetch } from '../../utils/apiConfig';
 import {
   AchievementBadgeDefinition,
@@ -24,6 +25,7 @@ import {
 import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
+import { VerifiedTick } from '../common/VerifiedBadge';
 
 interface AdminProgressionModalProps {
   isOpen: boolean;
@@ -59,8 +61,10 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   const [editingSuperVip, setEditingSuperVip] = useState<{ tier: number; name: string; frameName: string } | null>(null);
   const [editingAch, setEditingAch] = useState<{ id: string; name: string; description: string; targetValue: number } | null>(null);
   const [adjustTargetUid, setAdjustTargetUid] = useState('');
-  const [adjustCoins, setAdjustCoins] = useState('1000000');
+  const [adjustCoins, setAdjustCoins] = useState('0');
   const [adjustAchId, setAdjustAchId] = useState('');
+  const [adjustVerificationTier, setAdjustVerificationTier] = useState<'' | 'blue' | 'gold' | 'none' | 'auto'>('');
+  const [adjustVerifiedTag, setAdjustVerifiedTag] = useState('');
   const [adjustReason, setAdjustReason] = useState('Admin QA / Support Verification');
 
   const getTokenHeaders = async (): Promise<Record<string, string>> => {
@@ -130,15 +134,18 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
       setError('Target User ID is required.');
       return;
     }
+    const targetUid = adjustTargetUid.trim();
     try {
       const headers = await getTokenHeaders();
       const res = await apiFetch('/api/admin/progression/adjust-user', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          targetUserId: adjustTargetUid.trim(),
+          targetUserId: targetUid,
           addCoins: Number(adjustCoins || 0),
           awardAchievementId: adjustAchId || undefined,
+          verificationTier: adjustVerificationTier || undefined,
+          verifiedTag: adjustVerifiedTag.trim() ? adjustVerifiedTag.trim() : undefined,
           reason: adjustReason.trim() || 'Admin adjustment',
         }),
       });
@@ -147,7 +154,35 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
         setError(data.error || 'Adjustment failed');
         return;
       }
-      notify(`Updated user ${adjustTargetUid} → Level ${data.progression?.currentLevel}`);
+
+      // Sync verified tick/tag directly to Firestore users/{uid} when assigned by admin
+      if (adjustVerificationTier === 'blue' || adjustVerificationTier === 'gold' || adjustVerificationTier === 'none') {
+        try {
+          const userRef = doc(db, 'users', targetUid);
+          const patch: Record<string, any> = {
+            verificationTier: adjustVerificationTier,
+            isVerified: adjustVerificationTier !== 'none',
+          };
+          if (adjustVerifiedTag.trim()) {
+            patch.verifiedTag = adjustVerifiedTag.trim().slice(0, 32);
+          } else if (adjustVerificationTier === 'none') {
+            patch.verifiedTag = '';
+          }
+          await updateDoc(userRef, patch);
+        } catch (fsErr) {
+          console.warn('Firestore user verification sync notice:', fsErr);
+        }
+      }
+
+      const verifySummary =
+        adjustVerificationTier === 'gold'
+          ? ' · Golden Tick (Legend)'
+          : adjustVerificationTier === 'blue'
+            ? ' · Blue Tick (Respect)'
+            : adjustVerificationTier === 'none'
+              ? ' · Unverified'
+              : '';
+      notify(`Updated user ${targetUid} → Level ${data.progression?.currentLevel}${verifySummary}`);
       await fetchOverview();
     } catch (err: any) {
       setError(err?.message || 'Adjustment failed');
@@ -594,11 +629,29 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
                           </option>
                         ))}
                       </select>
+                      <select
+                        value={adjustVerificationTier}
+                        onChange={(e) => setAdjustVerificationTier(e.target.value as any)}
+                        className="px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+                      >
+                        <option value="">Verification Badge: Keep Current</option>
+                        <option value="blue">Blue Tick — Verified for Respect</option>
+                        <option value="gold">Golden Tick — Verified for Legends</option>
+                        <option value="none">Remove Verification Tick</option>
+                        <option value="auto">Auto (Level / VIP Based)</option>
+                      </select>
+                      <input
+                        value={adjustVerifiedTag}
+                        onChange={(e) => setAdjustVerifiedTag(e.target.value)}
+                        maxLength={32}
+                        placeholder="Optional Custom Tag (e.g. Respect / Legend)"
+                        className="px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+                      />
                       <input
                         value={adjustReason}
                         onChange={(e) => setAdjustReason(e.target.value)}
                         placeholder="Audit Reason (Required)"
-                        className="px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+                        className="px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white sm:col-span-2"
                       />
                     </div>
                     <button
@@ -626,6 +679,8 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-bold text-white">{u.userName || u.userId}</span>
+                              {u.verificationTier === 'gold' && <VerifiedTick tier="gold" size="xs" />}
+                              {u.verificationTier === 'blue' && <VerifiedTick tier="blue" size="xs" />}
                               <LevelBadge level={u.progression.currentLevel} size="xs" />
                               {u.progression.highestUnlockedVipTier > 0 && (
                                 <VipTierBadge tier={u.progression.highestUnlockedVipTier} size="xs" />

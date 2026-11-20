@@ -89,6 +89,9 @@ export interface FirestoreUserData {
   likedVideoIds?: string[];
   liveSessionsHosted?: number;
   loginStreakDays?: number;
+  isVerified?: boolean;
+  verificationTier?: 'none' | 'blue' | 'gold';
+  verifiedTag?: string;
   accountStatus: 'active' | 'suspended' | 'pending';
 }
 
@@ -158,6 +161,9 @@ export function mapFirestoreUserToProfile(
     showGender: data.showGender ?? true,
     showAge: data.showAge ?? true,
     showOnlineStatus: data.showOnlineStatus ?? true,
+    isVerified: data.isVerified,
+    verificationTier: data.verificationTier,
+    verifiedTag: data.verifiedTag || '',
     equippedBadges: Array.isArray(data.equippedBadges) ? data.equippedBadges.slice(0, 3) : [],
     agencyId: data.agencyId || '',
     agencyName: data.agencyName || '',

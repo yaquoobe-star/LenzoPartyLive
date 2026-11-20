@@ -3245,6 +3245,8 @@ interface ServerUserProgressionRecord {
   equippedSuperVipFrame: number;
   earnedAchievements: EarnedAchievementRecord[];
   equippedAchievementBadges: string[];
+  verificationTier?: 'none' | 'blue' | 'gold';
+  verifiedTag?: string;
   metrics: UserActivityMetrics;
   updatedAt: string;
 }
@@ -3542,6 +3544,8 @@ app.get('/api/progression/user/:userId', (req: AuthenticatedRequest, res: Respon
     progression,
     achievements,
     unlockHistory,
+    verificationTier: rec.verificationTier,
+    verifiedTag: rec.verifiedTag || '',
   });
 });
 
@@ -3937,6 +3941,8 @@ app.get('/api/admin/progression/overview', requireAdminMiddleware, (_req: Authen
       progression,
       earnedAchievementsCount: achievements.filter((a) => a.isEarned).length,
       equippedAchievementBadges: rec.equippedAchievementBadges,
+      verificationTier: rec.verificationTier,
+      verifiedTag: rec.verifiedTag || '',
     };
   });
 
@@ -4055,6 +4061,8 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
   const targetUserId = sanitizeText(req.body?.targetUserId, 128);
   const addCoins = Math.floor(Number(req.body?.addCoins || 0));
   const awardAchievementId = sanitizeText(req.body?.awardAchievementId || '', 64);
+  const rawVerificationTier = typeof req.body?.verificationTier === 'string' ? req.body.verificationTier.trim().toLowerCase() : '';
+  const rawVerifiedTag = typeof req.body?.verifiedTag === 'string' ? sanitizeText(req.body.verifiedTag, 32) : undefined;
   const reason = sanitizeText(req.body?.reason || 'Admin audited adjustment', 200);
 
   if (!targetUserId) {
@@ -4086,6 +4094,16 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
     }
   }
 
+  if (rawVerificationTier === 'auto') {
+    delete rec.verificationTier;
+  } else if (rawVerificationTier === 'none' || rawVerificationTier === 'blue' || rawVerificationTier === 'gold') {
+    rec.verificationTier = rawVerificationTier;
+  }
+
+  if (rawVerifiedTag !== undefined) {
+    rec.verifiedTag = rawVerifiedTag;
+  }
+
   rec.updatedAt = new Date().toISOString();
   const { progression, achievements } = buildUserProgressionPayload(rec);
 
@@ -4094,7 +4112,7 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
     userId: targetUserId,
     type: 'admin_adjustment',
     title: `Admin Progression Adjustment`,
-    detail: `${reason} (Lv ${oldState.currentLevel} → Lv ${progression.currentLevel})`,
+    detail: `${reason} (Lv ${oldState.currentLevel} → Lv ${progression.currentLevel}${rec.verificationTier ? ` · Verify: ${rec.verificationTier}` : ''})`,
     oldLevel: oldState.currentLevel,
     newLevel: progression.currentLevel,
     coinsDelta: addCoins,
@@ -4106,13 +4124,15 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
     actorEmail: adminEmail,
     targetUserId,
     action: 'admin_user_adjusted',
-    summary: `Adjusted ${targetUserId}: coins ${oldCoins.toLocaleString()} → ${rec.totalQualifyingCoinsSpent.toLocaleString()} (${reason})`,
+    summary: `Adjusted ${targetUserId}: coins ${oldCoins.toLocaleString()} → ${rec.totalQualifyingCoinsSpent.toLocaleString()}${rec.verificationTier ? ` · Verification=${rec.verificationTier}` : ''} (${reason})`,
     details: {
       oldCoins,
       newCoins: rec.totalQualifyingCoinsSpent,
       oldLevel: oldState.currentLevel,
       newLevel: progression.currentLevel,
       awardAchievementId: awardAchievementId || null,
+      verificationTier: rec.verificationTier || null,
+      verifiedTag: rec.verifiedTag || null,
       reason,
     },
   });
@@ -4122,6 +4142,8 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
     success: true,
     progression,
     achievements,
+    verificationTier: rec.verificationTier,
+    verifiedTag: rec.verifiedTag || '',
   });
 });
 
