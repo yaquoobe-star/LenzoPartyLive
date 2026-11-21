@@ -290,7 +290,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     e.preventDefault();
     setErrorMessage(null);
     const cleanEmail = (registeredEmail || email).trim().toLowerCase();
-    if (!/^\\d{6}$/.test(emailOtpCode.trim())) {
+    if (!/^\d{6}$/.test(emailOtpCode.trim())) {
       setErrorMessage('Enter the 6-digit code sent to your email.');
       return;
     }

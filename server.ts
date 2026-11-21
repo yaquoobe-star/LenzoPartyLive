@@ -456,6 +456,7 @@ interface RankingActivityEvent {
 }
 
 const RANKINGS_STORE_PATH = path.join(process.cwd(), '.lenzo_rankings_store.json');
+const serverUsers = new Map<string, any>();
 const rankingEvents: RankingActivityEvent[] = [];
 const rankingUsersCache = new Map<string, any>();
 const lastWatchCreditMap = new Map<string, number>();
@@ -549,7 +550,6 @@ function scheduleRankingsPersist() {
   }, 800);
 }
 
-const serverUsers = new Map<string, any>();
 
 
 function loadRankingsStoreFromDisk() {
