@@ -80,7 +80,10 @@ public class NativeGoogleAuthPlugin extends Plugin {
             if (code == 12501) {
                 call.reject("CANCELLED: Google Sign-In was cancelled by user.");
             } else if (code == 10) {
-                call.reject("DEVELOPER_ERROR (status code: 10): Verify SHA-1 fingerprint & package name com.lenzoparty.app in Firebase Console.");
+                // Keep this diagnostic factual. The SHA-1 must be read from the certificate
+                // of the installed artifact (Play App Signing for Play installs); never
+                // guess or hard-code a fingerprint in the error message.
+                call.reject("DEVELOPER_ERROR (status code: 10) for package com.lenzoparty.app. Google Play Services rejected the Android OAuth client configuration. Verify the installed app signing certificate SHA-1, matching Android OAuth client, Firebase Google provider, and regenerated google-services.json. Exception: " + e.getMessage());
             } else {
                 call.reject("Google Sign-In failed with status code: " + code + " (" + e.getMessage() + ")");
             }

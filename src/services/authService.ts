@@ -393,8 +393,11 @@ export async function signInWithGoogle(options?: {
           throw new Error('Google Sign-In was cancelled.');
         }
         if (rawMsg.includes('DEVELOPER_ERROR') || rawMsg.includes('status code: 10') || rawMsg.includes('code=10')) {
+          // Do not display a hard-coded SHA-1 here: the installed Play build may be signed
+          // with a different certificate than the local/upload build. Preserve the real
+          // Google Play Services status so support can diagnose the installed artifact.
           throw new Error(
-            'Android Google OAuth SHA-1 mismatch (code 10). Add SHA-1 "FD:CB:00:31:00:EB:BE:8E:C9:D6:89:35:50:58:14:48:BB:03:98:59" to Firebase Console -> Project Settings -> Android App (com.lenzoparty.app), then download updated google-services.json.'
+            'Google Sign-In failed with Android DEVELOPER_ERROR (status code 10) for package com.lenzoparty.app. The app is still receiving an OAuth configuration error. Verify that the installed Play release uses the latest google-services.json, that the Play App Signing SHA-1 is registered on this exact Firebase Android app, and that Google provider is enabled in Firebase Authentication. Original error: ' + rawMsg
           );
         }
         throw nativeErr;
