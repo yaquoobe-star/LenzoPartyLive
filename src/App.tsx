@@ -75,6 +75,7 @@ import {
 } from './services/blockService';
 import {
   clampPartyMaxSeatsForHostLevel,
+  enforcePartyRoomSeatPolicy,
   isSeatLockedByHostLevel,
 } from './utils/partySeatRules';
 
@@ -634,17 +635,20 @@ export default function App() {
       setActiveLiveStream((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
     };
 
-    const upsertRoom = (incoming: PartyRoom) => {
-      if (!incoming?.id || endedRoomIdsRef.current.has(incoming.id)) return;
+    const upsertRoom = (rawIncoming: PartyRoom) => {
+      if (!rawIncoming?.id || endedRoomIdsRef.current.has(rawIncoming.id)) return;
+      const incoming = enforcePartyRoomSeatPolicy(rawIncoming);
       backendRoomIdsRef.current.add(incoming.id);
       setPartyRooms((prev) => {
         const exists = prev.some((r) => r.id === incoming.id);
         if (exists) {
-          return prev.map((r) => (r.id === incoming.id ? { ...r, ...incoming } : r));
+          return prev.map((r) => (r.id === incoming.id ? enforcePartyRoomSeatPolicy({ ...r, ...incoming }) : r));
         }
         return [incoming, ...prev];
       });
-      setActiveAudioRoom((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
+      setActiveAudioRoom((prev) =>
+        prev && prev.id === incoming.id ? enforcePartyRoomSeatPolicy({ ...prev, ...incoming }) : prev
+      );
     };
 
     const loadRealtimeBackendState = async () => {
@@ -672,10 +676,10 @@ export default function App() {
       setPartyRooms((prev) => {
         const mergedMap = new Map<string, PartyRoom>();
         prev.forEach((r) => {
-          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, enforcePartyRoomSeatPolicy(r));
         });
         rooms.forEach((r) => {
-          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+          if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, enforcePartyRoomSeatPolicy(r));
         });
         return Array.from(mergedMap.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
       });
@@ -924,7 +928,7 @@ export default function App() {
         const merged = new Map<string, PartyRoom>();
         remoteRooms.forEach((r) => {
           if (!endedRoomIdsRef.current.has(r.id)) {
-            merged.set(r.id, r);
+            merged.set(r.id, enforcePartyRoomSeatPolicy(r));
           }
         });
         prev.forEach((existing) => {
@@ -932,13 +936,16 @@ export default function App() {
           if (backendRoomIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
             if (fsItem) {
-              merged.set(existing.id, {
-                ...existing,
-                ...fsItem,
-                numericParticipants: Math.max(fsItem.numericParticipants || 0, existing.numericParticipants || 0),
-              });
+              merged.set(
+                existing.id,
+                enforcePartyRoomSeatPolicy({
+                  ...existing,
+                  ...fsItem,
+                  numericParticipants: Math.max(fsItem.numericParticipants || 0, existing.numericParticipants || 0),
+                })
+              );
             } else {
-              merged.set(existing.id, existing);
+              merged.set(existing.id, enforcePartyRoomSeatPolicy(existing));
             }
           }
         });
@@ -1413,15 +1420,18 @@ export default function App() {
       withTimeout(firestoreRoomPromise, 4000, null),
     ]);
 
-    const finalRoom: PartyRoom = {
+    const finalRoom: PartyRoom = enforcePartyRoomSeatPolicy({
       ...normalizedRoom,
       ...confirmedRoom,
       id: normalizedRoom.id,
+      maxSeats: safeMaxSeats,
       host: {
         ...(confirmedRoom.host || normalizedHost),
         id: activeUid,
+        level: normalizedHost.level,
       },
-    };
+      seats: normalizedRoom.seats,
+    });
 
     setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
     setActiveAudioRoom(finalRoom);
@@ -1881,8 +1891,9 @@ export default function App() {
             setCurrentScreen('rooms');
           }}
           onUpdateRoom={(updatedRoom) => {
-            setActiveAudioRoom(updatedRoom);
-            setPartyRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
+            const enforced = enforcePartyRoomSeatPolicy(updatedRoom);
+            setActiveAudioRoom(enforced);
+            setPartyRooms((prev) => prev.map((r) => (r.id === enforced.id ? enforced : r)));
           }}
           onCloseRoom={(roomId) => {
             // Intentional permanent close by Room Owner: removes room from directory & Firestore

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -47,6 +47,17 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
   const hostLevel = seatTierState.hostLevel;
   const [roomName, setRoomName] = useState('');
   const [maxSeats, setMaxSeats] = useState<PartySeatCount>(() => seatTierState.maxUnlockedSeats);
+  const hasManuallyPickedSeatsRef = useRef(false);
+
+  // Keep selected seat tier strictly synced if currentUser.level hydrates asynchronously
+  useEffect(() => {
+    setMaxSeats((prev) => {
+      if (!hasManuallyPickedSeatsRef.current) {
+        return seatTierState.maxUnlockedSeats;
+      }
+      return clampPartyMaxSeatsForHostLevel(prev, hostLevel);
+    });
+  }, [hostLevel, seatTierState.maxUnlockedSeats]);
   const [isPrivate, setIsPrivate] = useState<boolean>(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -522,6 +533,7 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
                         return;
                       }
                       setError(null);
+                      hasManuallyPickedSeatsRef.current = true;
                       setMaxSeats(tier.maxSeats);
                     }}
                     className={`relative py-3 px-2 rounded-2xl text-center flex flex-col items-center justify-center gap-1 transition-all border ${
@@ -569,15 +581,54 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
               })}
             </div>
 
-            <p className="mt-2 text-[10px] text-[#B9AECF] leading-relaxed">
-              {hostLevel < 5
-                ? 'Free Tier (Lv.0–4): 1 Host + 3 Guest seats active. Seat #2 beside Host unlocks at Level 5, 8 seats at Level 10, and 16 seats at Level 20.'
-                : hostLevel < 10
-                ? 'Level 5+ Unlocked: All 5 seats (including Co-Host Seat #2) are active! Reach Level 10 for 8 seats and Level 20 for 16 seats.'
-                : hostLevel < 20
-                ? 'Level 10+ Unlocked: Choose between 5-seat or 8-seat Party Rooms. Reach Level 20 to unlock 16-seat Party Rooms.'
-                : 'Level 20+ Unlocked: You have full access to choose 4/5-seat, 8-seat, or 16-seat Party Rooms.'}
-            </p>
+            <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-[10px]">
+              <div
+                className={`px-2.5 py-1.5 rounded-xl border ${
+                  hostLevel < 5
+                    ? 'bg-[#261142] border-[#FA26A0]/50 text-white'
+                    : 'bg-[#140D20] border-emerald-400/30 text-emerald-200'
+                }`}
+              >
+                <span className="font-black block">Lv.0–4 • 4+1 Seats</span>
+                <span className="text-[9px] text-white/70">1 Host + 3 Open (Seat #2 Locked)</span>
+              </div>
+              <div
+                className={`px-2.5 py-1.5 rounded-xl border ${
+                  hostLevel >= 5
+                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                    : 'bg-[#10091A] border-white/10 text-white/55'
+                }`}
+              >
+                <span className="font-black block">
+                  {hostLevel >= 5 ? '✓ ' : '🔒 '}Lv.5 • 5 Seats Open
+                </span>
+                <span className="text-[9px] text-white/70">Co-Host Seat #2 Unlocks</span>
+              </div>
+              <div
+                className={`px-2.5 py-1.5 rounded-xl border ${
+                  hostLevel >= 10
+                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                    : 'bg-[#10091A] border-white/10 text-white/55'
+                }`}
+              >
+                <span className="font-black block">
+                  {hostLevel >= 10 ? '✓ ' : '🔒 '}Lv.10 • 8 Seats
+                </span>
+                <span className="text-[9px] text-white/70">+3 Lower Guest Seats Added</span>
+              </div>
+              <div
+                className={`px-2.5 py-1.5 rounded-xl border ${
+                  hostLevel >= 20
+                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                    : 'bg-[#10091A] border-white/10 text-white/55'
+                }`}
+              >
+                <span className="font-black block">
+                  {hostLevel >= 20 ? '✓ ' : '🔒 '}Lv.20 • 16 Seats
+                </span>
+                <span className="text-[9px] text-white/70">Select 5, 8, or 16 Anytime</span>
+              </div>
+            </div>
           </div>
 
           {/* Room Privacy: Public Room vs Private Room */}

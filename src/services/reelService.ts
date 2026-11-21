@@ -23,7 +23,8 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { UserProfile, VideoComment, VideoItem } from '../types';
 import { sanitizeFirestoreUserCard, stripUndefinedDeep } from './firestoreService';
-import { deleteStorageFileByUrl, deleteStoragePath } from './storageService';
+import { deleteStorageFileByUrl, deleteStoragePath, MAX_REEL_VIDEO_BYTES } from './storageService';
+import { resolveMediaUrl } from '../utils/apiConfig';
 
 export const REELS_PAGE_SIZE = 12;
 
@@ -77,9 +78,9 @@ function mapReelDocToVideoItem(
     id,
     creator,
     creatorUid,
-    videoUrl: String(data.videoUrl || ''),
+    videoUrl: resolveMediaUrl(String(data.videoUrl || '')),
     videoStoragePath: typeof data.videoStoragePath === 'string' ? data.videoStoragePath : undefined,
-    thumbnailUrl: String(data.thumbnailUrl || data.videoUrl || ''),
+    thumbnailUrl: resolveMediaUrl(String(data.thumbnailUrl || data.videoUrl || '')),
     thumbnailStoragePath: typeof data.thumbnailStoragePath === 'string' ? data.thumbnailStoragePath : undefined,
     description: String(data.caption ?? data.description ?? ''),
     musicTitle: String(data.musicTitle || `Original Sound - ${creator.name}`),
@@ -115,14 +116,28 @@ export async function createReelDocument(params: {
   hashtags: string[];
   visibility: 'public' | 'friends' | 'private';
   musicTitle?: string;
+  fileSizeBytes?: number;
+  storageBackend?: 'firebase_storage' | 'server_media';
 }): Promise<VideoItem> {
   const user = auth.currentUser;
   if (!user) {
     throw new Error('Authentication required to publish a reel.');
   }
 
+  if (typeof params.fileSizeBytes === 'number' && params.fileSizeBytes > MAX_REEL_VIDEO_BYTES) {
+    throw new Error('Video exceeds the 100 MB maximum limit.');
+  }
+
   const safeCreator = sanitizeFirestoreUserCard(params.creator, user.uid);
   const nowMs = Date.now();
+  const safeFileSize =
+    typeof params.fileSizeBytes === 'number' &&
+    Number.isFinite(params.fileSizeBytes) &&
+    params.fileSizeBytes > 0 &&
+    params.fileSizeBytes <= MAX_REEL_VIDEO_BYTES
+      ? Math.round(params.fileSizeBytes)
+      : undefined;
+
   const payload = stripUndefinedDeep({
     reelID: params.reelId,
     creatorUID: user.uid,
@@ -137,6 +152,8 @@ export async function createReelDocument(params: {
     hashtags: params.hashtags.slice(0, 12),
     visibility: params.visibility,
     isPrivate: params.visibility === 'private',
+    fileSizeBytes: safeFileSize,
+    storageBackend: params.storageBackend || 'server_media',
     likesCount: 0,
     commentsCount: 0,
     viewsCount: 0,

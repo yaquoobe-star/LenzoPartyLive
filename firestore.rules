@@ -235,20 +235,76 @@ service cloud.firestore {
     // ========================================================
     // 3. PARTY ROOMS COLLECTION (/party_rooms/{roomId})
     // ========================================================
+    function getAuthoritativeHostLevel(hostUid) {
+      return exists(/databases/$(database)/documents/user_levels/$(hostUid))
+          && ('currentLevel' in get(/databases/$(database)/documents/user_levels/$(hostUid)).data)
+          && (get(/databases/$(database)/documents/user_levels/$(hostUid)).data.currentLevel is number)
+        ? get(/databases/$(database)/documents/user_levels/$(hostUid)).data.currentLevel
+        : (
+          exists(/databases/$(database)/documents/users/$(hostUid))
+          && ('level' in get(/databases/$(database)/documents/users/$(hostUid)).data)
+          && (get(/databases/$(database)/documents/users/$(hostUid)).data.level is number)
+            ? get(/databases/$(database)/documents/users/$(hostUid)).data.level
+            : 0
+        );
+    }
+
+    function isValidPartyRoomSeatConfig(data, hostUid) {
+      let hostLvl = getAuthoritativeHostLevel(hostUid);
+      let validMaxSeats =
+        data.maxSeats is number
+        && (
+          data.maxSeats == 5
+          || (data.maxSeats == 8 && hostLvl >= 10)
+          || (data.maxSeats == 16 && hostLvl >= 20)
+        );
+      let validSeatsList =
+        !('seats' in data)
+        || (
+          data.seats is list
+          && data.seats.size() <= data.maxSeats
+          && (hostLvl >= 5 || data.seats.size() < 2 || data.seats[1] == null)
+        );
+      return validMaxSeats && validSeatsList;
+    }
+
+    function isValidGuestPartySeatUpdate(data, oldData) {
+      let hostLvl = getAuthoritativeHostLevel(oldData.host.id);
+      let maxCap = oldData.maxSeats is number ? oldData.maxSeats : 5;
+      return !('seats' in data)
+        || (
+          data.seats is list
+          && data.seats.size() <= maxCap
+          && (hostLvl >= 5 || data.seats.size() < 2 || data.seats[1] == null)
+        );
+    }
+
     match /party_rooms/{roomId} {
       allow get: if isSignedIn() && isValidId(roomId);
       allow list: if isSignedIn();
       allow create: if isSignedIn()
                     && isValidId(roomId)
-                    && incoming().host.id == request.auth.uid;
+                    && incoming().host.id == request.auth.uid
+                    && isValidPartyRoomSeatConfig(incoming(), request.auth.uid);
       allow update: if isSignedIn()
                     && isValidId(roomId)
                     && (
                       isAdmin()
-                      || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
+                      || (
+                        existing().host.id == request.auth.uid
+                        && incoming().host.id == existing().host.id
+                        && (
+                          !incoming().diff(existing()).affectedKeys().hasAny(['maxSeats', 'seats'])
+                          || isValidPartyRoomSeatConfig(incoming(), existing().host.id)
+                        )
+                      )
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
                         && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount', 'lastHeartEvent'])
+                        && (
+                          !incoming().diff(existing()).affectedKeys().hasAny(['seats'])
+                          || isValidGuestPartySeatUpdate(incoming(), existing())
+                        )
                       )
                     );
       allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
@@ -913,6 +969,8 @@ service cloud.firestore {
         && (!('viewsCount' in data) || (data.viewsCount is number && data.viewsCount >= 0))
         && (!('sharesCount' in data) || (data.sharesCount is number && data.sharesCount >= 0))
         && (!('repostsCount' in data) || (data.repostsCount is number && data.repostsCount >= 0))
+        && (!('fileSizeBytes' in data) || (data.fileSizeBytes is number && data.fileSizeBytes > 0 && data.fileSizeBytes <= 104857600))
+        && (!('storageBackend' in data) || data.storageBackend in ['firebase_storage', 'server_media'])
         && (!('isPrivate' in data) || data.isPrivate is bool)
         && (!('processingStatus' in data) || data.processingStatus in ['uploading', 'processing', 'ready', 'failed']);
     }

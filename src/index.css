@@ -17,21 +17,24 @@
   html {
     background-color: #060212;
     color: #FFFFFF;
-    max-width: 100vw;
-    overflow-x: clip;
-    overflow-y: auto;
-    height: auto;
-    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     background-color: #060212;
     color: #FFFFFF;
-    max-width: 100vw;
+    width: 100%;
     min-height: 100%;
-    height: auto;
-    overflow-x: clip;
-    overflow-y: visible;
+    margin: 0;
+    padding: 0;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #root {
+    width: 100%;
+    min-height: 100%;
+    overflow-x: clip;
   }
   h1, h2, h3, .font-display {
     font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
@@ -96,12 +99,6 @@
     min-height: 100dvh;
     min-height: var(--app-dvh, 100dvh);
   }
-}
-
-/* Base mobile and touch refinements */
-html, body {
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: contain;
 }
 
 /* Custom scrollbar for sleek dark entertainment UI */

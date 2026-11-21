@@ -15,6 +15,16 @@ interface PullToRefreshProps {
 const PULL_THRESHOLD = 64;
 const MAX_PULL_DISTANCE = 108;
 
+function getViewportScrollTop(): number {
+  return (
+    document.scrollingElement?.scrollTop ||
+    window.scrollY ||
+    document.documentElement?.scrollTop ||
+    document.body?.scrollTop ||
+    0
+  );
+}
+
 /**
  * Checks whether the touch target or any scrollable ancestor is scrolled down
  * or belongs to an interactive/blocked element that shouldn't trigger Pull-to-Refresh.
@@ -23,12 +33,7 @@ function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement 
   if (!target || !(target instanceof HTMLElement)) return false;
 
   // Check window/document scroll position first
-  const docScrollTop =
-    window.scrollY ||
-    document.documentElement?.scrollTop ||
-    document.body?.scrollTop ||
-    0;
-  if (docScrollTop > 2) return false;
+  if (getViewportScrollTop() > 1) return false;
 
   // Walk up DOM ancestors to verify no inner scrollable container is scrolled away from top
   let el: HTMLElement | null = target;
@@ -60,7 +65,7 @@ function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement 
       const isScrollableY =
         (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
         el.scrollHeight > el.clientHeight + 2;
-      if (isScrollableY && el.scrollTop > 2) {
+      if (isScrollableY && el.scrollTop > 1) {
         return false;
       }
 
@@ -115,6 +120,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
       if (!canStartPullFromTarget(e.target, el)) {
         isTrackingRef.current = false;
+        isPullingActiveRef.current = false;
         return;
       }
 
@@ -134,30 +140,34 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       const dx = currentX - startXRef.current;
       const dy = currentY - startYRef.current;
 
-      // If user scrolls up or swipes horizontally, immediately yield to native scrolling
+      // Immediately yield to native upward/downward scrolling or horizontal swiping
       if (!isPullingActiveRef.current) {
-        if (dy <= 4) {
-          if (dy < -6) isTrackingRef.current = false;
-          return;
-        }
-        if (Math.abs(dx) > Math.abs(dy) * 0.95) {
+        // User swiped up (scrolling down the page) -> abort tracking immediately
+        if (dy < -4) {
           isTrackingRef.current = false;
           return;
         }
-        // Re-verify document is still right at the top before taking control
-        const scrollTop =
-          window.scrollY ||
-          document.documentElement?.scrollTop ||
-          document.body?.scrollTop ||
-          0;
-        if (scrollTop > 2) {
+        // Horizontal gesture (tabs/carousels) -> abort tracking immediately
+        if (Math.abs(dx) > Math.max(8, Math.abs(dy) * 0.75)) {
+          isTrackingRef.current = false;
+          return;
+        }
+        // Require deliberate downward pull past 16px before taking over
+        if (dy < 16) {
+          return;
+        }
+        // Re-verify document is strictly at top before activating pull indicator
+        if (getViewportScrollTop() > 1) {
           isTrackingRef.current = false;
           return;
         }
         isPullingActiveRef.current = true;
       }
 
-      if (dy <= 0) {
+      // If user reverses direction back up while pulling, release control immediately
+      if (dy <= 6 || getViewportScrollTop() > 1) {
+        isPullingActiveRef.current = false;
+        isTrackingRef.current = false;
         pullDistanceRef.current = 0;
         setPullDistance(0);
         setStatus('idle');
@@ -169,8 +179,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
         e.preventDefault();
       }
 
-      // Rubber-band curve for crisp native feel
-      const dampened = Math.min(MAX_PULL_DISTANCE, Math.round(dy * 0.46));
+      // Rubber-band curve starting smoothly from the 16px deadzone
+      const effectivePull = Math.max(0, dy - 12);
+      const dampened = Math.min(MAX_PULL_DISTANCE, Math.round(effectivePull * 0.48));
       pullDistanceRef.current = dampened;
       setPullDistance(dampened);
 

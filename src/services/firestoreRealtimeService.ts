@@ -10,8 +10,10 @@ import {
 import { auth, db } from '../firebase';
 import { ChatMessage, LiveViewerInfo, UserProfile } from '../types';
 import {
+  clampPartyMaxSeatsForHostLevel,
   isSeatLockedByHostLevel,
-  normalizePartyMaxSeats,
+  sanitizePartySeatsForHostLevel,
+  sanitizeUserLevel,
 } from '../utils/partySeatRules';
 
 const VALID_ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
@@ -696,6 +698,8 @@ export async function syncFirestorePartyRoomState(
     allowJoin?: boolean;
     announcement?: string;
     maxSeats?: number;
+    hostLevel?: number;
+    host?: UserProfile;
     backgroundType?: 'preset' | 'host_dp' | 'custom';
     backgroundId?: string;
     backgroundImage?: string;
@@ -704,8 +708,27 @@ export async function syncFirestorePartyRoomState(
   if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
   try {
     const payload: Record<string, any> = {};
+    const resolvedHostLevel =
+      typeof patch.hostLevel === 'number'
+        ? sanitizeUserLevel(patch.hostLevel)
+        : typeof patch.host?.level === 'number'
+        ? sanitizeUserLevel(patch.host.level)
+        : undefined;
+    const clampedMaxSeats =
+      typeof patch.maxSeats === 'number'
+        ? resolvedHostLevel !== undefined
+          ? clampPartyMaxSeatsForHostLevel(patch.maxSeats, resolvedHostLevel)
+          : clampPartyMaxSeatsForHostLevel(patch.maxSeats, 0)
+        : undefined;
+
     if (Array.isArray(patch.seats)) {
-      payload.seats = patch.seats.map((s) => compactSeatUser(s));
+      const compacted = patch.seats.map((s) => compactSeatUser(s));
+      if (resolvedHostLevel !== undefined) {
+        const targetLen = clampedMaxSeats ?? clampPartyMaxSeatsForHostLevel(compacted.length, resolvedHostLevel);
+        payload.seats = sanitizePartySeatsForHostLevel(compacted, targetLen, resolvedHostLevel);
+      } else {
+        payload.seats = compacted;
+      }
     }
     if (Array.isArray(patch.seatRequests)) {
       payload.seatRequests = patch.seatRequests
@@ -731,11 +754,15 @@ export async function syncFirestorePartyRoomState(
       payload.likesCount = Math.max(0, Math.floor(patch.likesCount));
     }
     if (isHost) {
+      if (patch.host) {
+        const compactHost = compactSeatUser(patch.host);
+        if (compactHost) payload.host = compactHost;
+      }
       if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
       if (typeof patch.isLocked === 'boolean') payload.isLocked = patch.isLocked;
       if (typeof patch.allowJoin === 'boolean') payload.allowJoin = patch.allowJoin;
       if (typeof patch.announcement === 'string') payload.announcement = patch.announcement.slice(0, 200);
-      if (typeof patch.maxSeats === 'number') payload.maxSeats = normalizePartyMaxSeats(patch.maxSeats);
+      if (clampedMaxSeats !== undefined) payload.maxSeats = clampedMaxSeats;
       if (
         patch.backgroundType === 'preset' ||
         patch.backgroundType === 'host_dp' ||
@@ -799,9 +826,16 @@ export async function submitFirestoreSeatRequest(
       if (currentSeats.some((s) => s && s.id === compactUser.id)) {
         throw new Error('You already occupy a seat in this room.');
       }
-      const hostLevel = Number(data.host?.level ?? 0);
-      const maxSeats = normalizePartyMaxSeats(data.maxSeats, hostLevel);
+      const hostLevel = sanitizeUserLevel(data.host?.level);
+      const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats, hostLevel);
       const defaultSeat = isSeatLockedByHostLevel(1, hostLevel) ? 2 : 1;
+      if (typeof request.seatIndex === 'number' && request.seatIndex >= maxSeats) {
+        throw new Error(
+          request.seatIndex >= 8
+            ? '16-seat stage unlocks at Host Level 20.'
+            : '8-seat stage unlocks at Host Level 10.'
+        );
+      }
       const safeIndex =
         typeof request.seatIndex === 'number' && request.seatIndex >= 0 && request.seatIndex < maxSeats
           ? request.seatIndex
@@ -846,7 +880,7 @@ export async function respondFirestoreSeatRequest(
   applicant: UserProfile,
   approve: boolean,
   preferredSeatIndex: number,
-  maxSeatsFallback = 8
+  maxSeatsFallback = 5
 ): Promise<{
   success: boolean;
   seats?: (UserProfile | null)[];
@@ -865,14 +899,13 @@ export async function respondFirestoreSeatRequest(
         throw new Error('Party room not found.');
       }
       const data = snap.data() as Record<string, any>;
-      const hostLevel = Number(data.host?.level ?? 0);
-      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, hostLevel);
-      const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
-      if (Array.isArray(data.seats)) {
-        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
-          nextSeats[i] = data.seats[i] || null;
-        }
-      }
+      const hostLevel = sanitizeUserLevel(data.host?.level);
+      const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
+      const nextSeats: (UserProfile | null)[] = sanitizePartySeatsForHostLevel(
+        Array.isArray(data.seats) ? data.seats : [],
+        maxSeats,
+        hostLevel
+      );
 
       const existingReqs: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
         ? data.seatRequests
@@ -909,6 +942,7 @@ export async function respondFirestoreSeatRequest(
       }
 
       tx.update(roomRef, {
+        maxSeats,
         seats: nextSeats,
         seatRequests: nextRequests,
       });
@@ -929,8 +963,8 @@ export async function takeFirestoreSeatDirect(
   roomId: string,
   seatIndex: number,
   targetUser: UserProfile,
-  maxSeatsFallback = 8
-): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatRequests?: FirestoreSeatRequestEntry[] }> {
+  maxSeatsFallback = 5
+): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatRequests?: FirestoreSeatRequestEntry[]; error?: string }> {
   if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
   const compactUser = compactSeatUser(targetUser);
   if (!compactUser) return { success: false };
@@ -941,28 +975,30 @@ export async function takeFirestoreSeatDirect(
       const snap = await tx.get(roomRef);
       if (!snap.exists()) return null;
       const data = snap.data() as Record<string, any>;
-      const hostLevel = Number(data.host?.level ?? 0);
-      if (isSeatLockedByHostLevel(seatIndex, hostLevel)) {
+      const hostLevel = sanitizeUserLevel(data.host?.level);
+      const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
+      if (seatIndex < 0 || seatIndex >= maxSeats || isSeatLockedByHostLevel(seatIndex, hostLevel)) {
         return null;
       }
-      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, hostLevel);
-      const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
-      if (Array.isArray(data.seats)) {
-        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
-          nextSeats[i] = data.seats[i] || null;
-        }
-      }
+      const nextSeats: (UserProfile | null)[] = sanitizePartySeatsForHostLevel(
+        Array.isArray(data.seats) ? data.seats : [],
+        maxSeats,
+        hostLevel
+      );
       for (let i = 0; i < nextSeats.length; i++) {
         if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
       }
-      if (seatIndex >= 0 && seatIndex < maxSeats) {
-        nextSeats[seatIndex] = compactUser;
-      }
+      nextSeats[seatIndex] = compactUser;
       const existingReqs: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
         ? data.seatRequests
         : [];
       const nextRequests = existingReqs.filter((r) => r?.user?.id !== compactUser.id);
-      tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests });
+      const isHostActor = data.host?.id === auth.currentUser?.uid;
+      if (isHostActor) {
+        tx.update(roomRef, { maxSeats, seats: nextSeats, seatRequests: nextRequests });
+      } else {
+        tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests });
+      }
       return { seats: nextSeats, seatRequests: nextRequests };
     });
     return result ? { success: true, ...result } : { success: false };
@@ -978,7 +1014,7 @@ export async function vacateFirestoreSeat(
   roomId: string,
   targetUserId: string,
   seatIndex?: number,
-  maxSeatsFallback = 8
+  maxSeatsFallback = 5
 ): Promise<{ success: boolean; seats?: (UserProfile | null)[]; mutedSeatIndices?: number[] }> {
   const uid = auth.currentUser?.uid;
   if (!uid || !isValidFirestoreId(roomId)) return { success: false };
@@ -988,13 +1024,13 @@ export async function vacateFirestoreSeat(
       const snap = await tx.get(roomRef);
       if (!snap.exists()) return null;
       const data = snap.data() as Record<string, any>;
-      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, Number(data.host?.level ?? 0));
-      const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
-      if (Array.isArray(data.seats)) {
-        for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
-          seats[i] = data.seats[i] || null;
-        }
-      }
+      const hostLevel = sanitizeUserLevel(data.host?.level);
+      const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
+      const seats: (UserProfile | null)[] = sanitizePartySeatsForHostLevel(
+        Array.isArray(data.seats) ? data.seats : [],
+        maxSeats,
+        hostLevel
+      );
       const clearedIndices = new Set<number>();
       if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < maxSeats) {
         seats[seatIndex] = null;
@@ -1007,10 +1043,10 @@ export async function vacateFirestoreSeat(
         }
       }
       const existingMuted: number[] = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
-      const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx));
+      const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx) && mIdx < maxSeats);
       const isHostActor = data.host?.id === uid;
       if (isHostActor) {
-        tx.update(roomRef, { seats, mutedSeatIndices: nextMuted });
+        tx.update(roomRef, { maxSeats, seats, mutedSeatIndices: nextMuted });
       } else {
         tx.update(roomRef, { seats });
       }

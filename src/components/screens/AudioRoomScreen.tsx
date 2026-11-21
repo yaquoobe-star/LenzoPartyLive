@@ -83,9 +83,10 @@ import {
   PARTY_SEAT_TIERS,
   PartySeatCount,
   clampPartyMaxSeatsForHostLevel,
+  isSeatIndexAllowedForRoom,
   isSeatLockedByHostLevel,
   isSeatModeUnlockedForLevel,
-  normalizePartyMaxSeats,
+  sanitizePartySeatsForHostLevel,
   sanitizeUserLevel,
 } from '../../utils/partySeatRules';
 
@@ -183,27 +184,29 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   }, [blockedByUserIds, isRoomHost, room.host.id, room.id, onClose]);
 
-  const hostLevel = sanitizeUserLevel(isRoomHost ? currentUser.level : room.host.level);
+  const [liveHostLevel, setLiveHostLevel] = useState<number>(() =>
+    sanitizeUserLevel(isRoomHost ? currentUser.level : room.host.level)
+  );
+  const hostLevel = isRoomHost ? sanitizeUserLevel(currentUser.level) : liveHostLevel;
+  const hostLevelRef = useRef<number>(hostLevel);
+  hostLevelRef.current = hostLevel;
+
   const [maxSeats, setMaxSeats] = useState<PartySeatCount>(() =>
-    normalizePartyMaxSeats(room.maxSeats, hostLevel)
+    clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel)
   );
   const maxSeatsRef = useRef<PartySeatCount>(maxSeats);
   maxSeatsRef.current = maxSeats;
   const isCoHostSeatLevelLocked = isSeatLockedByHostLevel(1, hostLevel);
 
-  // Strictly mirror server seat occupancy — NEVER inject a ghost Host into an empty Seat 0
-  const normalizeSeats = (raw?: (UserProfile | null)[], count: number = maxSeatsRef.current): (UserProfile | null)[] => {
-    const arr: (UserProfile | null)[] = Array(count).fill(null);
-    if (Array.isArray(raw)) {
-      for (let i = 0; i < Math.min(count, raw.length); i++) {
-        arr[i] = raw[i] || null;
-      }
-    }
-    return arr;
-  };
+  // Strictly mirror server seat occupancy while enforcing host-level maxSeats & Lv.5 Seat #2 lock
+  const normalizeSeats = (
+    raw?: (UserProfile | null)[],
+    count: number = maxSeatsRef.current,
+    level: number = hostLevelRef.current
+  ): (UserProfile | null)[] => sanitizePartySeatsForHostLevel(raw, count, level);
 
   const [seats, setSeats] = useState<(UserProfile | null)[]>(() =>
-    normalizeSeats(room.seats, normalizePartyMaxSeats(room.maxSeats, hostLevel))
+    normalizeSeats(room.seats, clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel), hostLevel)
   );
   const [mutedSeatIndices, setMutedSeatIndices] = useState<number[]>(room.mutedSeatIndices || []);
   const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(room.seatRequests || []);
@@ -332,11 +335,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   // Update local room snapshot when prop changes
   useEffect(() => {
-    const nextMax = normalizePartyMaxSeats(room.maxSeats, hostLevel);
+    const initialLvl = sanitizeUserLevel(isRoomHost ? currentUser.level : room.host.level);
+    setLiveHostLevel(initialLvl);
+    const nextMax = clampPartyMaxSeatsForHostLevel(room.maxSeats, initialLvl);
     setMaxSeats(nextMax);
-    setSeats(normalizeSeats(room.seats, nextMax));
-    if (room.mutedSeatIndices) setMutedSeatIndices(room.mutedSeatIndices);
-    if (room.seatRequests) setSeatRequests(room.seatRequests);
+    setSeats(normalizeSeats(room.seats, nextMax, initialLvl));
+    if (room.mutedSeatIndices) setMutedSeatIndices(room.mutedSeatIndices.filter((i) => i < nextMax));
+    if (room.seatRequests) {
+      setSeatRequests(
+        room.seatRequests.filter(
+          (r) => r.seatIndex >= 0 && r.seatIndex < nextMax && !isSeatLockedByHostLevel(r.seatIndex, initialLvl)
+        )
+      );
+    }
     const nextBg = extractRoomBackgroundConfig(room);
     setBackgroundType(nextBg.backgroundType);
     setBackgroundId(nextBg.backgroundId);
@@ -344,6 +355,37 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     seenSeatReqIdsRef.current = new Set((room.seatRequests || []).map((r) => r.id));
     seatReqHydratedRef.current = false;
   }, [room.id]);
+
+  // Keep maxSeats, locked Seat #2, and host.level strictly synchronized if Host level changes or hydrates
+  useEffect(() => {
+    const safeMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
+    const sanitized = normalizeSeats(seatsRef.current, safeMax, hostLevel);
+    const hadInvalidLength = seatsRef.current.length !== safeMax;
+    const hadLockedSeatOccupant = isSeatLockedByHostLevel(1, hostLevel) && Boolean(seatsRef.current[1]);
+
+    if (safeMax !== maxSeatsRef.current) {
+      setMaxSeats(safeMax);
+      maxSeatsRef.current = safeMax;
+    }
+    if (hadInvalidLength || hadLockedSeatOccupant) {
+      setSeats(sanitized);
+      seatsRef.current = sanitized;
+      setMutedSeatIndices((prev) => prev.filter((idx) => idx < safeMax));
+    }
+
+    if (isRoomHost) {
+      const storedHostLevel = sanitizeUserLevel(room.host?.level);
+      const storedMaxSeats = Number(room.maxSeats);
+      if (hadInvalidLength || hadLockedSeatOccupant || storedHostLevel !== hostLevel || storedMaxSeats > safeMax) {
+        void syncFirestorePartyRoomState(room.id, true, {
+          host: { ...room.host, ...currentUser, level: hostLevel },
+          hostLevel,
+          maxSeats: safeMax,
+          seats: sanitized,
+        });
+      }
+    }
+  }, [hostLevel, isRoomHost, room.id]);
 
   // Notify viewer immediately when Host approves them onto a seat or kicks them from a seat (Firestore + WS)
   useEffect(() => {
@@ -414,11 +456,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     );
 
     const applyServerRoomState = (nextRoom: PartyRoom) => {
-      const nextMax = normalizePartyMaxSeats(nextRoom.maxSeats ?? maxSeatsRef.current, hostLevel);
+      const effectiveLevel = isRoomHost
+        ? hostLevelRef.current
+        : typeof nextRoom.host?.level === 'number'
+        ? sanitizeUserLevel(nextRoom.host.level)
+        : hostLevelRef.current;
+      if (!isRoomHost && typeof nextRoom.host?.level === 'number') {
+        setLiveHostLevel(effectiveLevel);
+      }
+      const nextMax = clampPartyMaxSeatsForHostLevel(nextRoom.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+      const nextSeats = normalizeSeats(nextRoom.seats, nextMax, effectiveLevel);
       setMaxSeats(nextMax);
-      setSeats(normalizeSeats(nextRoom.seats, nextMax));
+      setSeats(nextSeats);
       if (Array.isArray(nextRoom.mutedSeatIndices)) {
-        setMutedSeatIndices(nextRoom.mutedSeatIndices);
+        setMutedSeatIndices(nextRoom.mutedSeatIndices.filter((i) => i < nextMax));
       }
       setIsSeatLocked(Boolean(nextRoom.isLocked));
       setIsAllowJoin(nextRoom.allowJoin !== false);
@@ -435,7 +486,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (typeof nextRoom.numericParticipants === 'number') {
         setParticipantTotal((prev) => Math.max(prev, nextRoom.numericParticipants || 0));
       }
-      onUpdateRoom?.(nextRoom);
+      onUpdateRoom?.({ ...nextRoom, maxSeats: nextMax, seats: nextSeats });
     };
 
     const refreshRealTimeParticipants = () => {
@@ -600,13 +651,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (!active) return;
       if (exists && data) {
         roomDocEverExisted = true;
-        const nextMax = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsRef.current, hostLevel);
+        const effectiveLevel = isRoomHost
+          ? hostLevelRef.current
+          : typeof data.host?.level === 'number'
+          ? sanitizeUserLevel(data.host.level)
+          : hostLevelRef.current;
+        if (!isRoomHost && typeof data.host?.level === 'number') {
+          setLiveHostLevel(effectiveLevel);
+        }
+        const nextMax = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsRef.current, effectiveLevel);
         setMaxSeats(nextMax);
         if (Array.isArray(data.seats)) {
-          setSeats(normalizeSeats(data.seats, nextMax));
+          setSeats(normalizeSeats(data.seats, nextMax, effectiveLevel));
         }
         if (Array.isArray(data.mutedSeatIndices)) {
-          setMutedSeatIndices(data.mutedSeatIndices);
+          setMutedSeatIndices(data.mutedSeatIndices.filter((i: number) => i < nextMax));
         }
         if (Array.isArray(data.seatRequests)) {
           const filteredFsRequests = (data.seatRequests as SeatRequest[]).filter(
@@ -1280,7 +1339,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     updatedMaxSeats?: PartySeatCount,
     updatedBackground?: Partial<PartyBackgroundSelection>
   ) => {
-    const resolvedMaxSeats = updatedMaxSeats ?? maxSeatsRef.current;
+    const effectiveLevel = hostLevelRef.current;
+    const resolvedMaxSeats = clampPartyMaxSeatsForHostLevel(
+      updatedMaxSeats ?? maxSeatsRef.current,
+      effectiveLevel
+    );
+    const sanitizedSeats = normalizeSeats(updatedSeats, resolvedMaxSeats, effectiveLevel);
     const resolvedBgType = updatedBackground?.backgroundType ?? backgroundRef.current.backgroundType;
     const resolvedBgId = updatedBackground?.backgroundId ?? backgroundRef.current.backgroundId;
     const resolvedBgImage =
@@ -1290,9 +1354,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     const nextRoom: PartyRoom = {
       ...room,
+      host: isRoomHost ? { ...room.host, level: effectiveLevel } : room.host,
       maxSeats: resolvedMaxSeats,
-      seats: updatedSeats,
-      mutedSeatIndices,
+      seats: sanitizedSeats,
+      mutedSeatIndices: mutedSeatIndices.filter((i) => i < resolvedMaxSeats),
       numericParticipants: participantTotal,
       participantCount: String(participantTotal),
       isLocked: updatedLocked !== undefined ? updatedLocked : isSeatLocked,
@@ -1307,12 +1372,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     onUpdateRoom?.(nextRoom);
     if (!skipFirestoreSync) {
       void syncFirestorePartyRoomState(room.id, isRoomHost, {
+        hostLevel: effectiveLevel,
         maxSeats: resolvedMaxSeats,
-        seats: updatedSeats,
+        seats: sanitizedSeats,
         seatRequests: nextRoom.seatRequests,
         numericParticipants: participantTotal,
         participantCount: String(participantTotal),
-        mutedSeatIndices,
+        mutedSeatIndices: nextRoom.mutedSeatIndices,
         isLocked: nextRoom.isLocked,
         allowJoin: nextRoom.allowJoin,
         announcement: nextRoom.announcement,
@@ -1389,13 +1455,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
     const clamped = clampPartyMaxSeatsForHostLevel(targetSeats, hostLevel);
     if (clamped === maxSeats) return;
-    const resizedSeats = normalizeSeats(seats, clamped);
+    const resizedSeats = normalizeSeats(seats, clamped, hostLevel);
     const nextMuted = mutedSeatIndices.filter((idx) => idx < clamped);
+    const nextRequests = seatRequests.filter(
+      (r) => r.seatIndex >= 0 && r.seatIndex < clamped && !isSeatLockedByHostLevel(r.seatIndex, hostLevel)
+    );
     setMaxSeats(clamped);
     setSeats(resizedSeats);
     setMutedSeatIndices(nextMuted);
+    setSeatRequests(nextRequests);
     void liveAndRoomService.updateRoomSettings(room.id, currentUser.id, { maxSeats: clamped });
-    syncRoom(resizedSeats, seatRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, clamped);
+    syncRoom(resizedSeats, nextRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, clamped);
     showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? '4+1' : clamped}-seat layout`);
   };
 
@@ -1428,7 +1498,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   // Seat Click Handler
   const handleSeatClick = (index: number) => {
     if (isSeatLockedByHostLevel(index, hostLevel)) {
-      showToast('Seat #2 unlocks when Host reaches Level 5');
+      showToast(`Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})`);
+      return;
+    }
+    if (!isSeatIndexAllowedForRoom(index, maxSeats, hostLevel)) {
+      showToast(
+        index >= 8
+          ? '16-seat stage unlocks when Host reaches Level 20'
+          : '8-seat stage unlocks when Host reaches Level 10'
+      );
       return;
     }
     const occupant = seats[index];
@@ -1497,6 +1575,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (requestTargetSeat === null) return;
     const targetSeat = requestTargetSeat;
     setShowRequestConfirmModal(false);
+    if (isSeatLockedByHostLevel(targetSeat, hostLevel)) {
+      showToast(`Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})`);
+      return;
+    }
+    if (!isSeatIndexAllowedForRoom(targetSeat, maxSeats, hostLevel)) {
+      showToast('This seat is locked at the current Host level.');
+      return;
+    }
     if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
       showToast('You are blocked from requesting a seat in this room.');
       return;
@@ -1736,13 +1822,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (showInviteToSeatModal === null) return;
     const targetSeat = showInviteToSeatModal;
     setShowInviteToSeatModal(null);
+    if (!isSeatIndexAllowedForRoom(targetSeat, maxSeats, hostLevel)) {
+      showToast(
+        isSeatLockedByHostLevel(targetSeat, hostLevel)
+          ? `Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})`
+          : 'This seat is locked at the current Host level.'
+      );
+      return;
+    }
     const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
     void liveAndRoomService
       .takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser)
       .catch(() => null);
 
     if (fsRes.success && Array.isArray(fsRes.seats)) {
-      const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
+      const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
       const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
       setSeats(nextSeats);
       setSeatRequests(nextRequests);
@@ -1751,7 +1845,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
 
-    const updated = [...seats];
+    const updated = normalizeSeats(seats, maxSeats, hostLevel);
     const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
     if (prevIdx !== -1) updated[prevIdx] = null;
     updated[targetSeat] = targetUser;
@@ -1763,12 +1857,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const handleAcceptSeatInvitation = async () => {
     if (!incomingSeatInvite) return;
     const idx = incomingSeatInvite.seatIndex;
+    if (!isSeatIndexAllowedForRoom(idx, maxSeats, hostLevel)) {
+      showToast(
+        isSeatLockedByHostLevel(idx, hostLevel)
+          ? 'Seat #2 unlocks when Host reaches Level 5'
+          : 'This seat is locked at the current Host level.'
+      );
+      setIncomingSeatInvite(null);
+      return;
+    }
     const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
     const updated =
       fsRes.success && Array.isArray(fsRes.seats)
-        ? normalizeSeats(fsRes.seats, maxSeats)
+        ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
         : (() => {
-            const copy = [...seats];
+            const copy = normalizeSeats(seats, maxSeats, hostLevel);
             const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
             if (prevSeat !== -1) copy[prevSeat] = null;
             copy[idx] = incomingSeatInvite.toUser;
@@ -1782,17 +1885,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   const handleOwnerTakeSeat = async (index: number) => {
     setShowOwnerSeatChoice(null);
+    if (!isSeatIndexAllowedForRoom(index, maxSeats, hostLevel)) {
+      showToast(
+        isSeatLockedByHostLevel(index, hostLevel)
+          ? `Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})`
+          : 'This seat is locked at the current Host level.'
+      );
+      return;
+    }
     const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
     void liveAndRoomService
       .takeSeatDirect(room.id, currentUser.id, index, currentUser)
       .catch(() => null);
 
     if (fsRes.success && Array.isArray(fsRes.seats)) {
-      const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
+      const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
       setSeats(nextSeats);
       syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
     } else {
-      const updated = [...seats];
+      const updated = normalizeSeats(seats, maxSeats, hostLevel);
       const prevSeat = updated.findIndex((s) => s?.id === currentUser.id);
       if (prevSeat !== -1) updated[prevSeat] = null;
       updated[index] = currentUser;
@@ -2498,7 +2609,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           <PartySofaSeat
             seatIndex={1}
             variant="cohost"
-            occupant={seatOne}
+            occupant={isCoHostSeatLevelLocked ? null : seatOne}
             isMuted={Boolean(
               !isCoHostSeatLevelLocked &&
                 seatOne &&
@@ -2515,7 +2626,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             isLevelLocked={isCoHostSeatLevelLocked}
             levelLockText="Lv.5"
             badgeText={isCoHostSeatLevelLocked ? 'Lv.5 Lock' : 'Seat 2'}
-            label={isCoHostSeatLevelLocked ? 'Locked' : seatOne ? seatOne.name : 'Join'}
+            label={isCoHostSeatLevelLocked ? 'Unlocks Lv.5' : seatOne ? seatOne.name : 'Join'}
             onClick={() => handleSeatClick(1)}
           />
         </div>
@@ -2852,6 +2963,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                       );
                     })}
                   </div>
+                  <p className="text-[10px] text-[#B9AECF] leading-snug pt-0.5">
+                    {hostLevel < 5
+                      ? 'Lv.0–4: 4 open seats + Seat #2 unlocks at Lv.5 • 8 seats at Lv.10 • 16 seats at Lv.20'
+                      : hostLevel < 10
+                      ? 'Lv.5+: All 5 seats unlocked! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
+                      : hostLevel < 20
+                      ? 'Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
+                      : 'Lv.20+: Full access to switch between 5, 8, or 16 seats anytime.'}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5">

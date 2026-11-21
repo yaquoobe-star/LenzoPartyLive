@@ -28,8 +28,10 @@ import {
   StoreAnimationPreset,
   StoreCategoryId,
 } from '../../types/store';
-import { apiFetch } from '../../utils/apiConfig';
-import { auth } from '../../firebase';
+import {
+  uploadMediaDataUrlWithProgress,
+  uploadReelVideoAndThumbnail,
+} from '../../services/storageService';
 import { StoreAssetPreview } from '../common/StoreAssetPreview';
 
 interface AdminStoreTabProps {
@@ -100,6 +102,7 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
   const [editing, setEditing] = useState<LenzoStoreProduct | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingField, setUploadingField] = useState<'imageUrl' | 'animationUrl' | null>(null);
+  const [uploadPercent, setUploadPercent] = useState<number>(0);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
 
@@ -119,44 +122,66 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
   ) => {
     if (!editing) return;
     setUploadingField(field);
+    setUploadPercent(0);
     try {
+      const isVideoFile =
+        (file.type || '').toLowerCase().startsWith('video/') ||
+        /\.(mp4|webm|mov|m4v|ogv|3gp|mkv)$/i.test(file.name || '');
+
+      if (isVideoFile) {
+        const assetId = `store_vid_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const uploaded = await uploadReelVideoAndThumbnail({
+          reelId: assetId,
+          videoFile: file,
+          onProgress: (pct) => {
+            setUploadPercent(Math.max(0, Math.min(100, Math.round(pct))));
+          },
+        });
+        setUploadPercent(100);
+        setEditing((prev) => (prev ? { ...prev, [field]: uploaded.videoUrl } : null));
+        onNotify('Uploaded animated video asset!');
+        return;
+      }
+
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
+        reader.onprogress = (ev) => {
+          if (ev.lengthComputable && ev.total > 0) {
+            setUploadPercent(Math.min(20, Math.round((ev.loaded / ev.total) * 20)));
+          }
+        };
         reader.onload = () => resolve(String(reader.result || ''));
         reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsDataURL(file);
       });
 
-      const token = await auth.currentUser?.getIdToken();
-      const res = await apiFetch('/api/media/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const res = await uploadMediaDataUrlWithProgress({
+        dataUrl,
+        filename: file.name,
+        folder: 'store_assets',
+        onProgress: (pct) => {
+          setUploadPercent(Math.min(100, Math.max(20, Math.round(20 + pct * 0.8))));
         },
-        body: JSON.stringify({
-          dataUrl,
-          filename: file.name,
-          folder: 'store_assets',
-        }),
       });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok && json.url) {
-        setEditing((prev) => (prev ? { ...prev, [field]: json.url } : null));
+      if (res.ok && res.url) {
+        setUploadPercent(100);
+        setEditing((prev) => (prev ? { ...prev, [field]: res.url } : null));
         onNotify(`Uploaded ${field === 'imageUrl' ? 'product image' : 'animation asset'}!`);
       } else {
         // Fallback to inline data URL for small icons/images
         if (file.size < 450_000) {
+          setUploadPercent(100);
           setEditing((prev) => (prev ? { ...prev, [field]: dataUrl } : null));
           onNotify('Asset attached directly to product.');
         } else {
-          onError(json.error || 'Upload failed. Try a smaller file or paste an HTTPS URL.');
+          onError(res.error || 'Upload failed. Try a smaller file or paste an HTTPS URL.');
         }
       }
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : 'Asset upload failed.');
     } finally {
       setUploadingField(null);
+      setUploadPercent(0);
     }
   };
 
@@ -442,10 +467,13 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
                   />
                   <label className="px-2.5 py-2 rounded-xl bg-purple-600/35 hover:bg-purple-600/55 border border-purple-400/40 text-white cursor-pointer flex items-center gap-1 shrink-0">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{uploadingField === 'imageUrl' ? '...' : 'Up'}</span>
+                    <span className="font-mono tabular-nums">
+                      {uploadingField === 'imageUrl' ? `${uploadPercent}%` : 'Up'}
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={uploadingField !== null}
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -454,6 +482,20 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
                     />
                   </label>
                 </div>
+                {uploadingField === 'imageUrl' && (
+                  <div
+                    role="progressbar"
+                    aria-valuenow={uploadPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="mt-1.5 w-full h-1.5 rounded-full bg-white/10 overflow-hidden"
+                  >
+                    <div
+                      className="h-full w-full origin-left bg-[#FA26A0] transition-transform duration-150"
+                      style={{ transform: `scaleX(${Math.max(0.02, uploadPercent / 100)})` }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Custom Animation Asset URL + File Upload */}
@@ -470,10 +512,13 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
                   />
                   <label className="px-2.5 py-2 rounded-xl bg-purple-600/35 hover:bg-purple-600/55 border border-purple-400/40 text-white cursor-pointer flex items-center gap-1 shrink-0">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{uploadingField === 'animationUrl' ? '...' : 'Up'}</span>
+                    <span className="font-mono tabular-nums">
+                      {uploadingField === 'animationUrl' ? `${uploadPercent}%` : 'Up'}
+                    </span>
                     <input
                       type="file"
                       accept="image/gif,image/webp,video/mp4,video/webm"
+                      disabled={uploadingField !== null}
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -482,6 +527,20 @@ export const AdminStoreTab: React.FC<AdminStoreTabProps> = ({ onNotify, onError 
                     />
                   </label>
                 </div>
+                {uploadingField === 'animationUrl' && (
+                  <div
+                    role="progressbar"
+                    aria-valuenow={uploadPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="mt-1.5 w-full h-1.5 rounded-full bg-white/10 overflow-hidden"
+                  >
+                    <div
+                      className="h-full w-full origin-left bg-[#FA26A0] transition-transform duration-150"
+                      style={{ transform: `scaleX(${Math.max(0.02, uploadPercent / 100)})` }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="sm:col-span-2">

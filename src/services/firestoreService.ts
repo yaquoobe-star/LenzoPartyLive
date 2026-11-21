@@ -29,8 +29,9 @@ import {
 } from '../types';
 import {
   clampPartyMaxSeatsForHostLevel,
+  getActiveSeatCapacity,
   isSeatLockedByHostLevel,
-  normalizePartyMaxSeats,
+  sanitizeUserLevel,
 } from '../utils/partySeatRules';
 
 /**
@@ -273,11 +274,17 @@ function toMillis(val: any, fallback = Date.now()): number {
 }
 
 function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
-  const maxSeats = normalizePartyMaxSeats(data?.maxSeats, data?.host?.level);
+  const hostCard = sanitizeFirestoreUserCard(data?.host);
+  const hostLevel = sanitizeUserLevel(hostCard.level);
+  const maxSeats = clampPartyMaxSeatsForHostLevel(data?.maxSeats, hostLevel);
+  const activeCapacity = getActiveSeatCapacity(maxSeats, hostLevel);
   const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
   const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
   for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
-    seats[i] = rawSeats[i] ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
+    seats[i] =
+      rawSeats[i] && !isSeatLockedByHostLevel(i, hostLevel)
+        ? sanitizeFirestoreUserCard(rawSeats[i])
+        : null;
   }
   const numericParticipants =
     typeof data?.numericParticipants === 'number'
@@ -291,10 +298,10 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
     displayId: String(data?.displayId || id.replace(/[^0-9]/g, '').slice(-5) || '10001'),
     title: String(data?.title || 'Party Voice Room'),
     category: (data?.category || 'Party') as PartyRoom['category'],
-    host: sanitizeFirestoreUserCard(data?.host),
+    host: hostCard,
     coverImage: String(data?.coverImage || data?.host?.avatar || ''),
     iconType: data?.iconType || 'heart',
-    participantCount: String(data?.participantCount || `${numericParticipants}/${maxSeats}`),
+    participantCount: String(data?.participantCount || `${numericParticipants}/${activeCapacity}`),
     numericParticipants,
     isAudioRoom: true,
     maxSeats,
@@ -409,7 +416,9 @@ export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom,
       host: safeHost,
       coverImage: safeImageUrlForCard(room.coverImage, 160000) || safeHost.avatar || '',
       iconType: room.iconType || 'heart',
-      participantCount: String(room.participantCount || `1/${maxSeats}`),
+      participantCount: String(
+        room.participantCount || `1/${getActiveSeatCapacity(maxSeats, safeHost.level)}`
+      ),
       numericParticipants: typeof room.numericParticipants === 'number' ? room.numericParticipants : 1,
       viewersCount: typeof room.numericParticipants === 'number' ? room.numericParticipants : 1,
       isAudioRoom: true,
@@ -461,8 +470,23 @@ export async function updateFirestorePartyRoom(roomId: string, updates: Partial<
   const docRef = doc(db, 'party_rooms', roomId);
   try {
     const cleanUpdates: Record<string, any> = stripUndefinedDeep({ ...updates });
+    const updateHostLevel =
+      updates.host && typeof updates.host.level === 'number'
+        ? sanitizeUserLevel(updates.host.level)
+        : undefined;
+    if (typeof updates.maxSeats === 'number' && updateHostLevel !== undefined) {
+      cleanUpdates.maxSeats = clampPartyMaxSeatsForHostLevel(updates.maxSeats, updateHostLevel);
+    }
     if (Array.isArray(updates.seats)) {
-      cleanUpdates.seats = updates.seats.map((s) => (s ? sanitizeFirestoreUserCard(s) : null));
+      const clampedSeats = updates.seats.map((s, idx) =>
+        s && (updateHostLevel === undefined || !isSeatLockedByHostLevel(idx, updateHostLevel))
+          ? sanitizeFirestoreUserCard(s)
+          : null
+      );
+      cleanUpdates.seats =
+        typeof cleanUpdates.maxSeats === 'number'
+          ? clampedSeats.slice(0, cleanUpdates.maxSeats)
+          : clampedSeats;
     }
     if (updates.host) {
       cleanUpdates.host = sanitizeFirestoreUserCard(updates.host);

@@ -14,7 +14,11 @@ import {
   Trophy
 } from 'lucide-react';
 import { PartyRoom, ScreenType } from '../../types';
-import { getActiveSeatCapacity, normalizePartyMaxSeats } from '../../utils/partySeatRules';
+import {
+  countActiveOccupiedSeats,
+  getActiveSeatCapacity,
+  normalizePartyMaxSeats,
+} from '../../utils/partySeatRules';
 
 interface RoomsScreenProps {
   partyRooms: PartyRoom[];
@@ -68,8 +72,8 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
 
     // Category filter
     if (activeCategory === 'Trending') return true;
-    if (activeCategory === 'Popular') return room.numericParticipants >= 8 || room.maxSeats === 16;
-    if (activeCategory === 'New') return (room.startTime || 0) > Date.now() - 86400000 || room.numericParticipants < room.maxSeats;
+    if (activeCategory === 'Popular') return room.numericParticipants >= 8 || normalizedRoomSeats === 16;
+    if (activeCategory === 'New') return (room.startTime || 0) > Date.now() - 86400000 || room.numericParticipants < normalizedRoomSeats;
     if (activeCategory === 'Friends') return room.category === 'Friendship' || Boolean(room.host.isFollowing);
     
     return true;
@@ -247,7 +251,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                 ? 'bg-[#FA26A0] border-[#FA26A0] text-white shadow'
                 : 'bg-[#140D20] border-white/10 text-white/80 hover:text-white'
             }`}
-            title="Filter by Capacity (8 vs 16 Seats)"
+            title="Filter by Capacity (5, 8, or 16 Seats)"
           >
             <SlidersHorizontal className="w-4 h-4" />
           </button>
@@ -314,7 +318,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
         <div className="space-y-3 pt-1">
           {filteredRooms.map((room) => {
             const liveOnlineCount = typeof room.numericParticipants === 'number' ? room.numericParticipants : 0;
-            const seatedCount = Array.isArray(room.seats) ? room.seats.filter(Boolean).length : 0;
+            const seatedCount = countActiveOccupiedSeats(room.seats, room.maxSeats, room.host?.level);
             return (
               <div
                 key={room.id}

@@ -46,6 +46,31 @@ export function apiUrl(path: string): string {
 }
 
 /**
+ * Resolve stored media URLs so relative /api/* paths work seamlessly across Web,
+ * Cloudflare Pages, and Capacitor Android WebView while keeping absolute URLs intact.
+ */
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  const trimmed = String(url).trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+  if (/^(javascript|vbscript):/i.test(trimmed)) {
+    return '';
+  }
+  if (trimmed.startsWith('/api/')) {
+    return apiUrl(trimmed);
+  }
+  return trimmed;
+}
+
+/**
  * Perform an authenticated API request to the shared Express backend (Railway / local server),
  * automatically attaching the current Firebase User's ID Token as a Bearer token when available.
  */
@@ -75,14 +100,32 @@ export async function apiFetch(
   }
 
   const targetUrl = apiUrl(path);
+  const callerSignal = fetchInit.signal;
   let controller: AbortController | null = null;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let signal = fetchInit.signal;
+  let didTimeout = false;
+  let signal: AbortSignal | undefined = callerSignal ?? undefined;
 
-  if (!signal && timeoutMs > 0 && typeof AbortController !== 'undefined') {
+  const onCallerAbort = () => {
+    controller?.abort();
+  };
+
+  if (typeof AbortController !== 'undefined' && (timeoutMs > 0 || callerSignal)) {
     controller = new AbortController();
     signal = controller.signal;
-    timeoutId = setTimeout(() => controller?.abort(), timeoutMs);
+    if (callerSignal) {
+      if (callerSignal.aborted) {
+        controller.abort();
+      } else {
+        callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+      }
+    }
+    if (timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        didTimeout = true;
+        controller?.abort();
+      }, timeoutMs);
+    }
   }
 
   try {
@@ -92,7 +135,12 @@ export async function apiFetch(
       signal,
     });
   } catch (err: any) {
-    const isAbort = err?.name === 'AbortError';
+    if (callerSignal?.aborted && !didTimeout) {
+      const abortErr = new Error('Request cancelled.');
+      abortErr.name = 'AbortError';
+      throw abortErr;
+    }
+    const isAbort = err?.name === 'AbortError' || didTimeout;
     const detail = isAbort
       ? `Request timed out after ${timeoutMs}ms (${path})`
       : `Unable to reach backend (${targetUrl}): ${err?.message || 'Network unavailable'}`;
@@ -103,6 +151,9 @@ export async function apiFetch(
     throw wrapped;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
+    if (callerSignal) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
   }
 }
 

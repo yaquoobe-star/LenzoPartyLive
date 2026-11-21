@@ -200,7 +200,7 @@
         },
         "maxSeats": {
           "type": "number",
-          "description": "Total stage seats capacity (8, 12, or 16)"
+          "description": "Total stage seats capacity gated by Host level: 5 at Lv.0-9 (Seat #2 locked until Lv.5), 8 at Lv.10+, 16 at Lv.20+"
         },
         "isLocked": {
           "type": "boolean",
@@ -688,7 +688,7 @@
     },
     "Reel": {
       "title": "Reel",
-      "description": "Short-form vertical video stored in Firebase Storage and indexed in Firestore",
+      "description": "Short-form vertical video (max 100 MB) stored in persistent media storage or Firebase Storage and indexed in Firestore",
       "type": "object",
       "properties": {
         "reelID": { "type": "string", "maxLength": 128 },
@@ -700,6 +700,8 @@
         "caption": { "type": "string", "maxLength": 500 },
         "hashtags": { "type": "array", "items": { "type": "string" } },
         "visibility": { "type": "string", "enum": ["public", "friends", "private"] },
+        "fileSizeBytes": { "type": "number", "description": "Uploaded video size in bytes (max 104857600 / 100 MB)" },
+        "storageBackend": { "type": "string", "enum": ["firebase_storage", "server_media"] },
         "likesCount": { "type": "number" },
         "commentsCount": { "type": "number" },
         "viewsCount": { "type": "number" },

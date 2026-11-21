@@ -16,9 +16,9 @@ export const PARTY_SEAT_TIERS: PartySeatTierInfo[] = [
     tierLabel: 'Level 1',
     maxSeats: 5,
     minLevel: 0,
-    title: '4 / 5 Seats',
+    title: '5 Seats',
     shortLabel: '5 Seats',
-    description: 'Host + side co-host (unlocks Lv.5) + 3 guest seats',
+    description: 'Lv.0–4: 4 open + Seat #2 locked (unlocks at Lv.5)',
   },
   {
     tierNumber: 2,
@@ -27,7 +27,7 @@ export const PARTY_SEAT_TIERS: PartySeatTierInfo[] = [
     minLevel: 10,
     title: '8 Seats',
     shortLabel: '8 Seats',
-    description: '5 upper seats + 3 lower seats (unlocks Lv.10)',
+    description: '5 upper seats + 3 lower seats (unlocks at Lv.10)',
   },
   {
     tierNumber: 3,
@@ -36,24 +36,13 @@ export const PARTY_SEAT_TIERS: PartySeatTierInfo[] = [
     minLevel: 20,
     title: '16 Seats',
     shortLabel: '16 Seats',
-    description: 'Full 16-seat party stage (unlocks Lv.20)',
+    description: 'Full 16-seat party stage (unlocks at Lv.20)',
   },
 ];
 
 export function sanitizeUserLevel(rawLevel?: number | null): number {
   if (typeof rawLevel !== 'number' || !Number.isFinite(rawLevel)) return 0;
   return Math.max(0, Math.floor(rawLevel));
-}
-
-export function normalizePartyMaxSeats(raw?: number | null, hostLevel?: number): PartySeatCount {
-  const num = Number(raw);
-  if (num === 16) return 16;
-  if (num === 5 || num === 4) return 5;
-  if (num === 8) return 8;
-  if (typeof hostLevel === 'number') {
-    return getAllowedSeatTierForLevel(hostLevel).maxUnlockedSeats;
-  }
-  return 5;
 }
 
 export function getAllowedSeatTierForLevel(rawHostLevel?: number | null): {
@@ -105,7 +94,25 @@ export function clampPartyMaxSeatsForHostLevel(
 }
 
 /**
- * Seat #2 (index 1, right next to the Host) is locked for Hosts below Level 5.
+ * Normalizes a party room's seat count.
+ * Whenever `hostLevel` is provided, strictly clamps `maxSeats` to the host's unlocked tier:
+ * - Lv.0–9  => max 5 seats (Seat #2 locked until Lv.5)
+ * - Lv.10–19 => 5 or 8 seats
+ * - Lv.20+  => 5, 8, or 16 seats
+ */
+export function normalizePartyMaxSeats(raw?: number | null, hostLevel?: number | null): PartySeatCount {
+  if (typeof hostLevel === 'number' && Number.isFinite(hostLevel)) {
+    return clampPartyMaxSeatsForHostLevel(raw, hostLevel);
+  }
+  const num = Number(raw);
+  if (num === 16) return 16;
+  if (num === 8) return 8;
+  if (num === 5 || num === 4) return 5;
+  return 5;
+}
+
+/**
+ * Seat #2 (index 1, directly beside the Host) is locked for Hosts below Level 5.
  * Unlocks automatically when Host reaches Level 5+.
  */
 export function isSeatLockedByHostLevel(seatIndex: number, rawHostLevel?: number | null): boolean {
@@ -114,14 +121,93 @@ export function isSeatLockedByHostLevel(seatIndex: number, rawHostLevel?: number
 }
 
 /**
+ * Checks whether a seat index is within the host's unlocked seat tier AND not level-locked.
+ */
+export function isSeatIndexAllowedForRoom(
+  seatIndex: number,
+  maxSeats: number | undefined | null,
+  rawHostLevel?: number | null
+): boolean {
+  if (typeof seatIndex !== 'number' || !Number.isInteger(seatIndex) || seatIndex < 0) {
+    return false;
+  }
+  const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
+  if (seatIndex >= safeMax) return false;
+  if (isSeatLockedByHostLevel(seatIndex, rawHostLevel)) return false;
+  return true;
+}
+
+/**
+ * Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`
+ * and Seat #2 (index 1) is always empty when Host Level < 5.
+ */
+export function sanitizePartySeatsForHostLevel<T>(
+  rawSeats: (T | null | undefined)[] | undefined | null,
+  maxSeats: number | undefined | null,
+  rawHostLevel?: number | null
+): (T | null)[] {
+  const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
+  const next: (T | null)[] = Array(safeMax).fill(null);
+  if (Array.isArray(rawSeats)) {
+    for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
+      if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+        next[i] = rawSeats[i] as T;
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Counts currently occupied valid (non-level-locked, in-bounds) seats.
+ */
+export function countActiveOccupiedSeats(
+  rawSeats: (unknown | null | undefined)[] | undefined | null,
+  maxSeats: number | undefined | null,
+  rawHostLevel?: number | null
+): number {
+  const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
+  if (!Array.isArray(rawSeats)) return 0;
+  let count = 0;
+  for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
+    if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
  * Returns the number of usable (non-level-locked) seats in the room.
- * For Level 0–4 hosts in a 5-slot room, Seat 1 is locked, leaving 4 active seats (Host + 3 guests).
+ * For Level 0–4 hosts in a 5-slot room, Seat #2 (index 1) is locked, leaving 4 active seats (Host + 3 guests).
  */
 export function getActiveSeatCapacity(maxSeats: number, rawHostLevel?: number | null): number {
-  const normalized = normalizePartyMaxSeats(maxSeats, rawHostLevel ?? undefined);
   const hostLevel = sanitizeUserLevel(rawHostLevel);
-  if (normalized === 5 && hostLevel < 5) {
+  const clamped = clampPartyMaxSeatsForHostLevel(maxSeats, hostLevel);
+  if (clamped === 5 && hostLevel < 5) {
     return 4;
   }
-  return normalized;
+  return clamped;
+}
+
+/**
+ * Enforces seat-tier clamping and locked-seat stripping on any PartyRoom object.
+ */
+export function enforcePartyRoomSeatPolicy<
+  T extends {
+    maxSeats?: number;
+    host?: { level?: number };
+    seats?: (any | null)[];
+  }
+>(room: T): T {
+  const hostLevel = sanitizeUserLevel(room?.host?.level);
+  const safeMaxSeats = clampPartyMaxSeatsForHostLevel(room?.maxSeats, hostLevel);
+  const safeSeats = Array.isArray(room?.seats)
+    ? sanitizePartySeatsForHostLevel(room.seats, safeMaxSeats, hostLevel)
+    : room?.seats;
+  return {
+    ...room,
+    maxSeats: safeMaxSeats,
+    ...(safeSeats !== undefined ? { seats: safeSeats } : {}),
+  };
 }

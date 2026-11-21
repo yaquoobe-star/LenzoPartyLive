@@ -33,7 +33,6 @@ import {
   BarChart3,
   LayoutGrid,
   ShieldCheck,
-  Users,
   Ban,
   ShieldAlert,
   ArrowRightLeft,
@@ -69,7 +68,6 @@ import { uploadUserImage } from '../../services/storageService';
 import {
   calculateAgeFromBirthday,
   computeUserAchievements,
-  fetchUserLiveRank,
   getCountryFlag,
 } from '../../services/profileModuleService';
 
@@ -176,7 +174,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [followersCount, setFollowersCount] = useState<number>(activeUser.followersCount || 0);
   const [followingCount, setFollowingCount] = useState<number>(activeUser.followingCount || 0);
   const [totalLikesCount, setTotalLikesCount] = useState<number>(activeUser.totalLikes || 0);
-  const [liveRank, setLiveRank] = useState<number | null>(null);
 
   // UI Helpers
   const [copiedId, setCopiedId] = useState(false);
@@ -187,11 +184,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setTimeout(() => setToastMessage(null), 2600);
   };
 
-  // Load real content tabs, follower/following counts, and live rank
+  // Load real content tabs and follower/following counts
   const loadProfileData = async () => {
     setIsLoadingContent(true);
     try {
-      const [tabs, followersList, followingList, userRank] = await Promise.all([
+      const [tabs, followersList, followingList] = await Promise.all([
         profileService.getUserContentTabs(
           activeUser.id,
           currentUser.id,
@@ -201,7 +198,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         ),
         profileService.getFollowers(activeUser.id),
         profileService.getFollowing(activeUser.id),
-        fetchUserLiveRank(activeUser.id),
       ]);
 
       setPublicVideos(tabs.publicVideos);
@@ -222,8 +218,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       } else {
         setFollowingCount(activeUser.followingCount || 0);
       }
-
-      setLiveRank(userRank);
     } catch (err) {
       console.warn('Profile data refresh notice:', err);
     } finally {
@@ -543,10 +537,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const isVideoSource = (url?: string) => {
     if (!url) return false;
+    const lower = url.toLowerCase();
     return (
-      url.startsWith('blob:') ||
-      /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(url) ||
-      url.includes('/videos%2F')
+      lower.startsWith('blob:') ||
+      /\.(mp4|webm|mov|m4v|ogv|ogg|3gp|mkv|m3u8)(\?|$)/i.test(lower) ||
+      (lower.includes('/api/reels/media/') && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower)) ||
+      lower.includes('/videos%2f')
     );
   };
 
@@ -587,7 +583,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   return (
     <div
-      className="w-full min-h-dvh-screen bg-[#090611] text-white sm:pb-16 font-sans touch-pan-y"
+      className="w-full min-h-dvh-screen bg-[#090611] text-white sm:pb-16 font-sans"
       style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom, 0px))' }}
     >
       {/* Hidden quick upload inputs for owner */}
@@ -1061,23 +1057,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             {/* Header Action Buttons */}
             <div className="flex items-center gap-2 pb-1 flex-wrap justify-end">
               {isOwner ? (
-                <>
-                  <button
-                    onClick={() => openAgencyCenter(hasAgency ? 'center' : 'join')}
-                    className="h-10 px-3.5 rounded-xl bg-[#1C0F33] hover:bg-[#271547] border border-[#A855F7]/40 text-white text-xs font-bold flex items-center gap-1.5 whitespace-nowrap active:scale-95 transition-all"
-                  >
-                    <Building2 className="w-3.5 h-3.5 text-[#C084FC]" />
-                    <span>{hasAgency ? 'Agency' : 'Join Agency'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] hover:opacity-95 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-[#8B20FF]/25 whitespace-nowrap active:scale-95 transition-all"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit Profile</span>
-                  </button>
-                </>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] hover:opacity-95 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-[#8B20FF]/25 whitespace-nowrap active:scale-95 transition-all"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </button>
               ) : (
                 <>
                   {!isInteractionBlocked && (
@@ -1414,60 +1400,68 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </div>
               </div>
 
-              {/* Card 2 & Card 3: Separate VIP Membership Card & Super VIP Membership Card */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Card 2: VIP Membership Card (12 Tiers) */}
+              {/* Unified VIP Member & Super VIP Card */}
+              <div className="rounded-3xl bg-gradient-to-br from-[#28152C] via-[#170C27] to-[#120820] border border-[#FFC84A]/30 overflow-hidden shadow-[0_10px_28px_rgba(0,0,0,0.35)]">
+                {/* VIP Membership Row */}
                 <button
                   type="button"
                   onClick={() => openProgressionHub('vip')}
-                  className="p-4 rounded-3xl bg-gradient-to-br from-[#2A1809] via-[#170C27] to-[#120820] border border-[#FFC84A]/35 hover:border-[#FFC84A]/70 text-left transition-all active:scale-[0.98] space-y-2.5"
+                  className="w-full p-4 hover:bg-white/[0.04] text-left transition-colors active:bg-white/[0.06] flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-[#FFC84A]/15 border border-[#FFC84A]/40 text-[#FFC84A] flex items-center justify-center">
-                      <Crown className="w-4 h-4" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFC84A]/15 border border-[#FFC84A]/40 text-[#FFC84A] flex items-center justify-center shrink-0">
+                      <Crown className="w-4.5 h-4.5" />
                     </div>
-                    <VipTierBadge tier={vipTier} size="xs" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-black text-white truncate">VIP Member</p>
+                        <VipTierBadge tier={vipTier} size="xs" />
+                      </div>
+                      <p className="text-[11px] text-[#D7CEEB] mt-0.5 truncate tabular-nums">
+                        {fullProgression.unlockedVipTiers.length}/12 Frames ·{' '}
+                        <span className="text-[#FFC84A] font-semibold">
+                          {nextVipDef ? `Next ${nextVipDef.code} (Lv.${nextVipDef.unlockLevel})` : 'All 12 Unlocked'}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-black text-white">VIP Membership</p>
-                    <p className="text-[11px] text-[#D7CEEB] mt-0.5">
-                      {fullProgression.unlockedVipTiers.length}/12 Frames Unlocked
-                    </p>
-                    <p className="text-[10px] text-[#FFC84A] font-semibold mt-1">
-                      {nextVipDef ? `Next: ${nextVipDef.code} at Lv.${nextVipDef.unlockLevel}` : 'All 12 VIP Unlocked'}
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#FFC84A]/80 shrink-0" />
                 </button>
 
-                {/* Card 3: Super VIP Membership Card (6 Ultra-Premium Tiers) */}
+                <div className="h-px bg-white/[0.08] mx-4" />
+
+                {/* Super VIP Collection Row */}
                 <button
                   type="button"
                   onClick={() => openProgressionHub('super_vip')}
-                  className="p-4 rounded-3xl bg-gradient-to-br from-[#2B0C4E] via-[#190A31] to-[#120722] border border-fuchsia-400/35 hover:border-fuchsia-400/75 text-left transition-all active:scale-[0.98] space-y-2.5"
+                  className="w-full p-4 hover:bg-white/[0.04] text-left transition-colors active:bg-white/[0.06] flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/45 text-fuchsia-300 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/45 text-fuchsia-300 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4.5 h-4.5" />
                     </div>
-                    {superVipTier > 0 ? (
-                      <SuperVipTierBadge tier={superVipTier} size="xs" />
-                    ) : (
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-white/10 text-fuchsia-200">
-                        SVIP 0/6
-                      </span>
-                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-black text-white truncate">Super VIP</p>
+                        {superVipTier > 0 ? (
+                          <SuperVipTierBadge tier={superVipTier} size="xs" />
+                        ) : (
+                          <span className="text-[10px] font-bold text-fuchsia-200 tabular-nums">
+                            SVIP 0/6
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#D7CEEB] mt-0.5 truncate tabular-nums">
+                        {fullProgression.unlockedSuperVipTiers.length}/6 Animated ·{' '}
+                        <span className="text-fuchsia-300 font-semibold">
+                          {nextSuperVipDef
+                            ? `Next ${nextSuperVipDef.code} (Lv.${nextSuperVipDef.unlockLevel})`
+                            : 'Max Cosmic Gold'}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-black text-white">Super VIP Collection</p>
-                    <p className="text-[11px] text-[#D7CEEB] mt-0.5">
-                      {fullProgression.unlockedSuperVipTiers.length}/6 Animated Frames
-                    </p>
-                    <p className="text-[10px] text-fuchsia-300 font-semibold mt-1">
-                      {nextSuperVipDef
-                        ? `Next: ${nextSuperVipDef.code} at Lv.${nextSuperVipDef.unlockLevel}`
-                        : 'Max Cosmic Gold Unlocked'}
-                    </p>
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-fuchsia-300/80 shrink-0" />
                 </button>
               </div>
 
@@ -1546,143 +1540,84 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </button>
             )}
 
-            {/* 5. AGENCY & CREW SECTION */}
-            <div className="p-4 sm:p-5 rounded-3xl bg-[#140B24] border border-white/[0.08] space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-extrabold uppercase tracking-wider text-[#B9AECF] flex items-center gap-1.5">
-                  <Building2 className="w-4 h-4 text-[#A855F7]" />
-                  <span>Agency &amp; Crew</span>
-                </h2>
-                {isOwner && (
-                  <button
-                    onClick={() => openAgencyCenter(hasAgency ? 'center' : 'join')}
-                    className="text-xs font-bold text-[#FA26A0] hover:text-pink-300 flex items-center gap-0.5"
-                  >
-                    <span>{hasAgency ? 'Manage' : 'Explore'}</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {hasAgency ? (
-                <div className="p-3.5 rounded-2xl bg-[#1C0F33] border border-[#A855F7]/30 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0">
-                      {activeUser.agencyLogo || '👑'}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-extrabold text-white truncate">
-                        {activeUser.agencyName}
-                      </p>
-                      <p className="text-[11px] text-[#B9AECF] truncate">
-                        {activeUser.crewName ? `Crew: ${activeUser.crewName}` : 'Official Agency Member'} ·{' '}
-                        <span className="capitalize text-emerald-400 font-semibold">
-                          {activeUser.agencyRole || 'Host'}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  {isOwner && (
-                    <button
-                      onClick={() => openAgencyCenter('center')}
-                      className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold shrink-0"
-                    >
-                      Center
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-2xl bg-[#0E071B] border border-white/[0.06] flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white">
-                      {isOwner ? 'Not part of an Agency yet' : 'Independent Creator'}
-                    </p>
-                    <p className="text-[11px] text-[#B9AECF] mt-0.5">
-                      {isOwner
-                        ? 'Join a verified Agency or create your own Creator Crew.'
-                        : 'This creator has not joined an agency.'}
-                    </p>
-                  </div>
-                  {isOwner && (
-                    <button
-                      onClick={() => openAgencyCenter('join')}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-xs font-extrabold shrink-0 active:scale-95 transition-transform"
-                    >
-                      Join Agency
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* RIGHT COLUMN: Quick Access Dashboard (4 Cards) + 5 Content Tabs */}
+          {/* RIGHT COLUMN: 4-Option Quick Access Bar (Screenshot Style) + 5 Content Tabs */}
           <div className="lg:col-span-7 space-y-5">
-            {/* 7. PROFILE QUICK ACCESS DASHBOARD (4 INTERACTIVE SHORTCUT CARDS) */}
-            <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* Card 1: Top Achievements */}
-              <button
-                onClick={() => setIsAchievementsOpen(true)}
-                className="p-3.5 rounded-2xl bg-[#140B24] hover:bg-[#1C0F34] border border-white/[0.08] hover:border-[#FFC84A]/40 text-left transition-all active:scale-[0.98] flex flex-col justify-between gap-2.5"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#FFC84A]/15 text-[#FFC84A] flex items-center justify-center">
-                  <Trophy className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-white">Achievements</p>
-                  <p className="text-[11px] text-[#B9AECF] font-mono tabular-nums mt-0.5">
-                    {unlockedAchievementsCount}/{achievements.length} unlocked
-                  </p>
-                </div>
-              </button>
+            {/* 7. PROFILE QUICK ACCESS BAR (4 GLOWING ICON TILES MATCHING SCREENSHOT) */}
+            <section className="rounded-3xl bg-[#130921] border border-white/[0.09] px-3 py-4 sm:px-5 sm:py-5 shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
+              <div className="grid grid-cols-4 gap-2 sm:gap-4 items-start">
+                {/* 1. Top Achievements */}
+                <button
+                  type="button"
+                  onClick={() => setIsAchievementsOpen(true)}
+                  className="group flex flex-col items-center text-center focus:outline-none active:scale-95 transition-transform"
+                >
+                  <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl p-[2px] bg-gradient-to-br from-[#F43F9E] via-[#C026D3] to-[#F59E0B] shadow-[0_0_20px_rgba(236,72,153,0.42)] group-hover:shadow-[0_0_24px_rgba(245,158,11,0.55)] transition-shadow">
+                    <div className="w-full h-full rounded-[14px] bg-gradient-to-b from-[#2A103E] to-[#170826] flex items-center justify-center">
+                      <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-[#FBBF24] drop-shadow-[0_0_8px_rgba(251,191,36,0.55)]" />
+                    </div>
+                    {unlockedAchievementsCount > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#F59E0B] ring-2 ring-[#130921] shadow-[0_0_8px_rgba(245,158,11,0.85)]"
+                      />
+                    )}
+                  </div>
+                  <span className="mt-2 text-[11px] sm:text-xs font-extrabold leading-tight text-[#FBBF24]">
+                    Top
+                    <br />
+                    Achievements
+                  </span>
+                  <span className="mt-0.5 text-[9.5px] sm:text-[10px] text-[#9E93B8] leading-tight line-clamp-1 tabular-nums">
+                    {unlockedAchievementsCount > 0
+                      ? `${unlockedAchievementsCount}/${achievements.length} Earned`
+                      : 'Milestones'}
+                  </span>
+                </button>
 
-              {/* Card 2: Agency Center */}
-              <button
-                onClick={() => openAgencyCenter(hasAgency ? 'center' : 'join')}
-                className="p-3.5 rounded-2xl bg-[#140B24] hover:bg-[#1C0F34] border border-white/[0.08] hover:border-[#A855F7]/45 text-left transition-all active:scale-[0.98] flex flex-col justify-between gap-2.5"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#A855F7]/20 text-[#C084FC] flex items-center justify-center">
-                  <Users className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-white">Agency Center</p>
-                  <p className="text-[11px] text-[#B9AECF] truncate mt-0.5">
-                    {hasAgency ? activeUser.agencyName : 'Join or Create'}
-                  </p>
-                </div>
-              </button>
+                {/* 2. Agency */}
+                <button
+                  type="button"
+                  onClick={() => openAgencyCenter(hasAgency ? 'center' : 'join')}
+                  className="group flex flex-col items-center text-center focus:outline-none active:scale-95 transition-transform"
+                >
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-[#3B82F6] bg-gradient-to-b from-[#132852] to-[#0C1633] shadow-[0_0_18px_rgba(59,130,246,0.4),inset_0_0_12px_rgba(59,130,246,0.18)] group-hover:shadow-[0_0_24px_rgba(59,130,246,0.6)] flex items-center justify-center transition-shadow">
+                    <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-[#60A5FA]" />
+                  </div>
+                  <span className="mt-2 text-[11px] sm:text-xs font-extrabold leading-tight text-white">
+                    Agency
+                  </span>
+                </button>
 
-              {/* Card 3: Wallet */}
-              <button
-                onClick={onOpenWallet}
-                className="p-3.5 rounded-2xl bg-[#140B24] hover:bg-[#1C0F34] border border-white/[0.08] hover:border-emerald-400/40 text-left transition-all active:scale-[0.98] flex flex-col justify-between gap-2.5"
-              >
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
-                  <Wallet className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-white">Wallet</p>
-                  <p className="text-[11px] text-[#FFC84A] font-mono font-bold tabular-nums mt-0.5">
-                    {isOwner ? `${currentUser.coins.toLocaleString()} coins` : 'Open Wallet'}
-                  </p>
-                </div>
-              </button>
+                {/* 3. Wallet */}
+                <button
+                  type="button"
+                  onClick={onOpenWallet}
+                  className="group flex flex-col items-center text-center focus:outline-none active:scale-95 transition-transform"
+                >
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-[#D97706] bg-gradient-to-b from-[#36200B] to-[#1D1109] shadow-[0_0_18px_rgba(245,158,11,0.38),inset_0_0_12px_rgba(245,158,11,0.16)] group-hover:shadow-[0_0_24px_rgba(245,158,11,0.58)] flex items-center justify-center transition-shadow">
+                    <Wallet className="w-6 h-6 sm:w-7 sm:h-7 text-[#FBBF24]" />
+                  </div>
+                  <span className="mt-2 text-[11px] sm:text-xs font-extrabold leading-tight text-white">
+                    Wallet
+                  </span>
+                </button>
 
-              {/* Card 4: Rankings */}
-              <button
-                onClick={() => onNavigate('rankings')}
-                className="p-3.5 rounded-2xl bg-[#140B24] hover:bg-[#1C0F34] border border-white/[0.08] hover:border-[#FA26A0]/45 text-left transition-all active:scale-[0.98] flex flex-col justify-between gap-2.5"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#FA26A0]/15 text-[#FA26A0] flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-white">Rankings</p>
-                  <p className="text-[11px] text-[#B9AECF] font-mono tabular-nums mt-0.5">
-                    {liveRank ? `Rank #${liveRank}` : 'Top Hosts'}
-                  </p>
-                </div>
-              </button>
+                {/* 4. Rankings */}
+                <button
+                  type="button"
+                  onClick={() => onNavigate('rankings')}
+                  className="group flex flex-col items-center text-center focus:outline-none active:scale-95 transition-transform"
+                >
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 border-[#C026D3] bg-gradient-to-b from-[#321149] to-[#1A092B] shadow-[0_0_18px_rgba(192,38,211,0.42),inset_0_0_12px_rgba(192,38,211,0.18)] group-hover:shadow-[0_0_24px_rgba(192,38,211,0.62)] flex items-center justify-center transition-shadow">
+                    <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-[#E879F9]" />
+                  </div>
+                  <span className="mt-2 text-[11px] sm:text-xs font-extrabold leading-tight text-white">
+                    Rankings
+                  </span>
+                </button>
+              </div>
             </section>
 
             {/* 8. PROFILE CONTENT TABS (Public, Private, Saved, Posts, Liked) */}

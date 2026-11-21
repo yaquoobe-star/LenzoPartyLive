@@ -57,7 +57,10 @@ function isPlayableVideoUrl(url?: string): boolean {
   if (!url) return false;
   const lower = url.toLowerCase();
   if (lower.startsWith('blob:')) return true;
-  if (/\.(mp4|webm|mov|m4v|ogg|m3u8)(\?|$)/i.test(lower)) return true;
+  if (/\.(mp4|webm|mov|m4v|ogg|ogv|3gp|mkv|m3u8)(\?|$)/i.test(lower)) return true;
+  if (lower.includes('/api/reels/media/')) {
+    return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
+  }
   if (lower.includes('firebasestorage') && (lower.includes('video') || lower.includes('reels%2f'))) {
     return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
   }

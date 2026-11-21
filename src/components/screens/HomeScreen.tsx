@@ -19,7 +19,11 @@ import {
   ScreenType,
   UserProfile,
 } from '../../types';
-import { getActiveSeatCapacity, normalizePartyMaxSeats } from '../../utils/partySeatRules';
+import {
+  countActiveOccupiedSeats,
+  getActiveSeatCapacity,
+  normalizePartyMaxSeats,
+} from '../../utils/partySeatRules';
 import { LevelBadge } from '../common/LevelBadge';
 
 interface HomeScreenProps {
@@ -397,7 +401,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {visiblePartyRooms.map((room) => {
                 const maxSeats = normalizePartyMaxSeats(room.maxSeats, room.host?.level);
                 const activeCapacity = getActiveSeatCapacity(maxSeats, room.host?.level);
-                const occupiedSeats = Array.isArray(room.seats) ? room.seats.filter(Boolean).length : 0;
+                const occupiedSeats = countActiveOccupiedSeats(room.seats, maxSeats, room.host?.level);
                 const availableSeats = Math.max(0, activeCapacity - occupiedSeats);
                 const onlineCount =
                   typeof room.numericParticipants === 'number'

@@ -58,7 +58,7 @@ app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => {
   if (err && (err.type === 'entity.too.large' || err.status === 413)) {
     return res.status(413).json({
-      error: 'Uploaded file or request payload is too large. Please choose an image under 5MB.',
+      error: 'Uploaded file is too large. Maximum allowed size is 100 MB for videos and 5 MB for images.',
     });
   }
   next(err);
@@ -92,8 +92,9 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Platform');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Platform, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Permissions-Policy', 'camera=*, microphone=*, autoplay=*, display-capture=*');
   if (req.method === 'OPTIONS') {
@@ -676,7 +677,14 @@ function serializeLiveStream(stream: ServerLiveStream) {
 }
 
 function serializePartyRoom(room: ServerPartyRoom) {
-  const occupiedSeats = room.seats.filter(Boolean).length;
+  const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  const safeSeats = Array(safeMaxSeats).fill(null);
+  for (let i = 0; i < Math.min(safeMaxSeats, room.seats.length); i++) {
+    if (room.seats[i] && !isServerSeatLockedByHostLevel(i, room.host)) {
+      safeSeats[i] = room.seats[i];
+    }
+  }
+  const occupiedSeats = safeSeats.filter(Boolean).length;
   const numericParticipants = room.participants.size;
   return {
     id: room.id,
@@ -690,12 +698,12 @@ function serializePartyRoom(room: ServerPartyRoom) {
     numericParticipants,
     seatedCount: occupiedSeats,
     isAudioRoom: true,
-    maxSeats: room.maxSeats,
+    maxSeats: safeMaxSeats,
     roomType: room.roomType,
     hasPassword: Boolean(room.roomType === 'private' && room.password),
     announcement: room.announcement,
-    seats: room.seats,
-    mutedSeatIndices: Array.from(room.mutedSeatIndices),
+    seats: safeSeats,
+    mutedSeatIndices: Array.from(room.mutedSeatIndices).filter((idx) => idx < safeMaxSeats),
     isLocked: room.isLocked,
     allowJoin: room.allowJoin,
     isOwnerPresent: room.participants.has(room.host?.id),
@@ -2033,8 +2041,14 @@ app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   }
 
   const rawIdx = typeof requestedSeatIndex === 'number' ? requestedSeatIndex : seatIndex;
+  const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  if (typeof rawIdx === 'number' && rawIdx >= safeMaxSeats) {
+    return res.status(403).json({
+      error: rawIdx >= 8 ? '16-seat stage unlocks at Host Level 20.' : '8-seat stage unlocks at Host Level 10.',
+    });
+  }
   const defaultIdx = isServerSeatLockedByHostLevel(1, room.host) ? 2 : 1;
-  const idx = typeof rawIdx === 'number' && rawIdx >= 0 && rawIdx < room.maxSeats ? rawIdx : defaultIdx;
+  const idx = typeof rawIdx === 'number' && rawIdx >= 0 && rawIdx < safeMaxSeats ? rawIdx : defaultIdx;
   if (isServerSeatLockedByHostLevel(idx, room.host)) {
     return res.status(403).json({ error: 'Seat #2 is locked until the host reaches Level 5.' });
   }
@@ -2271,7 +2285,8 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
   if (room.host.id !== hostId) {
     return res.status(403).json({ error: 'Only host can assign seats directly.' });
   }
-  if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats && user?.id) {
+  const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < safeMaxSeats && user?.id) {
     if (isServerSeatLockedByHostLevel(seatIndex, room.host)) {
       return res.status(403).json({ error: 'Seat #2 unlocks when the host reaches Level 5.' });
     }
@@ -2285,6 +2300,10 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
     const serialized = serializePartyRoom(room);
     broadcastToRoom(roomId, 'room:seat_occupied', { roomId, seatIndex, user, room: serialized });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+  } else if (typeof seatIndex === 'number' && seatIndex >= safeMaxSeats) {
+    return res.status(403).json({
+      error: seatIndex >= 8 ? '16-seat stage unlocks at Host Level 20.' : '8-seat stage unlocks at Host Level 10.',
+    });
   }
   res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
 });
@@ -2357,7 +2376,9 @@ app.post('/api/rooms/:roomId/settings', (req: AuthenticatedRequest, res: Respons
     if (allowedMax !== room.maxSeats) {
       const nextSeats = Array(allowedMax).fill(null);
       for (let i = 0; i < Math.min(allowedMax, room.seats.length); i++) {
-        nextSeats[i] = room.seats[i] || null;
+        if (room.seats[i] && !isServerSeatLockedByHostLevel(i, room.host)) {
+          nextSeats[i] = room.seats[i];
+        }
       }
       room.maxSeats = allowedMax;
       room.seats = nextSeats;
@@ -2831,6 +2852,494 @@ app.get('/api/media/:mediaId', (req: Request, res: Response) => {
   res.setHeader('Content-Type', item.mimeType);
   res.setHeader('Cache-Control', 'public, max-age=86400');
   res.send(item.buffer);
+});
+
+// ============================================================================
+// PRODUCTION REELS MEDIA STORAGE (CHUNKED STREAMING UP TO 100 MB + HTTP RANGE)
+// ============================================================================
+const MAX_REEL_VIDEO_BYTES = 100 * 1024 * 1024; // Strict 100 MB maximum
+const MAX_REEL_THUMB_BYTES = 5 * 1024 * 1024; // 5 MB thumbnail maximum
+const REEL_CHUNK_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB chunks (proxy & Cloud Run safe)
+const REELS_MEDIA_DIR = path.resolve(
+  process.env.REELS_STORAGE_DIR || path.join(__dirname, 'data', 'reels_media')
+);
+const REELS_TMP_DIR = path.resolve(REELS_MEDIA_DIR, '_tmp');
+
+try {
+  fs.mkdirSync(REELS_MEDIA_DIR, { recursive: true });
+  fs.mkdirSync(REELS_TMP_DIR, { recursive: true });
+} catch (mkdirErr) {
+  console.warn('[Reels Storage] Could not initialize media directory:', mkdirErr);
+}
+
+const ALLOWED_REEL_VIDEO_MIMES: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/x-m4v': 'mp4',
+  'video/webm': 'webm',
+  'video/quicktime': 'mov',
+  'video/ogg': 'ogv',
+  'video/3gpp': '3gp',
+  'video/x-matroska': 'mkv',
+};
+
+const EXT_TO_VIDEO_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  ogv: 'video/ogg',
+  '3gp': 'video/3gpp',
+  mkv: 'video/x-matroska',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+};
+
+interface ActiveReelUploadSession {
+  uploadId: string;
+  reelId: string;
+  ownerId: string;
+  mimeType: string;
+  ext: string;
+  expectedSize: number;
+  receivedBytes: number;
+  nextChunkIndex: number;
+  tempPath: string;
+  createdAt: number;
+}
+
+const activeReelUploadSessions = new Map<string, ActiveReelUploadSession>();
+
+function isSafeReelIdentifier(id: string): boolean {
+  return typeof id === 'string' && /^[a-zA-Z0-9_-]{3,128}$/.test(id);
+}
+
+function resolveConfinedReelPath(...segments: string[]): string | null {
+  const resolved = path.resolve(REELS_MEDIA_DIR, ...segments);
+  if (!resolved.startsWith(REELS_MEDIA_DIR + path.sep)) {
+    return null;
+  }
+  return resolved;
+}
+
+function resolvePublicBaseUrl(req: Request): string {
+  const configured = (process.env.PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const forwardedHost = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  if (!forwardedHost) return '';
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(forwardedHost)) {
+    return '';
+  }
+  return `${forwardedProto === 'http' ? 'http' : 'https'}://${forwardedHost}`;
+}
+
+function resolveVideoMimeAndExt(rawContentType?: string, rawFileName?: string): { mimeType: string; ext: string } | null {
+  const cleanMime = String(rawContentType || '').split(';')[0].trim().toLowerCase();
+  if (cleanMime && ALLOWED_REEL_VIDEO_MIMES[cleanMime]) {
+    return { mimeType: cleanMime, ext: ALLOWED_REEL_VIDEO_MIMES[cleanMime] };
+  }
+  const nameLower = String(rawFileName || '').toLowerCase();
+  if (nameLower.endsWith('.mp4') || nameLower.endsWith('.m4v')) return { mimeType: 'video/mp4', ext: 'mp4' };
+  if (nameLower.endsWith('.webm')) return { mimeType: 'video/webm', ext: 'webm' };
+  if (nameLower.endsWith('.mov')) return { mimeType: 'video/quicktime', ext: 'mov' };
+  if (nameLower.endsWith('.ogv') || nameLower.endsWith('.ogg')) return { mimeType: 'video/ogg', ext: 'ogv' };
+  if (nameLower.endsWith('.3gp')) return { mimeType: 'video/3gpp', ext: '3gp' };
+  if (nameLower.endsWith('.mkv')) return { mimeType: 'video/x-matroska', ext: 'mkv' };
+  if (cleanMime.startsWith('video/')) return { mimeType: 'video/mp4', ext: 'mp4' };
+  return null;
+}
+
+function cleanupStaleReelUploads() {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, session] of activeReelUploadSessions.entries()) {
+    if (session.createdAt < cutoff) {
+      activeReelUploadSessions.delete(id);
+      fs.promises.unlink(session.tempPath).catch(() => {});
+    }
+  }
+}
+
+setInterval(cleanupStaleReelUploads, 10 * 60 * 1000).unref();
+
+// 1. Initialize chunked video upload (validates auth, MIME & <= 100 MB size)
+app.post('/api/reels/upload/init', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required to upload reels.' });
+  }
+
+  const { reelId, fileSize, contentType, fileName } = req.body || {};
+  if (!isSafeReelIdentifier(String(reelId || ''))) {
+    return res.status(400).json({ error: 'Invalid reel identifier.' });
+  }
+
+  const parsedSize = Number(fileSize);
+  if (!Number.isFinite(parsedSize) || parsedSize <= 0) {
+    return res.status(400).json({ error: 'Selected video file is empty.' });
+  }
+  if (parsedSize > MAX_REEL_VIDEO_BYTES) {
+    return res.status(413).json({
+      error: `Video exceeds the 100 MB maximum limit (${(parsedSize / (1024 * 1024)).toFixed(1)} MB selected).`,
+      maxBytes: MAX_REEL_VIDEO_BYTES,
+    });
+  }
+
+  const mediaInfo = resolveVideoMimeAndExt(contentType, fileName);
+  if (!mediaInfo) {
+    return res.status(400).json({
+      error: 'Unsupported video format. Please select an MP4, WebM, MOV, or 3GP video.',
+    });
+  }
+
+  const uploadId = `upl_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+  const tempPath = resolveConfinedReelPath('_tmp', `${uploadId}.part`);
+  if (!tempPath) {
+    return res.status(400).json({ error: 'Invalid storage path.' });
+  }
+
+  try {
+    await fs.promises.mkdir(REELS_TMP_DIR, { recursive: true });
+    await fs.promises.writeFile(tempPath, Buffer.alloc(0));
+  } catch (err) {
+    console.error('[Reels Storage] Failed to allocate temp upload file:', err);
+    return res.status(500).json({ error: 'Storage server could not start upload.' });
+  }
+
+  activeReelUploadSessions.set(uploadId, {
+    uploadId,
+    reelId: String(reelId),
+    ownerId: req.firebaseUser.uid,
+    mimeType: mediaInfo.mimeType,
+    ext: mediaInfo.ext,
+    expectedSize: parsedSize,
+    receivedBytes: 0,
+    nextChunkIndex: 0,
+    tempPath,
+    createdAt: Date.now(),
+  });
+
+  return res.json({
+    success: true,
+    uploadId,
+    chunkSize: REEL_CHUNK_SIZE_BYTES,
+    maxBytes: MAX_REEL_VIDEO_BYTES,
+  });
+});
+
+// 2. Receive raw binary chunk (up to 6 MB per request, cumulative <= 100 MB)
+app.put(
+  '/api/reels/upload/chunk/:uploadId',
+  express.raw({ type: '*/*', limit: '6mb' }),
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.firebaseUser?.uid) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const uploadId = String(req.params.uploadId || '');
+    const session = activeReelUploadSessions.get(uploadId);
+    if (!session) {
+      return res.status(404).json({ error: 'Upload session expired or not found. Please retry.' });
+    }
+    if (session.ownerId !== req.firebaseUser.uid) {
+      return res.status(403).json({ error: 'Forbidden: upload session belongs to another account.' });
+    }
+
+    const chunkIndex = Number(req.query.index ?? session.nextChunkIndex);
+    if (!Number.isInteger(chunkIndex) || chunkIndex < 0) {
+      return res.status(400).json({ error: 'Invalid chunk index.' });
+    }
+
+    // Idempotent retry handling if client retried the immediately previous chunk
+    if (chunkIndex === session.nextChunkIndex - 1) {
+      return res.json({
+        success: true,
+        duplicate: true,
+        receivedBytes: session.receivedBytes,
+        totalBytes: session.expectedSize,
+      });
+    }
+    if (chunkIndex !== session.nextChunkIndex) {
+      return res.status(409).json({
+        error: `Unexpected chunk order (expected ${session.nextChunkIndex}, got ${chunkIndex}).`,
+      });
+    }
+
+    const chunkBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (chunkBuffer.length === 0) {
+      return res.status(400).json({ error: 'Empty video chunk received.' });
+    }
+
+    if (session.receivedBytes + chunkBuffer.length > MAX_REEL_VIDEO_BYTES) {
+      activeReelUploadSessions.delete(uploadId);
+      await fs.promises.unlink(session.tempPath).catch(() => {});
+      return res.status(413).json({
+        error: 'Video exceeds the 100 MB maximum limit.',
+        maxBytes: MAX_REEL_VIDEO_BYTES,
+      });
+    }
+
+    try {
+      await fs.promises.appendFile(session.tempPath, chunkBuffer);
+      session.receivedBytes += chunkBuffer.length;
+      session.nextChunkIndex += 1;
+      return res.json({
+        success: true,
+        receivedBytes: session.receivedBytes,
+        totalBytes: session.expectedSize,
+      });
+    } catch (err) {
+      console.error('[Reels Storage] Chunk write failed:', err);
+      return res.status(500).json({ error: 'Failed to store video chunk.' });
+    }
+  }
+);
+
+// 3. Finalize chunked video upload and publish persistent media URL
+app.post('/api/reels/upload/complete/:uploadId', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const uploadId = String(req.params.uploadId || '');
+  const session = activeReelUploadSessions.get(uploadId);
+  if (!session) {
+    return res.status(404).json({ error: 'Upload session expired or already completed.' });
+  }
+  if (session.ownerId !== req.firebaseUser.uid) {
+    return res.status(403).json({ error: 'Forbidden: upload session belongs to another account.' });
+  }
+
+  activeReelUploadSessions.delete(uploadId);
+
+  try {
+    const stat = await fs.promises.stat(session.tempPath);
+    if (stat.size <= 0) {
+      await fs.promises.unlink(session.tempPath).catch(() => {});
+      return res.status(400).json({ error: 'Uploaded video file is empty.' });
+    }
+    if (stat.size > MAX_REEL_VIDEO_BYTES) {
+      await fs.promises.unlink(session.tempPath).catch(() => {});
+      return res.status(413).json({ error: 'Video exceeds the 100 MB maximum limit.' });
+    }
+
+    const reelDir = resolveConfinedReelPath(session.reelId);
+    const fileName = `video.${session.ext}`;
+    const finalVideoPath = resolveConfinedReelPath(session.reelId, fileName);
+    const metaPath = resolveConfinedReelPath(session.reelId, 'meta.json');
+    if (!reelDir || !finalVideoPath || !metaPath) {
+      await fs.promises.unlink(session.tempPath).catch(() => {});
+      return res.status(400).json({ error: 'Invalid target storage path.' });
+    }
+
+    await fs.promises.mkdir(reelDir, { recursive: true });
+    try {
+      await fs.promises.rename(session.tempPath, finalVideoPath);
+    } catch {
+      await fs.promises.copyFile(session.tempPath, finalVideoPath);
+      await fs.promises.unlink(session.tempPath).catch(() => {});
+    }
+
+    const meta = {
+      reelId: session.reelId,
+      ownerId: session.ownerId,
+      mimeType: session.mimeType,
+      fileName,
+      sizeBytes: stat.size,
+      createdAt: new Date().toISOString(),
+    };
+    await fs.promises.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+
+    const relativeUrl = `/api/reels/media/${session.reelId}/${fileName}`;
+    const publicBase = resolvePublicBaseUrl(req);
+    const videoUrl = publicBase ? `${publicBase}${relativeUrl}` : relativeUrl;
+
+    return res.json({
+      success: true,
+      videoUrl,
+      relativeUrl,
+      videoStoragePath: `server_media:${session.reelId}/${fileName}`,
+      sizeBytes: stat.size,
+      mimeType: session.mimeType,
+    });
+  } catch (err) {
+    console.error('[Reels Storage] Finalize error:', err);
+    await fs.promises.unlink(session.tempPath).catch(() => {});
+    return res.status(500).json({ error: 'Failed to finalize uploaded reel video.' });
+  }
+});
+
+// 4. Upload Reel JPEG/WebP/PNG thumbnail (<= 5 MB)
+app.post(
+  '/api/reels/thumbnail/:reelId',
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '5mb' }),
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.firebaseUser?.uid) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const reelId = String(req.params.reelId || '');
+    if (!isSafeReelIdentifier(reelId)) {
+      return res.status(400).json({ error: 'Invalid reel identifier.' });
+    }
+
+    const reelDir = resolveConfinedReelPath(reelId);
+    const metaPath = resolveConfinedReelPath(reelId, 'meta.json');
+    if (!reelDir || !metaPath) {
+      return res.status(400).json({ error: 'Invalid storage path.' });
+    }
+
+    // Verify ownership if video metadata already exists
+    try {
+      const existingMetaRaw = await fs.promises.readFile(metaPath, 'utf8');
+      const existingMeta = JSON.parse(existingMetaRaw);
+      if (existingMeta?.ownerId && existingMeta.ownerId !== req.firebaseUser.uid) {
+        return res.status(403).json({ error: 'Forbidden: only the creator can attach a thumbnail.' });
+      }
+    } catch {
+      // meta.json may not exist yet if thumbnail uploaded in parallel
+    }
+
+    let imgBuffer: Buffer | null = null;
+    let ext = 'jpg';
+
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      imgBuffer = req.body;
+      const ct = String(req.headers['content-type'] || '').toLowerCase();
+      if (ct.includes('png')) ext = 'png';
+      else if (ct.includes('webp')) ext = 'webp';
+    } else if (req.body && typeof req.body.dataUrl === 'string') {
+      const match = req.body.dataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/i);
+      if (match) {
+        ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+        imgBuffer = Buffer.from(match[2], 'base64');
+      }
+    }
+
+    if (!imgBuffer || imgBuffer.length === 0) {
+      return res.status(400).json({ error: 'Valid thumbnail image required.' });
+    }
+    if (imgBuffer.length > MAX_REEL_THUMB_BYTES) {
+      return res.status(413).json({ error: 'Thumbnail must be 5 MB or smaller.' });
+    }
+
+    const fileName = `thumbnail.${ext}`;
+    const thumbPath = resolveConfinedReelPath(reelId, fileName);
+    if (!thumbPath) {
+      return res.status(400).json({ error: 'Invalid thumbnail path.' });
+    }
+
+    try {
+      await fs.promises.mkdir(reelDir, { recursive: true });
+      await fs.promises.writeFile(thumbPath, imgBuffer);
+      const relativeUrl = `/api/reels/media/${reelId}/${fileName}`;
+      const publicBase = resolvePublicBaseUrl(req);
+      const thumbnailUrl = publicBase ? `${publicBase}${relativeUrl}` : relativeUrl;
+      return res.json({
+        success: true,
+        thumbnailUrl,
+        relativeUrl,
+        thumbnailStoragePath: `server_media:${reelId}/${fileName}`,
+      });
+    } catch (err) {
+      console.error('[Reels Storage] Thumbnail save failed:', err);
+      return res.status(500).json({ error: 'Failed to store reel thumbnail.' });
+    }
+  }
+);
+
+// 5. Stream Reel video & thumbnail with full HTTP Byte-Range (206 Partial Content) support
+app.get('/api/reels/media/:reelId/:fileName', async (req: Request, res: Response) => {
+  const reelId = String(req.params.reelId || '');
+  const fileName = String(req.params.fileName || '');
+
+  if (!isSafeReelIdentifier(reelId)) {
+    return res.status(400).json({ error: 'Invalid reel identifier.' });
+  }
+  if (!/^(video\.(mp4|webm|mov|ogv|3gp|mkv)|thumbnail\.(jpg|jpeg|png|webp))$/i.test(fileName)) {
+    return res.status(400).json({ error: 'Invalid media file name.' });
+  }
+
+  const filePath = resolveConfinedReelPath(reelId, fileName);
+  if (!filePath) {
+    return res.status(400).json({ error: 'Invalid media path.' });
+  }
+
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.stat(filePath);
+    if (!stat.isFile()) {
+      return res.status(404).json({ error: 'Reel media not found.' });
+    }
+  } catch {
+    return res.status(404).json({ error: 'Reel media not found.' });
+  }
+
+  const ext = fileName.split('.').pop()?.toLowerCase() || 'mp4';
+  const contentType = EXT_TO_VIDEO_MIME[ext] || 'application/octet-stream';
+  const totalSize = stat.size;
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+
+  const rangeHeader = req.headers.range;
+  if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+    const [rawStart, rawEnd] = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = rawStart ? Number.parseInt(rawStart, 10) : 0;
+    const end = rawEnd ? Math.min(totalSize - 1, Number.parseInt(rawEnd, 10)) : Math.min(totalSize - 1, start + 2 * 1024 * 1024 - 1);
+
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start >= totalSize || end < start) {
+      res.setHeader('Content-Range', `bytes */${totalSize}`);
+      return res.status(416).end();
+    }
+
+    const chunkLength = end - start + 1;
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', String(chunkLength));
+
+    const stream = fs.createReadStream(filePath, { start, end });
+    stream.on('error', () => {
+      if (!res.headersSent) res.status(500).end();
+    });
+    return stream.pipe(res);
+  }
+
+  res.status(200);
+  res.setHeader('Content-Length', String(totalSize));
+  const stream = fs.createReadStream(filePath);
+  stream.on('error', () => {
+    if (!res.headersSent) res.status(500).end();
+  });
+  return stream.pipe(res);
+});
+
+// 6. Owner-verified deletion of stored Reel media
+app.delete('/api/reels/media/:reelId', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const reelId = String(req.params.reelId || '');
+  if (!isSafeReelIdentifier(reelId)) {
+    return res.status(400).json({ error: 'Invalid reel identifier.' });
+  }
+  const reelDir = resolveConfinedReelPath(reelId);
+  const metaPath = resolveConfinedReelPath(reelId, 'meta.json');
+  if (!reelDir || !metaPath) {
+    return res.status(400).json({ error: 'Invalid media path.' });
+  }
+
+  try {
+    const rawMeta = await fs.promises.readFile(metaPath, 'utf8');
+    const meta = JSON.parse(rawMeta);
+    const isAdminUser = req.firebaseUser.email?.toLowerCase() === 'yaquoobe@gmail.com' && req.firebaseUser.emailVerified;
+    if (meta?.ownerId && meta.ownerId !== req.firebaseUser.uid && !isAdminUser) {
+      return res.status(403).json({ error: 'Only the creator can delete this reel media.' });
+    }
+  } catch {
+    // Directory may not exist
+  }
+
+  await fs.promises.rm(reelDir, { recursive: true, force: true }).catch(() => {});
+  return res.json({ success: true });
 });
 
 // --- VIDEO PRIVACY & DELETE MANAGEMENT (OWNER-ONLY) ---
