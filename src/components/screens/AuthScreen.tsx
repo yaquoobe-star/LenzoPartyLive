@@ -23,6 +23,8 @@ import {
   signInWithGoogle, 
   checkRedirectAuthOutcome,
   registerWithEmail, 
+  sendEmailOtp,
+  verifyEmailOtp,
   loginWithEmail, 
   resetPassword, 
   resendVerification,
@@ -40,7 +42,7 @@ import {
 import { auth } from '../../firebase';
 import { UserProfile } from '../../types';
 
-export type AuthSubScreen = 'welcome_back' | 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification';
+export type AuthSubScreen = 'welcome_back' | 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification' | 'email_otp';
 
 interface AuthScreenProps {
   onSuccess: (profile: UserProfile) => void;
@@ -100,6 +102,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Registered user email state for verification screen
   const [registeredEmail, setRegisteredEmail] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
+  const [emailOtpChallenge, setEmailOtpChallenge] = useState('');
+  const [emailOtpCode, setEmailOtpCode] = useState('');
 
   useEffect(() => {
     setSavedAccounts(getSavedDeviceAccounts());
@@ -205,16 +209,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // 2. REAL EMAIL & PASSWORD SIGN-UP FLOW
+  // 2. EMAIL SIGN-UP: send Resend OTP first; only create Firebase account after verification.
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    // Validation
     const cleanName = fullName.trim();
-    const cleanEmail = email.trim();
-
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanName || cleanName.length < 2) {
       setErrorMessage('Please enter your full name (at least 2 characters).');
       return;
@@ -238,24 +240,42 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsLoading(true);
     try {
+      const result = await sendEmailOtp(cleanEmail);
+      setEmailOtpChallenge(result.challenge);
+      setEmailOtpCode('');
+      setRegisteredEmail(cleanEmail);
+      setSuccessMessage('Verification code sent. Check your inbox.');
+      setSubScreen('email_otp');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Could not send verification code.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    const cleanEmail = (registeredEmail || email).trim().toLowerCase();
+    if (!/^\\d{6}$/.test(emailOtpCode.trim())) {
+      setErrorMessage('Enter the 6-digit code sent to your email.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await verifyEmailOtp(cleanEmail, emailOtpCode, emailOtpChallenge);
       const { profile } = await registerWithEmail({
-        fullName: cleanName,
+        fullName: fullName.trim(),
         email: cleanEmail,
         password,
         profileImage: selectedAvatar,
+        emailOtpVerified: true,
       });
-
-      setRegisteredEmail(cleanEmail);
-      setVerificationSent(true);
-      setSuccessMessage('Account created successfully! Verification email sent.');
-
-      // Transition to verification banner or directly into app
-      setTimeout(() => {
-        setSubScreen('verification');
-        setIsLoading(false);
-      }, 700);
+      setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
+      setTimeout(() => onSuccess(profile), 450);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Registration failed. Please try again.');
+      setErrorMessage(err.message || 'Verification or account creation failed.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -1093,6 +1113,40 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {/* ========================================================
             SCREEN 5: EMAIL VERIFICATION SCREEN
            ======================================================== */}
+        {subScreen === 'email_otp' && (
+          <div className="flex flex-col items-center text-center animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white mb-4 shadow-xl shadow-[#F328D5]/40">
+              <Mail className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-white font-display mb-2">Verify Your Email</h2>
+            <p className="text-xs text-[#B9AECF] mb-5">Enter the 6-digit code sent to <span className="text-[#FFC84A] font-semibold">{registeredEmail}</span>.</p>
+            <form onSubmit={handleVerifyEmailOtp} className="w-full space-y-3">
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                required
+                value={emailOtpCode}
+                onChange={(e) => setEmailOtpCode(e.target.value.replace(/\\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl px-4 py-4 text-center tracking-[0.5em] text-xl font-bold text-white outline-none"
+              />
+              <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
+                {isLoading ? 'Verifying...' : 'Verify & Create Account'}
+              </button>
+            </form>
+            <button type="button" disabled={isLoading} onClick={async () => {
+              setErrorMessage(null); setIsLoading(true);
+              try { const r = await sendEmailOtp(registeredEmail); setEmailOtpChallenge(r.challenge); setEmailOtpCode(''); setSuccessMessage('A new code has been sent.'); }
+              catch (err: any) { setErrorMessage(err.message || 'Could not resend code.'); }
+              finally { setIsLoading(false); }
+            }} className="mt-4 text-xs text-[#F328D5] font-semibold disabled:opacity-50">Resend Code</button>
+            <button type="button" onClick={() => navigateTo('signup')} className="mt-4 text-xs text-[#B9AECF]">Back to registration details</button>
+          </div>
+        )}
+
         {subScreen === 'verification' && (
           <div className="flex flex-col items-center text-center animate-fade-in">
             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white mb-4 shadow-xl shadow-[#F328D5]/40 animate-pulse">

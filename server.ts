@@ -549,6 +549,8 @@ function scheduleRankingsPersist() {
   }, 800);
 }
 
+const serverUsers = new Map<string, any>();
+
 function loadRankingsStoreFromDisk() {
   try {
     if (!fs.existsSync(RANKINGS_STORE_PATH)) return;
@@ -2667,7 +2669,7 @@ app.post('/api/videos/upload', (req: Request, res: Response) => {
 });
 
 // --- REAL USER PROFILES, SOCIAL GRAPH & FOLLOWS (ZERO FAKE OFFSETS) ---
-const serverUsers = new Map<string, any>();
+
 const userFollowersMap = new Map<string, Set<string>>();
 const userFollowingMap = new Map<string, Set<string>>();
 

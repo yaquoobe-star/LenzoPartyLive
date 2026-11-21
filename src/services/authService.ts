@@ -98,6 +98,7 @@ export interface FirestoreUserData {
   verificationTier?: 'none' | 'blue' | 'gold';
   verifiedTag?: string;
   accountStatus: 'active' | 'suspended' | 'pending';
+  emailOtpVerified?: boolean;
 }
 
 const DEFAULT_AVATARS = [
@@ -202,7 +203,7 @@ function normalizeDisplayName(rawName?: string | null, fallback: string = 'Lenzo
 export async function syncUserInFirestore(
   user: FirebaseUser,
   authProvider: 'google' | 'password',
-  extra?: { fullName?: string; profileImage?: string }
+  extra?: { fullName?: string; profileImage?: string; emailOtpVerified?: boolean }
 ): Promise<FirestoreUserData> {
   const userRef = doc(db, 'users', user.uid);
   const now = new Date().toISOString();
@@ -262,6 +263,7 @@ export async function syncUserInFirestore(
         ...(user.phoneNumber ? { phoneNumber: user.phoneNumber } : {}),
         profileImage: (extra?.profileImage || user.photoURL || DEFAULT_AVATARS[Math.floor(Math.random() * DEFAULT_AVATARS.length)]).slice(0, 1500),
         authProvider: authProvider,
+        ...(extra?.emailOtpVerified ? { emailOtpVerified: true } : {}),
         providerIds: providerIds.length > 0 ? providerIds : [authProvider === 'google' ? 'google.com' : 'password'],
         createdAt: now,
         lastLogin: now,
@@ -467,11 +469,42 @@ export async function signInWithGoogle(options?: {
 /**
  * REAL Email & Password Registration via Firebase
  */
+/**
+ * Send a short-lived 6-digit email OTP through the Lenzo backend (Resend).
+ * The backend returns a signed challenge; the OTP itself is never stored client-side.
+ */
+export async function sendEmailOtp(email: string): Promise<{ challenge: string; expiresIn: number }> {
+  const response = await apiFetch('/api/auth/email/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    timeoutMs: 20000,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success || !data?.challenge) {
+    throw new Error(data?.error || `Could not send verification code (HTTP ${response.status}).`);
+  }
+  return { challenge: String(data.challenge), expiresIn: Number(data.expiresIn || 600) };
+}
+
+/** Verify the OTP challenge before creating a Firebase email/password account. */
+export async function verifyEmailOtp(email: string, otp: string, challenge: string): Promise<void> {
+  const response = await apiFetch('/api/auth/email/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim(), challenge }),
+    timeoutMs: 15000,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.verified) {
+    throw new Error(data?.error || `Email verification failed (HTTP ${response.status}).`);
+  }
+}
+
 export async function registerWithEmail(params: {
   fullName: string;
   email: string;
   password: string;
   profileImage?: string;
+  emailOtpVerified?: boolean;
 }): Promise<{ user: FirebaseUser; profile: UserProfile }> {
   try {
     await setPersistence(auth, browserLocalPersistence);
@@ -486,17 +519,21 @@ export async function registerWithEmail(params: {
       photoURL: chosenAvatar,
     }).catch((e) => console.warn('Could not update Auth display name:', e));
 
-    // Send email verification link
-    try {
-      await sendEmailVerification(user);
-    } catch (verifErr) {
-      console.warn('[Firebase] Email verification send notice:', verifErr);
+    // Resend OTP has already verified this address in the app registration flow.
+    // Keep Firebase email-link verification only for legacy/non-OTP callers.
+    if (!params.emailOtpVerified) {
+      try {
+        await sendEmailVerification(user);
+      } catch (verifErr) {
+        console.warn('[Firebase] Email verification send notice:', verifErr);
+      }
     }
 
     // Create Firestore document
     const firestoreData = await syncUserInFirestore(user, 'password', {
       fullName: params.fullName,
       profileImage: chosenAvatar,
+      emailOtpVerified: params.emailOtpVerified === true,
     });
 
     await syncBackendAuthSession(user);

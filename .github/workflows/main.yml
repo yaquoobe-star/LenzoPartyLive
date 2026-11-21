@@ -113,13 +113,13 @@ jobs:
           import re, sys
           p = Path("android/app/build.gradle")
           s = p.read_text()
-          s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 5', s, count=1, flags=re.M)
-          s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.4"', s, count=1, flags=re.M)
-          if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+5\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.4"\s*$', s, re.M):
-              print("::error::Could not enforce Android versionCode 5 / versionName 1.0.4")
+          s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 6', s, count=1, flags=re.M)
+          s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.5"', s, count=1, flags=re.M)
+          if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+6\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.5"\s*$', s, re.M):
+              print("::error::Could not enforce Android versionCode 6 / versionName 1.0.4")
               sys.exit(1)
           p.write_text(s)
-          print("Enforced Android versionName 1.0.4 and versionCode 5.")
+          print("Enforced Android versionName 1.0.5 and versionCode 6.")
           PY
 
       - name: Configure Android SDK & Gradle for CI
@@ -227,8 +227,8 @@ jobs:
             echo "::error::Unexpected package name '$PKG_NAME' (expected com.lenzoparty.app)."
             exit 1
           fi
-          if [ "$VER_CODE" != "5" ] || [ "$VER_NAME" != "1.0.4" ]; then
-            echo "::error::APK version mismatch: expected versionName 1.0.4 and versionCode 5; got $VER_NAME / $VER_CODE."
+          if [ "$VER_CODE" != "6" ] || [ "$VER_NAME" != "1.0.5" ]; then
+            echo "::error::APK version mismatch: expected versionName 1.0.5 and versionCode 6; got $VER_NAME / $VER_CODE."
             exit 1
           fi
 
@@ -267,8 +267,8 @@ jobs:
           java -jar "${{ runner.temp }}/bundletool.jar" validate --bundle=dist-android/app-release.aab
           java -jar "${{ runner.temp }}/bundletool.jar" dump manifest --bundle=dist-android/app-release.aab > aab_manifest.txt
           grep -E "package=|versionCode=|versionName=" aab_manifest.txt
-          if ! grep -Eq 'versionCode="5"' aab_manifest.txt || ! grep -Eq 'versionName="1.0.4"' aab_manifest.txt; then
-            echo "::error::AAB manifest version mismatch: expected versionName 1.0.4 and versionCode 5."
+          if ! grep -Eq 'versionCode="6"' aab_manifest.txt || ! grep -Eq 'versionName="1.0.5"' aab_manifest.txt; then
+            echo "::error::AAB manifest version mismatch: expected versionName 1.0.5 and versionCode 6."
             exit 1
           fi
 

@@ -19,3 +19,6 @@ Important:
   com.lenzoparty.app and the Play App Signing SHA-1.
 - Test the new release from Google Play Internal Testing. The ZIP can validate the
   local configuration but cannot guarantee Google-side provider/OAuth settings.
+
+
+Release 1.0.5 / versionCode 6: retains both Upload Key and Play App Signing SHA-1 OAuth clients in google-services.json. Google Cloud/Firebase Console settings must still match the Play signing certificate.
