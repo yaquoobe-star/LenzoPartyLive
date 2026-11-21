@@ -217,7 +217,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setSuccessMessage(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
