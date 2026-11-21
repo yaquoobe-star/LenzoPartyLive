@@ -107,20 +107,20 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
-          # Enforce the requested Play Store release metadata after Capacitor sync.
-          node -e '
-            const fs = require("fs");
-            const p = "android/app/build.gradle";
-            let s = fs.readFileSync(p, "utf8");
-            s = s.replace(/^\\s*versionCode\\s+\\d+\\s*$/m, "        versionCode 5");
-            s = s.replace(/^\\s*versionName\\s+"[^"]+"\\s*$/m, "        versionName \\"1.0.4\\"");
-            if (!/^\\s*versionCode\\s+5\\s*$/m.test(s) || !/^\\s*versionName\\s+"1\\.0\\.4"\\s*$/m.test(s)) {
-              console.error("Could not enforce Android versionCode 5 / versionName 1.0.4");
-              process.exit(1);
-            }
-            fs.writeFileSync(p, s);
-            console.log("Enforced Android versionName 1.0.4 and versionCode 5.");
-          '
+          # Enforce release metadata after Capacitor sync (Python avoids shell/JS quote parsing issues).
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, sys
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 5', s, count=1, flags=re.M)
+          s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.4"', s, count=1, flags=re.M)
+          if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+5\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.4"\s*$', s, re.M):
+              print("::error::Could not enforce Android versionCode 5 / versionName 1.0.4")
+              sys.exit(1)
+          p.write_text(s)
+          print("Enforced Android versionName 1.0.4 and versionCode 5.")
+          PY
 
       - name: Configure Android SDK & Gradle for CI
         env:

@@ -1158,6 +1158,95 @@ setInterval(() => {
 // REST API Endpoints
 
 // 0. Health & Ecosystem Verification Endpoint
+// Resend email OTP challenge for email/password login.
+// Requires RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET.
+const emailOtpLastSent = new Map<string, number>();
+const emailOtpSecret = process.env.EMAIL_OTP_SECRET || '';
+const emailOtpTtlSeconds = 10 * 60;
+
+function makeEmailOtpChallenge(email: string, otp: string, expiresAt: number): string {
+  const payload = Buffer.from(JSON.stringify({
+    email,
+    otpHash: crypto.createHash('sha256').update(otp).digest('hex'),
+    exp: expiresAt,
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', emailOtpSecret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyEmailOtpChallenge(email: string, otp: string, challenge: string): boolean {
+  if (!emailOtpSecret || !challenge || !challenge.includes('.')) return false;
+  const [payload, signature] = challenge.split('.');
+  const expected = crypto.createHmac('sha256', emailOtpSecret).update(payload).digest();
+  let supplied: Buffer;
+  try { supplied = Buffer.from(signature, 'base64url'); } catch { return false; }
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    const hash = crypto.createHash('sha256').update(otp).digest('hex');
+    return data.email === email && Number(data.exp) > Math.floor(Date.now() / 1000) &&
+      typeof data.otpHash === 'string' &&
+      crypto.timingSafeEqual(Buffer.from(data.otpHash, 'hex'), Buffer.from(hash, 'hex'));
+  } catch { return false; }
+}
+
+app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
+    }
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL || !emailOtpSecret) {
+      return res.status(503).json({
+        success: false,
+        error: 'Email OTP is not configured. Set RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET.',
+      });
+    }
+    const now = Date.now();
+    const lastSent = emailOtpLastSent.get(email) || 0;
+    if (now - lastSent < 60_000) {
+      return res.status(429).json({ success: false, error: 'Please wait 60 seconds before requesting another code.' });
+    }
+    const otp = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    const expiresAt = Math.floor(now / 1000) + emailOtpTtlSeconds;
+    const challenge = makeEmailOtpChallenge(email, otp, expiresAt);
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: [email],
+        subject: 'Your Lenzo Party login code',
+        html: `<div style="font-family:Arial,sans-serif"><h2>Lenzo Party Login</h2><p>Your verification code is:</p><p style="font-size:30px;font-weight:bold;letter-spacing:8px">${otp}</p><p>This code expires in 10 minutes. Do not share it with anyone.</p></div>`,
+      }),
+    });
+    const result: any = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[Resend OTP] Provider error:', result);
+      return res.status(502).json({ success: false, error: 'Email provider could not send the login code.' });
+    }
+    emailOtpLastSent.set(email, now);
+    return res.json({ success: true, challenge, expiresIn: emailOtpTtlSeconds });
+  } catch (error: any) {
+    console.error('[Resend OTP] Send failed:', error);
+    return res.status(500).json({ success: false, error: 'Could not send login code.' });
+  }
+});
+
+app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const otp = String(req.body?.otp || '').trim();
+  const challenge = String(req.body?.challenge || '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp) ||
+      !verifyEmailOtpChallenge(email, otp, challenge)) {
+    return res.status(400).json({ success: false, verified: false, error: 'Invalid or expired verification code.' });
+  }
+  return res.json({ success: true, verified: true, email });
+});
+
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
