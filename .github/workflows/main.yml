@@ -107,6 +107,20 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+          # Enforce the requested Play Store release metadata after Capacitor sync.
+          node -e '
+            const fs = require("fs");
+            const p = "android/app/build.gradle";
+            let s = fs.readFileSync(p, "utf8");
+            s = s.replace(/^\\s*versionCode\\s+\\d+\\s*$/m, "        versionCode 5");
+            s = s.replace(/^\\s*versionName\\s+"[^"]+"\\s*$/m, "        versionName \\"1.0.4\\"");
+            if (!/^\\s*versionCode\\s+5\\s*$/m.test(s) || !/^\\s*versionName\\s+"1\\.0\\.4"\\s*$/m.test(s)) {
+              console.error("Could not enforce Android versionCode 5 / versionName 1.0.4");
+              process.exit(1);
+            }
+            fs.writeFileSync(p, s);
+            console.log("Enforced Android versionName 1.0.4 and versionCode 5.");
+          '
 
       - name: Configure Android SDK & Gradle for CI
         env:
@@ -213,6 +227,10 @@ jobs:
             echo "::error::Unexpected package name '$PKG_NAME' (expected com.lenzoparty.app)."
             exit 1
           fi
+          if [ "$VER_CODE" != "5" ] || [ "$VER_NAME" != "1.0.4" ]; then
+            echo "::error::APK version mismatch: expected versionName 1.0.4 and versionCode 5; got $VER_NAME / $VER_CODE."
+            exit 1
+          fi
 
           echo "=== 3. Verify AAB Signature (jarsigner + keytool) ==="
           jarsigner -verify -verbose -certs dist-android/app-release.aab > aab_verify.txt
@@ -249,6 +267,10 @@ jobs:
           java -jar "${{ runner.temp }}/bundletool.jar" validate --bundle=dist-android/app-release.aab
           java -jar "${{ runner.temp }}/bundletool.jar" dump manifest --bundle=dist-android/app-release.aab > aab_manifest.txt
           grep -E "package=|versionCode=|versionName=" aab_manifest.txt
+          if ! grep -Eq 'versionCode="5"' aab_manifest.txt || ! grep -Eq 'versionName="1.0.4"' aab_manifest.txt; then
+            echo "::error::AAB manifest version mismatch: expected versionName 1.0.4 and versionCode 5."
+            exit 1
+          fi
 
           echo "VER_CODE=${VER_CODE:-1}" >> $GITHUB_ENV
           echo "VER_NAME=${VER_NAME:-1.0}" >> $GITHUB_ENV
