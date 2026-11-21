@@ -1,0 +1,21 @@
+LENZO PARTY LIVE - RELEASE 1.0.4 (VERSION CODE 5)
+
+Changes in this archive:
+- Android versionName set to 1.0.4.
+- Android versionCode set to 5.
+- package.json version set to 1.0.4.
+- Included the complete Firebase google-services.json for project confident-drake-3bcxw
+  and Android package com.lenzoparty.app.
+- The JSON contains Android OAuth clients for both known signing certificates:
+  Upload SHA-1: 68b8c557bf1cf2dcf1da692bf6d3ee6a1fc9c70b
+  Play App Signing SHA-1: 4f75d184db6f6637368f1a4173ae4bddb8cf093d
+- GitHub Actions now validates the full Firebase OAuth configuration and fails early
+  instead of generating an incomplete google-services.json from the web-only app config.
+
+Important:
+- Keep the existing release keystore and GitHub signing secrets unchanged.
+- Ensure Firebase Authentication -> Sign-in method -> Google is enabled.
+- Ensure Google Cloud Console has the matching Android OAuth client for package
+  com.lenzoparty.app and the Play App Signing SHA-1.
+- Test the new release from Google Play Internal Testing. The ZIP can validate the
+  local configuration but cannot guarantee Google-side provider/OAuth settings.

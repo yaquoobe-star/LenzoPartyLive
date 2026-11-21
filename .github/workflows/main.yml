@@ -117,58 +117,38 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           sed -i 's/compileSdkVersion = 35/compileSdkVersion = 36/g' android/variables.gradle || true
           sed -i 's/targetSdkVersion = 35/targetSdkVersion = 36/g' android/variables.gradle || true
-          if [ ! -f android/app/google-services.json ]; then
-            if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-              printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-              echo "Restored android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
-            elif [ -f firebase-applet-config.json ] && [ -f capacitor.config.json ]; then
-              node -e '
-                const fs = require("fs");
-                const fb = JSON.parse(fs.readFileSync("firebase-applet-config.json", "utf8"));
-                const cap = JSON.parse(fs.readFileSync("capacitor.config.json", "utf8"));
-                const androidAppId = `1:${fb.messagingSenderId || "238539539886"}:android:16b058b5f0154c3d1df43f`;
-                const googleServices = {
-                  project_info: {
-                    project_number: String(fb.messagingSenderId || ""),
-                    project_id: fb.projectId,
-                    storage_bucket: fb.storageBucket
-                  },
-                  client: [
-                    {
-                      client_info: {
-                        mobilesdk_app_id: androidAppId,
-                        android_client_info: {
-                          package_name: cap.appId || "com.lenzoparty.app"
-                        }
-                      },
-                      oauth_client: fb.oAuthClientId ? [
-                        {
-                          client_id: fb.oAuthClientId,
-                          client_type: 3
-                        }
-                      ] : [],
-                      api_key: fb.apiKey ? [
-                        {
-                          current_key: fb.apiKey
-                        }
-                      ] : [],
-                      services: {
-                        appinvite_service: {
-                          other_platform_oauth_client: []
-                        }
-                      }
-                    }
-                  ],
-                  configuration_version: "1"
-                };
-                fs.writeFileSync("android/app/google-services.json", JSON.stringify(googleServices, null, 2) + "\n");
-                console.log("Generated android/app/google-services.json from firebase-applet-config.json for " + googleServices.client[0].client_info.android_client_info.package_name);
-              '
-            else
-              echo "::error::android/app/google-services.json and firebase-applet-config.json are missing!"
-              exit 1
-            fi
+          if [ ! -f android/app/google-services.json ] && [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "Restored android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
           fi
+          if [ ! -f android/app/google-services.json ]; then
+            echo "::error::Missing android/app/google-services.json. Do not generate a partial Firebase config from firebase-applet-config.json because it omits Android OAuth certificate clients."
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("android/app/google-services.json", "utf8"));
+            const pkg = "com.lenzoparty.app";
+            const expected = [
+              "68b8c557bf1cf2dcf1da692bf6d3ee6a1fc9c70b",
+              "4f75d184db6f6637368f1a4173ae4bddb8cf093d"
+            ];
+            const clients = (cfg.client || []).filter(c =>
+              c.client_info?.android_client_info?.package_name === pkg
+            );
+            const androidHashes = clients.flatMap(c => (c.oauth_client || [])
+              .filter(o => o.client_type === 1 && o.android_info?.package_name === pkg)
+              .map(o => String(o.android_info.certificate_hash || "").replace(/:/g, "").toLowerCase()));
+            const hasWeb = clients.some(c => (c.oauth_client || []).some(o => o.client_type === 3 && o.client_id));
+            const missing = expected.filter(h => !androidHashes.includes(h));
+            if (cfg.project_info?.project_id !== "confident-drake-3bcxw" || clients.length === 0 || missing.length || !hasWeb) {
+              console.error("Firebase OAuth configuration is incomplete for " + pkg);
+              console.error("Missing Android SHA-1 entries: " + (missing.join(", ") || "none"));
+              console.error("Web OAuth client present: " + hasWeb);
+              process.exit(1);
+            }
+            console.log("Firebase config verified: package, Play App Signing SHA-1, upload SHA-1, and Web OAuth client are present.");
+          '
           chmod +x android/gradlew
 
       - name: Build Signed Production APK & AAB
