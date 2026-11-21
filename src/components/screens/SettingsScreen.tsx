@@ -154,7 +154,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <div className="w-full pb-24 sm:pb-12 animate-fade-in select-none">
+    <div className="w-full pb-28 md:pb-12 animate-fade-in select-none">
       <div className="max-w-2xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-4">
         {/* Toast Alert */}
         {toastMessage && (

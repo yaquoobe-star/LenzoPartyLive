@@ -329,7 +329,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   return (
-    <div className="relative min-h-dvh-screen w-full flex flex-col items-center justify-center px-4 sm:px-6 safe-pt-4 safe-pb-4 bg-[#090611] overflow-x-hidden select-none text-white font-sans">
+    <div className="relative min-h-dvh-screen w-full flex flex-col items-center justify-center px-4 sm:px-6 safe-pt-4 safe-pb-6 bg-[#090611] select-none text-white font-sans">
       
       {/* Dynamic Animated Ambient Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

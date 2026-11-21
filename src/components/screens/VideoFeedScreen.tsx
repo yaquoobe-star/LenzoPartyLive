@@ -7,8 +7,6 @@ import {
   Gift,
   Music,
   X,
-  Volume2,
-  VolumeX,
   Plus,
   Play,
   Trash2,
@@ -108,7 +106,6 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     });
   }, [videos]);
 
-  const [isMuted, setIsMuted] = useState(false);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
 
   // Persisted Comments drawer state
@@ -130,6 +127,8 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   const lastTapRef = useRef<number>(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const wheelLockUntilRef = useRef<number>(0);
   const viewedIdsRef = useRef<Set<string>>(new Set());
 
   const currentVideo = feedVideos[activeVideoIndex] || feedVideos[0];
@@ -169,22 +168,53 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     return () => unsub();
   }, [showComments, currentVideo?.id]);
 
-  // Real HTML5 <video> play/pause sync
+  // Real HTML5 <video> play/pause sync — ALWAYS keep audio ON automatically without a speaker toggle
   useEffect(() => {
     const el = videoRef.current;
     if (!el || !isCurrentVideoPlayable || isEndOfFeed) return;
-    el.muted = isMuted;
+
+    let unlockCleanup: (() => void) | null = null;
+
     if (isPlaying) {
+      el.muted = false;
+      el.volume = 1;
       el.play().catch(() => {
-        // Mobile browsers may require muted autoplay on first play
+        // If a browser enforces autoplay lock on cold load before any gesture,
+        // start temporarily silent and automatically unmute on the very first interaction anywhere.
         el.muted = true;
-        setIsMuted(true);
         el.play().catch(() => {});
+
+        const unlockAudio = () => {
+          const v = videoRef.current;
+          if (v) {
+            v.muted = false;
+            v.volume = 1;
+            v.play().catch(() => {});
+          }
+          cleanupUnlock();
+        };
+
+        const cleanupUnlock = () => {
+          window.removeEventListener('pointerdown', unlockAudio, true);
+          window.removeEventListener('touchstart', unlockAudio, true);
+          window.removeEventListener('click', unlockAudio, true);
+          window.removeEventListener('keydown', unlockAudio, true);
+        };
+
+        window.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+        window.addEventListener('touchstart', unlockAudio, { capture: true, passive: true });
+        window.addEventListener('click', unlockAudio, { capture: true, passive: true });
+        window.addEventListener('keydown', unlockAudio, { capture: true, passive: true });
+        unlockCleanup = cleanupUnlock;
       });
     } else {
       el.pause();
     }
-  }, [isPlaying, isMuted, currentVideo?.id, isCurrentVideoPlayable, isEndOfFeed]);
+
+    return () => {
+      if (unlockCleanup) unlockCleanup();
+    };
+  }, [isPlaying, currentVideo?.id, isCurrentVideoPlayable, isEndOfFeed]);
 
   // Fallback timer ONLY for legacy static image posts (real videos drive progress via onTimeUpdate)
   useEffect(() => {
@@ -236,20 +266,45 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     }
   };
 
-  // Touch gestures for mobile vertical swiping
+  // Touch gestures for mobile vertical swiping (ignored when modal/comments sheet is open)
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (showComments || showDeleteConfirm || showReportModal) return;
     touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
+    if (touchStartY.current === null || showComments || showDeleteConfirm || showReportModal) {
+      touchStartY.current = null;
+      touchStartX.current = null;
+      return;
+    }
     const diffY = touchStartY.current - e.changedTouches[0].clientY;
-    if (diffY > 45) {
-      handleScrollNext();
-    } else if (diffY < -45) {
-      handleScrollPrev();
+    const diffX =
+      touchStartX.current !== null ? Math.abs(touchStartX.current - e.changedTouches[0].clientX) : 0;
+    if (Math.abs(diffY) > 40 && Math.abs(diffY) > diffX * 1.15) {
+      if (diffY > 0) {
+        handleScrollNext();
+      } else {
+        handleScrollPrev();
+      }
     }
     touchStartY.current = null;
+    touchStartX.current = null;
+  };
+
+  // Mouse wheel / trackpad vertical scrolling between reels
+  const handleWheel = (e: React.WheelEvent) => {
+    if (showComments || showDeleteConfirm || showReportModal) return;
+    const now = Date.now();
+    if (now < wheelLockUntilRef.current) return;
+    if (Math.abs(e.deltaY) < 28) return;
+    wheelLockUntilRef.current = now + 420;
+    if (e.deltaY > 0) {
+      handleScrollNext();
+    } else {
+      handleScrollPrev();
+    }
   };
 
   const toggleLike = async () => {
@@ -437,6 +492,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
         className="relative w-full h-[calc(100dvh-64px-var(--safe-bottom))] md:h-dvh-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col justify-between px-4 pb-6 safe-pt-3 text-center"
       >
         <div className="relative z-30 flex items-center justify-between gap-2">
@@ -509,6 +565,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       data-ptr-block={activeVideoIndex > 0 ? 'true' : undefined}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
       className="relative w-full h-[calc(100dvh-64px-var(--safe-bottom))] md:h-dvh-screen bg-black overflow-hidden select-none animate-fade-in flex flex-col justify-between"
     >
       {/* Toast */}
@@ -575,15 +632,6 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {isCurrentVideoPlayable && (
-            <button
-              onClick={() => setIsMuted((m) => !m)}
-              className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </button>
-          )}
           <button
             onClick={onUploadClick}
             className="w-9 h-9 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-md active:scale-95 transition-transform"
@@ -612,7 +660,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
             autoPlay
             loop
             playsInline
-            muted={isMuted}
+            muted={false}
             onTimeUpdate={(e) => {
               const el = e.currentTarget;
               if (el.duration && Number.isFinite(el.duration) && el.duration > 0) {
@@ -849,7 +897,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
       {/* Slide-Up Persisted Comments Drawer */}
       {showComments && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
+        >
           <div className="w-full max-w-lg bg-[#160C25] border-t border-white/15 rounded-t-3xl p-4 sm:p-5 h-[65vh] flex flex-col justify-between shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <span className="text-sm font-bold text-white flex items-center gap-2">
@@ -915,7 +967,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
       {/* Owner Delete Reel Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        >
           <div className="w-full max-w-xs bg-[#160C25] border border-rose-500/35 rounded-3xl p-5 text-center space-y-3.5 shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-rose-500/15 text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
@@ -948,7 +1004,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
       {/* Report Reel Modal */}
       {showReportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        >
           <form
             onSubmit={(e) => void handleSubmitReport(e)}
             className="w-full max-w-sm bg-[#160C25] border border-white/15 rounded-3xl p-5 space-y-3.5 shadow-2xl"

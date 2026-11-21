@@ -327,7 +327,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
   return (
     <div
-      className="relative min-h-dvh-screen w-full overflow-x-clip pb-28 md:pb-12 text-white select-none"
+      className="relative min-h-dvh-screen w-full pb-28 md:pb-12 text-white select-none"
       style={{
         background:
           'radial-gradient(ellipse 90% 55% at 50% 0%, #360E6B 0%, #17062E 38%, #090314 76%, #05010B 100%)',

@@ -95,7 +95,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   return (
-    <div className="w-full pb-24 sm:pb-12 animate-fade-in">
+    <div className="w-full pb-28 md:pb-12 animate-fade-in">
       <div className="max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-5">
         {/* Category Feed Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">

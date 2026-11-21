@@ -144,6 +144,9 @@ public class MainActivity extends BridgeActivity {
 
         WebView webView = getBridge().getWebView();
         webView.setBackgroundColor(SYSTEM_BAR_BG_COLOR);
+        webView.setVerticalScrollBarEnabled(true);
+        webView.setNestedScrollingEnabled(true);
+        webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
 
         WebSettings settings = webView.getSettings();
         // Allow real-time live video & party voice playback without user-gesture blocks

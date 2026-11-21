@@ -137,9 +137,12 @@ export default function App() {
   const [viewMode, setViewMode] = useState<PlatformViewMode>('responsive');
   const [refreshTick, setRefreshTick] = useState<number>(0);
 
-  // Reset root scroll cleanly whenever navigating between screens (fixes Profile/long-screen scroll offset)
+  // Reset root scroll cleanly whenever navigating between screens
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    if (document.scrollingElement) {
+      document.scrollingElement.scrollTop = 0;
+    }
   }, [currentScreen]);
 
   // Application Data States (live backend + Cloud Firestore)
@@ -1998,10 +2001,10 @@ export default function App() {
       />
 
       {/* Main Responsive Application Area */}
-      <div className="flex-1 flex flex-col min-h-dvh-screen min-w-0 bg-[#090611] overflow-x-clip relative">
+      <div className="flex-1 flex flex-col min-h-dvh-screen min-w-0 bg-[#090611] relative">
         {/* Primary Screen Render Router wrapped with Universal Pull-to-Refresh */}
         <PullToRefresh onRefresh={handleGlobalAppRefresh}>
-          <main className="flex-1 w-full">
+          <main className="flex-1 w-full min-w-0">
           {currentScreen === 'home' && (
             <HomeScreen
               liveStreams={visibleLiveStreams}

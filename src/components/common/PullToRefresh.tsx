@@ -32,10 +32,9 @@ function getViewportScrollTop(): number {
 function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement | null): boolean {
   if (!target || !(target instanceof HTMLElement)) return false;
 
-  // Check window/document scroll position first
+  // Strictly require the viewport to be at the very top
   if (getViewportScrollTop() > 1) return false;
 
-  // Walk up DOM ancestors to verify no inner scrollable container is scrolled away from top
   let el: HTMLElement | null = target;
   while (el && el !== document.body && el !== document.documentElement) {
     // Explicit opt-out zones (e.g. reels index > 0, sliders, canvas, drag handles)
@@ -43,7 +42,7 @@ function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement 
       return false;
     }
 
-    // Do not hijack gestures starting inside form inputs or media scrubbers
+    // Do not hijack gestures starting inside form inputs or media controls
     const tag = el.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'OPTION') {
       return false;
@@ -52,13 +51,13 @@ function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement 
       return false;
     }
 
-    // Do not trigger behind open modals/drawers that have their own scroll/fixed backdrop
+    // Never interfere with open modals/dialogs
     const role = el.getAttribute('role');
     if (role === 'dialog' || el.getAttribute('aria-modal') === 'true') {
       return false;
     }
 
-    // Check if ancestor is a vertically scrollable container that is NOT at top
+    // Check if any inner vertically scrollable container is scrolled away from top
     if (el !== rootEl) {
       const style = window.getComputedStyle(el);
       const overflowY = style.overflowY;
@@ -69,8 +68,7 @@ function canStartPullFromTarget(target: EventTarget | null, rootEl: HTMLElement 
         return false;
       }
 
-      // If user touched inside a full-screen fixed overlay (like a modal/sheet),
-      // skip global pull-to-refresh so the modal scrolls normally without fighting
+      // Skip full-screen fixed overlays (sheets/modals) so they scroll natively without interference
       if (style.position === 'fixed') {
         const rect = el.getBoundingClientRect();
         const isLargeOverlay = rect.width >= window.innerWidth * 0.7 && rect.height >= window.innerHeight * 0.5;
@@ -114,6 +112,23 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     const el = containerRef.current;
     if (!el || disabled) return;
 
+    const resetPullGesture = () => {
+      isTrackingRef.current = false;
+      isPullingActiveRef.current = false;
+      crossedThresholdRef.current = false;
+      if (pullDistanceRef.current !== 0 && statusRef.current !== 'refreshing') {
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        setStatus('idle');
+      }
+    };
+
+    const handleWindowScroll = () => {
+      if (getViewportScrollTop() > 1 && (isTrackingRef.current || isPullingActiveRef.current)) {
+        resetPullGesture();
+      }
+    };
+
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       if (statusRef.current === 'refreshing') return;
@@ -131,56 +146,47 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       crossedThresholdRef.current = false;
     };
 
+    // 100% PASSIVE listener: NEVER calls e.preventDefault() so native vertical/horizontal
+    // scrolling stays hardware-accelerated at 60-120fps across Android WebView, iOS, and Web.
     const handleTouchMove = (e: TouchEvent) => {
       if (!isTrackingRef.current || e.touches.length !== 1) return;
       if (statusRef.current === 'refreshing') return;
+
+      if (getViewportScrollTop() > 1) {
+        resetPullGesture();
+        return;
+      }
 
       const currentX = e.touches[0].clientX;
       const currentY = e.touches[0].clientY;
       const dx = currentX - startXRef.current;
       const dy = currentY - startYRef.current;
 
-      // Immediately yield to native upward/downward scrolling or horizontal swiping
       if (!isPullingActiveRef.current) {
-        // User swiped up (scrolling down the page) -> abort tracking immediately
-        if (dy < -4) {
+        // User swiped up (scrolling down) -> release immediately
+        if (dy < -3) {
           isTrackingRef.current = false;
           return;
         }
-        // Horizontal gesture (tabs/carousels) -> abort tracking immediately
-        if (Math.abs(dx) > Math.max(8, Math.abs(dy) * 0.75)) {
+        // Horizontal gesture (tabs/carousels) -> release immediately
+        if (Math.abs(dx) > Math.max(10, Math.abs(dy) * 0.55)) {
           isTrackingRef.current = false;
           return;
         }
-        // Require deliberate downward pull past 16px before taking over
-        if (dy < 16) {
-          return;
-        }
-        // Re-verify document is strictly at top before activating pull indicator
-        if (getViewportScrollTop() > 1) {
-          isTrackingRef.current = false;
+        // Require a clear, deliberate downward pull past 24px while strictly at top
+        if (dy < 24) {
           return;
         }
         isPullingActiveRef.current = true;
       }
 
-      // If user reverses direction back up while pulling, release control immediately
-      if (dy <= 6 || getViewportScrollTop() > 1) {
-        isPullingActiveRef.current = false;
-        isTrackingRef.current = false;
-        pullDistanceRef.current = 0;
-        setPullDistance(0);
-        setStatus('idle');
+      // If user reverses direction back upward, immediately dismiss indicator
+      if (dy <= 10) {
+        resetPullGesture();
         return;
       }
 
-      // Prevent native overscroll glow while smoothly pulling our custom indicator
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-
-      // Rubber-band curve starting smoothly from the 16px deadzone
-      const effectivePull = Math.max(0, dy - 12);
+      const effectivePull = Math.max(0, dy - 18);
       const dampened = Math.min(MAX_PULL_DISTANCE, Math.round(effectivePull * 0.48));
       pullDistanceRef.current = dampened;
       setPullDistance(dampened);
@@ -211,7 +217,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       isPullingActiveRef.current = false;
 
       const finalPull = pullDistanceRef.current;
-      if (finalPull >= PULL_THRESHOLD) {
+      if (finalPull >= PULL_THRESHOLD && getViewportScrollTop() <= 2) {
         if (clearTimerRef.current) {
           clearTimeout(clearTimerRef.current);
           clearTimerRef.current = null;
@@ -228,7 +234,6 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
           result = { offline: !navigator.onLine };
         }
 
-        // Keep spinner visible briefly so user clearly perceives the refresh finished
         const elapsed = Date.now() - startedAt;
         if (elapsed < 450) {
           await new Promise((r) => setTimeout(r, 450 - elapsed));
@@ -255,16 +260,19 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       }
     };
 
+    // ALL listeners strictly passive so browser scrolling is NEVER blocked
     el.addEventListener('touchstart', handleTouchStart, { passive: true });
-    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchmove', handleTouchMove, { passive: true });
     el.addEventListener('touchend', handleTouchEnd, { passive: true });
     el.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
 
     return () => {
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
       el.removeEventListener('touchend', handleTouchEnd);
       el.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('scroll', handleWindowScroll);
       if (clearTimerRef.current) {
         clearTimeout(clearTimerRef.current);
       }
@@ -275,19 +283,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const progressRatio = Math.min(1, pullDistance / PULL_THRESHOLD);
   const rotationDeg = status === 'refreshing' ? 0 : Math.round(progressRatio * 220);
 
-  // IMPORTANT: Never set a CSS transform when idle so `position: fixed` descendants
-  // (BottomNav, TopBar, modals) always stay anchored to the real viewport!
-  const contentStyle: React.CSSProperties | undefined =
-    pullDistance > 0
-      ? {
-          transform: `translate3d(0, ${Math.round(pullDistance * 0.42)}px, 0)`,
-          transition: status === 'pulling' || status === 'ready' ? 'none' : 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)',
-        }
-      : undefined;
-
   return (
     <div ref={containerRef} className="relative w-full min-h-dvh-screen">
-      {/* Floating Safe-Area Pull-to-Refresh Indicator */}
+      {/* Floating Safe-Area Pull-to-Refresh Indicator (never transforms or blocks page scroll) */}
       {showIndicator && (
         <div
           className="fixed left-1/2 z-[180] pointer-events-none flex items-center justify-center"
@@ -295,7 +293,10 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
             top: 'calc(var(--safe-top, 0px) + 10px)',
             transform: `translate3d(-50%, ${Math.max(-44, Math.min(28, pullDistance - 38))}px, 0)`,
             opacity: status === 'pulling' ? Math.max(0.25, progressRatio) : 1,
-            transition: status === 'pulling' || status === 'ready' ? 'opacity 80ms linear' : 'all 220ms cubic-bezier(0.22, 1, 0.36, 1)',
+            transition:
+              status === 'pulling' || status === 'ready'
+                ? 'opacity 80ms linear'
+                : 'all 220ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
         >
           <div
@@ -341,10 +342,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
         </div>
       )}
 
-      {/* Wrapped Screen Content */}
-      <div style={contentStyle} className="w-full min-h-dvh-screen">
-        {children}
-      </div>
+      {/* Wrapped Screen Content — zero CSS transform or overflow wrappers so native scrolling is never interrupted */}
+      {children}
     </div>
   );
 };

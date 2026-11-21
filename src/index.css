@@ -18,8 +18,12 @@
     background-color: #060212;
     color: #FFFFFF;
     width: 100%;
+    min-height: 100%;
+    overflow-x: clip;
     overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   body {
     background-color: #060212;
@@ -28,13 +32,14 @@
     min-height: 100%;
     margin: 0;
     padding: 0;
+    overflow: visible;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     -webkit-tap-highlight-color: transparent;
   }
   #root {
     width: 100%;
     min-height: 100%;
-    overflow-x: clip;
+    overflow: visible;
   }
   h1, h2, h3, .font-display {
     font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
