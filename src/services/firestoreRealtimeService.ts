@@ -9,6 +9,10 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { ChatMessage, LiveViewerInfo, UserProfile } from '../types';
+import {
+  isSeatLockedByHostLevel,
+  normalizePartyMaxSeats,
+} from '../utils/partySeatRules';
 
 const VALID_ID_REGEX = /^[a-zA-Z0-9_\-]+$/;
 
@@ -691,6 +695,10 @@ export async function syncFirestorePartyRoomState(
     isLocked?: boolean;
     allowJoin?: boolean;
     announcement?: string;
+    maxSeats?: number;
+    backgroundType?: 'preset' | 'host_dp' | 'custom';
+    backgroundId?: string;
+    backgroundImage?: string;
   }
 ): Promise<void> {
   if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
@@ -707,7 +715,7 @@ export async function syncFirestorePartyRoomState(
           return {
             id: String(r.id || `sr_${Date.now()}`),
             user: u,
-            seatIndex: typeof r.seatIndex === 'number' ? r.seatIndex : 1,
+            seatIndex: typeof r.seatIndex === 'number' ? r.seatIndex : 2,
             requestedAt: typeof r.requestedAt === 'number' ? r.requestedAt : Date.now(),
           };
         })
@@ -727,6 +735,24 @@ export async function syncFirestorePartyRoomState(
       if (typeof patch.isLocked === 'boolean') payload.isLocked = patch.isLocked;
       if (typeof patch.allowJoin === 'boolean') payload.allowJoin = patch.allowJoin;
       if (typeof patch.announcement === 'string') payload.announcement = patch.announcement.slice(0, 200);
+      if (typeof patch.maxSeats === 'number') payload.maxSeats = normalizePartyMaxSeats(patch.maxSeats);
+      if (
+        patch.backgroundType === 'preset' ||
+        patch.backgroundType === 'host_dp' ||
+        patch.backgroundType === 'custom'
+      ) {
+        payload.backgroundType = patch.backgroundType;
+      }
+      if (typeof patch.backgroundId === 'string' && patch.backgroundId.trim()) {
+        payload.backgroundId = patch.backgroundId.trim().slice(0, 48);
+      }
+      if (typeof patch.backgroundImage === 'string') {
+        const trimmed = patch.backgroundImage.trim();
+        payload.backgroundImage =
+          !trimmed || !trimmed.startsWith('data:') || trimmed.length <= 160000
+            ? trimmed.slice(0, 160000)
+            : '';
+      }
     }
     if (Object.keys(payload).length === 0) return;
     await updateDoc(doc(db, 'party_rooms', roomId), payload);
@@ -773,11 +799,16 @@ export async function submitFirestoreSeatRequest(
       if (currentSeats.some((s) => s && s.id === compactUser.id)) {
         throw new Error('You already occupy a seat in this room.');
       }
-      const maxSeats = data.maxSeats === 16 ? 16 : 8;
+      const hostLevel = Number(data.host?.level ?? 0);
+      const maxSeats = normalizePartyMaxSeats(data.maxSeats, hostLevel);
+      const defaultSeat = isSeatLockedByHostLevel(1, hostLevel) ? 2 : 1;
       const safeIndex =
         typeof request.seatIndex === 'number' && request.seatIndex >= 0 && request.seatIndex < maxSeats
           ? request.seatIndex
-          : 1;
+          : defaultSeat;
+      if (isSeatLockedByHostLevel(safeIndex, hostLevel)) {
+        throw new Error('Seat #2 is locked until the host reaches Level 5.');
+      }
 
       const existing: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
         ? data.seatRequests
@@ -834,7 +865,8 @@ export async function respondFirestoreSeatRequest(
         throw new Error('Party room not found.');
       }
       const data = snap.data() as Record<string, any>;
-      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const hostLevel = Number(data.host?.level ?? 0);
+      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, hostLevel);
       const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
       if (Array.isArray(data.seats)) {
         for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
@@ -855,14 +887,20 @@ export async function respondFirestoreSeatRequest(
             nextSeats[i] = null;
           }
         }
+        const defaultSeat = isSeatLockedByHostLevel(1, hostLevel) ? 2 : 1;
         let targetIdx =
-          typeof preferredSeatIndex === 'number' && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats
+          typeof preferredSeatIndex === 'number' &&
+          preferredSeatIndex >= 0 &&
+          preferredSeatIndex < maxSeats &&
+          !isSeatLockedByHostLevel(preferredSeatIndex, hostLevel)
             ? preferredSeatIndex
-            : 1;
-        if (nextSeats[targetIdx] !== null) {
-          const openIdx = nextSeats.findIndex((s) => s === null);
+            : defaultSeat;
+        if (nextSeats[targetIdx] !== null || isSeatLockedByHostLevel(targetIdx, hostLevel)) {
+          const openIdx = nextSeats.findIndex(
+            (s, idx) => s === null && !isSeatLockedByHostLevel(idx, hostLevel)
+          );
           if (openIdx === -1) {
-            throw new Error('All seats are currently full.');
+            throw new Error('All unlocked seats are currently full.');
           }
           targetIdx = openIdx;
         }
@@ -903,7 +941,11 @@ export async function takeFirestoreSeatDirect(
       const snap = await tx.get(roomRef);
       if (!snap.exists()) return null;
       const data = snap.data() as Record<string, any>;
-      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const hostLevel = Number(data.host?.level ?? 0);
+      if (isSeatLockedByHostLevel(seatIndex, hostLevel)) {
+        return null;
+      }
+      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, hostLevel);
       const nextSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
       if (Array.isArray(data.seats)) {
         for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
@@ -930,38 +972,51 @@ export async function takeFirestoreSeatDirect(
 }
 
 /**
- * Atomically remove a user from their seat in Firestore.
+ * Atomically remove a user from their seat in Firestore (used for both self-leave and Host kick).
  */
 export async function vacateFirestoreSeat(
   roomId: string,
   targetUserId: string,
   seatIndex?: number,
   maxSeatsFallback = 8
-): Promise<{ success: boolean; seats?: (UserProfile | null)[] }> {
-  if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+): Promise<{ success: boolean; seats?: (UserProfile | null)[]; mutedSeatIndices?: number[] }> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !isValidFirestoreId(roomId)) return { success: false };
   const roomRef = doc(db, 'party_rooms', roomId);
   try {
-    const nextSeats = await runTransaction(db, async (tx) => {
+    const result = await runTransaction(db, async (tx) => {
       const snap = await tx.get(roomRef);
       if (!snap.exists()) return null;
       const data = snap.data() as Record<string, any>;
-      const maxSeats = data.maxSeats === 16 ? 16 : maxSeatsFallback === 16 ? 16 : 8;
+      const maxSeats = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsFallback, Number(data.host?.level ?? 0));
       const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
       if (Array.isArray(data.seats)) {
         for (let i = 0; i < Math.min(maxSeats, data.seats.length); i++) {
           seats[i] = data.seats[i] || null;
         }
       }
+      const clearedIndices = new Set<number>();
       if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < maxSeats) {
         seats[seatIndex] = null;
+        clearedIndices.add(seatIndex);
       }
       for (let i = 0; i < seats.length; i++) {
-        if (seats[i]?.id === targetUserId) seats[i] = null;
+        if (seats[i]?.id === targetUserId) {
+          seats[i] = null;
+          clearedIndices.add(i);
+        }
       }
-      tx.update(roomRef, { seats });
-      return seats;
+      const existingMuted: number[] = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
+      const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx));
+      const isHostActor = data.host?.id === uid;
+      if (isHostActor) {
+        tx.update(roomRef, { seats, mutedSeatIndices: nextMuted });
+      } else {
+        tx.update(roomRef, { seats });
+      }
+      return { seats, mutedSeatIndices: isHostActor ? nextMuted : existingMuted };
     });
-    return nextSeats ? { success: true, seats: nextSeats } : { success: false };
+    return result ? { success: true, ...result } : { success: false };
   } catch {
     return { success: false };
   }

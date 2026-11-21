@@ -214,6 +214,9 @@ export interface PartyRoom {
   isOwnerPresent?: boolean;
   startTime?: number;
   likesCount?: number;
+  backgroundType?: 'preset' | 'host_dp' | 'custom';
+  backgroundId?: string;
+  backgroundImage?: string;
 }
 
 export interface LiveViewerInfo {

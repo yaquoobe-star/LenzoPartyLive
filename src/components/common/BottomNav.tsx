@@ -49,7 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     return (
       <nav
         aria-label="Store Bottom Navigation"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-[#0A0318]/95 backdrop-blur-xl border-t border-purple-500/30 px-2 pb-safe pt-1.5 md:hidden select-none shadow-[0_-8px_28px_rgba(88,28,135,0.45)]"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-[#0A0318]/95 backdrop-blur-xl border-t border-purple-500/30 px-2 safe-pb-2 pt-1.5 md:hidden select-none shadow-[0_-8px_28px_rgba(88,28,135,0.45)]"
       >
         <div className="grid grid-cols-5 items-center max-w-lg mx-auto h-14">
           <button
@@ -110,7 +110,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#090611]/95 backdrop-blur-xl border-t border-white/[0.08] px-1 pb-safe pt-1 md:hidden select-none">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#090611]/95 backdrop-blur-xl border-t border-white/[0.08] px-1 safe-pb-2 pt-1 md:hidden select-none">
       <div className="flex items-center justify-between relative max-w-lg mx-auto h-14">
         {/* 1. HOME */}
         <button

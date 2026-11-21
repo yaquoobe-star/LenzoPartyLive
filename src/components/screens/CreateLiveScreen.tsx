@@ -378,7 +378,7 @@ export const CreateLiveScreen: React.FC<CreateLiveScreenProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#090611] flex flex-col justify-between p-4 sm:p-6 select-none animate-fade-in">
+    <div className="relative min-h-dvh-screen w-full bg-[#090611] flex flex-col justify-between px-4 sm:px-6 safe-pt-4 safe-pb-4 select-none animate-fade-in">
       <div className="max-w-lg mx-auto w-full">
         {/* Header Bar matching reference image */}
         <div className="flex items-center justify-between pb-4 border-b border-white/[0.08] mb-5">

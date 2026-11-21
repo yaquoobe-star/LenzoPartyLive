@@ -213,7 +213,7 @@ export const CameraRecorderModal: React.FC<CameraRecorderModalProps> = ({
         {/* ========================================================
             1. TOP TOOLBAR (Close, Flip Camera, Mic Toggle, Timer)
            ======================================================== */}
-        <header className="relative z-30 flex items-center justify-between p-4 pt-safe">
+        <header className="relative z-30 flex items-center justify-between px-4 pb-4 safe-pt-4">
           <button
             onClick={() => {
               if (previewVideoUrl) URL.revokeObjectURL(previewVideoUrl);
@@ -314,7 +314,7 @@ export const CameraRecorderModal: React.FC<CameraRecorderModalProps> = ({
         {/* ========================================================
             3. BOTTOM ACTION BAR (Record vs Retake/Continue)
            ======================================================== */}
-        <footer className="relative z-30 p-6 pb-safe flex items-center justify-center">
+        <footer className="relative z-30 px-6 pt-6 safe-pb-6 flex items-center justify-center">
           {recordState === 'preview' ? (
             /* Review State: Retake vs Continue */
             <div className="flex items-center justify-between w-full max-w-sm gap-4 bg-black/60 backdrop-blur-md p-3 rounded-3xl border border-white/10">

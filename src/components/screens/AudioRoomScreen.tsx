@@ -25,8 +25,21 @@ import {
   Lock,
   Users,
   Trophy,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
+import {
+  PartyBackgroundPickerModal,
+  PartyBackgroundSelection,
+} from '../common/PartyBackgroundPickerModal';
+import { PartySofaSeat } from '../common/PartySofaSeat';
+import {
+  DEFAULT_PARTY_BACKGROUND_ID,
+  PartyBackgroundType,
+  extractRoomBackgroundConfig,
+  normalizePartyBackgroundType,
+  resolvePartyRoomBackground,
+} from '../../utils/partyBackgrounds';
 import {
   PartyRoom,
   UserProfile,
@@ -66,6 +79,15 @@ import {
   vacateFirestoreSeat,
 } from '../../services/firestoreRealtimeService';
 import { roomService } from '../../utils/roomService';
+import {
+  PARTY_SEAT_TIERS,
+  PartySeatCount,
+  clampPartyMaxSeatsForHostLevel,
+  isSeatLockedByHostLevel,
+  isSeatModeUnlockedForLevel,
+  normalizePartyMaxSeats,
+  sanitizeUserLevel,
+} from '../../utils/partySeatRules';
 
 interface AudioRoomScreenProps {
   room: PartyRoom;
@@ -161,10 +183,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   }, [blockedByUserIds, isRoomHost, room.host.id, room.id, onClose]);
 
-  const maxSeats = room.maxSeats === 16 ? 16 : 8;
+  const hostLevel = sanitizeUserLevel(isRoomHost ? currentUser.level : room.host.level);
+  const [maxSeats, setMaxSeats] = useState<PartySeatCount>(() =>
+    normalizePartyMaxSeats(room.maxSeats, hostLevel)
+  );
+  const maxSeatsRef = useRef<PartySeatCount>(maxSeats);
+  maxSeatsRef.current = maxSeats;
+  const isCoHostSeatLevelLocked = isSeatLockedByHostLevel(1, hostLevel);
 
   // Strictly mirror server seat occupancy — NEVER inject a ghost Host into an empty Seat 0
-  const normalizeSeats = (raw?: (UserProfile | null)[], count = maxSeats): (UserProfile | null)[] => {
+  const normalizeSeats = (raw?: (UserProfile | null)[], count: number = maxSeatsRef.current): (UserProfile | null)[] => {
     const arr: (UserProfile | null)[] = Array(count).fill(null);
     if (Array.isArray(raw)) {
       for (let i = 0; i < Math.min(count, raw.length); i++) {
@@ -174,7 +202,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     return arr;
   };
 
-  const [seats, setSeats] = useState<(UserProfile | null)[]>(() => normalizeSeats(room.seats, maxSeats));
+  const [seats, setSeats] = useState<(UserProfile | null)[]>(() =>
+    normalizeSeats(room.seats, normalizePartyMaxSeats(room.maxSeats, hostLevel))
+  );
   const [mutedSeatIndices, setMutedSeatIndices] = useState<number[]>(room.mutedSeatIndices || []);
   const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(room.seatRequests || []);
   const [participantsList, setParticipantsList] = useState<LiveViewerInfo[]>([]);
@@ -217,6 +247,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const pendingPromotedAgoraTokenRef = useRef<string | null>(null);
   const hadPendingSeatReqRef = useRef<boolean>(false);
   const cancelledOwnReqRef = useRef<boolean>(false);
+  const selfLeftSeatRef = useRef<boolean>(false);
+  const kickedToastShownAtRef = useRef<number>(0);
   const seenHeartEventIdsRef = useRef<Set<string>>(new Set());
   const lastStageTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const pendingHeartBatchRef = useRef<{ count: number; x?: number; y?: number }>({ count: 0 });
@@ -234,6 +266,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   // Settings & Announcements
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
+  const [showBackgroundPicker, setShowBackgroundPicker] = useState(false);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showEditAnnouncementModal, setShowEditAnnouncementModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -243,6 +276,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   );
   const [isSeatLocked, setIsSeatLocked] = useState(Boolean(room.isLocked));
   const [isAllowJoin, setIsAllowJoin] = useState(room.allowJoin !== false);
+
+  // Synced Party Room Stage Background (Preset Themes, Host DP, or Custom Gallery Photo)
+  const initialBg = extractRoomBackgroundConfig(room);
+  const [backgroundType, setBackgroundType] = useState<PartyBackgroundType>(initialBg.backgroundType);
+  const [backgroundId, setBackgroundId] = useState<string>(initialBg.backgroundId);
+  const [backgroundImage, setBackgroundImage] = useState<string>(initialBg.backgroundImage);
+  const backgroundRef = useRef({
+    backgroundType: initialBg.backgroundType,
+    backgroundId: initialBg.backgroundId,
+    backgroundImage: initialBg.backgroundImage,
+  });
+  backgroundRef.current = { backgroundType, backgroundId, backgroundImage };
 
   // Floating Hearts & Chat Activities (Zero Mock Data)
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
@@ -287,17 +332,32 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   // Update local room snapshot when prop changes
   useEffect(() => {
-    setSeats(normalizeSeats(room.seats, maxSeats));
+    const nextMax = normalizePartyMaxSeats(room.maxSeats, hostLevel);
+    setMaxSeats(nextMax);
+    setSeats(normalizeSeats(room.seats, nextMax));
     if (room.mutedSeatIndices) setMutedSeatIndices(room.mutedSeatIndices);
     if (room.seatRequests) setSeatRequests(room.seatRequests);
+    const nextBg = extractRoomBackgroundConfig(room);
+    setBackgroundType(nextBg.backgroundType);
+    setBackgroundId(nextBg.backgroundId);
+    setBackgroundImage(nextBg.backgroundImage);
     seenSeatReqIdsRef.current = new Set((room.seatRequests || []).map((r) => r.id));
     seatReqHydratedRef.current = false;
   }, [room.id]);
 
-  // Notify viewer immediately when Host approves them onto a seat (works over Firestore + WS)
+  // Notify viewer immediately when Host approves them onto a seat or kicks them from a seat (Firestore + WS)
   useEffect(() => {
     if (!isRoomHost && !prevSeatedRef.current && isCurrentlySeated && userSeatIndex !== -1) {
       showToast(`Approved! You are now on Seat #${userSeatIndex + 1} — mic is live.`);
+    } else if (!isRoomHost && prevSeatedRef.current && !isCurrentlySeated) {
+      if (!selfLeftSeatRef.current && !hasExplicitlyLeftRef.current) {
+        const now = Date.now();
+        if (now - kickedToastShownAtRef.current > 2500) {
+          kickedToastShownAtRef.current = now;
+          showToast('You were kicked from the seat by Host');
+        }
+      }
+      selfLeftSeatRef.current = false;
     }
     prevSeatedRef.current = isCurrentlySeated;
   }, [isCurrentlySeated, userSeatIndex, isRoomHost]);
@@ -354,13 +414,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     );
 
     const applyServerRoomState = (nextRoom: PartyRoom) => {
-      setSeats(normalizeSeats(nextRoom.seats, nextRoom.maxSeats || maxSeats));
+      const nextMax = normalizePartyMaxSeats(nextRoom.maxSeats ?? maxSeatsRef.current, hostLevel);
+      setMaxSeats(nextMax);
+      setSeats(normalizeSeats(nextRoom.seats, nextMax));
       if (Array.isArray(nextRoom.mutedSeatIndices)) {
         setMutedSeatIndices(nextRoom.mutedSeatIndices);
       }
       setIsSeatLocked(Boolean(nextRoom.isLocked));
       setIsAllowJoin(nextRoom.allowJoin !== false);
       if (nextRoom.announcement !== undefined) setRoomAnnouncement(nextRoom.announcement);
+      if (nextRoom.backgroundType !== undefined) {
+        setBackgroundType(normalizePartyBackgroundType(nextRoom.backgroundType));
+      }
+      if (typeof nextRoom.backgroundId === 'string' && nextRoom.backgroundId.trim()) {
+        setBackgroundId(nextRoom.backgroundId.trim());
+      }
+      if (typeof nextRoom.backgroundImage === 'string') {
+        setBackgroundImage(nextRoom.backgroundImage);
+      }
       if (typeof nextRoom.numericParticipants === 'number') {
         setParticipantTotal((prev) => Math.max(prev, nextRoom.numericParticipants || 0));
       }
@@ -529,8 +600,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (!active) return;
       if (exists && data) {
         roomDocEverExisted = true;
+        const nextMax = normalizePartyMaxSeats(data.maxSeats ?? maxSeatsRef.current, hostLevel);
+        setMaxSeats(nextMax);
         if (Array.isArray(data.seats)) {
-          setSeats(normalizeSeats(data.seats, data.maxSeats === 16 ? 16 : maxSeats));
+          setSeats(normalizeSeats(data.seats, nextMax));
         }
         if (Array.isArray(data.mutedSeatIndices)) {
           setMutedSeatIndices(data.mutedSeatIndices);
@@ -584,6 +657,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (typeof data.isLocked === 'boolean') setIsSeatLocked(data.isLocked);
         if (typeof data.allowJoin === 'boolean') setIsAllowJoin(data.allowJoin);
         if (typeof data.announcement === 'string') setRoomAnnouncement(data.announcement);
+        if (data.backgroundType !== undefined) {
+          setBackgroundType(normalizePartyBackgroundType(data.backgroundType));
+        }
+        if (typeof data.backgroundId === 'string' && data.backgroundId.trim()) {
+          setBackgroundId(data.backgroundId.trim());
+        }
+        if (typeof data.backgroundImage === 'string') {
+          setBackgroundImage(data.backgroundImage);
+        }
       } else if (roomDocEverExisted && !isRoomHost) {
         showToast('Party room was closed by the host');
         webrtcMediaService.stopPartyVoice();
@@ -783,6 +865,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:seat_request_rejected') {
         hadPendingSeatReqRef.current = false;
         showToast('Host declined your seat request');
+      } else if (event === 'room:seat_kicked') {
+        if (!isRoomHost) {
+          const now = Date.now();
+          if (now - kickedToastShownAtRef.current > 2500) {
+            kickedToastShownAtRef.current = now;
+            showToast(`You were kicked from Seat #${(payload.seatIndex ?? 0) + 1} by Host`);
+          }
+        }
       } else if (event === 'room:chat' && payload.message) {
         const m = payload.message;
         setActivities((prev) =>
@@ -1186,10 +1276,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     updatedLocked?: boolean,
     updatedAllowJoin?: boolean,
     updatedAnnouncement?: string,
-    skipFirestoreSync = false
+    skipFirestoreSync = false,
+    updatedMaxSeats?: PartySeatCount,
+    updatedBackground?: Partial<PartyBackgroundSelection>
   ) => {
+    const resolvedMaxSeats = updatedMaxSeats ?? maxSeatsRef.current;
+    const resolvedBgType = updatedBackground?.backgroundType ?? backgroundRef.current.backgroundType;
+    const resolvedBgId = updatedBackground?.backgroundId ?? backgroundRef.current.backgroundId;
+    const resolvedBgImage =
+      updatedBackground?.backgroundImage !== undefined
+        ? updatedBackground.backgroundImage
+        : backgroundRef.current.backgroundImage;
+
     const nextRoom: PartyRoom = {
       ...room,
+      maxSeats: resolvedMaxSeats,
       seats: updatedSeats,
       mutedSeatIndices,
       numericParticipants: participantTotal,
@@ -1199,10 +1300,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       announcement: updatedAnnouncement !== undefined ? updatedAnnouncement : roomAnnouncement,
       seatRequests: updatedRequests !== undefined ? updatedRequests : seatRequests,
       isOwnerPresent: participantsList.some((p) => p.userId === room.host.id),
+      backgroundType: resolvedBgType,
+      backgroundId: resolvedBgId,
+      backgroundImage: resolvedBgImage,
     };
     onUpdateRoom?.(nextRoom);
     if (!skipFirestoreSync) {
       void syncFirestorePartyRoomState(room.id, isRoomHost, {
+        maxSeats: resolvedMaxSeats,
         seats: updatedSeats,
         seatRequests: nextRoom.seatRequests,
         numericParticipants: participantTotal,
@@ -1211,8 +1316,87 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         isLocked: nextRoom.isLocked,
         allowJoin: nextRoom.allowJoin,
         announcement: nextRoom.announcement,
+        backgroundType: resolvedBgType,
+        backgroundId: resolvedBgId,
+        backgroundImage: resolvedBgImage,
       });
     }
+  };
+
+  const handleUpdatePartyBackground = (selection: PartyBackgroundSelection) => {
+    if (!isRoomHost) {
+      showToast('Only the party host can change the room background.');
+      return;
+    }
+    const nextBgType = normalizePartyBackgroundType(selection.backgroundType);
+    const nextBgId = selection.backgroundId || DEFAULT_PARTY_BACKGROUND_ID;
+    const nextBgImage =
+      nextBgType === 'host_dp'
+        ? room.host.avatar || selection.backgroundImage || ''
+        : nextBgType === 'custom'
+        ? selection.backgroundImage || ''
+        : '';
+
+    setBackgroundType(nextBgType);
+    setBackgroundId(nextBgId);
+    setBackgroundImage(nextBgImage);
+    backgroundRef.current = {
+      backgroundType: nextBgType,
+      backgroundId: nextBgId,
+      backgroundImage: nextBgImage,
+    };
+
+    void liveAndRoomService.updateRoomSettings(room.id, currentUser.id, {
+      backgroundType: nextBgType,
+      backgroundId: nextBgId,
+      backgroundImage: nextBgImage,
+    });
+    syncRoom(seats, seatRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, maxSeats, {
+      backgroundType: nextBgType,
+      backgroundId: nextBgId,
+      backgroundImage: nextBgImage,
+    });
+
+    const label =
+      nextBgType === 'host_dp'
+        ? 'Host DP applied as party background'
+        : nextBgType === 'custom'
+        ? 'Gallery photo applied for everyone'
+        : 'Party theme updated for everyone';
+    showToast(label);
+  };
+
+  const handleToggleMyMic = () => {
+    if (!isCurrentlySeated) {
+      showToast('Take a seat first to use your microphone');
+      return;
+    }
+    if (isHostMutedOnMySeat) {
+      showToast('Your seat microphone is muted by Host');
+      return;
+    }
+    const next = !isMicMuted;
+    setIsMicMuted(next);
+    showToast(next ? 'Mic muted' : 'Mic ON — speaking live');
+  };
+
+  const handleChangeSeatMode = (targetSeats: PartySeatCount) => {
+    if (!isRoomHost) return;
+    if (!isSeatModeUnlockedForLevel(targetSeats, hostLevel)) {
+      const reqLv = targetSeats === 16 ? 20 : 10;
+      showToast(`Reach Level ${reqLv} to unlock ${targetSeats}-seat Party Rooms (Current: Lv.${hostLevel})`);
+      return;
+    }
+    const clamped = clampPartyMaxSeatsForHostLevel(targetSeats, hostLevel);
+    if (clamped === maxSeats) return;
+    const resizedSeats = normalizeSeats(seats, clamped);
+    const nextMuted = mutedSeatIndices.filter((idx) => idx < clamped);
+    setMaxSeats(clamped);
+    setSeats(resizedSeats);
+    setMutedSeatIndices(nextMuted);
+    void liveAndRoomService.updateRoomSettings(room.id, currentUser.id, { maxSeats: clamped });
+    syncRoom(resizedSeats, seatRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, clamped);
+    showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? '4+1' : clamped}-seat layout`);
   };
 
   // Cleanly exit party room (vacates seat, removes pending request, disconnects voice & leaves server room)
@@ -1243,6 +1427,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   // Seat Click Handler
   const handleSeatClick = (index: number) => {
+    if (isSeatLockedByHostLevel(index, hostLevel)) {
+      showToast('Seat #2 unlocks when Host reaches Level 5');
+      return;
+    }
     const occupant = seats[index];
     const isMe = occupant?.id === currentUser.id;
 
@@ -1252,7 +1440,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
 
     if (occupant) {
-      if (isRoomHost && index !== 0) {
+      if (isRoomHost && occupant.id !== currentUser.id) {
         setSelectedSeatMember({ index, user: occupant });
       } else {
         onSelectUser(occupant);
@@ -1442,10 +1630,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     const prevIdx = updated.findIndex((s) => s?.id === req.user.id);
     if (prevIdx !== -1) updated[prevIdx] = null;
     let targetIdx = req.seatIndex;
-    if (updated[targetIdx] !== null) {
-      const emptyIdx = updated.findIndex((s) => s === null);
+    if (updated[targetIdx] !== null || isSeatLockedByHostLevel(targetIdx, hostLevel)) {
+      const emptyIdx = updated.findIndex((s, i) => s === null && !isSeatLockedByHostLevel(i, hostLevel));
       if (emptyIdx === -1) {
-        showToast(fsRes.error || 'All seats are currently full');
+        showToast(fsRes.error || 'All unlocked seats are currently full');
         return;
       }
       targetIdx = emptyIdx;
@@ -1501,20 +1689,47 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  const handleRemoveMember = async () => {
-    if (!selectedSeatMember) return;
+  const handleKickMember = async () => {
+    if (!isRoomHost || !selectedSeatMember) return;
     const idx = selectedSeatMember.index;
     const member = selectedSeatMember.user;
-    const fsRes = await vacateFirestoreSeat(room.id, member.id, idx, maxSeats);
-    void roomService.removeSeat(room.id, currentUser.id, idx).catch(() => null);
+    if (member.id === currentUser.id) {
+      setSelectedSeatMember(null);
+      return;
+    }
+
+    // Optimistically remove from seat & unmute that slot so the plump sofa fluff-up triggers immediately
+    const optimisticSeats = seats.map((s, i) => (i === idx || s?.id === member.id ? null : s));
+    const nextMuted = mutedSeatIndices.filter((mIdx) => mIdx !== idx);
+    setSelectedSeatMember(null);
+    setSeats(optimisticSeats);
+    setMutedSeatIndices(nextMuted);
+
+    const [fsRes] = await Promise.all([
+      vacateFirestoreSeat(room.id, member.id, idx, maxSeats),
+      roomService
+        .removeSeat(
+          room.id,
+          currentUser.id,
+          idx,
+          { host: room.host, title: room.title, maxSeats },
+          member.id
+        )
+        .catch(() => null),
+    ]);
+
     const updated =
       fsRes.success && Array.isArray(fsRes.seats)
         ? normalizeSeats(fsRes.seats, maxSeats)
-        : seats.map((s, i) => (i === idx ? null : s));
+        : optimisticSeats;
+    const resolvedMuted =
+      fsRes.success && Array.isArray(fsRes.mutedSeatIndices)
+        ? fsRes.mutedSeatIndices
+        : nextMuted;
     setSeats(updated);
+    setMutedSeatIndices(resolvedMuted);
     syncRoom(updated, undefined, undefined, undefined, undefined, fsRes.success);
-    setSelectedSeatMember(null);
-    showToast(`Removed ${member.name} from Seat #${idx + 1}`);
+    showToast(`Kicked ${member.name} from Seat #${idx + 1}`);
   };
 
   const handleSendSeatInvite = async (targetUser: UserProfile) => {
@@ -1588,6 +1803,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   const handleLeaveSeat = async (index: number) => {
+    selfLeftSeatRef.current = true;
     setShowMySeatModal(null);
     setShowExitRoomModal(false);
     const fsRes = await vacateFirestoreSeat(room.id, currentUser.id, index, maxSeats);
@@ -1759,18 +1975,52 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const seatOne = seats[1] || null;
   const remainingSeatIndices = Array.from({ length: maxSeats - 2 }, (_, i) => i + 2);
   const gridColsClass = maxSeats === 16 ? 'grid-cols-4 sm:grid-cols-5' : 'grid-cols-3';
+  const activeStageBackground = resolvePartyRoomBackground({
+    backgroundType,
+    backgroundId,
+    backgroundImage,
+    hostAvatar: room.host.avatar,
+  });
 
   return (
-    <div className="fixed inset-0 z-50 w-full h-full bg-[#060212] flex flex-col justify-between overflow-hidden select-none text-white font-sans">
-      {/* Background Stage Visuals */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#41106A]/75 via-[#16062B]/90 to-[#060212]" />
+    <div className="fixed inset-0 z-50 w-full h-dvh-screen bg-[#060212] flex flex-col justify-between overflow-hidden select-none text-white font-sans">
+      {/* Synced Live Party Stage Background (Visible to Host, Guests & all Viewers) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden transition-all duration-500">
+        {/* Base Theme Gradient */}
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-[60%] opacity-35 blur-xl"
-          style={{
-            background:
-              'radial-gradient(ellipse at top, rgba(255, 215, 0, 0.45) 0%, rgba(200, 80, 255, 0.25) 45%, transparent 75%)',
-          }}
+          className="absolute inset-0 transition-all duration-500"
+          style={{ background: activeStageBackground.preset.gradient }}
+        />
+
+        {/* Optional Photo Layer (Host DP, Gallery Upload, or Scenic Preset) */}
+        {activeStageBackground.imageUrl && (
+          <img
+            src={activeStageBackground.imageUrl}
+            alt={activeStageBackground.label}
+            referrerPolicy="no-referrer"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ${
+              activeStageBackground.useSoftBlur
+                ? 'scale-110 blur-[6px] opacity-75'
+                : activeStageBackground.type === 'custom'
+                ? 'opacity-85'
+                : 'opacity-55'
+            }`}
+          />
+        )}
+
+        {/* Ambient Spotlight Glow */}
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-[60%] opacity-40 blur-xl"
+          style={{ background: activeStageBackground.preset.glow }}
+        />
+
+        {/* Cinematic Dark Scrim for Crisp Seat & Chat Readability */}
+        <div
+          className={`absolute inset-0 ${
+            activeStageBackground.type === 'preset' && !activeStageBackground.imageUrl
+              ? 'bg-gradient-to-b from-black/15 via-transparent to-[#060212]/70'
+              : 'bg-gradient-to-b from-[#060212]/75 via-[#0B041B]/45 to-[#060212]/90'
+          }`}
         />
       </div>
 
@@ -1810,7 +2060,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-[#FF007A] to-[#FA26A0] text-white text-xs font-black py-2 px-5 rounded-full shadow-2xl animate-fade-in pointer-events-none border border-white/25">
+        <div className="absolute safe-top-offset-16 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-[#FF007A] to-[#FA26A0] text-white text-xs font-black py-2 px-5 rounded-full shadow-2xl animate-fade-in pointer-events-none border border-white/25 max-w-[90vw] text-center">
           {toastMessage}
         </div>
       )}
@@ -1836,46 +2086,48 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       )}
 
       {/* HEADER BAR */}
-      <header className="relative z-30 flex items-center justify-between px-3 pt-safe pt-2.5 pb-2">
-        <div className="flex items-center gap-2 max-w-[52%]">
+      <header className="relative z-30 flex items-center justify-between gap-2 px-3 safe-pt-2.5 pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
           <button
             onClick={() => setShowExitRoomModal(true)}
-            className="w-8 h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-white/15 flex items-center justify-center text-white transition-all active:scale-95 shrink-0"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-white/15 flex items-center justify-center text-white transition-all active:scale-95 shrink-0"
             title="Exit Party Options"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
 
           <div
             onClick={() => onSelectUser(room.host)}
-            className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform min-w-0"
+            className="flex items-center gap-1.5 sm:gap-2 cursor-pointer active:scale-95 transition-transform min-w-0 flex-1"
           >
             {room.host.avatar ? (
               <img
                 src={room.host.avatar}
                 alt={room.host.name}
-                className="w-9 h-9 rounded-full object-cover ring-2 ring-[#FFDF00] shrink-0"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover ring-2 ring-[#FFDF00] shrink-0"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-[#8B20FF] ring-2 ring-[#FFDF00] flex items-center justify-center text-xs font-black shrink-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#8B20FF] ring-2 ring-[#FFDF00] flex items-center justify-center text-xs font-black shrink-0">
                 {(room.host.name || 'H').charAt(0).toUpperCase()}
               </div>
             )}
 
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 flex-1">
               <span className="text-xs font-black text-white truncate leading-tight">
                 {room.title}
               </span>
-              <div className="flex items-center gap-1.5 text-[10px] text-white/80 font-mono leading-tight">
-                <span>ID: {room.displayId || room.id.slice(-5)}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-emerald-400 font-bold">{maxSeats} Seats</span>
+              <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px] text-white/80 font-mono leading-tight min-w-0">
+                <span className="truncate">ID:{room.displayId || room.id.slice(-5)}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="text-emerald-400 font-bold shrink-0">
+                  {maxSeats === 5 && isCoHostSeatLevelLocked ? '4+1' : `${maxSeats}S`}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Real-Time Top Viewers Avatar Stack + Participants Count Pill */}
           <button
             onClick={() => {
@@ -1887,11 +2139,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 });
               setShowParticipantsModal(true);
             }}
-            className="flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full bg-[#1C0B35]/90 border border-white/15 text-white text-[10px] font-mono font-bold shadow hover:bg-[#2B1252] transition-colors"
+            className="flex items-center gap-1 px-2 sm:pl-1.5 sm:pr-2.5 h-7 sm:h-8 rounded-full bg-[#1C0B35]/90 border border-white/15 text-white text-[10px] font-mono font-bold shadow hover:bg-[#2B1252] transition-colors shrink-0"
             title="Real-Time Connected Viewers"
           >
             {participantsList.length > 0 && (
-              <span className="flex items-center -space-x-1.5">
+              <span className="hidden sm:flex items-center -space-x-1.5">
                 {participantsList.slice(0, 3).map((p) => (
                   p.avatar ? (
                     <img
@@ -1911,7 +2163,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 ))}
               </span>
             )}
-            <Users className="w-3 h-3 text-cyan-300" />
+            <Users className="w-3 h-3 text-cyan-300 shrink-0" />
             <span>{participantTotal}</span>
           </button>
 
@@ -1919,26 +2171,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           <button
             type="button"
             onClick={() => setShowLeaderboardModal(true)}
-            className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-[#3A2208]/95 to-[#241136]/95 hover:from-[#4E2E0B] hover:to-[#32174A] border border-[#FFC84A]/50 text-[#FFC84A] text-[10px] font-black shadow transition-all active:scale-95 shrink-0"
+            className="w-7 h-7 sm:w-auto sm:h-8 sm:px-2.5 rounded-full bg-gradient-to-r from-[#3A2208]/95 to-[#241136]/95 hover:from-[#4E2E0B] hover:to-[#32174A] border border-[#FFC84A]/50 text-[#FFC84A] text-[10px] font-black shadow flex items-center justify-center gap-1 transition-all active:scale-95 shrink-0"
             title="Open Party Leaderboard (Hourly, Daily, Weekly, Monthly)"
           >
             <Trophy className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Rank</span>
           </button>
 
-          {/* Local Mic Mute (visible ONLY when currently seated) */}
+          {/* Local Mic Mute in Header (shown on sm+ tablets/desktop; mobile uses dedicated bottom-bar Mic button to prevent top-bar crowding) */}
           {isCurrentlySeated && (
             <button
-              onClick={() => {
-                if (isHostMutedOnMySeat) {
-                  showToast('Your seat microphone is muted by Host');
-                  return;
-                }
-                const next = !isMicMuted;
-                setIsMicMuted(next);
-                showToast(next ? 'Mic muted' : 'Mic active');
-              }}
-              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border flex items-center justify-center transition-all active:scale-95 shadow shrink-0 ${
+              onClick={handleToggleMyMic}
+              className={`hidden sm:flex w-8 h-8 rounded-full border items-center justify-center transition-all active:scale-95 shadow shrink-0 ${
                 isMicMuted || isHostMutedOnMySeat
                   ? 'bg-rose-950/90 border-rose-500/50 text-rose-400'
                   : 'bg-[#1F0C3B]/80 border-emerald-400/50 text-emerald-400'
@@ -1976,6 +2220,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               <Volume2 className="w-3.5 h-3.5" />
             )}
           </button>
+
+          {/* Host Quick Background Picker Button */}
+          {isRoomHost && (
+            <button
+              type="button"
+              onClick={() => setShowBackgroundPicker(true)}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-[#FA26A0]/45 flex items-center justify-center text-[#FFB8E2] transition-all active:scale-95 shrink-0"
+              title="Change Party Background (Themes, Host DP, Gallery)"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* More / Room Settings */}
           <button
@@ -2177,12 +2433,36 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           );
         })()}
 
-        {/* Quick Seated Action Strip (One-tap Mute & Leave Seat for both Host and Audience) */}
+        {/* Quick Seated Action Strip (One-tap Mic On/Off & Leave Seat for both Guests and Host) */}
         {isCurrentlySeated && (
-          <div className="max-w-md mx-auto w-full flex items-center justify-center gap-2">
+          <div
+            data-no-doubletap="true"
+            className="max-w-md mx-auto w-full flex flex-wrap items-center justify-center gap-2"
+          >
             <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-[10px] font-bold">
-              On Seat #{userSeatIndex + 1} • {isMicMuted || isHostMutedOnMySeat ? 'Mic Muted' : 'Voice Live'}
+              Seat #{userSeatIndex + 1}
             </span>
+            <button
+              type="button"
+              onClick={handleToggleMyMic}
+              className={`px-3 py-1 rounded-full border text-[10px] font-extrabold flex items-center gap-1.5 active:scale-95 transition-all ${
+                isMicMuted || isHostMutedOnMySeat
+                  ? 'bg-rose-600/25 border-rose-400/50 text-rose-200'
+                  : 'bg-emerald-500/25 border-emerald-400/50 text-emerald-200'
+              }`}
+            >
+              {isMicMuted || isHostMutedOnMySeat ? (
+                <>
+                  <MicOff className="w-3 h-3" />
+                  <span>{isHostMutedOnMySeat ? 'Muted by Host' : 'Mic OFF'}</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-3 h-3" />
+                  <span>Mic ON</span>
+                </>
+              )}
+            </button>
             <button
               type="button"
               onClick={() => handleLeaveSeat(userSeatIndex)}
@@ -2193,182 +2473,78 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           </div>
         )}
 
-        {/* HERO THRONES (Seat 0: Host Throne, Seat 1: Co-Host / Seat #2) */}
-        <div className="flex items-center justify-center gap-6 sm:gap-12 pt-2 pb-1">
-          {/* Seat 0: Host Seat */}
-          <div
-            data-seat-interactive="true"
-            onClick={() => handleSeatClick(0)}
-            className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
-          >
-            <div className="relative flex flex-col items-center">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 text-lg">👑</div>
-              {Boolean(speakingSeats[0]) &&
+        {/* HERO THRONES (Seat 0: Host Velvet Throne Sofa, Seat 1: Co-Host VIP Sofa) */}
+        <div className="flex items-center justify-center gap-5 sm:gap-11 pt-2.5 pb-1">
+          <PartySofaSeat
+            seatIndex={0}
+            variant="host"
+            occupant={seatZero}
+            isMuted={Boolean(
+              seatZero &&
+                (mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted))
+            )}
+            isSpeaking={Boolean(
+              speakingSeats[0] &&
                 seatZero &&
                 !mutedSeatIndices.includes(0) &&
-                !(seatZero.id === currentUser.id && isMicMuted) && (
-                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
-                )}
-              <div className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-tr from-[#9B7110] via-[#FFDF00] to-[#FFE770] shadow-[0_0_22px_rgba(255,223,0,0.5)]">
-                <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] border-2 border-[#FFDF00] flex items-center justify-center">
-                  {seatZero ? (
-                    seatZero.avatar ? (
-                      <img src={seatZero.avatar} alt={seatZero.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl font-black text-white">
-                        {(seatZero.name || 'H').charAt(0).toUpperCase()}
-                      </span>
-                    )
-                  ) : (
-                    <Plus className="w-6 h-6 text-[#FFDF00]/80" />
-                  )}
-                </div>
-                {seatZero && (
-                  <div
-                    className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-white flex items-center justify-center ${
-                      mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted)
-                        ? 'bg-rose-600'
-                        : Boolean(speakingSeats[0])
-                        ? 'bg-emerald-500'
-                        : 'bg-[#160A2B]'
-                    }`}
-                  >
-                    {mutedSeatIndices.includes(0) || (seatZero.id === currentUser.id && isMicMuted) ? (
-                      <MicOff className="w-3 h-3 text-white" />
-                    ) : (
-                      <Mic className="w-3 h-3 text-emerald-300" />
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="relative z-20 -mt-2.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-black text-[9px] font-black uppercase shadow">
-                Host
-              </div>
-              <span className="mt-1 text-xs font-black text-white truncate max-w-[95px]">
-                {seatZero ? seatZero.name : isRoomHost ? 'Take Seat' : 'Empty'}
-              </span>
-            </div>
-          </div>
+                !(seatZero.id === currentUser.id && isMicMuted)
+            )}
+            isLocked={false}
+            badgeText="Host"
+            label={seatZero ? seatZero.name : isRoomHost ? 'Take Seat' : 'Empty'}
+            onClick={() => handleSeatClick(0)}
+          />
 
-          {/* Seat 1: Co-Host / Seat #2 */}
-          <div
-            data-seat-interactive="true"
-            onClick={() => handleSeatClick(1)}
-            className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
-          >
-            <div className="relative flex flex-col items-center">
-              {Boolean(speakingSeats[1]) &&
+          <PartySofaSeat
+            seatIndex={1}
+            variant="cohost"
+            occupant={seatOne}
+            isMuted={Boolean(
+              !isCoHostSeatLevelLocked &&
+                seatOne &&
+                (mutedSeatIndices.includes(1) || (seatOne.id === currentUser.id && isMicMuted))
+            )}
+            isSpeaking={Boolean(
+              !isCoHostSeatLevelLocked &&
+                speakingSeats[1] &&
                 seatOne &&
                 !mutedSeatIndices.includes(1) &&
-                !(seatOne.id === currentUser.id && isMicMuted) && (
-                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
-                )}
-              <div className="relative z-10 w-18 h-18 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF70A6] shadow-[0_0_22px_rgba(250,38,160,0.5)]">
-                <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] border-2 border-[#FA26A0] flex items-center justify-center">
-                  {seatOne ? (
-                    seatOne.avatar ? (
-                      <img src={seatOne.avatar} alt={seatOne.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl font-black text-white">
-                        {(seatOne.name || 'S').charAt(0).toUpperCase()}
-                      </span>
-                    )
-                  ) : isSeatLocked ? (
-                    <Lock className="w-5 h-5 text-white/50" />
-                  ) : (
-                    <Plus className="w-6 h-6 text-white/80" />
-                  )}
-                </div>
-                {seatOne && (
-                  <div
-                    className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border border-white flex items-center justify-center ${
-                      mutedSeatIndices.includes(1) || (seatOne.id === currentUser.id && isMicMuted)
-                        ? 'bg-rose-600'
-                        : Boolean(speakingSeats[1])
-                        ? 'bg-emerald-500'
-                        : 'bg-[#160A2B]'
-                    }`}
-                  >
-                    {mutedSeatIndices.includes(1) || (seatOne.id === currentUser.id && isMicMuted) ? (
-                      <MicOff className="w-3 h-3 text-white" />
-                    ) : (
-                      <Mic className="w-3 h-3 text-emerald-400" />
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="relative z-20 -mt-2.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#FA26A0] to-[#FF007A] text-white text-[9px] font-black uppercase shadow">
-                Seat 2
-              </div>
-              <span className="mt-1 text-xs font-bold text-white/90 truncate max-w-[95px]">
-                {seatOne ? seatOne.name : 'Join'}
-              </span>
-            </div>
-          </div>
+                !(seatOne.id === currentUser.id && isMicMuted)
+            )}
+            isLocked={isSeatLocked}
+            isLevelLocked={isCoHostSeatLevelLocked}
+            levelLockText="Lv.5"
+            badgeText={isCoHostSeatLevelLocked ? 'Lv.5 Lock' : 'Seat 2'}
+            label={isCoHostSeatLevelLocked ? 'Locked' : seatOne ? seatOne.name : 'Join'}
+            onClick={() => handleSeatClick(1)}
+          />
         </div>
 
-        {/* DYNAMIC PARTICIPANT SEATS GRID (6 remaining for 8-seat, 14 remaining for 16-seat) */}
-        <div className={`grid ${gridColsClass} gap-2.5 max-w-lg mx-auto w-full pt-1`}>
+        {/* DYNAMIC PARTICIPANT SOFA SEATS GRID (3 for 5-seat, 6 for 8-seat, 14 for 16-seat) */}
+        <div
+          className={`grid ${gridColsClass} ${
+            maxSeats === 16 ? 'gap-x-1.5 gap-y-2' : 'gap-x-2.5 gap-y-2.5'
+          } max-w-lg mx-auto w-full pt-0.5`}
+        >
           {remainingSeatIndices.map((idx) => {
             const member = seats[idx];
-            const isSeatMuted = mutedSeatIndices.includes(idx) || (member?.id === currentUser.id && isMicMuted);
+            const isSeatMuted =
+              mutedSeatIndices.includes(idx) || (member?.id === currentUser.id && isMicMuted);
             const isSpeaking = Boolean(speakingSeats[idx]) && Boolean(member) && !isSeatMuted;
 
             return (
-              <div
+              <PartySofaSeat
                 key={idx}
-                data-seat-interactive="true"
+                seatIndex={idx}
+                variant="guest"
+                occupant={member}
+                isMuted={isSeatMuted}
+                isSpeaking={isSpeaking}
+                isLocked={isSeatLocked}
+                compact={maxSeats === 16}
+                label={member ? member.name.split(' ')[0] : `No.${idx + 1}`}
                 onClick={() => handleSeatClick(idx)}
-                className="flex flex-col items-center cursor-pointer group active:scale-95 transition-transform"
-              >
-                <div className="relative flex flex-col items-center">
-                  {isSpeaking && (
-                    <div className="absolute -inset-1 rounded-full border-2 border-emerald-400 animate-ping opacity-80 z-0" />
-                  )}
-
-                  <div
-                    className={`relative z-10 w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 flex items-center justify-center ${
-                      member
-                        ? 'bg-gradient-to-tr from-[#D4AF37] via-[#FFDF00] to-[#AA7C11]'
-                        : 'bg-gradient-to-tr from-[#0096C7] via-[#00B4D8] to-[#48CAE4]'
-                    }`}
-                  >
-                    <div className="w-full h-full rounded-full overflow-hidden bg-[#160A2B] flex items-center justify-center">
-                      {member ? (
-                        member.avatar ? (
-                          <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-black text-white">
-                            {(member.name || 'U').charAt(0).toUpperCase()}
-                          </span>
-                        )
-                      ) : isSeatLocked ? (
-                        <Lock className="w-4 h-4 text-white/40" />
-                      ) : (
-                        <Plus className="w-5 h-5 text-white/80" />
-                      )}
-                    </div>
-
-                    {member && (
-                      <div
-                        className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center border border-white/30 ${
-                          isSeatMuted ? 'bg-rose-600' : isSpeaking ? 'bg-emerald-500' : 'bg-[#0E061B]'
-                        }`}
-                      >
-                        {isSeatMuted ? (
-                          <MicOff className="w-2.5 h-2.5 text-white" />
-                        ) : (
-                          <Mic className="w-2.5 h-2.5 text-cyan-300" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="text-[10px] sm:text-[11px] font-bold text-white mt-1 truncate max-w-[68px] text-center">
-                    {member ? member.name.split(' ')[0] : `No.${idx + 1}`}
-                  </span>
-                </div>
-              </div>
+              />
             );
           })}
         </div>
@@ -2406,35 +2582,49 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             )}
             <div ref={activityBottomRef} />
           </div>
-
-          {/* Gift Box Shortcut */}
-          <button
-            type="button"
-            onClick={handleOpenGiftModal}
-            className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#6B21A8] via-[#FA26A0] to-[#FFDF00] p-0.5 shadow-[0_0_20px_rgba(250,38,160,0.6)] active:scale-95 transition-transform shrink-0"
-            title="Send Room Gift"
-          >
-            <div className="w-full h-full rounded-[14px] bg-[#160A2B] flex items-center justify-center text-2xl">
-              🎁
-            </div>
-          </button>
         </div>
       </main>
 
-      {/* BOTTOM BAR */}
-      <footer className="relative z-30 px-3 pb-safe pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent">
+      {/* BOTTOM BAR (Single Gift Box + Seated Guest/Host Mic Toggle + Chat Input + Heart) */}
+      <footer className="relative z-30 px-3 safe-pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent">
         <div className="flex items-center justify-between gap-2 max-w-md mx-auto">
           <button
+            type="button"
             onClick={handleOpenGiftModal}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-95 transition-all shrink-0"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-95 transition-all shrink-0"
             title="Open Gift Shop"
           >
-            <span className="text-2xl">🎁</span>
+            <span className="text-xl sm:text-2xl">🎁</span>
           </button>
+
+          {isCurrentlySeated && (
+            <button
+              type="button"
+              onClick={handleToggleMyMic}
+              className={`h-11 sm:h-12 px-3 rounded-full border flex items-center justify-center gap-1.5 text-xs font-black active:scale-95 transition-all shrink-0 shadow-lg ${
+                isMicMuted || isHostMutedOnMySeat
+                  ? 'bg-rose-600/90 border-rose-300/60 text-white shadow-rose-900/50'
+                  : 'bg-emerald-500/90 border-emerald-200/70 text-[#051B14] shadow-emerald-900/50'
+              }`}
+              title={isMicMuted || isHostMutedOnMySeat ? 'Turn Mic ON' : 'Turn Mic OFF'}
+            >
+              {isMicMuted || isHostMutedOnMySeat ? (
+                <>
+                  <MicOff className="w-4 h-4 shrink-0" />
+                  <span className="hidden xs:inline">Off</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4 shrink-0" />
+                  <span className="hidden xs:inline">On</span>
+                </>
+              )}
+            </button>
+          )}
 
           <form
             onSubmit={handleSendMessage}
-            className="flex-1 flex items-center bg-[#170B2E]/90 border border-purple-500/30 focus-within:border-[#FA26A0] rounded-full px-3.5 py-2.5 transition-colors backdrop-blur-md"
+            className="flex-1 flex items-center bg-[#170B2E]/90 border border-purple-500/30 focus-within:border-[#FA26A0] rounded-full px-3.5 py-2.5 transition-colors backdrop-blur-md min-w-0"
           >
             <button
               type="button"
@@ -2462,11 +2652,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           </form>
 
           <button
+            type="button"
             onClick={handleTriggerHeart}
-            className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-90 transition-all shrink-0"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-90 transition-all shrink-0"
             title="Send Heart"
           >
-            <span className="text-2xl">💖</span>
+            <span className="text-xl sm:text-2xl">💖</span>
           </button>
         </div>
 
@@ -2596,6 +2787,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 <button
                   onClick={() => {
                     setShowSettingsSheet(false);
+                    setShowBackgroundPicker(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ImageIcon className="w-4 h-4 text-[#FA26A0]" />
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-white block">Party Background</span>
+                      <span className="text-[10px] text-white/60 block">
+                        Current: {activeStageBackground.label} (Themes, Host DP, Gallery)
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/50" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowSettingsSheet(false);
                     setShowEditAnnouncementModal(true);
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
@@ -2606,6 +2816,43 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/50" />
                 </button>
+
+                {/* Host Level-Gated Seat Layout Switcher (Level 1: 4/5, Level 2: 8 @ Lv.10, Level 3: 16 @ Lv.20) */}
+                <div className="p-3 rounded-2xl bg-white/5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">Room Seat Mode</span>
+                    <span className="text-[10px] font-bold text-[#D8B4FE]">Host Lv.{hostLevel}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {PARTY_SEAT_TIERS.map((tier) => {
+                      const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
+                      const active = maxSeats === tier.maxSeats;
+                      return (
+                        <button
+                          key={tier.maxSeats}
+                          type="button"
+                          onClick={() => handleChangeSeatMode(tier.maxSeats)}
+                          className={`py-2 px-1.5 rounded-xl text-center flex flex-col items-center gap-0.5 border transition-all ${
+                            active
+                              ? 'bg-[#FA26A0] border-[#FF85C8] text-white shadow'
+                              : unlocked
+                              ? 'bg-[#200E38] border-white/10 text-white/90 hover:border-[#FA26A0]/60'
+                              : 'bg-[#120822] border-white/5 text-white/40'
+                          }`}
+                        >
+                          <span className="text-[9px] font-black uppercase opacity-80">{tier.tierLabel}</span>
+                          <span className="text-[11px] font-black flex items-center gap-1">
+                            {!unlocked && <Lock className="w-3 h-3 text-amber-300" />}
+                            {tier.maxSeats === 5 && hostLevel < 5 ? '4+1' : tier.maxSeats} Seats
+                          </span>
+                          {!unlocked && (
+                            <span className="text-[8px] font-bold text-amber-300">Lv.{tier.minLevel}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5">
                   <span className="text-xs font-bold text-white">Lock Seats</span>
@@ -3064,50 +3311,71 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       )}
 
-      {/* MANAGE OCCUPIED SEAT PARTICIPANT (HOST CONTROLS) */}
-      {selectedSeatMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-[#160A2B] border border-white/15 rounded-3xl p-5 shadow-2xl space-y-3">
-            <div className="flex items-center gap-3 pb-3 border-b border-white/10">
-              {selectedSeatMember.user.avatar ? (
-                <img
-                  src={selectedSeatMember.user.avatar}
-                  alt={selectedSeatMember.user.name}
-                  className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0]"
-                />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-[#8B20FF] text-sm font-black flex items-center justify-center ring-2 ring-[#FA26A0]">
-                  {(selectedSeatMember.user.name || 'U').charAt(0).toUpperCase()}
+      {/* MANAGE OCCUPIED SEAT PARTICIPANT (HOST ACTIONS MENU) */}
+      {selectedSeatMember && isRoomHost && (
+        <div
+          data-no-doubletap="true"
+          onClick={() => setSelectedSeatMember(null)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-3"
+          >
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
+              <div className="flex items-center gap-3 min-w-0">
+                {selectedSeatMember.user.avatar ? (
+                  <img
+                    src={selectedSeatMember.user.avatar}
+                    alt={selectedSeatMember.user.name}
+                    className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0] shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-[#8B20FF] text-sm font-black flex items-center justify-center ring-2 ring-[#FA26A0] shrink-0">
+                    {(selectedSeatMember.user.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-black text-white truncate">
+                    {selectedSeatMember.user.name}
+                  </span>
+                  <span className="text-[10px] text-[#FA26A0] font-mono font-bold">
+                    Seat #{selectedSeatMember.index + 1} • Host Actions
+                  </span>
                 </div>
-              )}
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-white">{selectedSeatMember.user.name}</span>
-                <span className="text-[10px] text-[#FA26A0] font-mono">
-                  Seat #{selectedSeatMember.index + 1}
-                </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSeatMember(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white shrink-0"
+                aria-label="Close seat actions"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="space-y-2 pt-1">
               <button
+                type="button"
                 onClick={() => {
                   const target = selectedSeatMember.user;
                   setSelectedSeatMember(null);
                   onSelectUser(target);
                 }}
-                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
               >
                 <UserCheck className="w-4 h-4 text-cyan-400" />
                 <span>View User Profile</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   const idx = selectedSeatMember.index;
                   setSelectedSeatMember(null);
                   handleToggleSeatMute(idx);
                 }}
-                className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
               >
                 {mutedSeatIndices.includes(selectedSeatMember.index) ? (
                   <>
@@ -3123,16 +3391,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               </button>
 
               <button
-                onClick={handleRemoveMember}
-                className="w-full py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold flex items-center justify-center gap-2"
+                type="button"
+                onClick={() => void handleKickMember()}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-rose-400/40 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 active:scale-98 transition-all"
               >
                 <UserX className="w-4 h-4" />
-                <span>Remove from Seat</span>
+                <span>Kick</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setSelectedSeatMember(null)}
-                className="w-full py-2 rounded-xl text-white/50 text-xs font-medium"
+                className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/65 text-xs font-bold transition-colors"
               >
                 Cancel
               </button>
@@ -3222,6 +3492,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         contextTitle={room.title}
         currentUser={currentUser}
         onSelectUser={onSelectUser}
+      />
+      <PartyBackgroundPickerModal
+        isOpen={showBackgroundPicker}
+        onClose={() => setShowBackgroundPicker(false)}
+        hostAvatar={room.host.avatar}
+        hostName={room.host.name}
+        currentType={backgroundType}
+        currentPresetId={backgroundId}
+        currentCustomImage={backgroundImage}
+        onSelectBackground={handleUpdatePartyBackground}
       />
     </div>
   );

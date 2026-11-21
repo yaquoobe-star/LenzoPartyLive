@@ -27,7 +27,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   unreadCount = 1,
 }) => {
   return (
-    <header className="sticky top-0 z-30 w-full bg-[#090611]/90 backdrop-blur-md border-b border-white/[0.06] px-3.5 sm:px-6 py-2.5 transition-all">
+    <header className="sticky top-0 z-30 w-full bg-[#090611]/90 backdrop-blur-md border-b border-white/[0.06] px-3.5 sm:px-6 safe-pt-2.5 pb-2.5 transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Left: User mini profile badge */}
         <div 

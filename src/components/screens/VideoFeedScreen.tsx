@@ -409,7 +409,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   // Empty State when no videos exist yet
   if (!currentVideo) {
     return (
-      <div className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col items-center justify-center p-6 text-center">
+      <div className="relative w-full h-[calc(100dvh-64px-var(--safe-bottom))] md:h-dvh-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col items-center justify-center p-6 safe-pt-4 text-center">
         <div className="w-16 h-16 rounded-2xl bg-[#160C25] border border-white/10 flex items-center justify-center mb-4">
           <Play className="w-7 h-7 text-[#F328D5]" />
         </div>
@@ -434,9 +434,9 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col justify-between p-6 text-center"
+        className="relative w-full h-[calc(100dvh-64px-var(--safe-bottom))] md:h-dvh-screen bg-[#090611] overflow-hidden select-none animate-fade-in flex flex-col justify-between px-4 pb-6 safe-pt-3 text-center"
       >
-        <div className="relative z-30 flex items-center justify-between pt-safe">
+        <div className="relative z-30 flex items-center justify-between gap-2">
           <button
             onClick={() => setIsEndOfFeed(false)}
             className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white"
@@ -503,13 +503,14 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
 
   return (
     <div
+      data-ptr-block={activeVideoIndex > 0 ? 'true' : undefined}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="relative w-full h-[calc(100vh-64px)] md:h-screen bg-black overflow-hidden select-none animate-fade-in flex flex-col justify-between"
+      className="relative w-full h-[calc(100dvh-64px-var(--safe-bottom))] md:h-dvh-screen bg-black overflow-hidden select-none animate-fade-in flex flex-col justify-between"
     >
       {/* Toast */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none whitespace-nowrap">
+        <div className="absolute safe-top-offset-16 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none whitespace-nowrap">
           {toastMessage}
         </div>
       )}
@@ -534,11 +535,11 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       )}
 
       {/* Top Header */}
-      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-4 pt-safe pointer-events-auto">
+      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between gap-2 px-3 sm:px-4 pb-3 safe-pt-3 pointer-events-auto">
         <button
           onClick={handleScrollPrev}
           disabled={activeVideoIndex === 0}
-          className={`w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-opacity ${
+          className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-opacity ${
             activeVideoIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-black/60'
           }`}
           title="Previous Reel"
@@ -547,10 +548,10 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
         </button>
 
         {/* Segmented Tab */}
-        <div className="flex items-center bg-black/40 backdrop-blur-md border border-white/15 rounded-full p-1 shadow-lg">
+        <div className="flex items-center bg-black/40 backdrop-blur-md border border-white/15 rounded-full p-1 shadow-lg shrink-0">
           <button
             onClick={() => setActiveTab('foryou')}
-            className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${
+            className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs font-black transition-all ${
               activeTab === 'foryou'
                 ? 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
                 : 'text-[#B9AECF] hover:text-white'
@@ -560,7 +561,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('following')}
-            className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${
+            className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs font-black transition-all ${
               activeTab === 'following'
                 ? 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
                 : 'text-[#B9AECF] hover:text-white'
@@ -570,7 +571,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {isCurrentVideoPlayable && (
             <button
               onClick={() => setIsMuted((m) => !m)}

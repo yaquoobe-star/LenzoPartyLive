@@ -375,7 +375,7 @@ interface ServerPartyRoom {
   host: any;
   coverImage: string;
   iconType: string;
-  maxSeats: 8 | 16;
+  maxSeats: 5 | 8 | 16;
   roomType: 'public' | 'private' | 'secret';
   password?: string;
   announcement: string;
@@ -390,6 +390,9 @@ interface ServerPartyRoom {
   likesCount: number;
   giftsCoinValue: number;
   startTime: number;
+  backgroundType: 'preset' | 'host_dp' | 'custom';
+  backgroundId: string;
+  backgroundImage: string;
 }
 
 interface BroadcasterMetricRecord {
@@ -698,6 +701,9 @@ function serializePartyRoom(room: ServerPartyRoom) {
     isOwnerPresent: room.participants.has(room.host?.id),
     startTime: room.startTime,
     likesCount: room.likesCount,
+    backgroundType: room.backgroundType || 'preset',
+    backgroundId: room.backgroundId || 'royal_neon',
+    backgroundImage: room.backgroundImage || '',
   };
 }
 
@@ -1626,8 +1632,61 @@ app.get('/api/rooms/:roomId', (req: Request, res: Response) => {
   });
 });
 
+function getServerHostLevel(host: any): number {
+  const raw = Number(host?.level ?? 0);
+  return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
+}
+
+function clampServerMaxSeatsForHostLevel(requested: any, host: any): 5 | 8 | 16 {
+  const hostLevel = getServerHostLevel(host);
+  const num = Number(requested);
+  if (num === 16 && hostLevel >= 20) return 16;
+  if (num === 8 && hostLevel >= 10) return 8;
+  if (num === 5 || num === 4) return 5;
+  if (hostLevel >= 20) return 16;
+  if (hostLevel >= 10) return 8;
+  return 5;
+}
+
+function isServerSeatLockedByHostLevel(seatIndex: number, host: any): boolean {
+  return seatIndex === 1 && getServerHostLevel(host) < 5;
+}
+
+function sanitizeRoomBackgroundType(raw: any): 'preset' | 'host_dp' | 'custom' {
+  if (raw === 'host_dp' || raw === 'custom' || raw === 'preset') return raw;
+  return 'preset';
+}
+
+function sanitizeRoomBackgroundImage(raw: any): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('data:image/')) {
+    return trimmed.length <= 250000 ? trimmed : '';
+  }
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/api/media/')) {
+    return trimmed.slice(0, 2000);
+  }
+  return '';
+}
+
 app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
-  const { id, displayId, title, category, host, coverImage, iconType, maxSeats, roomType, password, announcement } = req.body;
+  const {
+    id,
+    displayId,
+    title,
+    category,
+    host,
+    coverImage,
+    iconType,
+    maxSeats,
+    roomType,
+    password,
+    announcement,
+    backgroundType,
+    backgroundId,
+    backgroundImage,
+  } = req.body;
   if (!host || !host.id || !title || !String(title).trim()) {
     return res.status(400).json({ error: 'Valid room title and authenticated host are required.' });
   }
@@ -1635,10 +1694,18 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
     return res.status(403).json({ error: 'Host ID does not match authenticated user.' });
   }
 
-  const normalizedMaxSeats: 8 | 16 = Number(maxSeats) === 16 ? 16 : 8;
+  const normalizedMaxSeats: 5 | 8 | 16 = clampServerMaxSeatsForHostLevel(maxSeats, host);
   const roomId = sanitizeText(id, 128) || `room_${Date.now()}`;
   const seats = Array(normalizedMaxSeats).fill(null);
   seats[0] = host;
+  const safeBgType = sanitizeRoomBackgroundType(backgroundType);
+  const safeBgId = sanitizeText(backgroundId, 48) || 'royal_neon';
+  const safeBgImage =
+    safeBgType === 'host_dp'
+      ? sanitizeRoomBackgroundImage(backgroundImage || host?.avatar)
+      : safeBgType === 'custom'
+      ? sanitizeRoomBackgroundImage(backgroundImage)
+      : '';
 
   const newRoom: ServerPartyRoom = {
     id: roomId,
@@ -1646,7 +1713,7 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
     title: sanitizeText(title, 100),
     category: sanitizeText(category, 40) || 'Party',
     host,
-    coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 1500) : '',
+    coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 2000) : '',
     iconType: sanitizeText(iconType, 20) || 'mic',
     maxSeats: normalizedMaxSeats,
     roomType: roomType === 'private' ? 'private' : roomType === 'secret' ? 'secret' : 'public',
@@ -1663,6 +1730,9 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
     likesCount: 0,
     giftsCoinValue: 0,
     startTime: Date.now(),
+    backgroundType: safeBgType,
+    backgroundId: safeBgId,
+    backgroundImage: safeBgImage,
   };
 
   newRoom.participants.set(host.id, {
@@ -1904,7 +1974,7 @@ function ensurePartyRoomHydrated(
     : null;
   if (!hostObj || !hostObj.id) return null;
 
-  const maxSeats = meta?.maxSeats === 16 ? 16 : 8;
+  const maxSeats = clampServerMaxSeatsForHostLevel(meta?.maxSeats, hostObj);
   const seats: (any | null)[] = Array(maxSeats).fill(null);
   seats[0] = hostObj;
 
@@ -1930,6 +2000,9 @@ function ensurePartyRoomHydrated(
     pendingRequests: new Map(),
     messages: [],
     recentJoinAnnouncements: new Map(),
+    backgroundType: 'preset',
+    backgroundId: 'royal_neon',
+    backgroundImage: '',
   };
   partyRoomsMap.set(roomId, hydrated);
   return hydrated;
@@ -1960,7 +2033,11 @@ app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   }
 
   const rawIdx = typeof requestedSeatIndex === 'number' ? requestedSeatIndex : seatIndex;
-  const idx = typeof rawIdx === 'number' && rawIdx >= 0 && rawIdx < room.maxSeats ? rawIdx : 1;
+  const defaultIdx = isServerSeatLockedByHostLevel(1, room.host) ? 2 : 1;
+  const idx = typeof rawIdx === 'number' && rawIdx >= 0 && rawIdx < room.maxSeats ? rawIdx : defaultIdx;
+  if (isServerSeatLockedByHostLevel(idx, room.host)) {
+    return res.status(403).json({ error: 'Seat #2 is locked until the host reaches Level 5.' });
+  }
   const existingReq = room.pendingRequests.get(user.id);
   const requestId = existingReq?.id || `seat_req_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const requestObj = {
@@ -2031,11 +2108,16 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
   }
 
   let seatIdx = typeof targetSeatIndex === 'number' ? targetSeatIndex : requestObj.requestedSeatIndex;
-  if (seatIdx < 0 || seatIdx >= room.maxSeats || room.seats[seatIdx] !== null) {
-    seatIdx = room.seats.findIndex((s) => s === null);
+  if (
+    seatIdx < 0 ||
+    seatIdx >= room.maxSeats ||
+    room.seats[seatIdx] !== null ||
+    isServerSeatLockedByHostLevel(seatIdx, room.host)
+  ) {
+    seatIdx = room.seats.findIndex((s, idx) => s === null && !isServerSeatLockedByHostLevel(idx, room.host));
   }
   if (seatIdx === -1) {
-    return res.status(400).json({ error: 'All stage seats are currently occupied.' });
+    return res.status(400).json({ error: 'All unlocked stage seats are currently occupied.' });
   }
 
   // Clear applicant from any previous seat
@@ -2084,26 +2166,77 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
 app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { seatIndex, roomMeta } = req.body;
+  const { seatIndex, targetUserId, roomMeta } = req.body || {};
   const room = ensurePartyRoomHydrated(roomId, roomMeta, hostId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
   if (room.host.id !== hostId) {
-    return res.status(403).json({ error: 'Unauthorized. Only room host can remove participants.' });
+    return res.status(403).json({ error: 'Unauthorized. Only room host can kick participants from seats.' });
   }
 
-  if (typeof seatIndex === 'number' && seatIndex > 0 && seatIndex < room.maxSeats) {
-    const removedUser = room.seats[seatIndex];
-    room.seats[seatIndex] = null;
-    room.mutedSeatIndices.delete(seatIndex);
+  let resolvedSeatIdx =
+    typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats
+      ? seatIndex
+      : -1;
+
+  if (
+    resolvedSeatIdx === -1 &&
+    typeof targetUserId === 'string' &&
+    targetUserId.trim()
+  ) {
+    resolvedSeatIdx = room.seats.findIndex((s) => s && s.id === targetUserId.trim());
+  }
+
+  if (resolvedSeatIdx >= 0 && resolvedSeatIdx < room.maxSeats) {
+    const removedUser = room.seats[resolvedSeatIdx];
+    if (removedUser && removedUser.id === hostId) {
+      return res.status(400).json({ error: 'Use Leave Seat to step down from your own seat.' });
+    }
+    room.seats[resolvedSeatIdx] = null;
+    room.mutedSeatIndices.delete(resolvedSeatIdx);
+    // Also clear any duplicate occurrence of targetUserId if present
+    if (typeof targetUserId === 'string' && targetUserId.trim()) {
+      for (let i = 0; i < room.seats.length; i++) {
+        if (room.seats[i]?.id === targetUserId.trim() && room.seats[i]?.id !== hostId) {
+          room.seats[i] = null;
+          room.mutedSeatIndices.delete(i);
+        }
+      }
+    }
     const serialized = serializePartyRoom(room);
-    broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex, removedUser, room: serialized });
+    broadcastToRoom(roomId, 'room:seat_vacated', {
+      roomId,
+      seatIndex: resolvedSeatIdx,
+      removedUser,
+      kicked: true,
+      room: serialized,
+    });
+    if (removedUser?.id) {
+      broadcastToUser(removedUser.id, 'room:seat_kicked', {
+        roomId,
+        seatIndex: resolvedSeatIdx,
+        hostName: room.host?.name || 'Host',
+      });
+    }
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+    return res.json({
+      success: true,
+      kicked: true,
+      seatIndex: resolvedSeatIdx,
+      seats: room.seats,
+      mutedSeatIndices: Array.from(room.mutedSeatIndices),
+      room: serialized,
+    });
   }
 
-  res.json({ success: true, seats: room.seats });
+  res.json({
+    success: true,
+    seats: room.seats,
+    mutedSeatIndices: Array.from(room.mutedSeatIndices),
+    room: serializePartyRoom(room),
+  });
 });
 
 app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Response) => {
@@ -2139,6 +2272,9 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
     return res.status(403).json({ error: 'Only host can assign seats directly.' });
   }
   if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats && user?.id) {
+    if (isServerSeatLockedByHostLevel(seatIndex, room.host)) {
+      return res.status(403).json({ error: 'Seat #2 unlocks when the host reaches Level 5.' });
+    }
     // Ensure user does not occupy two seats at once
     const existingIdx = room.seats.findIndex((s) => s && s.id === user.id);
     if (existingIdx >= 0 && existingIdx !== seatIndex) {
@@ -2183,7 +2319,15 @@ app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Respon
 app.post('/api/rooms/:roomId/settings', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { isLocked, allowJoin, announcement } = req.body;
+  const {
+    isLocked,
+    allowJoin,
+    announcement,
+    maxSeats,
+    backgroundType,
+    backgroundId,
+    backgroundImage,
+  } = req.body;
   const room = partyRoomsMap.get(roomId);
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
@@ -2194,9 +2338,36 @@ app.post('/api/rooms/:roomId/settings', (req: AuthenticatedRequest, res: Respons
   if (typeof isLocked === 'boolean') room.isLocked = isLocked;
   if (typeof allowJoin === 'boolean') room.allowJoin = allowJoin;
   if (typeof announcement === 'string') room.announcement = sanitizeText(announcement, 250);
+  if (backgroundType !== undefined) {
+    room.backgroundType = sanitizeRoomBackgroundType(backgroundType);
+  }
+  if (typeof backgroundId === 'string' && backgroundId.trim()) {
+    room.backgroundId = sanitizeText(backgroundId, 48) || 'royal_neon';
+  }
+  if (backgroundImage !== undefined) {
+    room.backgroundImage =
+      room.backgroundType === 'host_dp'
+        ? sanitizeRoomBackgroundImage(backgroundImage || room.host?.avatar)
+        : room.backgroundType === 'custom'
+        ? sanitizeRoomBackgroundImage(backgroundImage)
+        : '';
+  }
+  if (typeof maxSeats === 'number') {
+    const allowedMax = clampServerMaxSeatsForHostLevel(maxSeats, room.host);
+    if (allowedMax !== room.maxSeats) {
+      const nextSeats = Array(allowedMax).fill(null);
+      for (let i = 0; i < Math.min(allowedMax, room.seats.length); i++) {
+        nextSeats[i] = room.seats[i] || null;
+      }
+      room.maxSeats = allowedMax;
+      room.seats = nextSeats;
+      room.mutedSeatIndices = new Set(Array.from(room.mutedSeatIndices).filter((idx) => idx < allowedMax));
+    }
+  }
 
   const serialized = serializePartyRoom(room);
   broadcastToRoom(roomId, 'room:settings_updated', { roomId, room: serialized });
+  broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   res.json({ success: true, room: serialized });
 });
 

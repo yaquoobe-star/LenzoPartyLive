@@ -47,7 +47,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#080413] text-white select-none overflow-hidden animate-fade-in">
+    <div className="relative min-h-dvh-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#080413] text-white select-none overflow-hidden animate-fade-in">
       {/* Background Glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-gradient-to-b from-[#8B20FF]/25 via-[#F328D5]/20 to-transparent blur-[120px]" />
@@ -62,7 +62,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       )}
 
       {/* Top Bar with optional Back */}
-      <header className="relative z-10 w-full max-w-sm flex items-center justify-between pt-safe pt-2">
+      <header className="relative z-10 w-full max-w-sm flex items-center justify-between safe-pt-2">
         {onBack ? (
           <button
             onClick={onBack}
@@ -179,7 +179,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       </main>
 
       {/* Bottom Switcher: "Don't have an account? Sign Up" */}
-      <footer className="relative z-10 py-3 text-center text-xs text-[#B9AECF] pb-safe">
+      <footer className="relative z-10 pt-3 safe-pb-3 text-center text-xs text-[#B9AECF]">
         <span>Don't have an account? </span>
         <button
           onClick={onNavigateToSignUp}

@@ -101,27 +101,54 @@ service cloud.firestore {
         && (!('verifiedTag' in data) || data.verifiedTag == '');
     }
 
+    function isValidOwnerCoinUpdate(beforeData, afterData) {
+      return !afterData.diff(beforeData).affectedKeys().hasAny(['coins'])
+        || (
+          afterData.coins is number
+          && (
+            ('coins' in beforeData && afterData.coins <= beforeData.coins)
+            || (!('coins' in beforeData) && afterData.coins == 0)
+            || (
+              'diamonds' in beforeData
+              && 'diamonds' in afterData
+              && beforeData.diamonds is number
+              && afterData.diamonds is number
+              && afterData.diamonds < beforeData.diamonds
+              && (afterData.coins - (('coins' in beforeData && beforeData.coins is number) ? beforeData.coins : 0))
+                 <= (beforeData.diamonds - afterData.diamonds)
+            )
+          )
+        );
+    }
+
     match /users/{uid} {
       // Authenticated users can view creator profiles; list restricted to owner or admin
       allow get: if isSignedIn() && isValidId(uid);
       allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
 
-      // Only the authenticated user can create their own profile document without privileged flags
+      // Only the authenticated user can create their own profile document without privileged flags or preloaded coins
       allow create: if isOwner(uid)
                     && isValidId(uid)
                     && incoming().uid == request.auth.uid
                     && incoming().accountStatus == 'active'
                     && isValidUser(incoming())
-                    && (isAdmin() || hasNoSelfGrantedPrivileges(incoming()));
+                    && (
+                      isAdmin()
+                      || (
+                        hasNoSelfGrantedPrivileges(incoming())
+                        && (!('coins' in incoming()) || incoming().coins == 0)
+                      )
+                    );
 
       // Action-partitioned updates:
-      // 1) Owner updating their own profile with immutable core identity & privileged fields
+      // 1) Owner updating their own profile with immutable core identity, privileged fields & non-self-creditable coins
       // 2) Authenticated gifter crediting recipient's diamonds balance upward only
       // 3) Admin override
       allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
                       isAdmin()
                       || (
                         isOwner(uid)
+                        && isValidOwnerCoinUpdate(existing(), incoming())
                         && !incoming().diff(existing()).affectedKeys().hasAny([
                           'uid',
                           'email',
@@ -411,17 +438,49 @@ service cloud.firestore {
         && (!('totalCoinsSpent' in data) || (data.totalCoinsSpent is number && data.totalCoinsSpent >= 0));
     }
 
+    function isVerifiedEarningsConversion(uid, coinIncrease) {
+      return coinIncrease > 0
+        && exists(/databases/$(database)/documents/earnings/$(uid))
+        && get(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins is number
+        && getAfter(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins is number
+        && getAfter(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins
+           < get(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins
+        && coinIncrease
+           <= (get(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins
+               - getAfter(/databases/$(database)/documents/earnings/$(uid)).data.availableEarningsCoins);
+    }
+
     match /wallets/{uid} {
       allow get: if (isOwner(uid) || isAdmin()) && isValidId(uid);
       allow list: if (isOwner(uid) || isAdmin());
       allow create: if isValidId(uid)
                     && isValidWallet(incoming())
-                    && (isAdmin() || (isOwner(uid) && incoming().userId == request.auth.uid));
+                    && (
+                      isAdmin()
+                      || (
+                        isOwner(uid)
+                        && incoming().userId == request.auth.uid
+                        && (!('totalCoinsPurchased' in incoming()) || incoming().totalCoinsPurchased == 0)
+                        && (!('totalCoinsSpent' in incoming()) || incoming().totalCoinsSpent == 0)
+                        && (
+                          incoming().walletPurchasedCoins == 0
+                          || isVerifiedEarningsConversion(uid, incoming().walletPurchasedCoins)
+                        )
+                      )
+                    );
       allow update: if isValidId(uid)
                     && isValidWallet(incoming())
                     && (
                       isAdmin()
-                      || (isOwner(uid) && incoming().userId == existing().userId)
+                      || (
+                        isOwner(uid)
+                        && incoming().userId == existing().userId
+                        && (!('totalCoinsPurchased' in incoming()) || !('totalCoinsPurchased' in existing()) || incoming().totalCoinsPurchased == existing().totalCoinsPurchased)
+                        && (
+                          incoming().walletPurchasedCoins <= existing().walletPurchasedCoins
+                          || isVerifiedEarningsConversion(uid, incoming().walletPurchasedCoins - existing().walletPurchasedCoins)
+                        )
+                      )
                     );
       allow delete: if false;
     }
@@ -491,8 +550,15 @@ service cloud.firestore {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn()
                     && isValidId(txId)
-                    && (incoming().userId == request.auth.uid || isAdmin())
-                    && incoming().amount is number;
+                    && incoming().amount is number
+                    && (
+                      isAdmin()
+                      || (
+                        incoming().userId == request.auth.uid
+                        && incoming().category in ['gift_sent', 'earnings_conversion']
+                        && (incoming().category != 'gift_sent' || incoming().amount <= 0)
+                      )
+                    );
       allow update, delete: if false;
     }
 
@@ -560,6 +626,44 @@ service cloud.firestore {
       allow get, list: if isSignedIn();
       allow create, update: if isAdmin() && isValidId(pkgId);
       allow delete: if false;
+    }
+
+    function isValidCoinSellerAgency(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'ownerName', 'agencyCode', 'city', 'country',
+          'whatsapp', 'phone', 'paymentMethods', 'workingHours',
+          'isVerified', 'isOnline', 'enabled'
+        ])
+        && data.keys().hasOnly([
+          'id', 'name', 'ownerName', 'agencyCode', 'city', 'country',
+          'whatsapp', 'phone', 'paymentMethods', 'workingHours',
+          'minCoinsOrder', 'rateNote', 'badge',
+          'isVerified', 'isOnline', 'enabled', 'updatedAt'
+        ])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.ownerName is string && data.ownerName.size() > 0 && data.ownerName.size() <= 60
+        && data.agencyCode is string && data.agencyCode.size() > 0 && data.agencyCode.size() <= 24
+        && data.city is string && data.city.size() > 0 && data.city.size() <= 50
+        && data.country is string && data.country.size() > 0 && data.country.size() <= 50
+        && data.whatsapp is string && data.whatsapp.size() > 0 && data.whatsapp.size() <= 24
+        && data.phone is string && data.phone.size() > 0 && data.phone.size() <= 24
+        && data.paymentMethods is list && data.paymentMethods.size() > 0 && data.paymentMethods.size() <= 8
+        && data.workingHours is string && data.workingHours.size() > 0 && data.workingHours.size() <= 60
+        && data.isVerified is bool
+        && data.isOnline is bool
+        && data.enabled is bool
+        && (!('minCoinsOrder' in data) || (data.minCoinsOrder is number && data.minCoinsOrder >= 0))
+        && (!('rateNote' in data) || (data.rateNote is string && data.rateNote.size() <= 120))
+        && (!('badge' in data) || (data.badge is string && data.badge.size() <= 24))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    match /coin_seller_agencies/{agencyId} {
+      allow get: if isSignedIn() && isValidId(agencyId) && (resource.data.enabled == true || isAdmin());
+      allow list: if isSignedIn() && (resource.data.enabled == true || isAdmin());
+      allow create, update: if isAdmin() && isValidId(agencyId) && isValidCoinSellerAgency(incoming());
+      allow delete: if isAdmin() && isValidId(agencyId);
     }
 
     // ========================================================

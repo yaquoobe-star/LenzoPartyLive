@@ -542,10 +542,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const pinnedMessage = messages.find((m) => m.isPinned);
 
   return (
-    <div className="w-full min-h-screen bg-[#080511] text-white pb-24 md:pb-8 flex flex-col">
+    <div className="w-full min-h-dvh-screen bg-[#080511] text-white pb-24 md:pb-8 flex flex-col">
       {/* 1. TOP HEADER & TABS BAR (when no active conversation is opened) */}
       {!selectedConversation ? (
-        <div className="sticky top-0 z-30 bg-[#0c0718]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 py-3">
+        <div className="sticky top-0 z-30 bg-[#0c0718]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 safe-pt-3 pb-3">
           <div className="max-w-3xl mx-auto space-y-3">
             {/* Header Title + Action Buttons */}
             <div className="flex items-center justify-between">
@@ -639,16 +639,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       <div className="flex-1 max-w-3xl mx-auto w-full px-3.5 sm:px-4 py-3">
         {/* VIEW A: Active Conversation Screen */}
         {selectedConversation ? (
-          <div className="flex flex-col h-[85vh] bg-[#120a22] rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative">
+          <div className="flex flex-col h-[calc(100dvh-96px-var(--safe-bottom))] sm:h-[85vh] bg-[#120a22] rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative safe-pt-2 sm:pt-0">
             {/* A1. Chat Header */}
-            <div className="p-3.5 bg-[#1b1031] border-b border-white/[0.08] flex items-center justify-between z-20">
-              <div className="flex items-center gap-3">
+            <div className="p-3 sm:p-3.5 bg-[#1b1031] border-b border-white/[0.08] flex items-center justify-between gap-2 z-20">
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                 <button
                   onClick={() => {
                     setSelectedConversation(null);
                     if (onCloseChat) onCloseChat();
                   }}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors shrink-0"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -660,26 +660,26 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                       onSelectUser(selectedConversation.user);
                     }
                   }}
-                  className="flex items-center gap-2.5 cursor-pointer group"
+                  className="flex items-center gap-2 cursor-pointer group min-w-0 flex-1"
                 >
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <img
                       src={selectedConversation.type === 'group' ? selectedConversation.group?.avatar : selectedConversation.user.avatar}
                       alt={selectedConversation.type === 'group' ? selectedConversation.group?.name : selectedConversation.user.name}
-                      className="w-10 h-10 rounded-full object-cover border border-[#F328D5]/50"
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-[#F328D5]/50"
                     />
                     {selectedConversation.type !== 'group' && selectedConversation.isOnline && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#120a22]" />
                     )}
                   </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate max-w-[160px] sm:max-w-xs flex items-center gap-1.5">
-                      {selectedConversation.type === 'group' ? selectedConversation.group?.name : selectedConversation.user.name}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate flex items-center gap-1.5">
+                      <span className="truncate">{selectedConversation.type === 'group' ? selectedConversation.group?.name : selectedConversation.user.name}</span>
                       {selectedConversation.user.isVIP && (
-                        <span className="text-[10px] text-amber-400 font-extrabold">👑 VIP</span>
+                        <span className="text-[10px] text-amber-400 font-extrabold shrink-0">👑</span>
                       )}
                     </h2>
-                    <p className="text-[10px] text-[#A59AB8] flex items-center gap-1">
+                    <p className="text-[10px] text-[#A59AB8] truncate">
                       {selectedConversation.type === 'group' 
                         ? `${selectedConversation.group?.membersCount || 10} members` 
                         : (selectedConversation.isOnline ? 'Online • In Party Room' : 'Last seen recently')}
@@ -689,7 +689,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               </div>
 
               {/* Chat Header Actions */}
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 {!isSelectedChatBlocked && (
                   <>
                     <button 

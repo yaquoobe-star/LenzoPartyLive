@@ -27,6 +27,11 @@ import {
   NotificationItem, 
   Transaction 
 } from '../types';
+import {
+  clampPartyMaxSeatsForHostLevel,
+  isSeatLockedByHostLevel,
+  normalizePartyMaxSeats,
+} from '../utils/partySeatRules';
 
 /**
  * 1. REAL POSTS / VIDEOS FIRESTORE SERVICE
@@ -268,7 +273,7 @@ function toMillis(val: any, fallback = Date.now()): number {
 }
 
 function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
-  const maxSeats: 8 | 16 = data?.maxSeats === 16 ? 16 : 8;
+  const maxSeats = normalizePartyMaxSeats(data?.maxSeats, data?.host?.level);
   const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
   const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
   for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
@@ -303,6 +308,12 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
     allowJoin: data?.allowJoin !== false,
     startTime: toMillis(data?.startTime ?? data?.createdAt),
     likesCount: typeof data?.likesCount === 'number' ? data.likesCount : 0,
+    backgroundType:
+      data?.backgroundType === 'host_dp' || data?.backgroundType === 'custom'
+        ? data.backgroundType
+        : 'preset',
+    backgroundId: typeof data?.backgroundId === 'string' && data.backgroundId.trim() ? data.backgroundId : 'royal_neon',
+    backgroundImage: typeof data?.backgroundImage === 'string' ? data.backgroundImage : '',
   };
 }
 
@@ -379,12 +390,12 @@ export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom,
     const rawId = 'id' in room && room.id ? String(room.id) : `room_${Date.now()}`;
     const safeId = VALID_DOC_ID_REGEX.test(rawId) ? rawId : `room_${Date.now()}`;
     const safeHost = sanitizeFirestoreUserCard(room.host, uid);
-    const maxSeats: 8 | 16 = room.maxSeats === 16 ? 16 : 8;
+    const maxSeats = clampPartyMaxSeatsForHostLevel(room.maxSeats, safeHost.level);
     const rawSeats = Array.isArray(room.seats) ? room.seats : Array(maxSeats).fill(null);
     const safeSeats: (UserProfile | null)[] = Array(maxSeats).fill(null);
     for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
       const occupant = rawSeats[i];
-      if (occupant) {
+      if (occupant && !isSeatLockedByHostLevel(i, safeHost.level)) {
         const isHostOccupant = i === 0 || occupant.id === room.host?.id || occupant.id === uid;
         safeSeats[i] = sanitizeFirestoreUserCard(occupant, isHostOccupant ? uid : occupant.id);
       }
@@ -413,6 +424,20 @@ export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom,
       startTime: typeof room.startTime === 'number' ? room.startTime : Date.now(),
       updatedAt: Date.now(),
       likesCount: typeof room.likesCount === 'number' ? room.likesCount : 0,
+      backgroundType:
+        room.backgroundType === 'host_dp' || room.backgroundType === 'custom'
+          ? room.backgroundType
+          : 'preset',
+      backgroundId:
+        typeof room.backgroundId === 'string' && room.backgroundId.trim()
+          ? room.backgroundId.trim().slice(0, 48)
+          : 'royal_neon',
+      backgroundImage:
+        room.backgroundType === 'host_dp'
+          ? safeImageUrlForCard(room.backgroundImage || safeHost.avatar, 160000) || ''
+          : room.backgroundType === 'custom'
+          ? safeImageUrlForCard(room.backgroundImage, 160000) || ''
+          : '',
       status: 'active',
     });
 

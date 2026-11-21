@@ -288,7 +288,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
         {/* Toast Banner */}
         {toast && (
           <div
-            className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 border ${
+            className={`fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 border ${
               toast.type === 'error'
                 ? 'bg-rose-950/95 border-rose-400/50 text-rose-100'
                 : 'bg-[#1F0F3E]/95 border-[#FFC84A]/60 text-white'

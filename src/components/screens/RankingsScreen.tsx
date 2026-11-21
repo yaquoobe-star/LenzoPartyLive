@@ -182,8 +182,14 @@ export const RankingsScreen: React.FC<RankingsScreenProps> = ({
         }, 400);
       }
     });
+    const handleGlobalRefresh = () => {
+      void loadRankings(false);
+    };
+    window.addEventListener('lenzo:app-refresh', handleGlobalRefresh);
+
     return () => {
       unsubscribe();
+      window.removeEventListener('lenzo:app-refresh', handleGlobalRefresh);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, [loadRankings]);
@@ -234,7 +240,7 @@ export const RankingsScreen: React.FC<RankingsScreenProps> = ({
 
   return (
     <div className="w-full pb-24 sm:pb-12 animate-fade-in">
-      <div className="max-w-3xl mx-auto px-3.5 sm:px-6 pt-3 space-y-3.5">
+      <div className="max-w-3xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-3.5">
         {/* Header Bar */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">

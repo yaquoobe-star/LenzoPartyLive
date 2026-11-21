@@ -534,7 +534,15 @@ class LiveAndRoomService {
   public async updateRoomSettings(
     roomId: string,
     hostId: string,
-    settings: { isLocked?: boolean; allowJoin?: boolean; announcement?: string }
+    settings: {
+      isLocked?: boolean;
+      allowJoin?: boolean;
+      announcement?: string;
+      maxSeats?: number;
+      backgroundType?: 'preset' | 'host_dp' | 'custom';
+      backgroundId?: string;
+      backgroundImage?: string;
+    }
   ): Promise<PartyRoom | null> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/settings`, {
       method: 'POST',

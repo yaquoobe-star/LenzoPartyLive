@@ -73,16 +73,18 @@ class RoomService {
     roomId: string,
     hostId: string,
     seatIndex: number,
-    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number }
-  ): Promise<void> {
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number },
+    targetUserId?: string
+  ): Promise<{ seats?: (UserProfile | null)[]; mutedSeatIndices?: number[] }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/remove_seat`, {
       method: 'POST',
-      body: JSON.stringify({ hostId, seatIndex, roomMeta }),
+      body: JSON.stringify({ hostId, seatIndex, targetUserId, roomMeta }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Action failed' }));
-      throw new Error(err.error || 'Failed to remove user from seat');
+      throw new Error(err.error || 'Failed to kick user from seat');
     }
+    return await res.json();
   }
 
   public async leaveSeat(

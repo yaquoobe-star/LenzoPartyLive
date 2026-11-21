@@ -17,24 +17,61 @@ class AndroidBridgeService {
   private urlOpenHandlers: AndroidUrlOpenHandler[] = [];
   private isNativeAndroid: boolean = false;
   private isInitialized: boolean = false;
+  private viewportMetricsBound: boolean = false;
 
   constructor() {
     this.isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
   }
 
+  /**
+   * Synchronizes real visual viewport height (--app-dvh) and platform attributes across
+   * all Android devices (old & new APK), iOS Safari, Android Chrome, and Web PWA browsers
+   * so full-screen layouts never clip behind browser bars, notches, or virtual keyboards.
+   */
+  public initViewportMetrics() {
+    if (this.viewportMetricsBound || typeof window === 'undefined') return;
+    this.viewportMetricsBound = true;
+
+    const root = document.documentElement;
+    const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web';
+    root.dataset.platform = platform;
+
+    const updateViewportVars = () => {
+      const vvHeight = window.visualViewport?.height;
+      const measuredHeight = Math.round(vvHeight && vvHeight > 200 ? vvHeight : window.innerHeight);
+      if (measuredHeight > 0) {
+        root.style.setProperty('--app-dvh', `${measuredHeight}px`);
+      }
+    };
+
+    updateViewportVars();
+    window.addEventListener('resize', updateViewportVars, { passive: true });
+    window.addEventListener('orientationchange', () => {
+      updateViewportVars();
+      setTimeout(updateViewportVars, 220);
+    }, { passive: true });
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportVars, { passive: true });
+    }
+  }
+
   public initAndroidIntegration(onExitApp?: () => void) {
+    this.initViewportMetrics();
+
     if (this.isInitialized) return;
     this.isInitialized = true;
 
     if (!this.isNativeAndroid) {
-      console.log('[Android Bridge] Running in Web Preview environment. Android hooks simulated.');
+      console.log('[Android Bridge] Running in Web environment with responsive safe-area & dynamic viewport.');
       return;
     }
 
     console.log('[Android Bridge] Initializing native Android environment...');
 
-    // 1. Configure Android Status Bar to match dark purple/navy theme
+    // 1. Configure Android Status Bar to sit above WebView with dark background & crisp white icons
     try {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
       StatusBar.setBackgroundColor({ color: '#060212' }).catch(() => {});
     } catch (e) {
@@ -43,7 +80,7 @@ class AndroidBridgeService {
 
     // 2. Hide Native Splash Screen after web app bundles load
     try {
-      SplashScreen.hide({ fadeOutDuration: 500 }).catch(() => {});
+      SplashScreen.hide({ fadeOutDuration: 450 }).catch(() => {});
     } catch (e) {
       console.warn('[Android Bridge] SplashScreen notice:', e);
     }

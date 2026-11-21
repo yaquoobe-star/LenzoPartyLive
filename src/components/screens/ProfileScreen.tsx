@@ -239,6 +239,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [activeUser.id, currentUser.id, userVideos.length]);
 
+  // Re-fetch profile content, social counts & live rank when user pulls down to refresh
+  useEffect(() => {
+    const handleGlobalRefresh = () => {
+      void loadProfileData();
+    };
+    window.addEventListener('lenzo:app-refresh', handleGlobalRefresh);
+    return () => {
+      window.removeEventListener('lenzo:app-refresh', handleGlobalRefresh);
+    };
+  }, [activeUser.id, currentUser.id, userVideos.length]);
+
   // Unified 100-Level, 12-VIP, 6-Super-VIP & 10-Achievement Progression Computations
   const levelProgress = useMemo(() => getUserLevelProgress(activeUser), [activeUser]);
 
@@ -575,7 +586,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#090611] text-white pb-28 sm:pb-16 font-sans">
+    <div
+      className="w-full min-h-dvh-screen bg-[#090611] text-white sm:pb-16 font-sans touch-pan-y"
+      style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom, 0px))' }}
+    >
       {/* Hidden quick upload inputs for owner */}
       {isOwner && (
         <>
@@ -598,7 +612,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-[#241145] border border-[#FA26A0]/50 text-white text-xs font-bold shadow-2xl shadow-[#8B20FF]/30 pointer-events-none">
+        <div className="fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-[#241145] border border-[#FA26A0]/50 text-white text-xs font-bold shadow-2xl shadow-[#8B20FF]/30 pointer-events-none max-w-[90vw] text-center">
           {toastMessage}
         </div>
       )}
@@ -900,30 +914,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-[#090611] via-[#090611]/35 to-black/35" />
 
             {/* Top Utility Bar over Cover */}
-            <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="absolute safe-top-offset-3 left-3 right-3 z-20 flex items-center justify-between gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
                 {!isOwner && onBack ? (
                   <button
                     onClick={onBack}
                     aria-label="Go Back"
-                    className="min-h-[44px] min-w-[44px] rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-transform"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/45 hover:bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-transform shrink-0"
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                 ) : (
-                  <span className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-extrabold tracking-wide text-white">
-                    LENZO PROFILE
+                  <span className="px-2.5 sm:px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-[10px] sm:text-xs font-extrabold tracking-wide text-white truncate">
+                    LENZO
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {isOwner && (
                   <button
                     onClick={() => quickCoverInputRef.current?.click()}
-                    className="h-10 px-3.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                    className="h-9 sm:h-10 px-2.5 sm:px-3.5 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 text-white text-[11px] sm:text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
                   >
-                    <ImageIcon className="w-3.5 h-3.5 text-[#FA26A0]" />
+                    <ImageIcon className="w-3.5 h-3.5 text-[#FA26A0] shrink-0" />
                     <span className="hidden sm:inline">Change Cover</span>
                     <span className="sm:hidden">Cover</span>
                   </button>
@@ -932,7 +946,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <button
                   onClick={() => setIsShareModalOpen(true)}
                   aria-label="Share Profile"
-                  className="min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all shrink-0"
                 >
                   <Share2 className="w-4 h-4" />
                 </button>
@@ -942,7 +956,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     onClick={() => setIsBlockedUsersModalOpen(true)}
                     aria-label="Blocked Users"
                     title="Manage Blocked Users"
-                    className="relative min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-rose-500/25 backdrop-blur-md border border-white/15 hover:border-rose-400/45 flex items-center justify-center text-white active:scale-95 transition-all"
+                    className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-rose-500/25 backdrop-blur-md border border-white/15 hover:border-rose-400/45 flex items-center justify-center text-white active:scale-95 transition-all shrink-0"
                   >
                     <Ban className="w-4 h-4 text-rose-300" />
                     {blockedUsers.length > 0 && (
@@ -958,7 +972,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     onClick={onOpenAccountSwitcher}
                     aria-label="Switch Account"
                     title="Switch Account"
-                    className="min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-[#fe2c55]/30 backdrop-blur-md border border-white/15 hover:border-[#fe2c55]/50 flex items-center justify-center text-white active:scale-95 transition-all"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-[#fe2c55]/30 backdrop-blur-md border border-white/15 hover:border-[#fe2c55]/50 flex items-center justify-center text-white active:scale-95 transition-all shrink-0"
                   >
                     <ArrowRightLeft className="w-4 h-4 text-[#25f4ee]" />
                   </button>
@@ -968,7 +982,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <button
                     onClick={() => onNavigate('settings')}
                     aria-label="Settings"
-                    className="min-h-[44px] min-w-[44px] rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all shrink-0"
                   >
                     <Settings className="w-4 h-4" />
                   </button>

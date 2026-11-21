@@ -127,6 +127,109 @@ export async function uploadUserImage(
   return dataUrl;
 }
 
+/**
+ * Upload a Party Room custom background photo from user's gallery so Host, Viewers & Guests
+ * on both Web and Android see the exact same background reliably.
+ * - First attempts Firebase Storage (users/{uid}/party_backgrounds/...)
+ * - Falls back to compressed JPEG uploaded via /api/media/upload
+ * - Final fallback returns a compact Firestore-safe JPEG data URL (< 160 KB)
+ */
+export async function uploadPartyBackgroundImage(
+  file: File | Blob,
+  onProgress?: UploadProgressCallback
+): Promise<string> {
+  const user = auth.currentUser;
+  onProgress?.(15, {} as UploadTaskSnapshot);
+
+  // Compress once up front for fast mobile uploads & crisp portrait/stage aspect ratio
+  const compressedDataUrl = await compressImageToDataUrl(file, 960, 0.78);
+  onProgress?.(35, {} as UploadTaskSnapshot);
+
+  if (user) {
+    try {
+      const uploadBlob = await fetch(compressedDataUrl)
+        .then((r) => r.blob())
+        .catch(() => file);
+      const fileType = uploadBlob.type || 'image/jpeg';
+      const ext = fileType.includes('png') ? 'png' : fileType.includes('webp') ? 'webp' : 'jpg';
+      const fileName = `party_bg_${user.uid}_${Date.now()}.${ext}`;
+      const storageRef = ref(storage, `users/${user.uid}/party_backgrounds/${fileName}`);
+
+      const storageUrl = await new Promise<string>((resolve, reject) => {
+        const timeoutId = setTimeout(() => reject(new Error('Firebase Storage upload timed out')), 12000);
+        const uploadTask = uploadBytesResumable(storageRef, uploadBlob, {
+          contentType: fileType,
+          customMetadata: {
+            userId: user.uid,
+            purpose: 'party_background',
+            uploadedAt: new Date().toISOString(),
+          },
+        });
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const pct =
+              snapshot.totalBytes > 0
+                ? 35 + (snapshot.bytesTransferred / snapshot.totalBytes) * 60
+                : 55;
+            onProgress?.(Math.min(95, Math.round(pct)), snapshot);
+          },
+          (error) => {
+            clearTimeout(timeoutId);
+            reject(error);
+          },
+          async () => {
+            clearTimeout(timeoutId);
+            try {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(downloadUrl);
+            } catch (urlErr) {
+              reject(urlErr);
+            }
+          }
+        );
+      });
+
+      if (storageUrl) {
+        onProgress?.(100, {} as UploadTaskSnapshot);
+        return storageUrl;
+      }
+    } catch (storageErr) {
+      console.warn('[Party Background] Firebase Storage fallback to backend media upload:', storageErr);
+    }
+  }
+
+  // Fallback 1: Upload to backend /api/media/upload for a tiny URL
+  try {
+    onProgress?.(70, {} as UploadTaskSnapshot);
+    const res = await apiFetch('/api/media/upload', {
+      method: 'POST',
+      body: JSON.stringify({ dataUrl: compressedDataUrl, folder: 'covers' }),
+    });
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+      const data = await res.json();
+      if (data.url) {
+        onProgress?.(100, {} as UploadTaskSnapshot);
+        return data.url;
+      }
+    }
+  } catch (apiErr) {
+    console.warn('[Party Background] Backend media upload fallback notice:', apiErr);
+  }
+
+  // Fallback 2: Ensure compact Firestore-safe JPEG data URL (< 160 KB) so cross-device Firestore sync always succeeds
+  let compactUrl = compressedDataUrl;
+  if (compactUrl.length > 155000) {
+    compactUrl = await compressImageToDataUrl(file, 720, 0.64);
+  }
+  if (compactUrl.length > 155000) {
+    compactUrl = await compressImageToDataUrl(file, 540, 0.56);
+  }
+  onProgress?.(100, {} as UploadTaskSnapshot);
+  return compactUrl;
+}
+
 const ALLOWED_VIDEO_TYPES = [
   'video/mp4',
   'video/webm',

@@ -34,7 +34,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   }, [onComplete]);
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-between p-6 sm:p-10 bg-[#090611] overflow-hidden select-none">
+    <div className="relative min-h-dvh-screen w-full flex flex-col items-center justify-between px-6 sm:px-10 safe-pt-4 safe-pb-6 bg-[#090611] overflow-hidden select-none">
       {/* Background silky glowing neon ribbon waves */}
       <div className="absolute inset-0 pointer-events-none">
         {/* Top ambient radial gradient */}

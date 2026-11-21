@@ -57,14 +57,14 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#080413] text-white select-none overflow-y-auto no-scrollbar animate-fade-in">
+    <div className="relative min-h-dvh-screen w-full flex flex-col justify-between items-center p-4 sm:p-6 bg-[#080413] text-white select-none overflow-y-auto no-scrollbar animate-fade-in">
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-32 right-1/4 w-[450px] h-[450px] rounded-full bg-gradient-to-b from-[#8B20FF]/25 via-[#F328D5]/20 to-transparent blur-[120px]" />
       </div>
 
       {/* Top Header */}
-      <header className="relative z-10 w-full max-w-sm flex items-center justify-between pt-safe pt-2">
+      <header className="relative z-10 w-full max-w-sm flex items-center justify-between safe-pt-2">
         <button
           onClick={onNavigateToLogin}
           className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-95"
@@ -219,7 +219,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
       </main>
 
       {/* Footer link to Login */}
-      <footer className="relative z-10 py-3 text-center text-xs text-[#B9AECF] pb-safe">
+      <footer className="relative z-10 pt-3 safe-pb-3 text-center text-xs text-[#B9AECF]">
         <span>Already have an account? </span>
         <button
           onClick={onNavigateToLogin}

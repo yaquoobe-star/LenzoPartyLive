@@ -168,7 +168,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
       previewUrl.includes('firebasestorage'));
 
   return (
-    <div className="min-h-screen w-full bg-[#080413] text-white flex flex-col justify-between p-4 sm:p-6 select-none animate-fade-in font-sans">
+    <div className="min-h-dvh-screen w-full bg-[#080413] text-white flex flex-col justify-between px-4 sm:px-6 safe-pt-4 safe-pb-4 select-none animate-fade-in font-sans">
       {/* Hidden file input to select video */}
       <input
         ref={fileInputRef}

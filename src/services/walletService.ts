@@ -6,6 +6,7 @@ import {
   setDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -24,6 +25,7 @@ import {
   FinancialTransaction,
   WithdrawalRequest,
   PayoutMethodConfig,
+  CoinSellerAgency,
   UserProfile,
   GiftItem,
 } from '../types';
@@ -134,6 +136,100 @@ export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
   },
 ];
 
+// Default Official Offline Coin Seller Agencies (editable live by Verified Admin in Firestore)
+export const DEFAULT_COIN_SELLER_AGENCIES: CoinSellerAgency[] = [
+  {
+    id: 'agency_lenzo_hq_lhr',
+    name: 'Lenzo Official Coin Desk — Lahore',
+    ownerName: 'Official Lenzo Desk',
+    agencyCode: 'LP-COIN-01',
+    city: 'Lahore',
+    country: 'Pakistan',
+    whatsapp: '+923001122334',
+    phone: '+923001122334',
+    paymentMethods: ['JazzCash', 'EasyPaisa', 'Bank Transfer', 'Cash'],
+    workingHours: '24/7 Instant Delivery',
+    minCoinsOrder: 1000,
+    rateNote: 'Official Rate • Instant Top-Up',
+    badge: 'OFFICIAL HQ',
+    isVerified: true,
+    isOnline: true,
+    enabled: true,
+  },
+  {
+    id: 'agency_karachi_gold',
+    name: 'Royal Coins Agency — Karachi',
+    ownerName: 'Zainab & Partners',
+    agencyCode: 'LP-COIN-02',
+    city: 'Karachi',
+    country: 'Pakistan',
+    whatsapp: '+923212233445',
+    phone: '+923212233445',
+    paymentMethods: ['EasyPaisa', 'JazzCash', 'Bank Transfer'],
+    workingHours: '9:00 AM – 2:00 AM PKT',
+    minCoinsOrder: 1000,
+    rateNote: 'Fast 2–5 Min Delivery',
+    badge: 'TOP SELLER',
+    isVerified: true,
+    isOnline: true,
+    enabled: true,
+  },
+  {
+    id: 'agency_isb_rwp_prime',
+    name: 'Capital Prime Coin Hub — Islamabad / RWP',
+    ownerName: 'Hamza Tariq',
+    agencyCode: 'LP-COIN-03',
+    city: 'Islamabad',
+    country: 'Pakistan',
+    whatsapp: '+923333344556',
+    phone: '+923333344556',
+    paymentMethods: ['Bank Transfer', 'JazzCash', 'EasyPaisa', 'Cash'],
+    workingHours: '10:00 AM – 1:00 AM PKT',
+    minCoinsOrder: 1000,
+    rateNote: 'VIP Bulk Discounts Available',
+    badge: 'VIP DESK',
+    isVerified: true,
+    isOnline: true,
+    enabled: true,
+  },
+  {
+    id: 'agency_multan_fsd_star',
+    name: 'Starlight Coin Agency — Multan & Faisalabad',
+    ownerName: 'Bilal Raza',
+    agencyCode: 'LP-COIN-04',
+    city: 'Multan',
+    country: 'Pakistan',
+    whatsapp: '+923014455667',
+    phone: '+923014455667',
+    paymentMethods: ['JazzCash', 'EasyPaisa', 'Cash'],
+    workingHours: '10:00 AM – 12:00 AM PKT',
+    minCoinsOrder: 500,
+    rateNote: 'Trusted Offline Counter & Mobile Pay',
+    badge: 'VERIFIED',
+    isVerified: true,
+    isOnline: true,
+    enabled: true,
+  },
+  {
+    id: 'agency_gulf_international',
+    name: 'Gulf & Overseas Coin Desk — Dubai / KSA / UK',
+    ownerName: 'Lenzo International Desk',
+    agencyCode: 'LP-COIN-05',
+    city: 'Dubai / Overseas',
+    country: 'International',
+    whatsapp: '+971501122334',
+    phone: '+971501122334',
+    paymentMethods: ['Bank Transfer', 'Remittance', 'UAE Exchange'],
+    workingHours: '24/7 Overseas Support',
+    minCoinsOrder: 5000,
+    rateNote: 'AED / SAR / GBP / USD Accepted',
+    badge: 'OVERSEAS',
+    isVerified: true,
+    isOnline: true,
+    enabled: true,
+  },
+];
+
 function isVerifiedAdminSession(): boolean {
   return (
     auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
@@ -209,6 +305,89 @@ export async function saveCoinPackage(pkg: WalletRechargePackage): Promise<void>
     await setDoc(docRef, pkg, { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, `coin_packages/${pkg.id}`);
+  }
+}
+
+/**
+ * 2B. OFFICIAL OFFLINE COIN SELLER AGENCIES SERVICE
+ */
+export function subscribeCoinSellerAgencies(
+  isAdmin: boolean,
+  onUpdate: (agencies: CoinSellerAgency[]) => void
+) {
+  const collRef = collection(db, 'coin_seller_agencies');
+  const q = isAdmin ? collRef : query(collRef, where('enabled', '==', true));
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      if (!snap.empty) {
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CoinSellerAgency));
+        items.sort((a, b) => {
+          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+          return (a.agencyCode || a.name).localeCompare(b.agencyCode || b.name);
+        });
+        onUpdate(items);
+      } else {
+        if (isVerifiedAdminSession()) {
+          DEFAULT_COIN_SELLER_AGENCIES.forEach((agency) => {
+            setDoc(
+              doc(db, 'coin_seller_agencies', agency.id),
+              { ...agency, updatedAt: new Date().toISOString() },
+              { merge: true }
+            ).catch(console.warn);
+          });
+        }
+        onUpdate(DEFAULT_COIN_SELLER_AGENCIES);
+      }
+    },
+    (err) => {
+      console.warn('Coin seller agencies listener notice:', err);
+      onUpdate(DEFAULT_COIN_SELLER_AGENCIES);
+    }
+  );
+}
+
+export async function saveCoinSellerAgency(agency: CoinSellerAgency): Promise<{ success: boolean; error?: string }> {
+  const cleanId = agency.id.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  if (!cleanId) return { success: false, error: 'Invalid agency ID' };
+  const docRef = doc(db, 'coin_seller_agencies', cleanId);
+  try {
+    await setDoc(
+      docRef,
+      {
+        id: cleanId,
+        name: agency.name.trim().slice(0, 80),
+        ownerName: agency.ownerName.trim().slice(0, 60),
+        agencyCode: agency.agencyCode.trim().toUpperCase().slice(0, 24),
+        city: agency.city.trim().slice(0, 50),
+        country: agency.country.trim().slice(0, 50),
+        whatsapp: agency.whatsapp.trim().slice(0, 24),
+        phone: agency.phone.trim().slice(0, 24),
+        paymentMethods: agency.paymentMethods.slice(0, 8).map((m) => m.trim().slice(0, 32)).filter(Boolean),
+        workingHours: agency.workingHours.trim().slice(0, 60),
+        minCoinsOrder: Math.max(0, Number(agency.minCoinsOrder || 0)),
+        rateNote: (agency.rateNote || '').trim().slice(0, 120),
+        badge: (agency.badge || 'VERIFIED').trim().slice(0, 24),
+        isVerified: Boolean(agency.isVerified),
+        isOnline: Boolean(agency.isOnline),
+        enabled: Boolean(agency.enabled),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to save coin seller agency' };
+  }
+}
+
+export async function deleteCoinSellerAgency(agencyId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await deleteDoc(doc(db, 'coin_seller_agencies', agencyId));
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to delete agency' };
   }
 }
 
@@ -297,73 +476,21 @@ export function subscribeUserEarnings(
 }
 
 /**
- * 5. ATOMIC WALLET COIN RECHARGE (PURCHASE)
+ * 5. ONLINE COIN RECHARGE — LOCKED (COMING SOON)
+ * Direct unpaid client-side coin top-ups are disabled.
+ * Users must purchase coins via Official Offline Coin Seller Agencies until
+ * verified online payment gateway integration is live.
  */
 export async function purchaseCoins(
-  userId: string,
-  packageId: string,
-  settings: WalletSettings = DEFAULT_WALLET_SETTINGS
+  _userId: string,
+  _packageId: string,
+  _settings: WalletSettings = DEFAULT_WALLET_SETTINGS
 ): Promise<{ success: boolean; newBalance: number; error?: string }> {
-  try {
-    const pkg = DEFAULT_COIN_PACKAGES.find((p) => p.id === packageId) || DEFAULT_COIN_PACKAGES[0];
-    const totalCoinsToAdd = pkg.coins + (pkg.bonusCoins || 0);
-
-    const walletRef = doc(db, 'wallets', userId);
-    const userRef = doc(db, 'users', userId);
-
-    await runTransaction(db, async (tx) => {
-      const walletSnap = await tx.get(walletRef);
-      const currentPurchased = walletSnap.exists() ? (walletSnap.data().walletPurchasedCoins || 0) : 0;
-      const currentTotalPurchased = walletSnap.exists() ? (walletSnap.data().totalCoinsPurchased || 0) : 0;
-
-      const newPurchased = currentPurchased + totalCoinsToAdd;
-
-      tx.set(
-        walletRef,
-        {
-          userId,
-          walletPurchasedCoins: newPurchased,
-          totalCoinsPurchased: currentTotalPurchased + totalCoinsToAdd,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Also update user profile display coins
-      tx.set(
-        userRef,
-        {
-          coins: newPurchased,
-        },
-        { merge: true }
-      );
-
-      // Record immutable financial transaction
-      const txDocRef = doc(collection(db, 'wallet_transactions'));
-      tx.set(txDocRef, {
-        id: txDocRef.id,
-        userId,
-        category: 'coin_purchase',
-        balanceType: 'wallet',
-        amount: totalCoinsToAdd,
-        pkrAmount: pkg.pricePkr,
-        status: 'completed',
-        description: `Purchased ${pkg.coins.toLocaleString()} Coins${pkg.bonusCoins ? ` (+${pkg.bonusCoins} Bonus)` : ''} for ${pkg.displayPrice}`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-        referenceId: packageId,
-        metadata: {
-          packageName: pkg.coins.toString(),
-          pricePkr: pkg.pricePkr,
-          bonusCoins: pkg.bonusCoins || 0,
-        },
-      });
-    });
-
-    return { success: true, newBalance: totalCoinsToAdd };
-  } catch (err: any) {
-    return { success: false, newBalance: 0, error: err?.message || 'Recharge transaction failed' };
-  }
+  return {
+    success: false,
+    newBalance: 0,
+    error: 'Online purchasing is coming soon. Please contact an Official Offline Coin Seller Agency.',
+  };
 }
 
 /**
@@ -580,6 +707,7 @@ export async function convertEarningsToWallet(
       tx.set(
         walletRef,
         {
+          userId,
           walletPurchasedCoins: newWalletCoins,
           updatedAt: serverTimestamp(),
         },
@@ -896,8 +1024,18 @@ export async function adminAdjustBalance(
       const snap = await tx.get(docRef);
       if (balanceType === 'wallet') {
         const current = snap.exists() ? (snap.data().walletPurchasedCoins || 0) : 0;
+        const prevPurchased = snap.exists() ? (snap.data().totalCoinsPurchased || 0) : 0;
         const next = Math.max(0, current + coinDelta);
-        tx.set(docRef, { walletPurchasedCoins: next, updatedAt: serverTimestamp() }, { merge: true });
+        tx.set(
+          docRef,
+          {
+            userId: targetUserId,
+            walletPurchasedCoins: next,
+            totalCoinsPurchased: coinDelta > 0 ? prevPurchased + coinDelta : prevPurchased,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
         tx.set(userRef, { coins: next }, { merge: true });
 
         const txRef = doc(collection(db, 'wallet_transactions'));
@@ -915,7 +1053,7 @@ export async function adminAdjustBalance(
       } else {
         const current = snap.exists() ? (snap.data().availableEarningsCoins || 0) : 0;
         const next = Math.max(0, current + coinDelta);
-        tx.set(docRef, { availableEarningsCoins: next, updatedAt: serverTimestamp() }, { merge: true });
+        tx.set(docRef, { userId: targetUserId, availableEarningsCoins: next, updatedAt: serverTimestamp() }, { merge: true });
         tx.set(userRef, { diamonds: next }, { merge: true });
 
         const txRef = doc(collection(db, 'earnings_transactions'));

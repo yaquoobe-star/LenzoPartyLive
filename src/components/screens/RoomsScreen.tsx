@@ -14,6 +14,7 @@ import {
   Trophy
 } from 'lucide-react';
 import { PartyRoom, ScreenType } from '../../types';
+import { getActiveSeatCapacity, normalizePartyMaxSeats } from '../../utils/partySeatRules';
 
 interface RoomsScreenProps {
   partyRooms: PartyRoom[];
@@ -37,7 +38,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
   unreadNotificationsCount = 0,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('Trending');
-  const [seatFilter, setSeatFilter] = useState<'all' | '8' | '16'>('all');
+  const [seatFilter, setSeatFilter] = useState<'all' | '5' | '8' | '16'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
@@ -59,9 +60,11 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
       if (!matchesTitle && !matchesHost && !matchesId) return false;
     }
 
-    // Capacity filter (8 vs 16 seats)
-    if (seatFilter === '8' && room.maxSeats !== 8) return false;
-    if (seatFilter === '16' && room.maxSeats !== 16) return false;
+    // Capacity filter (5 vs 8 vs 16 seats)
+    const normalizedRoomSeats = normalizePartyMaxSeats(room.maxSeats, room.host?.level);
+    if (seatFilter === '5' && normalizedRoomSeats !== 5) return false;
+    if (seatFilter === '8' && normalizedRoomSeats !== 8) return false;
+    if (seatFilter === '16' && normalizedRoomSeats !== 16) return false;
 
     // Category filter
     if (activeCategory === 'Trending') return true;
@@ -73,26 +76,26 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
   });
 
   return (
-    <div className="w-full min-h-screen pb-28 select-none animate-fade-in bg-[#080413] text-white">
-      <div className="max-w-md md:max-w-3xl mx-auto px-4 pt-2 space-y-4">
+    <div className="w-full min-h-dvh-screen pb-28 select-none animate-fade-in bg-[#080413] text-white">
+      <div className="max-w-md md:max-w-3xl mx-auto px-3.5 sm:px-4 safe-pt-3 space-y-4">
         
         {/* ========================================================
             1. HEADER (Lenzo Party Live + Search + Notifications)
            ======================================================== */}
-        <header className="flex items-center justify-between pt-1">
+        <header className="flex items-center justify-between gap-2 pt-0.5">
           {/* Logo: Lenzo (white) + Party Live (neon pink #F328D5 to gold #FFC84A) */}
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => onNavigate('home')}>
-            <h1 className="text-xl font-black tracking-tight font-display">
+          <div className="flex items-center gap-1.5 cursor-pointer min-w-0" onClick={() => onNavigate('home')}>
+            <h1 className="text-lg sm:text-xl font-black tracking-tight font-display truncate">
               <span className="text-white">Lenzo </span>
               <span className="bg-gradient-to-r from-[#F328D5] to-[#FFC84A] bg-clip-text text-transparent">Party Live</span>
             </h1>
           </div>
 
           {/* Right Action Icons: Leaderboard, Microphone Broadcast, Search & Bell */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => onNavigate('rankings')}
-              className="w-9 h-9 rounded-full bg-[#241338] hover:bg-[#321B4E] border border-[#FFC84A]/45 flex items-center justify-center text-[#FFC84A] transition-colors active:scale-95"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#241338] hover:bg-[#321B4E] border border-[#FFC84A]/45 flex items-center justify-center text-[#FFC84A] transition-colors active:scale-95 shrink-0"
               title="Leaderboards & Rankings"
             >
               <Trophy className="w-4 h-4" />
@@ -101,7 +104,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             {/* Microphone Button (Triggers Go Live vs Create Room) */}
             <button
               onClick={onOpenMicMenu || onOpenCreateRoom}
-              className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#FF007A] to-[#FA26A0] hover:opacity-90 flex items-center justify-center text-white shadow-md shadow-pink-900/40 transition-all active:scale-95"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-[#FF007A] to-[#FA26A0] hover:opacity-90 flex items-center justify-center text-white shadow-md shadow-pink-900/40 transition-all active:scale-95 shrink-0"
               title="Broadcast (Go Live / Create Room)"
             >
               <Mic className="w-4 h-4 stroke-[2.2]" />
@@ -109,7 +112,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
 
             <button
               onClick={onOpenSearch}
-              className="w-9 h-9 rounded-full bg-[#160E24] hover:bg-[#201433] border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#160E24] hover:bg-[#201433] border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95 shrink-0"
               title="Search"
             >
               <Search className="w-4 h-4" />
@@ -117,7 +120,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
 
             <button
               onClick={() => (onOpenNotifications ? onOpenNotifications() : onNavigate('notifications'))}
-              className="relative w-9 h-9 rounded-full bg-[#160E24] hover:bg-[#201433] border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95"
+              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#160E24] hover:bg-[#201433] border border-white/10 flex items-center justify-center text-white transition-colors active:scale-95 shrink-0"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
@@ -256,7 +259,8 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             <span className="text-[11px] font-bold text-[#9E97AA] ml-2">Capacity:</span>
             <div className="flex items-center gap-1.5">
               {[
-                { id: 'all', label: 'All Seats' },
+                { id: 'all', label: 'All' },
+                { id: '5', label: '5 Seats' },
                 { id: '8', label: '8 Seats' },
                 { id: '16', label: '16 Seats' }
               ].map((f) => (
@@ -352,7 +356,7 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                         </span>
                       )}
                       <span className="text-[10px] text-[#9E97AA] font-mono leading-none">
-                        • {seatedCount}/{room.maxSeats} seats
+                        • {seatedCount}/{getActiveSeatCapacity(room.maxSeats, room.host?.level)} seats
                       </span>
                     </div>
                   </div>

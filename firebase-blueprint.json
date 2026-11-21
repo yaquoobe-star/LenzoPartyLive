@@ -484,6 +484,31 @@
       },
       "required": ["id", "coins", "pricePkr", "enabled"]
     },
+    "CoinSellerAgency": {
+      "title": "CoinSellerAgency",
+      "description": "Official verified offline Coin Seller Agency directory entry managed by platform Admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "ownerName": { "type": "string", "maxLength": 60 },
+        "agencyCode": { "type": "string", "maxLength": 24 },
+        "city": { "type": "string", "maxLength": 50 },
+        "country": { "type": "string", "maxLength": 50 },
+        "whatsapp": { "type": "string", "maxLength": 24 },
+        "phone": { "type": "string", "maxLength": 24 },
+        "paymentMethods": { "type": "array", "items": { "type": "string" } },
+        "workingHours": { "type": "string", "maxLength": 60 },
+        "minCoinsOrder": { "type": "number" },
+        "rateNote": { "type": "string", "maxLength": 120 },
+        "badge": { "type": "string", "maxLength": 24 },
+        "isVerified": { "type": "boolean" },
+        "isOnline": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "ownerName", "agencyCode", "city", "country", "whatsapp", "phone", "paymentMethods", "workingHours", "isVerified", "isOnline", "enabled"]
+    },
     "CommissionTransaction": {
       "title": "CommissionTransaction",
       "description": "Platform commission audit record created on gift transfers",
@@ -859,6 +884,10 @@
     "/coin_packages/{pkgId}": {
       "schema": "CoinPackage",
       "description": "Recharge coin package catalog"
+    },
+    "/coin_seller_agencies/{agencyId}": {
+      "schema": "CoinSellerAgency",
+      "description": "Official offline coin seller agencies list for wallet coin purchases"
     },
     "/groups/{groupId}": {
       "schema": "ChatGroup",

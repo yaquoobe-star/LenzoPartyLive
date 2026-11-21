@@ -109,3 +109,24 @@ export interface PayoutMethodConfig {
   instructions: string;
   minAmountCoins: number;
 }
+
+export interface CoinSellerAgency {
+  id: string;
+  name: string;
+  ownerName: string;
+  agencyCode: string;
+  city: string;
+  country: string;
+  whatsapp: string;
+  phone: string;
+  paymentMethods: string[];
+  workingHours: string;
+  minCoinsOrder?: number;
+  rateNote?: string;
+  badge?: string;
+  isVerified: boolean;
+  isOnline: boolean;
+  enabled: boolean;
+  updatedAt?: string;
+}
+

@@ -327,7 +327,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
 
   return (
     <div
-      className="relative min-h-screen w-full overflow-x-hidden pb-28 md:pb-12 text-white select-none"
+      className="relative min-h-dvh-screen w-full overflow-x-clip pb-28 md:pb-12 text-white select-none"
       style={{
         background:
           'radial-gradient(ellipse 90% 55% at 50% 0%, #360E6B 0%, #17062E 38%, #090314 76%, #05010B 100%)',
@@ -366,11 +366,11 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
       </div>
 
       {/* Main Centered Responsive Container */}
-      <div className="relative z-10 max-w-xl mx-auto px-3.5 sm:px-5 pt-safe">
+      <div className="relative z-10 max-w-xl mx-auto px-3.5 sm:px-5">
         {/* ============================================================
             1. TOP HEADER BAR (Back Left | Lenzo Party Center | Coins + Right)
             ============================================================ */}
-        <header className="sticky top-0 z-30 -mx-3.5 sm:-mx-5 px-3.5 sm:px-5 py-3 backdrop-blur-xl bg-[#0D041D]/75 border-b border-purple-500/20">
+        <header className="sticky top-0 z-30 -mx-3.5 sm:-mx-5 px-3.5 sm:px-5 safe-pt-3 pb-3 backdrop-blur-xl bg-[#0D041D]/80 border-b border-purple-500/20">
           <div className="flex items-center justify-between gap-2">
             {/* Back Button (Top Left) */}
             <button
@@ -787,7 +787,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
           TOAST FEEDBACK BANNER
           ============================================================ */}
       {toast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[80] w-[92%] max-w-sm pointer-events-none">
+        <div className="fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[80] w-[92%] max-w-sm pointer-events-none">
           <div
             className={`px-4 py-3 rounded-2xl border backdrop-blur-xl text-xs font-bold text-center shadow-2xl ${
               toast.type === 'success'

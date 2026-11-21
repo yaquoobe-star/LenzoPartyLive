@@ -19,6 +19,7 @@ import {
   ScreenType,
   UserProfile,
 } from '../../types';
+import { getActiveSeatCapacity, normalizePartyMaxSeats } from '../../utils/partySeatRules';
 import { LevelBadge } from '../common/LevelBadge';
 
 interface HomeScreenProps {
@@ -91,7 +92,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="w-full pb-24 sm:pb-12 animate-fade-in">
-      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 pt-3 space-y-5">
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-5">
         {/* Category Feed Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {[
@@ -382,7 +383,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <p className="text-xs text-[#B9AECF] max-w-xs mb-3.5">
                 {activeTab === 'following'
                   ? 'Follow party hosts to see their live audio rooms right here.'
-                  : 'Launch an 8-seat or 16-seat live audio party room and talk with friends in real time.'}
+                  : 'Launch a 5-seat, 8-seat, or 16-seat live audio party room and talk with friends in real time.'}
               </p>
               <button
                 onClick={() => onNavigate('create_room')}
@@ -394,9 +395,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {visiblePartyRooms.map((room) => {
-                const maxSeats = room.maxSeats === 16 ? 16 : 8;
+                const maxSeats = normalizePartyMaxSeats(room.maxSeats, room.host?.level);
+                const activeCapacity = getActiveSeatCapacity(maxSeats, room.host?.level);
                 const occupiedSeats = Array.isArray(room.seats) ? room.seats.filter(Boolean).length : 0;
-                const availableSeats = Math.max(0, maxSeats - occupiedSeats);
+                const availableSeats = Math.max(0, activeCapacity - occupiedSeats);
                 const onlineCount =
                   typeof room.numericParticipants === 'number'
                     ? room.numericParticipants
@@ -444,7 +446,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         </p>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="px-2 py-0.5 rounded-md bg-[#1D0B38]/90 border border-[#A855F7]/40 text-[9px] font-bold text-[#E9D5FF]">
-                            {occupiedSeats}/{maxSeats} Seats
+                            {occupiedSeats}/{activeCapacity} Seats
                           </span>
                           <span
                             className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ScreenType, 
   UserProfile, 
@@ -20,7 +20,16 @@ import { getInitialUserProfile, saveStoredUserProfile } from './utils/storage';
 import { pkService } from './utils/pkService';
 import { profileService } from './utils/profileService';
 import { auth, db } from './firebase';
-import { doc, updateDoc, onSnapshot, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  getDocFromServer,
+  enableNetwork,
+  updateDoc,
+  onSnapshot,
+  QueryDocumentSnapshot,
+  DocumentData,
+} from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   logoutUser,
@@ -64,6 +73,10 @@ import {
   subscribeBlockedByMe,
   subscribeBlockedMe,
 } from './services/blockService';
+import {
+  clampPartyMaxSeatsForHostLevel,
+  isSeatLockedByHostLevel,
+} from './utils/partySeatRules';
 
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
@@ -86,6 +99,7 @@ import { RankingsScreen } from './components/screens/RankingsScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
 import { StoreScreen } from './components/screens/StoreScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
+import { PullToRefresh, PullToRefreshResult } from './components/common/PullToRefresh';
 import { SettingsScreen } from './components/screens/SettingsScreen';
 import { VideoFeedScreen } from './components/screens/VideoFeedScreen';
 import { UploadVideoScreen } from './components/screens/UploadVideoScreen';
@@ -120,6 +134,12 @@ export default function App() {
   // Navigation & Screen State
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('splash');
   const [viewMode, setViewMode] = useState<PlatformViewMode>('responsive');
+  const [refreshTick, setRefreshTick] = useState<number>(0);
+
+  // Reset root scroll cleanly whenever navigating between screens (fixes Profile/long-screen scroll offset)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [currentScreen]);
 
   // Application Data States (live backend + Cloud Firestore)
   const [currentUser, setCurrentUser] = useState<UserProfile>(getInitialUserProfile);
@@ -784,7 +804,7 @@ export default function App() {
       active = false;
       unsubRealtime();
     };
-  }, []);
+  }, [refreshTick]);
 
   // Real-time Cloud Firestore Subscriptions for User Profile, Wallet, Earnings, Level, Live Streams, Rooms & Videos
   // Attached only when user is authenticated (conforming to Firebase security guidelines)
@@ -951,7 +971,128 @@ export default function App() {
       unsubReels();
       unsubVideos();
     };
-  }, [authenticatedUid]);
+  }, [authenticatedUid, refreshTick]);
+
+  // Global Pull-to-Refresh handler: wakes Firestore network, refreshes Solo Live, Party Rooms,
+  // Rankings, User Profile/Wallet/Levels, and notifies the active screen to re-fetch fresh data.
+  const handleGlobalAppRefresh = useCallback(async (): Promise<PullToRefreshResult> => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return { offline: true, message: 'No internet connection' };
+    }
+
+    try {
+      // 1. Recover Firestore network transport in case mobile/Wi-Fi briefly stalled
+      await enableNetwork(db).catch(() => {});
+
+      // 2. Refresh real-time backend live streams, party rooms & rankings in parallel
+      const [streams, rooms, rankings] = await Promise.all([
+        liveAndRoomService.fetchActiveStreams().catch(() => null),
+        liveAndRoomService.fetchActiveRooms().catch(() => null),
+        liveAndRoomService.fetchTopBroadcasters().catch(() => null),
+      ]);
+
+      if (Array.isArray(streams)) {
+        backendLiveIdsRef.current = new Set(streams.map((s) => s.id));
+        setLiveStreams((prev) => {
+          const mergedMap = new Map<string, LiveStream>();
+          prev.forEach((s) => {
+            if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) mergedMap.set(s.id, s);
+          });
+          streams.forEach((s) => {
+            if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) mergedMap.set(s.id, s);
+          });
+          const byHost = new Map<string, LiveStream>();
+          Array.from(mergedMap.values())
+            .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
+            .forEach((s) => {
+              const hostKey = s.host?.id || s.id;
+              if (!byHost.has(hostKey)) byHost.set(hostKey, s);
+            });
+          return Array.from(byHost.values()).sort(
+            (a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0)
+          );
+        });
+      }
+
+      if (Array.isArray(rooms)) {
+        backendRoomIdsRef.current = new Set(rooms.map((r) => r.id));
+        setPartyRooms((prev) => {
+          const mergedMap = new Map<string, PartyRoom>();
+          prev.forEach((r) => {
+            if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+          });
+          rooms.forEach((r) => {
+            if (!endedRoomIdsRef.current.has(r.id)) mergedMap.set(r.id, r);
+          });
+          return Array.from(mergedMap.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+        });
+      }
+
+      if (rankings && Array.isArray(rankings.broadcasters)) {
+        setTopBroadcasters(rankings.broadcasters);
+      }
+
+      // 3. Force-refresh authenticated user profile from Firestore server
+      if (authenticatedUid) {
+        try {
+          const userDocRef = doc(db, 'users', authenticatedUid);
+          const snap = await getDocFromServer(userDocRef).catch(() => getDoc(userDocRef));
+          if (snap.exists()) {
+            const mapped = mapFirestoreUserToProfile(snap.data() as FirestoreUserData, auth.currentUser);
+            setCurrentUser((prev) => {
+              const merged = { ...prev, ...mapped };
+              saveStoredUserProfile(merged);
+              return merged;
+            });
+          }
+        } catch {
+          // ignore transient profile fetch errors
+        }
+      }
+
+      // 4. If user is inside an active Solo Live or Party Room, refresh its snapshot cleanly without disconnecting Agora
+      if (activeLiveStream?.id) {
+        try {
+          const liveRef = doc(db, 'live_streams', activeLiveStream.id);
+          const liveSnap = await getDocFromServer(liveRef).catch(() => getDoc(liveRef));
+          if (liveSnap.exists()) {
+            const data = liveSnap.data() as Partial<LiveStream>;
+            setActiveLiveStream((prev) => (prev && prev.id === activeLiveStream.id ? { ...prev, ...data } : prev));
+          }
+        } catch {
+          // keep active stream intact
+        }
+      }
+
+      if (activeAudioRoom?.id) {
+        try {
+          const roomRef = doc(db, 'party_rooms', activeAudioRoom.id);
+          const roomSnap = await getDocFromServer(roomRef).catch(() => getDoc(roomRef));
+          if (roomSnap.exists()) {
+            const data = roomSnap.data() as Partial<PartyRoom>;
+            setActiveAudioRoom((prev) => (prev && prev.id === activeAudioRoom.id ? { ...prev, ...data } : prev));
+          }
+        } catch {
+          // keep active room intact
+        }
+      }
+
+      // 5. Re-bind real-time Firestore listeners & notify individual screens (Profile, Rankings, etc.)
+      setRefreshTick((n) => n + 1);
+      window.dispatchEvent(
+        new CustomEvent('lenzo:app-refresh', {
+          detail: { screen: currentScreen, timestamp: Date.now() },
+        })
+      );
+
+      return { message: 'Refreshed' };
+    } catch {
+      return {
+        offline: typeof navigator !== 'undefined' && navigator.onLine === false,
+        message: typeof navigator !== 'undefined' && navigator.onLine === false ? 'No internet connection' : 'Refreshed',
+      };
+    }
+  }, [authenticatedUid, activeLiveStream?.id, activeAudioRoom?.id, currentScreen]);
 
   // Merge primary `reels` collection + paginated pages + legacy `posts` without duplicates
   useEffect(() => {
@@ -1211,14 +1352,23 @@ export default function App() {
       ...newRoom.host,
       id: activeUid,
     };
-    const normalizedSeats = Array.isArray(newRoom.seats)
-      ? newRoom.seats.map((seat, idx) =>
-          seat && (idx === 0 || seat.id === newRoom.host.id) ? normalizedHost : seat
-        )
-      : [normalizedHost, ...Array((newRoom.maxSeats === 16 ? 16 : 8) - 1).fill(null)];
+    const safeMaxSeats = clampPartyMaxSeatsForHostLevel(newRoom.maxSeats, normalizedHost.level);
+    const normalizedSeats: (UserProfile | null)[] = Array(safeMaxSeats).fill(null);
+    if (Array.isArray(newRoom.seats)) {
+      for (let idx = 0; idx < Math.min(safeMaxSeats, newRoom.seats.length); idx++) {
+        const seat = newRoom.seats[idx];
+        if (seat && !isSeatLockedByHostLevel(idx, normalizedHost.level)) {
+          normalizedSeats[idx] = idx === 0 || seat.id === newRoom.host.id ? normalizedHost : seat;
+        }
+      }
+    }
+    if (!normalizedSeats[0]) {
+      normalizedSeats[0] = normalizedHost;
+    }
 
     const normalizedRoom: PartyRoom = {
       ...newRoom,
+      maxSeats: safeMaxSeats,
       host: normalizedHost,
       seats: normalizedSeats,
       startTime: newRoom.startTime || Date.now(),
@@ -1614,7 +1764,8 @@ export default function App() {
   // Full Screen Live Broadcast View
   if (currentScreen === 'live_active' && activeLiveStream) {
     return (
-      <div className="relative w-full h-screen bg-black">
+      <PullToRefresh onRefresh={handleGlobalAppRefresh}>
+        <div className="relative w-full h-dvh-screen bg-black">
         <ActiveLiveScreen
           stream={activeLiveStream}
           currentUser={currentUser}
@@ -1707,18 +1858,20 @@ export default function App() {
           onRechargeSuccess={handleRechargeSuccess}
         />
         {appToast && (
-          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
+          <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
             {appToast}
           </div>
         )}
-      </div>
+        </div>
+      </PullToRefresh>
     );
   }
 
   // Full Screen Audio Room View
   if (currentScreen === 'audio_room' && activeAudioRoom) {
     return (
-      <div className="relative w-full min-h-screen bg-[#090611]">
+      <PullToRefresh onRefresh={handleGlobalAppRefresh}>
+        <div className="relative w-full min-h-dvh-screen bg-[#060212]">
         <AudioRoomScreen
           room={activeAudioRoom}
           currentUser={currentUser}
@@ -1792,16 +1945,17 @@ export default function App() {
           onRechargeSuccess={handleRechargeSuccess}
         />
         {appToast && (
-          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
+          <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
             {appToast}
           </div>
         )}
-      </div>
+        </div>
+      </PullToRefresh>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#090611] text-white flex flex-col md:flex-row antialiased selection:bg-[#F328D5]/30">
+    <div className="min-h-dvh-screen w-full bg-[#090611] text-white flex flex-col md:flex-row antialiased selection:bg-[#F328D5]/30">
       
       {/* Desktop Persistent Left Sidebar (Visible on md: and up) */}
       <DesktopSidebar
@@ -1833,9 +1987,10 @@ export default function App() {
       />
 
       {/* Main Responsive Application Area */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0 bg-[#090611] overflow-x-hidden relative">
-        {/* Primary Screen Render Router */}
-        <main className="flex-1 w-full">
+      <div className="flex-1 flex flex-col min-h-dvh-screen min-w-0 bg-[#090611] overflow-x-clip relative">
+        {/* Primary Screen Render Router wrapped with Universal Pull-to-Refresh */}
+        <PullToRefresh onRefresh={handleGlobalAppRefresh}>
+          <main className="flex-1 w-full">
           {currentScreen === 'home' && (
             <HomeScreen
               liveStreams={visibleLiveStreams}
@@ -2042,7 +2197,8 @@ export default function App() {
             />
           )}
 
-        </main>
+          </main>
+        </PullToRefresh>
 
         {/* Mobile Fixed Bottom Navigation Bar (7 Buttons: Home, Rooms, Store, +, Videos, Chat, Profile) */}
         <BottomNav

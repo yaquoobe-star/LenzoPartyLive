@@ -154,11 +154,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   return (
-    <div className="w-full pb-20 sm:pb-12 animate-fade-in select-none">
-      <div className="max-w-2xl mx-auto px-3.5 sm:px-6 pt-3 space-y-4">
+    <div className="w-full pb-24 sm:pb-12 animate-fade-in select-none">
+      <div className="max-w-2xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-4">
         {/* Toast Alert */}
         {toastMessage && (
-          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[140] bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 max-w-[90vw] text-center">
+          <div className="fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[140] bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 max-w-[90vw] text-center">
             {toastMessage}
           </div>
         )}
@@ -611,7 +611,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {/* About Lenzo Party Live */}
           <div
             onClick={() =>
-              showToast(`Lenzo Party Live v1.0.0 (${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`)
+              showToast(`Lenzo Party Live v1.0.2 (Build 3 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`)
             }
             className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group"
           >
@@ -620,7 +620,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span className="text-sm font-semibold text-white">About Lenzo Party Live</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[#B9AECF]">v1.0.0 (Web &amp; Android)</span>
+              <span className="text-xs text-[#B9AECF]">v1.0.2 (Build 3)</span>
               <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
             </div>
           </div>

@@ -1459,10 +1459,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   const seconds = secondsRemaining % 60;
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex flex-col justify-between select-none animate-fade-in font-sans">
+    <div className="relative w-full h-dvh-screen bg-black overflow-hidden flex flex-col justify-between select-none animate-fade-in font-sans">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none flex items-center gap-1.5 border border-white/20">
+        <div className="absolute top-[calc(var(--safe-top)+6.25rem)] left-1/2 -translate-x-1/2 z-50 bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 animate-fade-in pointer-events-none flex items-center gap-1.5 border border-white/20 max-w-[90vw] text-center">
           <span>{toastMessage}</span>
         </div>
       )}
@@ -1911,7 +1911,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           {/* ========================================================
               TIKTOK TUG-OF-WAR PROGRESS BAR ACROSS TOP
              ======================================================== */}
-          <div className="absolute top-16 sm:top-18 left-3 right-3 z-30 pointer-events-none">
+          <div className="absolute top-[calc(var(--safe-top)+6.5rem)] left-3 right-3 z-30 pointer-events-none">
             {/* Center Battle Timer & Glowing VS Emblem */}
             <div className="flex items-center justify-center mb-1">
               <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white font-mono text-[11px] font-black shadow-xl">
@@ -1983,7 +1983,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 />
 
                 {hasWebcamStream && (
-                  <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
+                  <div className="absolute top-[calc(var(--safe-top)+6.75rem)] right-3 sm:right-4 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
                     {/* Real Device Camera Mode & Instant Rotate Button */}
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[11px] font-bold shadow-lg">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -2181,7 +2181,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
               {/* Status Overlay: Real-Time Stream Status + Tap to Unmute Audio */}
               {hasRemoteAgoraStream && (
-                <div className="absolute top-20 right-4 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
+                <div className="absolute top-[calc(var(--safe-top)+6.75rem)] right-3 sm:right-4 z-20 flex flex-col items-end gap-1.5 pointer-events-auto">
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/40 text-emerald-400 text-[11px] font-bold shadow-lg">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span>LIVE • Real-Time Stream</span>
@@ -2419,12 +2419,12 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       )}
 
       {/* Top Header Bar & Level Indicator */}
-      <div className="relative z-30 flex flex-col p-3 sm:p-5 pt-safe gap-2">
-        <div className="flex items-center justify-between gap-2 min-w-0">
+      <div className="relative z-30 flex flex-col px-3 sm:px-5 safe-pt-3 pb-1.5 gap-2">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2 min-w-0">
           {/* Host Profile Info Pill */}
           <div 
             onClick={() => onSelectUser(stream.host)}
-            className="flex items-center gap-1.5 min-w-0 max-w-[54%] bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-2 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg"
+            className="flex items-center gap-1.5 flex-1 min-w-0 max-w-[58%] sm:max-w-[54%] bg-black/55 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-2 py-1 cursor-pointer hover:bg-black/70 transition-colors shadow-lg"
           >
             <div className="shrink-0">
               <AvatarWithFrame
@@ -2434,7 +2434,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 size="sm"
               />
             </div>
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 flex-1">
               <span className="text-xs font-bold text-white leading-tight flex items-center gap-1 min-w-0">
                 <span className="truncate">{stream.host.name}</span>
                 {isActualHost && (
@@ -2458,7 +2458,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                   onToggleFollow?.(stream.host.id);
                   showToast(nextFollow ? `Followed ${stream.host.name}` : `Unfollowed ${stream.host.name}`);
                 }}
-                className={`ml-0.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95 shrink-0 ${
+                className={`ml-0.5 px-2 sm:px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95 shrink-0 ${
                   isFollowing
                     ? 'bg-white/20 text-white'
                     : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/30'
@@ -2470,7 +2470,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
           </div>
 
           {/* Right Action Controls (Exit / End Broadcast X is always locked at top-right!) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* Real-Time Top Viewers Avatar Stack + Viewer Count Pill */}
             <div className="flex items-center gap-1">
               {viewersList.length > 0 && (
@@ -2659,7 +2659,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       </div>
 
       {/* Bottom Control Section */}
-      <div className="relative z-30 p-3 sm:p-4 pb-safe bg-gradient-to-t from-black via-black/90 to-transparent">
+      <div className="relative z-30 px-3 sm:px-4 pt-3 safe-pb-3 bg-gradient-to-t from-black via-black/90 to-transparent">
         {/* PK Quick Support Selector when Battle is Live */}
         {activePKSession && host1 && host2 && (
           <div className="flex items-center justify-between gap-3 mb-3 max-w-xl mx-auto">
