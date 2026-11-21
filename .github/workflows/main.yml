@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.12.0
 
       - name: Setup Java JDK
         id: setup-java
@@ -116,7 +116,7 @@ jobs:
           s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 6', s, count=1, flags=re.M)
           s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.5"', s, count=1, flags=re.M)
           if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+6\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.5"\s*$', s, re.M):
-              print("::error::Could not enforce Android versionCode 6 / versionName 1.0.4")
+              print("::error::Could not enforce Android versionCode 6 / versionName 1.0.5")
               sys.exit(1)
           p.write_text(s)
           print("Enforced Android versionName 1.0.5 and versionCode 6.")

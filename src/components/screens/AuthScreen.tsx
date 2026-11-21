@@ -42,7 +42,7 @@ import {
 import { auth } from '../../firebase';
 import { UserProfile } from '../../types';
 
-export type AuthSubScreen = 'welcome_back' | 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification' | 'email_otp';
+export type AuthSubScreen = 'welcome_back' | 'welcome' | 'login' | 'signup' | 'forgot_password' | 'verification' | 'email_otp' | 'complete_profile';
 
 interface AuthScreenProps {
   onSuccess: (profile: UserProfile) => void;
@@ -104,6 +104,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [verificationSent, setVerificationSent] = useState(false);
   const [emailOtpChallenge, setEmailOtpChallenge] = useState('');
   const [emailOtpCode, setEmailOtpCode] = useState('');
+  const [emailOtpVerified, setEmailOtpVerified] = useState(false);
 
   useEffect(() => {
     setSavedAccounts(getSavedDeviceAccounts());
@@ -215,17 +216,46 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const cleanName = fullName.trim();
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanName || cleanName.length < 2) {
-      setErrorMessage('Please enter your full name (at least 2 characters).');
-      return;
-    }
-    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    if (!cleanEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
-    if (!password || password.length < 6) {
+
+    setIsLoading(true);
+    try {
+      const result = await sendEmailOtp(cleanEmail);
+      setEmail(cleanEmail);
+      setRegisteredEmail(cleanEmail);
+      setEmailOtpChallenge(result.challenge);
+      setEmailOtpCode('');
+      setEmailOtpVerified(false);
+      setSuccessMessage('Verification code sent. Check your inbox.');
+      setSubScreen('email_otp');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Could not send verification code.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCompleteProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanName = fullName.trim();
+    const cleanEmail = (registeredEmail || email).trim().toLowerCase();
+    if (!emailOtpVerified) {
+      setErrorMessage('Please verify your email with the OTP first.');
+      setSubScreen('signup');
+      return;
+    }
+    if (cleanName.length < 2) {
+      setErrorMessage('Please enter your full name (at least 2 characters).');
+      return;
+    }
+    if (password.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
       return;
     }
@@ -240,14 +270,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsLoading(true);
     try {
-      const result = await sendEmailOtp(cleanEmail);
-      setEmailOtpChallenge(result.challenge);
-      setEmailOtpCode('');
-      setRegisteredEmail(cleanEmail);
-      setSuccessMessage('Verification code sent. Check your inbox.');
-      setSubScreen('email_otp');
+      const { profile } = await registerWithEmail({
+        fullName: cleanName,
+        email: cleanEmail,
+        password,
+        profileImage: selectedAvatar,
+        emailOtpVerified: true,
+      });
+      setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
+      setTimeout(() => onSuccess(profile), 450);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Could not send verification code.');
+      setErrorMessage(err.message || 'Account creation failed.');
     } finally {
       setIsLoading(false);
     }
@@ -264,17 +297,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setIsLoading(true);
     try {
       await verifyEmailOtp(cleanEmail, emailOtpCode, emailOtpChallenge);
-      const { profile } = await registerWithEmail({
-        fullName: fullName.trim(),
-        email: cleanEmail,
-        password,
-        profileImage: selectedAvatar,
-        emailOtpVerified: true,
-      });
-      setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
-      setTimeout(() => onSuccess(profile), 450);
+      setEmailOtpVerified(true);
+      setSuccessMessage('Email verified. Now complete your profile.');
+      setSubScreen('complete_profile');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Verification or account creation failed.');
+      setErrorMessage(err.message || 'Email verification failed.');
     } finally {
       setIsLoading(false);
     }
@@ -702,215 +729,99 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
            ======================================================== */}
         {subScreen === 'signup' && (
           <div className="flex flex-col animate-fade-in">
-            {/* Header with Back button */}
             <div className="flex items-center justify-between mb-4">
-              <button
-                type="button"
-                onClick={() => navigateTo('welcome')}
-                className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#B9AECF] hover:text-white transition-colors"
-              >
+              <button type="button" onClick={() => navigateTo('welcome')} className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#B9AECF]">
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <h2 className="text-lg font-black text-white font-display">Create Account</h2>
               <div className="w-9" />
             </div>
-
-            <p className="text-xs text-[#B9AECF] text-center mb-5">
-              Enter your details to create your Lenzo Party Live profile
-            </p>
-
-            {/* Optional Avatar Picker */}
-            <div className="flex flex-col items-center mb-5">
-              <div className="relative mb-2">
-                <img
-                  src={selectedAvatar}
-                  alt="Selected Avatar"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-[#F328D5] shadow-lg shadow-pink-900/40"
-                />
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#8B20FF] border-2 border-[#160C25] flex items-center justify-center text-white text-[10px]">
-                  <Camera className="w-3 h-3" />
+            <p className="text-xs text-[#B9AECF] text-center mb-6">Start by verifying your email address.</p>
+            <form onSubmit={handleEmailSignUp} className="w-full space-y-4">
+              <div>
+                <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Email Address</label>
+                <div className="relative flex items-center">
+                  <Mail className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
+                  <input type="email" required autoComplete="email" placeholder="Enter your email address" value={email}
+                    onChange={(e) => setEmail(e.target.value.trimStart())}
+                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3.5 text-sm text-white placeholder-[#B9AECF]/40 outline-none" />
                 </div>
               </div>
-              <span className="text-[10px] text-[#9E97AA] mb-2">Choose an Avatar (Optional):</span>
+              <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
+                {isLoading ? 'Sending OTP...' : 'Send Verification Code'}
+              </button>
+            </form>
+            <div className="w-full flex items-center my-4">
+              <div className="flex-1 border-t border-white/10" />
+              <span className="px-3 text-[10px] text-[#B9AECF] uppercase">or</span>
+              <div className="flex-1 border-t border-white/10" />
+            </div>
+            <button type="button" onClick={() => handleGoogleAuth()} disabled={isGoogleLoading} className="w-full py-2.5 rounded-2xl bg-[#211333] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3">
+              <span>Continue with Google</span>
+            </button>
+            <div className="mt-5 text-center text-xs text-[#B9AECF]">
+              <span>Already have an account? </span>
+              <button type="button" onClick={() => navigateTo('login')} className="text-[#F328D5] font-bold">Log In</button>
+            </div>
+          </div>
+        )}
+
+        {subScreen === 'complete_profile' && (
+          <div className="flex flex-col animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <button type="button" onClick={() => navigateTo('email_otp')} className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#B9AECF]">
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <h2 className="text-lg font-black text-white font-display">Complete Profile</h2>
+              <div className="w-9" />
+            </div>
+            <p className="text-xs text-[#B9AECF] text-center mb-4">Verified: <span className="text-[#FFC84A]">{registeredEmail}</span></p>
+            <div className="flex flex-col items-center mb-5">
+              <img src={selectedAvatar} alt="Selected Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-[#F328D5] mb-2" />
+              <span className="text-[10px] text-[#9E97AA] mb-2">Choose an Avatar (Optional)</span>
               <div className="flex items-center gap-2">
                 {DEFAULT_AVATARS.map((av, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setSelectedAvatar(av)}
-                    className={`w-8 h-8 rounded-full overflow-hidden border-2 transition-transform ${
-                      selectedAvatar === av ? 'border-[#FFC84A] scale-110 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}
-                  >
+                  <button key={idx} type="button" onClick={() => setSelectedAvatar(av)} className={`w-8 h-8 rounded-full overflow-hidden border-2 ${selectedAvatar === av ? 'border-[#FFC84A] scale-110' : 'border-transparent opacity-60'}`}>
                     <img src={av} alt={`Avatar ${idx}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
             </div>
-
-            {/* Sign Up Form */}
-            <form onSubmit={handleEmailSignUp} className="space-y-3.5">
-              {/* Full Name */}
+            <form onSubmit={handleCompleteProfile} className="space-y-3.5">
               <div>
                 <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Full Name</label>
-                <div className="relative flex items-center">
-                  <UserIcon className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter your full name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors"
-                  />
+                <div className="relative flex items-center"><UserIcon className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
+                  <input type="text" required minLength={2} autoComplete="name" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3 text-sm text-white placeholder-[#B9AECF]/40 outline-none" />
                 </div>
               </div>
-
-              {/* Email Address */}
-              <div>
-                <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Email Address</label>
-                <div className="relative flex items-center">
-                  <Mail className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
               <div>
                 <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Password</label>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    placeholder="Create a password (min 6 characters)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-11 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 text-[#B9AECF] hover:text-white"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div className="relative flex items-center"><Lock className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
+                  <input type={showPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" placeholder="Create a password (min 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-11 py-3 text-sm text-white placeholder-[#B9AECF]/40 outline-none" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 text-[#B9AECF]">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                 </div>
               </div>
-
-              {/* Confirm Password */}
               <div>
                 <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Confirm Password</label>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    placeholder="Re-enter password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-11 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3.5 text-[#B9AECF] hover:text-white"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div className="relative flex items-center"><Lock className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
+                  <input type={showConfirmPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" placeholder="Re-enter password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-11 py-3 text-sm text-white placeholder-[#B9AECF]/40 outline-none" />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3.5 text-[#B9AECF]">{showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                 </div>
               </div>
-
-              {/* Terms Checkbox */}
               <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="agreeTerms"
-                  checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="rounded border-white/20 bg-[#211333] text-[#F328D5] focus:ring-0 cursor-pointer"
-                />
-                <label htmlFor="agreeTerms" className="text-[11px] text-[#B9AECF] cursor-pointer">
-                  I agree to the{' '}
-                  <button 
-                    type="button" 
-                    onClick={() => setShowTermsModal(true)} 
-                    className="text-[#F328D5] underline"
-                  >
-                    Terms
-                  </button>{' '}
-                  and{' '}
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPrivacyModal(true)} 
-                    className="text-[#F328D5] underline"
-                  >
-                    Privacy Policy
-                  </button>
-                </label>
+                <input type="checkbox" id="agreeTermsAfterOtp" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="rounded border-white/20 bg-[#211333] text-[#F328D5]" />
+                <label htmlFor="agreeTermsAfterOtp" className="text-[11px] text-[#B9AECF]">I agree to the Terms and Privacy Policy</label>
               </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 mt-4"
-              >
-                {isLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>Create Account</span>
-                )}
+              <button type="submit" disabled={isLoading || !emailOtpVerified} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
+                {isLoading ? 'Creating Account...' : 'Create Account & Enter App'}
               </button>
             </form>
-
-            {/* Divider */}
-            <div className="w-full flex items-center my-4">
-              <div className="flex-1 border-t border-white/10" />
-              <span className="px-3 text-[10px] text-[#B9AECF] uppercase tracking-wider">or</span>
-              <div className="flex-1 border-t border-white/10" />
-            </div>
-
-            {/* Google alternative */}
-            <button
-              type="button"
-              onClick={() => handleGoogleAuth()}
-              disabled={isGoogleLoading}
-              className="w-full py-2.5 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/10 text-white text-xs font-semibold flex items-center justify-center gap-3 transition-colors active:scale-98"
-            >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z" />
-                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z" />
-                <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12 0 12s.7 2.3 1.9 4.7l3.7-2.9z" />
-                <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z" />
-              </svg>
-              <span>Continue with Google</span>
-            </button>
-
-            {/* Switch to Login */}
-            <div className="mt-5 text-center text-xs text-[#B9AECF]">
-              <span>Already have an account? </span>
-              <button
-                type="button"
-                onClick={() => navigateTo('login')}
-                className="text-[#F328D5] font-bold hover:underline"
-              >
-                Log In
-              </button>
-            </div>
           </div>
         )}
 
-        {/* ========================================================
-            SCREEN 3: EMAIL LOGIN SCREEN
-           ======================================================== */}
         {subScreen === 'login' && (
           <div className="flex flex-col animate-fade-in">
             {/* Header */}
@@ -1134,7 +1045,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl px-4 py-4 text-center tracking-[0.5em] text-xl font-bold text-white outline-none"
               />
               <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
-                {isLoading ? 'Verifying...' : 'Verify & Create Account'}
+                {isLoading ? 'Verifying...' : 'Verify Email'}
               </button>
             </form>
             <button type="button" disabled={isLoading} onClick={async () => {
@@ -1143,7 +1054,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               catch (err: any) { setErrorMessage(err.message || 'Could not resend code.'); }
               finally { setIsLoading(false); }
             }} className="mt-4 text-xs text-[#F328D5] font-semibold disabled:opacity-50">Resend Code</button>
-            <button type="button" onClick={() => navigateTo('signup')} className="mt-4 text-xs text-[#B9AECF]">Back to registration details</button>
+            <button type="button" onClick={() => navigateTo('signup')} className="mt-4 text-xs text-[#B9AECF]">Change email address</button>
           </div>
         )}
 
