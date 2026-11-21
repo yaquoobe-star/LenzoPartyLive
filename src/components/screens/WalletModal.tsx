@@ -73,6 +73,7 @@ import {
   DEFAULT_PAYOUT_METHODS
 } from '../../services/walletService';
 import { auth } from '../../firebase';
+import { subscribeActiveAgencies, DualAgencyRecord } from '../../services/agencyService';
 
 function sanitizePhoneDigits(raw: string): string {
   return (raw || '').replace(/[^0-9]/g, '');
@@ -112,6 +113,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const [settings, setSettings] = useState<WalletSettings>(DEFAULT_WALLET_SETTINGS);
   const [coinPackages, setCoinPackages] = useState<WalletRechargePackage[]>(DEFAULT_COIN_PACKAGES);
   const [coinSellerAgencies, setCoinSellerAgencies] = useState<CoinSellerAgency[]>(DEFAULT_COIN_SELLER_AGENCIES);
+  const [approvedDualCoinSellers, setApprovedDualCoinSellers] = useState<DualAgencyRecord[]>([]);
 
   // Online Purchasing Coming Soon & Offline Agency Directory State
   const [comingSoonPkg, setComingSoonPkg] = useState<WalletRechargePackage | null>(null);
@@ -226,6 +228,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
     const unsubPackages = subscribeCoinPackages((p) => setCoinPackages(p));
     const unsubAgencies = subscribeCoinSellerAgencies(isAdminUser, (a) => setCoinSellerAgencies(a));
+    const unsubApprovedDual = subscribeActiveAgencies('coin_seller', (list) => setApprovedDualCoinSellers(list));
     const unsubWallet = subscribeUserWallet(currentUser.id, (w) => setWalletData(w));
     const unsubEarnings = subscribeUserEarnings(currentUser.id, (e) => setEarningsData(e));
     const unsubWalletTx = subscribeTransactions(currentUser.id, 'wallet', (txs) => setWalletTransactions(txs));
@@ -238,6 +241,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       unsubSettings();
       unsubPackages();
       unsubAgencies();
+      unsubApprovedDual();
       unsubWallet();
       unsubEarnings();
       unsubWalletTx();
@@ -246,10 +250,32 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     };
   }, [isOpen, currentUser.id, isAdminUser]);
 
-  const activeAgencies = useMemo(
-    () => coinSellerAgencies.filter((a) => a.enabled),
-    [coinSellerAgencies]
-  );
+  const activeAgencies = useMemo(() => {
+    const mappedDual: CoinSellerAgency[] = approvedDualCoinSellers.map((a) => ({
+      id: a.id,
+      name: a.name,
+      ownerName: a.ownerName,
+      agencyCode: a.agencyCode,
+      city: 'Official Seller',
+      country: 'Verified',
+      whatsapp: a.whatsappNumber,
+      phone: a.whatsappNumber,
+      paymentMethods: ['JazzCash', 'EasyPaisa', 'Bank Transfer'],
+      workingHours: a.isOnline ? 'Online Now • Instant Transfer' : 'Contact via WhatsApp',
+      minCoinsOrder: 500,
+      rateNote: a.description || 'Verified Coin Seller Agency',
+      badge: 'VERIFIED SELLER',
+      isVerified: a.isVerified,
+      isOnline: a.isOnline,
+      enabled: a.status === 'active',
+    }));
+    const existingIds = new Set(mappedDual.map((m) => m.id));
+    const combined = [
+      ...mappedDual,
+      ...coinSellerAgencies.filter((a) => a.enabled && !existingIds.has(a.id)),
+    ];
+    return combined;
+  }, [approvedDualCoinSellers, coinSellerAgencies]);
 
   const agencyCities = useMemo(() => {
     const unique = Array.from(new Set(activeAgencies.map((a) => a.city).filter(Boolean)));

@@ -784,6 +784,150 @@
         "requestedAt": { "type": "string" }
       },
       "required": ["userId", "reason", "status"]
+    },
+    "AgencyApplication": {
+      "title": "AgencyApplication",
+      "description": "KYC application submitted by a user to become a Coin Seller Agency or Host Agency (PII restricted to applicant & admin)",
+      "type": "object",
+      "properties": {
+        "applicantUid": { "type": "string", "maxLength": 128 },
+        "applicantDisplayId": { "type": "string", "maxLength": 32 },
+        "agencyType": { "type": "string", "enum": ["coin_seller", "host_agency"] },
+        "fullName": { "type": "string", "maxLength": 80 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "username": { "type": "string", "maxLength": 60 },
+        "phoneNumber": { "type": "string", "maxLength": 32 },
+        "whatsappNumber": { "type": "string", "maxLength": 32 },
+        "idCardNumber": { "type": "string", "maxLength": 40 },
+        "description": { "type": "string", "maxLength": 600 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminNote": { "type": "string", "maxLength": 300 },
+        "createdAgencyId": { "type": "string", "maxLength": 140 },
+        "createdAt": { "type": "string" },
+        "reviewedAt": { "type": "string" }
+      },
+      "required": ["applicantUid", "applicantDisplayId", "agencyType", "fullName", "agencyName", "username", "phoneNumber", "whatsappNumber", "idCardNumber", "description", "status"]
+    },
+    "DualAgency": {
+      "title": "DualAgency",
+      "description": "Approved Coin Seller Agency (cs_{ownerUid}) or Host Agency (ha_{ownerUid}) public directory profile and balance metadata (no CNIC or PIN)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 140 },
+        "agencyType": { "type": "string", "enum": ["coin_seller", "host_agency"] },
+        "name": { "type": "string", "maxLength": 80 },
+        "agencyCode": { "type": "string", "maxLength": 24 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "ownerName": { "type": "string", "maxLength": 80 },
+        "ownerUsername": { "type": "string", "maxLength": 60 },
+        "ownerDisplayId": { "type": "string", "maxLength": 32 },
+        "ownerAvatar": { "type": "string", "maxLength": 1500 },
+        "whatsappNumber": { "type": "string", "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 600 },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "isVerified": { "type": "boolean" },
+        "isOnline": { "type": "boolean" },
+        "coinBalance": { "type": "number" },
+        "totalTransferredCoins": { "type": "number" },
+        "totalHosts": { "type": "number" },
+        "hasPin": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "agencyType", "name", "agencyCode", "ownerUid", "ownerName", "whatsappNumber", "status", "isVerified"]
+    },
+    "AgencySecretPin": {
+      "title": "AgencySecretPin",
+      "description": "Owner-only hashed 4-5 digit personal transfer PIN vault for Coin Seller Agency",
+      "type": "object",
+      "properties": {
+        "pinHash": { "type": "string", "maxLength": 128 },
+        "pinSalt": { "type": "string", "maxLength": 64 },
+        "pinLength": { "type": "number", "minimum": 4, "maximum": 5 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["pinHash", "pinSalt", "pinLength"]
+    },
+    "AgencyCoinTransfer": {
+      "title": "AgencyCoinTransfer",
+      "description": "Immutable audit record of a Coin Seller Agency coin transfer to a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "agencyId": { "type": "string", "maxLength": 140 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "recipientUid": { "type": "string", "maxLength": 128 },
+        "recipientName": { "type": "string", "maxLength": 80 },
+        "recipientUsername": { "type": "string", "maxLength": 60 },
+        "recipientDisplayId": { "type": "string", "maxLength": 32 },
+        "amount": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "note": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string" },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["agencyId", "agencyName", "senderUid", "recipientUid", "amount", "balanceAfter"]
+    },
+    "AgencyHostRequest": {
+      "title": "AgencyHostRequest",
+      "description": "Host join request and negotiated contract/deal terms (commission %, target coins, monthly hours) with a Host Agency",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "agencyId": { "type": "string", "maxLength": 140 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "agencyOwnerUid": { "type": "string", "maxLength": 128 },
+        "agencyWhatsapp": { "type": "string", "maxLength": 32 },
+        "hostUid": { "type": "string", "maxLength": 128 },
+        "hostName": { "type": "string", "maxLength": 80 },
+        "hostUsername": { "type": "string", "maxLength": 60 },
+        "hostDisplayId": { "type": "string", "maxLength": 32 },
+        "hostAvatar": { "type": "string", "maxLength": 1500 },
+        "hostWhatsapp": { "type": "string", "maxLength": 32 },
+        "message": { "type": "string", "maxLength": 400 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "removed", "cancelled"] },
+        "dealCommissionPercent": { "type": "number" },
+        "dealTargetCoins": { "type": "number" },
+        "dealTargetHours": { "type": "number" },
+        "dealNotes": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["agencyId", "agencyName", "agencyOwnerUid", "hostUid", "hostName", "status"]
+    },
+    "AgencyCoinOrder": {
+      "title": "AgencyCoinOrder",
+      "description": "Buyer coin purchase order & payment slip submitted to an active Coin Seller Agency (private to buyer, agency owner, and admin)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "agencyId": { "type": "string", "maxLength": 140 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "agencyCode": { "type": "string", "maxLength": 24 },
+        "agencyOwnerUid": { "type": "string", "maxLength": 128 },
+        "agencyWhatsapp": { "type": "string", "maxLength": 32 },
+        "buyerUid": { "type": "string", "maxLength": 128 },
+        "buyerName": { "type": "string", "maxLength": 80 },
+        "buyerUsername": { "type": "string", "maxLength": 60 },
+        "buyerDisplayId": { "type": "string", "maxLength": 32 },
+        "buyerAvatar": { "type": "string", "maxLength": 1500 },
+        "buyerWhatsapp": { "type": "string", "maxLength": 32 },
+        "coinsRequested": { "type": "number" },
+        "coinsSent": { "type": "number" },
+        "paidAmountText": { "type": "string", "maxLength": 60 },
+        "paymentMethod": { "type": "string", "maxLength": 40 },
+        "transactionRef": { "type": "string", "maxLength": 120 },
+        "paymentSlipUrl": { "type": "string", "maxLength": 350000 },
+        "buyerNote": { "type": "string", "maxLength": 300 },
+        "sellerNote": { "type": "string", "maxLength": 300 },
+        "confirmedTransferId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "rejected", "cancelled"] },
+        "createdAt": { "type": "string" },
+        "createdAtMillis": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["agencyId", "agencyName", "agencyOwnerUid", "buyerUid", "buyerName", "coinsRequested", "paymentMethod", "status"]
     }
   },
   "firestore": {
@@ -946,6 +1090,30 @@
     "/deletion_requests/{uid}": {
       "schema": "AccountDeletionRequest",
       "description": "User-initiated account deletion audit requests"
+    },
+    "/agency_applications/{applicationId}": {
+      "schema": "AgencyApplication",
+      "description": "Coin Seller and Host Agency KYC applications routed to Admin for review"
+    },
+    "/agencies/{agencyId}": {
+      "schema": "DualAgency",
+      "description": "Approved active Coin Seller Agencies (cs_{uid}) and Host Agencies (ha_{uid})"
+    },
+    "/agencies/{agencyId}/secrets/{secretId}": {
+      "schema": "AgencySecretPin",
+      "description": "Owner-only salted SHA-256 secret transfer PIN vault for Coin Seller Agencies"
+    },
+    "/agency_coin_transfers/{transferId}": {
+      "schema": "AgencyCoinTransfer",
+      "description": "Immutable Coin Seller Agency to User coin transfer ledger"
+    },
+    "/agency_host_requests/{requestId}": {
+      "schema": "AgencyHostRequest",
+      "description": "Host join requests and accepted deal contracts for Host Agencies"
+    },
+    "/agency_coin_orders/{orderId}": {
+      "schema": "AgencyCoinOrder",
+      "description": "Buyer coin purchase orders with payment slip proof sent to active Coin Seller Agencies for PIN-confirmed coin delivery"
     }
   }
 }

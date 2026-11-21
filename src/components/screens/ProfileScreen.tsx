@@ -672,6 +672,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         onClose={() => setIsAgencyModalOpen(false)}
         currentUser={currentUser}
         initialMode={agencyModalMode}
+        onSendMessage={onSendMessage}
         onProfileUpdated={(updated) => {
           onUpdateProfile(updated);
           showToast(

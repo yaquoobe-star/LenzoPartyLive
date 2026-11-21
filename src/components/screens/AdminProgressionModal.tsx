@@ -13,6 +13,7 @@ import {
   Save,
   RefreshCw,
   ShoppingBag,
+  Building2,
 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
@@ -28,6 +29,7 @@ import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
 import { VerifiedTick } from '../common/VerifiedBadge';
 import { AdminStoreTab } from './AdminStoreTab';
+import { AdminAgenciesTab } from './AdminAgenciesTab';
 
 interface AdminProgressionModalProps {
   isOpen: boolean;
@@ -35,14 +37,14 @@ interface AdminProgressionModalProps {
   currentUserEmail?: string;
 }
 
-type AdminTab = 'levels' | 'vip' | 'achievements' | 'store' | 'users' | 'audit';
+type AdminTab = 'agencies' | 'levels' | 'vip' | 'achievements' | 'store' | 'users' | 'audit';
 
 export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   isOpen,
   onClose,
   currentUserEmail,
 }) => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('levels');
+  const [activeTab, setActiveTab] = useState<AdminTab>('agencies');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -278,6 +280,7 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
         {/* Navigation Tabs */}
         <div className="px-5 pt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           {([
+            { id: 'agencies', label: 'Agencies', icon: Building2 },
             { id: 'levels', label: 'Levels 0–100', icon: Layers },
             { id: 'vip', label: 'VIP & Super VIP', icon: Crown },
             { id: 'achievements', label: 'Achievements', icon: Award },
@@ -305,7 +308,34 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {loading && !overview ? (
+          {/* Firestore-backed Admin tabs work live independently of REST overview */}
+          {activeTab === 'agencies' ? (
+            (auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' ||
+              currentUserEmail?.toLowerCase() === 'yaquoobe@gmail.com') ? (
+              <AdminAgenciesTab
+                onNotify={(msg) => notify(msg)}
+                onError={(msg) => setError(msg)}
+              />
+            ) : (
+              <div className="py-14 text-center space-y-2 rounded-2xl bg-white/[0.03] border border-white/10 px-4">
+                <Shield className="w-10 h-10 text-rose-400 mx-auto" />
+                <p className="text-sm font-bold text-white">Administrator Authorization Required</p>
+              </div>
+            )
+          ) : activeTab === 'store' ? (
+            (auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' ||
+              currentUserEmail?.toLowerCase() === 'yaquoobe@gmail.com') ? (
+              <AdminStoreTab
+                onNotify={(msg) => notify(msg)}
+                onError={(msg) => setError(msg)}
+              />
+            ) : (
+              <div className="py-14 text-center space-y-2 rounded-2xl bg-white/[0.03] border border-white/10 px-4">
+                <Shield className="w-10 h-10 text-rose-400 mx-auto" />
+                <p className="text-sm font-bold text-white">Administrator Authorization Required</p>
+              </div>
+            )
+          ) : loading && !overview ? (
             <div className="py-16 flex flex-col items-center gap-2 text-[#B9AECF] text-xs">
               <div className="w-8 h-8 border-2 border-[#FFC84A] border-t-transparent rounded-full animate-spin" />
               <span>Verifying Admin Token &amp; Loading Progression Registry...</span>
@@ -708,14 +738,6 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
                     )}
                   </div>
                 </div>
-              )}
-
-              {/* TAB: STORE CATALOG MANAGER */}
-              {activeTab === 'store' && (
-                <AdminStoreTab
-                  onNotify={(msg) => notify(msg)}
-                  onError={(msg) => setError(msg)}
-                />
               )}
 
               {/* TAB: AUDIT LOGS & UNLOCK HISTORY */}

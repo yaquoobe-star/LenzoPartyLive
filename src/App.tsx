@@ -2007,6 +2007,7 @@ export default function App() {
           <main className="flex-1 w-full min-w-0">
           {currentScreen === 'home' && (
             <HomeScreen
+              currentUser={currentUser}
               liveStreams={visibleLiveStreams}
               partyRooms={visiblePartyRooms}
               topHosts={topHostsList}
@@ -2022,6 +2023,7 @@ export default function App() {
               }}
               onOpenMicMenu={handleOpenMicMenu}
               onToggleFollow={handleToggleFollow}
+              onSendMessage={handleSendMessageToUser}
             />
           )}
 

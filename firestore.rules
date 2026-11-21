@@ -43,6 +43,28 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/blocked_users/$(blockerUid + '_' + targetUid));
     }
 
+    function isActiveCoinSellerOwner() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid))
+        && get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.agencyType == 'coin_seller'
+        && get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.status == 'active';
+    }
+
+    function isVerifiedCoinSellerAgencyTransfer(coinDelta) {
+      return isActiveCoinSellerOwner()
+        && coinDelta is number
+        && coinDelta > 0
+        && get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance is number
+        && getAfter(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance is number
+        && getAfter(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance >= 0
+        && getAfter(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance
+           < get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance
+        && coinDelta
+           == (get(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance
+               - getAfter(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid)).data.coinBalance);
+    }
+
     // ========================================================
     // 0. ADMINS COLLECTION (/admins/{uid})
     // ========================================================
@@ -122,9 +144,9 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      // Authenticated users can view creator profiles; list restricted to owner or admin
+      // Authenticated users can view creator profiles; list restricted to owner, active coin seller agency (for recipient lookup), or admin
       allow get: if isSignedIn() && isValidId(uid);
-      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin() || isActiveCoinSellerOwner());
 
       // Only the authenticated user can create their own profile document without privileged flags or preloaded coins
       allow create: if isOwner(uid)
@@ -143,7 +165,8 @@ service cloud.firestore {
       // Action-partitioned updates:
       // 1) Owner updating their own profile with immutable core identity, privileged fields & non-self-creditable coins
       // 2) Authenticated gifter crediting recipient's diamonds balance upward only
-      // 3) Admin override
+      // 3) Verified active Coin Seller Agency crediting recipient's coins atomically against its own deducted agency coinBalance
+      // 4) Admin override
       allow update: if isSignedIn() && isValidId(uid) && isValidUser(incoming()) && (
                       isAdmin()
                       || (
@@ -164,6 +187,13 @@ service cloud.firestore {
                         incoming().diff(existing()).affectedKeys().hasOnly(['diamonds'])
                         && incoming().diamonds is number
                         && (!('diamonds' in existing()) || incoming().diamonds >= existing().diamonds)
+                      )
+                      || (
+                        incoming().diff(existing()).affectedKeys().hasOnly(['coins'])
+                        && incoming().coins is number
+                        && isVerifiedCoinSellerAgencyTransfer(
+                          incoming().coins - (('coins' in existing() && existing().coins is number) ? existing().coins : 0)
+                        )
                       )
                     );
 
@@ -507,7 +537,7 @@ service cloud.firestore {
     }
 
     match /wallets/{uid} {
-      allow get: if (isOwner(uid) || isAdmin()) && isValidId(uid);
+      allow get: if (isOwner(uid) || isAdmin() || isActiveCoinSellerOwner()) && isValidId(uid);
       allow list: if (isOwner(uid) || isAdmin());
       allow create: if isValidId(uid)
                     && isValidWallet(incoming())
@@ -523,6 +553,12 @@ service cloud.firestore {
                           || isVerifiedEarningsConversion(uid, incoming().walletPurchasedCoins)
                         )
                       )
+                      || (
+                        incoming().userId == uid
+                        && (!('totalCoinsSpent' in incoming()) || incoming().totalCoinsSpent == 0)
+                        && isVerifiedCoinSellerAgencyTransfer(incoming().walletPurchasedCoins)
+                        && (!('totalCoinsPurchased' in incoming()) || incoming().totalCoinsPurchased == incoming().walletPurchasedCoins)
+                      )
                     );
       allow update: if isValidId(uid)
                     && isValidWallet(incoming())
@@ -536,6 +572,11 @@ service cloud.firestore {
                           incoming().walletPurchasedCoins <= existing().walletPurchasedCoins
                           || isVerifiedEarningsConversion(uid, incoming().walletPurchasedCoins - existing().walletPurchasedCoins)
                         )
+                      )
+                      || (
+                        incoming().userId == existing().userId
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['userId', 'walletPurchasedCoins', 'totalCoinsPurchased', 'updatedAt'])
+                        && isVerifiedCoinSellerAgencyTransfer(incoming().walletPurchasedCoins - existing().walletPurchasedCoins)
                       )
                     );
       allow delete: if false;
@@ -613,6 +654,11 @@ service cloud.firestore {
                         incoming().userId == request.auth.uid
                         && incoming().category in ['gift_sent', 'earnings_conversion']
                         && (incoming().category != 'gift_sent' || incoming().amount <= 0)
+                      )
+                      || (
+                        incoming().category == 'coin_purchase'
+                        && incoming().amount > 0
+                        && isVerifiedCoinSellerAgencyTransfer(incoming().amount)
                       )
                     );
       allow update, delete: if false;
@@ -1110,6 +1156,324 @@ service cloud.firestore {
                             && (!('email' in incoming()) || (incoming().email is string && incoming().email.size() <= 120))
                             && incoming().reason is string && incoming().reason.size() <= 300;
       allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    // ========================================================
+    // 22. DUAL AGENCY SYSTEM (Coin Seller Agency & Host Agency)
+    // ========================================================
+    function isValidAgencyApplication(data) {
+      return data.keys().hasAll([
+          'applicantUid', 'applicantDisplayId', 'agencyType', 'fullName',
+          'agencyName', 'username', 'phoneNumber', 'whatsappNumber',
+          'idCardNumber', 'description', 'status'
+        ])
+        && data.applicantUid is string && data.applicantUid.size() > 0 && data.applicantUid.size() <= 128
+        && data.applicantDisplayId is string && data.applicantDisplayId.size() > 0 && data.applicantDisplayId.size() <= 32
+        && data.agencyType in ['coin_seller', 'host_agency']
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 80
+        && data.agencyName is string && data.agencyName.size() >= 2 && data.agencyName.size() <= 80
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 60
+        && data.phoneNumber is string && data.phoneNumber.size() >= 7 && data.phoneNumber.size() <= 32
+        && data.whatsappNumber is string && data.whatsappNumber.size() >= 7 && data.whatsappNumber.size() <= 32
+        && data.idCardNumber is string && data.idCardNumber.size() >= 5 && data.idCardNumber.size() <= 40
+        && data.description is string && data.description.size() >= 5 && data.description.size() <= 600
+        && data.status in ['pending', 'approved', 'rejected']
+        && (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 300))
+        && (!('createdAgencyId' in data) || (data.createdAgencyId is string && data.createdAgencyId.size() <= 140));
+    }
+
+    // Strict PII isolation: contains CNIC/ID Card & personal phone -> applicant or Admin only
+    match /agency_applications/{applicationId} {
+      allow get: if isSignedIn()
+                 && isValidId(applicationId)
+                 && (resource.data.applicantUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn()
+                  && (resource.data.applicantUid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(applicationId)
+                    && incoming().applicantUid == request.auth.uid
+                    && incoming().status == 'pending'
+                    && isValidAgencyApplication(incoming());
+      allow update: if isAdmin()
+                    && isValidId(applicationId)
+                    && isValidAgencyApplication(incoming());
+      allow delete: if isAdmin() && isValidId(applicationId);
+    }
+
+    function isValidDualAgency(data, agencyId) {
+      return data.keys().hasAll([
+          'id', 'agencyType', 'name', 'agencyCode', 'ownerUid',
+          'ownerName', 'whatsappNumber', 'status', 'isVerified'
+        ])
+        && !data.keys().hasAny(['idCardNumber', 'pinHash', 'pinSalt'])
+        && data.id == agencyId
+        && data.agencyType in ['coin_seller', 'host_agency']
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.agencyCode is string && data.agencyCode.size() >= 2 && data.agencyCode.size() <= 24
+        && data.ownerUid is string && data.ownerUid.size() > 0 && data.ownerUid.size() <= 128
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 80
+        && (!('ownerUsername' in data) || (data.ownerUsername is string && data.ownerUsername.size() <= 60))
+        && (!('ownerDisplayId' in data) || (data.ownerDisplayId is string && data.ownerDisplayId.size() <= 32))
+        && (!('ownerAvatar' in data) || (data.ownerAvatar is string && data.ownerAvatar.size() <= 1500))
+        && data.whatsappNumber is string && data.whatsappNumber.size() >= 7 && data.whatsappNumber.size() <= 32
+        && (!('description' in data) || (data.description is string && data.description.size() <= 600))
+        && data.status in ['active', 'suspended']
+        && data.isVerified is bool
+        && (!('isOnline' in data) || data.isOnline is bool)
+        && (!('coinBalance' in data) || (data.coinBalance is number && data.coinBalance >= 0))
+        && (!('totalTransferredCoins' in data) || (data.totalTransferredCoins is number && data.totalTransferredCoins >= 0))
+        && (!('totalHosts' in data) || (data.totalHosts is number && data.totalHosts >= 0))
+        && (!('hasPin' in data) || data.hasPin is bool);
+    }
+
+    match /agencies/{agencyId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin()
+                    && isValidId(agencyId)
+                    && isValidDualAgency(incoming(), agencyId);
+      allow update: if isSignedIn()
+                    && isValidId(agencyId)
+                    && isValidDualAgency(incoming(), agencyId)
+                    && (
+                      isAdmin()
+                      || (
+                        // Owner updating agency WhatsApp, description, name, online status, or hasPin flag
+                        existing().ownerUid == request.auth.uid
+                        && incoming().ownerUid == existing().ownerUid
+                        && incoming().agencyType == existing().agencyType
+                        && incoming().status == existing().status
+                        && incoming().isVerified == existing().isVerified
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'name', 'whatsappNumber', 'description', 'isOnline', 'hasPin', 'updatedAt'
+                        ])
+                      )
+                      || (
+                        // Coin Seller Owner deducting their own coinBalance during a transfer
+                        existing().ownerUid == request.auth.uid
+                        && existing().agencyType == 'coin_seller'
+                        && existing().status == 'active'
+                        && agencyId == ('cs_' + request.auth.uid)
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'coinBalance', 'totalTransferredCoins', 'updatedAt'
+                        ])
+                        && existing().coinBalance is number
+                        && incoming().coinBalance is number
+                        && incoming().coinBalance >= 0
+                        && incoming().coinBalance < existing().coinBalance
+                        && incoming().totalTransferredCoins == (
+                          (('totalTransferredCoins' in existing() && existing().totalTransferredCoins is number) ? existing().totalTransferredCoins : 0)
+                          + (existing().coinBalance - incoming().coinBalance)
+                        )
+                      )
+                      || (
+                        // Host Agency Owner updating active host counter
+                        existing().ownerUid == request.auth.uid
+                        && existing().agencyType == 'host_agency'
+                        && existing().status == 'active'
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['totalHosts', 'updatedAt'])
+                        && incoming().totalHosts is number
+                        && incoming().totalHosts >= 0
+                      )
+                    );
+      allow delete: if isAdmin() && isValidId(agencyId);
+
+      // Owner-only Secret Transfer PIN Vault (salted SHA-256 hash, never plaintext)
+      match /secrets/{secretId} {
+        allow get: if isSignedIn()
+                   && isValidId(agencyId)
+                   && secretId == 'pin'
+                   && exists(/databases/$(database)/documents/agencies/$(agencyId))
+                   && (
+                     get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerUid == request.auth.uid
+                     || isAdmin()
+                   );
+        allow list: if false;
+        allow create, update: if isSignedIn()
+                              && isValidId(agencyId)
+                              && secretId == 'pin'
+                              && exists(/databases/$(database)/documents/agencies/$(agencyId))
+                              && get(/databases/$(database)/documents/agencies/$(agencyId)).data.ownerUid == request.auth.uid
+                              && incoming().keys().hasAll(['pinHash', 'pinSalt', 'pinLength'])
+                              && incoming().keys().hasOnly(['pinHash', 'pinSalt', 'pinLength', 'updatedAt'])
+                              && incoming().pinHash is string && incoming().pinHash.size() == 64
+                              && incoming().pinSalt is string && incoming().pinSalt.size() >= 16 && incoming().pinSalt.size() <= 64
+                              && incoming().pinLength is number && (incoming().pinLength == 4 || incoming().pinLength == 5);
+        allow delete: if isAdmin() && isValidId(agencyId);
+      }
+    }
+
+    match /agency_coin_transfers/{transferId} {
+      allow get: if isSignedIn()
+                 && isValidId(transferId)
+                 && (
+                   resource.data.senderUid == request.auth.uid
+                   || resource.data.recipientUid == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn()
+                  && (
+                    resource.data.senderUid == request.auth.uid
+                    || resource.data.recipientUid == request.auth.uid
+                    || isAdmin()
+                  );
+      allow create: if isSignedIn()
+                    && isValidId(transferId)
+                    && incoming().senderUid == request.auth.uid
+                    && incoming().agencyId == ('cs_' + request.auth.uid)
+                    && incoming().recipientUid is string && incoming().recipientUid.size() > 0 && incoming().recipientUid.size() <= 128
+                    && incoming().amount is number && incoming().amount > 0
+                    && incoming().balanceAfter is number && incoming().balanceAfter >= 0
+                    && isVerifiedCoinSellerAgencyTransfer(incoming().amount);
+      allow update, delete: if false;
+    }
+
+    function isValidHostAgencyRequest(data) {
+      return data.keys().hasAll([
+          'agencyId', 'agencyName', 'agencyOwnerUid', 'hostUid', 'hostName', 'status'
+        ])
+        && data.agencyId is string && data.agencyId.size() > 0 && data.agencyId.size() <= 140
+        && data.agencyName is string && data.agencyName.size() > 0 && data.agencyName.size() <= 80
+        && data.agencyOwnerUid is string && data.agencyOwnerUid.size() > 0 && data.agencyOwnerUid.size() <= 128
+        && data.hostUid is string && data.hostUid.size() > 0 && data.hostUid.size() <= 128
+        && data.hostName is string && data.hostName.size() > 0 && data.hostName.size() <= 80
+        && data.status in ['pending', 'accepted', 'rejected', 'removed', 'cancelled']
+        && (!('hostWhatsapp' in data) || (data.hostWhatsapp is string && data.hostWhatsapp.size() <= 32))
+        && (!('agencyWhatsapp' in data) || (data.agencyWhatsapp is string && data.agencyWhatsapp.size() <= 32))
+        && (!('message' in data) || (data.message is string && data.message.size() <= 400))
+        && (!('dealCommissionPercent' in data) || (data.dealCommissionPercent is number && data.dealCommissionPercent >= 0 && data.dealCommissionPercent <= 100))
+        && (!('dealTargetCoins' in data) || (data.dealTargetCoins is number && data.dealTargetCoins >= 0 && data.dealTargetCoins <= 2000000000))
+        && (!('dealTargetHours' in data) || (data.dealTargetHours is number && data.dealTargetHours >= 0 && data.dealTargetHours <= 744))
+        && (!('dealNotes' in data) || (data.dealNotes is string && data.dealNotes.size() <= 300));
+    }
+
+    match /agency_host_requests/{requestId} {
+      allow get: if isSignedIn()
+                 && isValidId(requestId)
+                 && (
+                   resource.data.hostUid == request.auth.uid
+                   || resource.data.agencyOwnerUid == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn()
+                  && (
+                    resource.data.hostUid == request.auth.uid
+                    || resource.data.agencyOwnerUid == request.auth.uid
+                    || isAdmin()
+                  );
+      allow create: if isSignedIn()
+                    && isValidId(requestId)
+                    && isValidHostAgencyRequest(incoming())
+                    && incoming().hostUid == request.auth.uid
+                    && incoming().status == 'pending'
+                    && exists(/databases/$(database)/documents/agencies/$(incoming().agencyId))
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.agencyType == 'host_agency'
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.status == 'active'
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.ownerUid == incoming().agencyOwnerUid;
+      allow update: if isSignedIn()
+                    && isValidId(requestId)
+                    && isValidHostAgencyRequest(incoming())
+                    && incoming().agencyId == existing().agencyId
+                    && incoming().agencyOwnerUid == existing().agencyOwnerUid
+                    && incoming().hostUid == existing().hostUid
+                    && (
+                      isAdmin()
+                      || existing().agencyOwnerUid == request.auth.uid
+                      || (
+                        existing().hostUid == request.auth.uid
+                        && existing().status == 'pending'
+                        && incoming().status in ['pending', 'cancelled']
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'status', 'hostWhatsapp', 'message', 'updatedAt'
+                        ])
+                      )
+                    );
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    function isValidAgencyCoinOrder(data) {
+      return data.keys().hasAll([
+          'agencyId', 'agencyName', 'agencyOwnerUid', 'buyerUid', 'buyerName',
+          'coinsRequested', 'paymentMethod', 'status'
+        ])
+        && data.agencyId is string && data.agencyId.size() > 0 && data.agencyId.size() <= 140
+        && data.agencyName is string && data.agencyName.size() > 0 && data.agencyName.size() <= 80
+        && (!('agencyCode' in data) || (data.agencyCode is string && data.agencyCode.size() <= 24))
+        && data.agencyOwnerUid is string && data.agencyOwnerUid.size() > 0 && data.agencyOwnerUid.size() <= 128
+        && (!('agencyWhatsapp' in data) || (data.agencyWhatsapp is string && data.agencyWhatsapp.size() <= 32))
+        && data.buyerUid is string && data.buyerUid.size() > 0 && data.buyerUid.size() <= 128
+        && data.buyerName is string && data.buyerName.size() > 0 && data.buyerName.size() <= 80
+        && (!('buyerUsername' in data) || (data.buyerUsername is string && data.buyerUsername.size() <= 60))
+        && (!('buyerDisplayId' in data) || (data.buyerDisplayId is string && data.buyerDisplayId.size() <= 32))
+        && (!('buyerAvatar' in data) || (data.buyerAvatar is string && data.buyerAvatar.size() <= 1500))
+        && (!('buyerWhatsapp' in data) || (data.buyerWhatsapp is string && data.buyerWhatsapp.size() <= 32))
+        && data.coinsRequested is number && data.coinsRequested > 0 && data.coinsRequested <= 2000000000
+        && (!('coinsSent' in data) || (data.coinsSent is number && data.coinsSent >= 0 && data.coinsSent <= 2000000000))
+        && (!('paidAmountText' in data) || (data.paidAmountText is string && data.paidAmountText.size() <= 60))
+        && data.paymentMethod is string && data.paymentMethod.size() > 0 && data.paymentMethod.size() <= 40
+        && (!('transactionRef' in data) || (data.transactionRef is string && data.transactionRef.size() <= 120))
+        && (!('paymentSlipUrl' in data) || (data.paymentSlipUrl is string && data.paymentSlipUrl.size() <= 350000))
+        && (!('buyerNote' in data) || (data.buyerNote is string && data.buyerNote.size() <= 300))
+        && (!('sellerNote' in data) || (data.sellerNote is string && data.sellerNote.size() <= 300))
+        && (!('confirmedTransferId' in data) || (data.confirmedTransferId is string && data.confirmedTransferId.size() <= 128))
+        && data.status in ['pending', 'confirmed', 'rejected', 'cancelled'];
+    }
+
+    // Payment slips & coin purchase orders: private to buyer, target Coin Seller Agency owner, and admin
+    match /agency_coin_orders/{orderId} {
+      allow get: if isSignedIn()
+                 && isValidId(orderId)
+                 && (
+                   resource.data.buyerUid == request.auth.uid
+                   || resource.data.agencyOwnerUid == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn()
+                  && (
+                    resource.data.buyerUid == request.auth.uid
+                    || resource.data.agencyOwnerUid == request.auth.uid
+                    || isAdmin()
+                  );
+      allow create: if isSignedIn()
+                    && isValidId(orderId)
+                    && isValidAgencyCoinOrder(incoming())
+                    && incoming().buyerUid == request.auth.uid
+                    && incoming().status == 'pending'
+                    && exists(/databases/$(database)/documents/agencies/$(incoming().agencyId))
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.agencyType == 'coin_seller'
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.status == 'active'
+                    && get(/databases/$(database)/documents/agencies/$(incoming().agencyId)).data.ownerUid == incoming().agencyOwnerUid;
+      allow update: if isSignedIn()
+                    && isValidId(orderId)
+                    && isValidAgencyCoinOrder(incoming())
+                    && incoming().agencyId == existing().agencyId
+                    && incoming().agencyOwnerUid == existing().agencyOwnerUid
+                    && incoming().buyerUid == existing().buyerUid
+                    && (
+                      isAdmin()
+                      || (
+                        existing().agencyOwnerUid == request.auth.uid
+                        && existing().status == 'pending'
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'status', 'coinsSent', 'sellerNote', 'confirmedTransferId', 'updatedAt'
+                        ])
+                        && (
+                          incoming().status == 'rejected'
+                          || (
+                            incoming().status == 'confirmed'
+                            && incoming().coinsSent is number
+                            && incoming().coinsSent > 0
+                            && isVerifiedCoinSellerAgencyTransfer(incoming().coinsSent)
+                          )
+                        )
+                      )
+                      || (
+                        existing().buyerUid == request.auth.uid
+                        && existing().status == 'pending'
+                        && incoming().status == 'cancelled'
+                        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                      )
+                    );
+      allow delete: if isAdmin() && isValidId(orderId);
     }
   }
 }

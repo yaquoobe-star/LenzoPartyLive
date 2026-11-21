@@ -118,11 +118,11 @@ async function compressImageToDataUrl(file: File | Blob, maxDimension: number, q
  */
 export async function uploadUserImage(
   file: File | Blob,
-  folder: 'avatars' | 'covers',
+  folder: 'avatars' | 'covers' | 'payment_slips',
   onProgress?: UploadProgressCallback
 ): Promise<string> {
   const user = auth.currentUser;
-  const maxDim = folder === 'covers' ? 1200 : 512;
+  const maxDim = folder === 'covers' ? 1200 : folder === 'payment_slips' ? 720 : 512;
 
   if (user && (await isFirebaseStorageBucketReady())) {
     try {

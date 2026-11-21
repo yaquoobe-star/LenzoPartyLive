@@ -1,16 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ChevronLeft,
   ChevronRight,
   Radio,
   Video,
   Crown,
   Users,
   Sparkles,
-  Plus,
   Flame,
   Eye,
   Heart,
   Mic,
+  BadgeCheck,
+  ShieldCheck,
+  Coins,
+  MessageCircle,
+  MessageSquare,
+  Receipt,
+  Building2,
 } from 'lucide-react';
 import {
   BroadcasterRankingEntry,
@@ -25,8 +32,15 @@ import {
   normalizePartyMaxSeats,
 } from '../../utils/partySeatRules';
 import { LevelBadge } from '../common/LevelBadge';
+import {
+  DualAgencyRecord,
+  buildWhatsAppUrl,
+  subscribeActiveAgencies,
+} from '../../services/agencyService';
+import { CoinSlipOrderModal } from '../agency/CoinSlipOrderModal';
 
 interface HomeScreenProps {
+  currentUser?: UserProfile;
   liveStreams: LiveStream[];
   partyRooms: PartyRoom[];
   topHosts: UserProfile[];
@@ -39,9 +53,39 @@ interface HomeScreenProps {
   onOpenGiftShop: () => void;
   onOpenMicMenu?: () => void;
   onToggleFollow?: (userId: string) => void;
+  onSendMessage?: (user: UserProfile) => void;
+}
+
+interface OriginalTopHostItem {
+  rank: number;
+  host: UserProfile;
+  sourceType: 'live' | 'party';
+  stream?: LiveStream;
+  room?: PartyRoom;
+  liveCount: number;
+  score: number;
+  formattedScore: string;
+}
+
+const FAKE_HOST_PATTERN = /^(demo|mock|fake|seed|sample|bot|test_host)[_-]?/i;
+
+function isOriginalRealHost(user?: UserProfile | null): boolean {
+  if (!user || !user.id || !user.name) return false;
+  const id = String(user.id).trim();
+  const name = String(user.name).trim();
+  if (id.length < 4 || name.length < 1) return false;
+  if (FAKE_HOST_PATTERN.test(id) || FAKE_HOST_PATTERN.test(name)) return false;
+  return true;
+}
+
+function formatCompactScore(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return String(Math.max(0, Math.round(num)));
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
+  currentUser,
   liveStreams,
   partyRooms,
   topBroadcasters = [],
@@ -49,13 +93,174 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSelectRoom,
   onSelectUser,
   onNavigate,
-  onOpenMicMenu,
   onToggleFollow,
+  onSendMessage,
 }) => {
   const [activeTab, setActiveTab] = useState<'foryou' | 'live' | 'following'>('foryou');
   const [streamCategoryTab, setStreamCategoryTab] = useState<'live_stream' | 'audio_party'>('live_stream');
 
-  const topTwoBroadcasters = topBroadcasters.slice(0, 2);
+  // Active Coin Seller Agencies (Live Firestore Subscription for Moving Carousel)
+  const [coinSellerAgencies, setCoinSellerAgencies] = useState<DualAgencyRecord[]>([]);
+  const [agenciesLoaded, setAgenciesLoaded] = useState(false);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [slipModalAgency, setSlipModalAgency] = useState<DualAgencyRecord | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeActiveAgencies('coin_seller', (list) => {
+      setCoinSellerAgencies(list);
+      setAgenciesLoaded(true);
+    });
+    return () => unsub();
+  }, []);
+
+  // Clamp slide index if agency list changes
+  useEffect(() => {
+    if (coinSellerAgencies.length === 0) {
+      setActiveSlideIndex(0);
+    } else if (activeSlideIndex >= coinSellerAgencies.length) {
+      setActiveSlideIndex(0);
+    }
+  }, [coinSellerAgencies.length, activeSlideIndex]);
+
+  // Smooth auto-advance across all active Coin Seller Agency cards
+  useEffect(() => {
+    if (coinSellerAgencies.length <= 1 || isCarouselPaused || slipModalAgency) return;
+    const timer = window.setInterval(() => {
+      setActiveSlideIndex((prev) => (prev + 1) % coinSellerAgencies.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [coinSellerAgencies.length, isCarouselPaused, slipModalAgency]);
+
+  const goToPrevAgency = () => {
+    if (coinSellerAgencies.length <= 1) return;
+    setActiveSlideIndex((prev) => (prev - 1 + coinSellerAgencies.length) % coinSellerAgencies.length);
+  };
+
+  const goToNextAgency = () => {
+    if (coinSellerAgencies.length <= 1) return;
+    setActiveSlideIndex((prev) => (prev + 1) % coinSellerAgencies.length);
+  };
+
+  const handleCarouselTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null;
+    setIsCarouselPaused(true);
+  };
+
+  const handleCarouselTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartXRef.current;
+    const endX = e.changedTouches[0]?.clientX ?? null;
+    touchStartXRef.current = null;
+    setIsCarouselPaused(false);
+    if (startX === null || endX === null) return;
+    const delta = startX - endX;
+    if (Math.abs(delta) > 42) {
+      if (delta > 0) goToNextAgency();
+      else goToPrevAgency();
+    }
+  };
+
+  const handleInAppAgencyChat = (agency: DualAgencyRecord) => {
+    if (!onSendMessage) {
+      onNavigate('chat');
+      return;
+    }
+    if (currentUser && agency.ownerUid === currentUser.id) {
+      onNavigate('profile');
+      return;
+    }
+    const ownerProfile: UserProfile = {
+      id: agency.ownerUid,
+      displayId: agency.ownerDisplayId || agency.ownerUid.slice(0, 8),
+      name: agency.name || agency.ownerName || 'Coin Seller Agency',
+      username: agency.ownerUsername || `@${agency.agencyCode.toLowerCase()}`,
+      avatar:
+        agency.ownerAvatar ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.name || 'Agency')}&background=8B20FF&color=fff`,
+      bio: agency.description || 'Official Verified Lenzo Coin Seller Agency',
+      level: 1,
+      vipLevel: 0,
+      isVIP: false,
+      coins: 0,
+      diamonds: 0,
+      followersCount: 0,
+      followingCount: 0,
+      fansCount: '0',
+      likesCount: '0',
+    };
+    onSendMessage(ownerProfile);
+  };
+
+  // STRICTLY ORIGINAL LIVE / ACTIVE PARTY HOSTS FOR TOP BROADCASTERS (NO FAKE HOSTS!)
+  const originalTopBroadcasters = useMemo<OriginalTopHostItem[]>(() => {
+    const scoreByHostId = new Map<string, OriginalTopHostItem>();
+    const rankingLookup = new Map<string, BroadcasterRankingEntry>();
+    topBroadcasters.forEach((entry) => {
+      if (entry?.user?.id) {
+        rankingLookup.set(entry.user.id, entry);
+      }
+    });
+
+    // 1. Add real active live video stream hosts
+    liveStreams.forEach((stream) => {
+      if (!isOriginalRealHost(stream.host)) return;
+      const viewers = Number(stream.numericViewers ?? 0) || 0;
+      const likes = Number(stream.likesCount ?? 0) || 0;
+      const level = Number(stream.host.level ?? 0) || 0;
+      const matchedRank = rankingLookup.get(stream.host.id);
+      const liveEngagementScore =
+        viewers * 15 + likes * 3 + level * 5 + (matchedRank ? Number(matchedRank.score || 0) : 0);
+
+      const existing = scoreByHostId.get(stream.host.id);
+      if (!existing || liveEngagementScore > existing.score) {
+        scoreByHostId.set(stream.host.id, {
+          rank: 1,
+          host: stream.host,
+          sourceType: 'live',
+          stream,
+          liveCount: viewers,
+          score: Math.max(1, Math.round(liveEngagementScore)),
+          formattedScore: formatCompactScore(Math.max(1, Math.round(liveEngagementScore))),
+        });
+      }
+    });
+
+    // 2. Add real active audio party hosts
+    partyRooms.forEach((room) => {
+      if (!isOriginalRealHost(room.host)) return;
+      const host = room.host;
+      const participants =
+        typeof room.numericParticipants === 'number'
+          ? room.numericParticipants
+          : parseInt(String(room.participantCount || '0'), 10) || 0;
+      const level = Number(host.level ?? 0) || 0;
+      const matchedRank = rankingLookup.get(host.id);
+      const roomScore =
+        participants * 12 + level * 5 + (matchedRank ? Number(matchedRank.score || 0) : 0);
+
+      const existing = scoreByHostId.get(host.id);
+      if (!existing || roomScore > existing.score) {
+        scoreByHostId.set(host.id, {
+          rank: 1,
+          host,
+          sourceType: 'party',
+          room,
+          liveCount: participants,
+          score: Math.max(1, Math.round(roomScore)),
+          formattedScore: formatCompactScore(Math.max(1, Math.round(roomScore))),
+        });
+      }
+    });
+
+    return Array.from(scoreByHostId.values())
+      .sort((a, b) => b.score - a.score || b.liveCount - a.liveCount)
+      .slice(0, 2)
+      .map((item, idx) => ({
+        ...item,
+        rank: idx + 1,
+      }));
+  }, [liveStreams, partyRooms, topBroadcasters]);
 
   const filteredStreams = liveStreams.filter((stream) => {
     if (activeTab === 'following') {
@@ -71,28 +276,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return true;
   });
 
-  // Always show all active real-time live streams as clickable live cards
   const visibleLiveCards = filteredStreams;
   const visiblePartyRooms = filteredPartyRooms;
 
-  const heroFeaturedStream = liveStreams[0] || null;
-  const heroFeaturedBroadcaster = topTwoBroadcasters[0] || null;
-  const heroAvatar =
-    heroFeaturedStream?.coverImage ||
-    heroFeaturedBroadcaster?.user.coverImage ||
-    heroFeaturedBroadcaster?.user.avatar ||
-    null;
-
-  const handleOpenBroadcaster = (entry: BroadcasterRankingEntry) => {
-    const matchingStream = liveStreams.find(
-      (s) => s.id === entry.liveStreamId || s.host.id === entry.user.id
-    );
-    if (matchingStream) {
-      onSelectLive(matchingStream);
+  const handleOpenOriginalTopHost = (item: OriginalTopHostItem) => {
+    if (item.sourceType === 'live' && item.stream) {
+      onSelectLive(item.stream);
       return;
     }
-    onSelectUser(entry.user);
+    if (item.sourceType === 'party' && item.room) {
+      onSelectRoom(item.room);
+      return;
+    }
+    onSelectUser(item.host);
   };
+
+  const buyerDisplayId = currentUser?.displayId || currentUser?.id?.slice(0, 8) || 'Guest';
 
   return (
     <div className="w-full pb-28 md:pb-12 animate-fade-in">
@@ -120,65 +319,420 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           ))}
         </div>
 
-        {/* 1. HERO BANNER: Dream Big Go Live */}
-        <div
-          onClick={onOpenMicMenu || (() => onNavigate('create_live'))}
-          className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-r from-[#211333] via-[#351854] to-[#611979] border border-[#F328D5]/35 p-5 sm:p-7 shadow-xl shadow-[#8B20FF]/20 cursor-pointer group hover:border-[#F328D5]/65 transition-all"
-        >
-          <div className="absolute top-0 right-0 w-80 h-full bg-gradient-to-l from-[#F328D5]/30 via-transparent to-transparent pointer-events-none" />
-
-          <div className="relative z-10 flex items-center justify-between gap-4">
-            <div className="max-w-xs sm:max-w-md">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-bold text-[#FFC84A] mb-2">
-                <Radio className="w-3 h-3 text-[#F328D5]" />
-                <span>LENZO PARTY LIVE</span>
+        {/* ===================================================================== */}
+        {/* 1. MOVING COIN SELLER AGENCY CAROUSEL (Replaces Dream Big Go Live)    */}
+        {/* ===================================================================== */}
+        <section className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-[#FFC84A] to-[#F97316] flex items-center justify-center text-[#090611] shrink-0 shadow">
+                <Coins className="w-3.5 h-3.5" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white font-display leading-tight mb-1 group-hover:text-pink-200 transition-colors">
-                Dream Big <br />
-                <span className="bg-gradient-to-r from-[#FFC84A] via-[#F328D5] to-[#8B20FF] bg-clip-text text-transparent">
-                  Go Live!
-                </span>
+              <h2 className="text-xs sm:text-sm font-black tracking-wide text-white uppercase truncate">
+                Official Coin Seller Agencies
               </h2>
-              <p className="text-xs text-[#B9AECF] mb-4">
-                Start a real-time video broadcast & connect with fans worldwide.
-              </p>
-
-              <div className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-r from-[#F328D5] to-[#8B20FF] text-white font-extrabold text-xs shadow-lg shadow-[#F328D5]/35 group-hover:scale-105 transition-transform">
-                <Video className="w-3.5 h-3.5" />
-                <span>Go Live</span>
-              </div>
             </div>
 
-            <div className="relative shrink-0 hidden xs:block">
-              {heroAvatar ? (
-                <div className="relative w-28 h-36 sm:w-36 sm:h-44 rounded-2xl overflow-hidden ring-2 ring-[#F328D5]/60 shadow-2xl bg-[#160C25]">
-                  <img
-                    src={heroAvatar}
-                    alt={heroFeaturedStream?.host.name || heroFeaturedBroadcaster?.user.name || 'Live Stream'}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute top-2 left-2 bg-gradient-to-r from-red-600 to-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-1 shadow">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                    LIVE
+            {coinSellerAgencies.length > 1 && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-mono font-bold text-[#C5B9DE]">
+                  {activeSlideIndex + 1} / {coinSellerAgencies.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={goToPrevAgency}
+                  aria-label="Previous Coin Seller Agency"
+                  className="w-7 h-7 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextAgency}
+                  aria-label="Next Coin Seller Agency"
+                  className="w-7 h-7 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {coinSellerAgencies.length === 0 ? (
+            /* Clean Official Fallback Banner when 0 Coin Seller Agencies are active yet */
+            <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#23113E] via-[#1A0C30] to-[#3A164B] border border-amber-400/35 p-5 shadow-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/45 text-emerald-300 text-[9px] font-black uppercase tracking-wider">
+                      <BadgeCheck className="w-3 h-3" />
+                      Verified Agency
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/45 text-[#FFC84A] text-[9px] font-black uppercase tracking-wider">
+                      <ShieldCheck className="w-3 h-3" />
+                      Official Agency
+                    </span>
                   </div>
+                  <h3 className="text-lg sm:text-xl font-black text-white font-display leading-snug">
+                    {agenciesLoaded ? 'Official Coin Seller Desk' : 'Loading Verified Coin Seller Agencies...'}
+                  </h3>
+                  <p className="text-xs text-[#C5B9DE] max-w-md leading-relaxed">
+                    Approved Coin Seller Agencies appear here as sliding cards. Buy coins safely via In-App Payment Slip or WhatsApp, or apply from Profile → Agency Center to become an Official Coin Seller.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('profile')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-black shadow-md active:scale-95 transition-transform"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Open Agency Center</span>
+                  </button>
                 </div>
-              ) : (
-                <div className="w-28 h-32 sm:w-36 sm:h-40 rounded-2xl bg-[#160C25]/90 border border-[#F328D5]/40 flex flex-col items-center justify-center p-3 shadow-2xl">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white mb-2 shadow-lg shadow-[#F328D5]/40">
-                    <Video className="w-6 h-6" />
-                  </div>
-                  <span className="text-[11px] font-extrabold text-white text-center">Start Studio</span>
-                  <span className="text-[9px] text-[#B9AECF] text-center mt-0.5">HD Live Stream</span>
+              </div>
+            </div>
+          ) : (
+            /* Smooth Auto-Sliding & Swipeable Moving Agency Cards Track */
+            <div
+              className="relative overflow-hidden rounded-3xl"
+              onMouseEnter={() => setIsCarouselPaused(true)}
+              onMouseLeave={() => setIsCarouselPaused(false)}
+              onTouchStart={handleCarouselTouchStart}
+              onTouchEnd={handleCarouselTouchEnd}
+            >
+              <div
+                className="flex transition-transform duration-500 ease-out"
+                style={{ transform: `translateX(-${activeSlideIndex * 100}%)` }}
+              >
+                {coinSellerAgencies.map((agency) => {
+                  const waText = `Salam ${agency.name} (${agency.agencyCode})! I want to buy Lenzo Coins. My Lenzo ID is ${buyerDisplayId}. Please share your payment details so I can send my payment slip.`;
+                  const waHref = buildWhatsAppUrl(agency.whatsappNumber, waText);
+
+                  return (
+                    <div key={agency.id} className="w-full shrink-0">
+                      <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#261242] via-[#190B2E] to-[#3B144A] border border-amber-400/45 p-4 sm:p-5 shadow-xl shadow-[#8B20FF]/20">
+                        {/* Subtle ambient sheen */}
+                        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
+                        <div className="absolute -bottom-12 -left-10 w-44 h-44 rounded-full bg-[#F328D5]/15 blur-2xl pointer-events-none" />
+
+                        <div className="relative z-10 space-y-3">
+                          {/* Top Official Tags Strip */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[9px] font-black uppercase tracking-wider">
+                                <BadgeCheck className="w-3 h-3 shrink-0" />
+                                Verified Agency
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-[#FFC84A] text-[9px] font-black uppercase tracking-wider">
+                                <ShieldCheck className="w-3 h-3 shrink-0" />
+                                Official Agency
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-[#8B20FF]/30 border border-[#C084FC]/45 text-[#F3E8FF] text-[9px] font-black uppercase tracking-wider">
+                                Coin Seller
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="px-2 py-0.5 rounded-md bg-black/45 border border-white/15 text-[#FFC84A] text-[10px] font-mono font-black">
+                                {agency.agencyCode}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black ${
+                                  agency.isOnline
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                                    : 'bg-white/10 text-[#B9AECF]'
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    agency.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-[#A59AB8]'
+                                  }`}
+                                />
+                                {agency.isOnline ? 'Online' : 'Away'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Agency Identity Row */}
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-[#FFC84A] via-[#F59E0B] to-[#FA26A0] p-[2px] shrink-0 shadow-lg">
+                              <div className="w-full h-full rounded-[14px] bg-[#160A26] overflow-hidden flex items-center justify-center">
+                                {agency.ownerAvatar ? (
+                                  <img
+                                    src={agency.ownerAvatar}
+                                    alt={agency.name}
+                                    referrerPolicy="no-referrer"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Coins className="w-6 h-6 text-[#FFC84A]" />
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-base sm:text-xl font-black text-white font-display leading-tight truncate">
+                                {agency.name}
+                              </h3>
+                              <p className="text-[11px] text-[#D8CEE8] truncate mt-0.5">
+                                Holder: <strong className="text-white">{agency.ownerName}</strong> · Instant PIN Coin Delivery
+                              </p>
+                              <p className="text-[11px] text-[#B9AECF] line-clamp-1 mt-0.5">
+                                {agency.description ||
+                                  'Contact in-app or on WhatsApp, send your payment slip & receive verified Lenzo Coins directly.'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Direct Actions: Send Payment Slip (In-App), WhatsApp Contact, In-App Chat */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (currentUser) {
+                                  setSlipModalAgency(agency);
+                                } else {
+                                  onNavigate('profile');
+                                }
+                              }}
+                              className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F97316] text-[#090611] text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-transform"
+                            >
+                              <Receipt className="w-4 h-4 shrink-0" />
+                              <span className="truncate">Send Payment Slip</span>
+                            </button>
+
+                            <div className="grid grid-cols-2 sm:contents gap-2">
+                              {waHref ? (
+                                <a
+                                  href={waHref}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051B0E] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
+                                >
+                                  <MessageCircle className="w-4 h-4 shrink-0" />
+                                  <span className="truncate">WhatsApp</span>
+                                </a>
+                              ) : (
+                                <span className="py-2.5 px-3 rounded-xl bg-white/5 text-[#8E7FA8] text-xs font-bold flex items-center justify-center">
+                                  No WhatsApp
+                                </span>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleInAppAgencyChat(agency)}
+                                className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                              >
+                                <MessageSquare className="w-4 h-4 text-[#F328D5] shrink-0" />
+                                <span className="truncate">In-App Chat</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Slide Indicator Dots */}
+              {coinSellerAgencies.length > 1 && (
+                <div className="flex items-center justify-center gap-1.5 pt-2.5">
+                  {coinSellerAgencies.map((ag, idx) => (
+                    <button
+                      key={ag.id}
+                      type="button"
+                      onClick={() => setActiveSlideIndex(idx)}
+                      aria-label={`View ${ag.name}`}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        idx === activeSlideIndex
+                          ? 'w-7 bg-gradient-to-r from-[#FFC84A] to-[#F328D5]'
+                          : 'w-2 bg-white/25 hover:bg-white/45'
+                      }`}
+                    />
+                  ))}
                 </div>
               )}
             </div>
-          </div>
+          )}
+        </section>
+
+        {/* ===================================================================== */}
+        {/* 2. QUICK ACTION ROW: GO STREAM & CREATE PARTY (Directly below Slider) */}
+        {/* ===================================================================== */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => onNavigate('create_live')}
+            className="group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 bg-gradient-to-r from-[#8B20FF] via-[#B91CE5] to-[#F328D5] border border-pink-300/35 shadow-lg shadow-[#F328D5]/25 text-left flex items-center gap-3 active:scale-[0.98] transition-all"
+          >
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-black/25 border border-white/20 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+              <Video className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-sm sm:text-base font-black text-white leading-tight truncate">
+                Go Stream
+              </span>
+              <span className="block text-[10px] sm:text-[11px] text-white/85 truncate mt-0.5">
+                Start HD Live Video
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('create_room')}
+            className="group relative overflow-hidden rounded-2xl p-3.5 sm:p-4 bg-gradient-to-r from-[#231042] via-[#3A1464] to-[#6B177C] border border-[#FA26A0]/50 shadow-lg shadow-[#8B20FF]/25 text-left flex items-center gap-3 active:scale-[0.98] transition-all"
+          >
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow group-hover:scale-105 transition-transform">
+              <Mic className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-sm sm:text-base font-black text-white leading-tight truncate">
+                Create Party
+              </span>
+              <span className="block text-[10px] sm:text-[11px] text-[#E5D4FA] truncate mt-0.5">
+                Host Audio Party Room
+              </span>
+            </div>
+          </button>
         </div>
 
-        {/* 2. STREAMING CATEGORY TABS (LIVE STREAM & AUDIO PARTY) + UNIFIED CARD GRID */}
+        {/* ===================================================================== */}
+        {/* 3. TOP BROADCASTERS — ABOVE CARDS, STRICTLY ORIGINAL REAL HOSTS ONLY  */}
+        {/* ===================================================================== */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
+              <Crown className="w-5 h-5 text-[#FFC84A]" />
+              <span>TOP BROADCASTERS</span>
+            </h3>
+            <button
+              type="button"
+              onClick={() => onNavigate('rankings')}
+              className="text-xs text-[#B9AECF] hover:text-[#F328D5] flex items-center gap-0.5 font-semibold transition-colors"
+            >
+              <span>Leaderboard</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {originalTopBroadcasters.length === 0 ? (
+            <div className="rounded-2xl bg-[#160C25] border border-white/10 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-[#211333] border border-[#FFC84A]/30 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-[#FFC84A]" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-white">No Original Hosts Live Right Now</h4>
+                  <p className="text-xs text-[#B9AECF]">
+                    Only real, currently live hosts appear here. Go Stream or Create Party to claim #1!
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('create_live')}
+                className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shrink-0 active:scale-95 transition-transform"
+              >
+                Go Live to Claim #1
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {originalTopBroadcasters.map((entry) => {
+                const isFirst = entry.rank === 1;
+                return (
+                  <div
+                    key={entry.host.id}
+                    onClick={() => handleOpenOriginalTopHost(entry)}
+                    className={`relative rounded-2xl overflow-hidden p-3.5 sm:p-4 cursor-pointer transition-all border shadow-xl group ${
+                      isFirst
+                        ? 'bg-gradient-to-br from-[#2B193D] via-[#1C0F2E] to-[#3B174A] border-[#FFC84A]/60 hover:border-[#FFC84A]'
+                        : 'bg-gradient-to-br from-[#1C1230] via-[#160C25] to-[#24133D] border-slate-300/40 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative shrink-0">
+                          {entry.host.avatar ? (
+                            <img
+                              src={entry.host.avatar}
+                              alt={entry.host.name}
+                              referrerPolicy="no-referrer"
+                              className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover ring-2 ${
+                                isFirst ? 'ring-[#FFC84A]' : 'ring-slate-300'
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center font-black text-lg text-white ring-2 bg-[#2A1645] ${
+                                isFirst ? 'ring-[#FFC84A]' : 'ring-slate-300'
+                              }`}
+                            >
+                              {(entry.host.name || 'H').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span
+                            className={`absolute -top-2 -left-2 px-2 py-0.5 rounded-full text-[10px] font-black shadow ${
+                              isFirst
+                                ? 'bg-[#FFC84A] text-[#090611]'
+                                : 'bg-slate-200 text-[#090611]'
+                            }`}
+                          >
+                            #{entry.rank}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-black text-white truncate">
+                              {entry.host.name}
+                            </span>
+                            <LevelBadge level={entry.host.level || 0} size="sm" />
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px] text-[#B9AECF] mt-1 font-mono">
+                            <span className="flex items-center gap-1 text-cyan-300">
+                              {entry.sourceType === 'live' ? (
+                                <Eye className="w-3 h-3" />
+                              ) : (
+                                <Users className="w-3 h-3" />
+                              )}
+                              {entry.liveCount.toLocaleString()}
+                            </span>
+                            <span className="flex items-center gap-1 text-[#FFC84A]">
+                              <Flame className="w-3 h-3" />
+                              {entry.formattedScore}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        {entry.sourceType === 'live' ? (
+                          <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            WATCH LIVE
+                          </span>
+                        ) : (
+                          <span className="bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow">
+                            <Mic className="w-3 h-3" />
+                            JOIN PARTY
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ===================================================================== */}
+        {/* 4. LIVE STREAM & AUDIO PARTY CARDS (Below Top Broadcasters)           */}
+        {/* ===================================================================== */}
         <section className="space-y-3.5">
-          {/* Primary Lenzo Party Category Switcher Tabs */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <div
               role="tablist"
@@ -241,12 +795,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               }
               className="self-end sm:self-auto text-xs text-[#F328D5] hover:text-pink-300 flex items-center gap-0.5 font-bold transition-colors"
             >
-              <span>{streamCategoryTab === 'live_stream' ? 'Go Live' : 'Create Party Room'}</span>
+              <span>{streamCategoryTab === 'live_stream' ? 'Go Stream' : 'Create Party Room'}</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* TAB 1: LIVE STREAM CARDS (Existing Card Design Preserved) */}
+          {/* TAB 1: LIVE STREAM CARDS */}
           {streamCategoryTab === 'live_stream' ? (
             visibleLiveCards.length === 0 ? (
               <div className="py-10 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center">
@@ -264,6 +818,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     : 'Be the first to go live and showcase your talent in real time.'}
                 </p>
                 <button
+                  type="button"
                   onClick={() => onNavigate('create_live')}
                   className="px-5 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg shadow-[#F328D5]/30 active:scale-95 transition-all"
                 >
@@ -274,8 +829,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {visibleLiveCards.map((stream) => {
                   const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
-                  const topRankIndex = topTwoBroadcasters.findIndex(
-                    (b) => b.liveStreamId === stream.id || b.user.id === stream.host.id
+                  const topRankIndex = originalTopBroadcasters.findIndex(
+                    (b) => b.host.id === stream.host.id
                   );
                   return (
                     <div
@@ -373,7 +928,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 })}
               </div>
             )
-          ) : /* TAB 2: AUDIO PARTY ROOM CARDS (Consistent Visual Grid, Real Backend/Firestore Data Only) */
+          ) : /* TAB 2: AUDIO PARTY ROOM CARDS */
           visiblePartyRooms.length === 0 ? (
             <div className="py-10 px-4 rounded-3xl bg-[#160C25] border border-white/10 text-center flex flex-col items-center">
               <div className="w-12 h-12 rounded-2xl bg-[#211333] flex items-center justify-center mb-2.5 text-[#A855F7]">
@@ -390,6 +945,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   : 'Launch a 5-seat, 8-seat, or 16-seat live audio party room and talk with friends in real time.'}
               </p>
               <button
+                type="button"
                 onClick={() => onNavigate('create_room')}
                 className="px-5 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-xs font-bold shadow-lg shadow-[#8B20FF]/35 active:scale-95 transition-all"
               >
@@ -495,168 +1051,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           )}
         </section>
-
-        {/* 4. PROMINENT PARTY ROOM CREATION CARD */}
-        <div
-          onClick={() => onNavigate('create_room')}
-          className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-r from-[#1A0D2E] via-[#261042] to-[#3B0F54] border border-[#FA26A0]/35 p-4 sm:p-5 shadow-lg cursor-pointer group hover:border-[#FA26A0]/70 transition-all"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FA26A0] to-[#8B20FF] flex items-center justify-center text-white shrink-0 shadow-lg shadow-[#FA26A0]/30 group-hover:scale-105 transition-transform">
-                <Users className="w-6 h-6" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm sm:text-base font-black text-white font-display tracking-wide">
-                  CREATE YOUR PARTY ROOM
-                </h3>
-                <p className="text-xs text-[#B9AECF] truncate">
-                  Launch an 8-seat or 16-seat live audio party room & invite friends
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onNavigate('create_room');
-              }}
-              className="px-4 py-2 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-[#FA26A0]/35 shrink-0 active:scale-95 transition-all"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[2.6]" />
-              <span>Create Room</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 5. TOP BROADCASTERS (STRICTLY TOP 1 & TOP 2) */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base sm:text-lg font-extrabold text-white font-display flex items-center gap-2">
-              <Crown className="w-5 h-5 text-[#FFC84A]" />
-              <span>TOP BROADCASTERS</span>
-            </h3>
-            <button
-              onClick={() => onNavigate('rankings')}
-              className="text-xs text-[#B9AECF] hover:text-[#F328D5] flex items-center gap-0.5 font-semibold transition-colors"
-            >
-              <span>Leaderboard</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {topTwoBroadcasters.length === 0 ? (
-            <div className="rounded-2xl bg-[#160C25] border border-white/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#211333] border border-[#FFC84A]/30 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-5 h-5 text-[#FFC84A]" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">No Ranked Broadcasters Yet</h4>
-                  <p className="text-xs text-[#B9AECF]">
-                    Top #1 and #2 broadcasters are ranked live by viewers, gifts & engagement.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => onNavigate('create_live')}
-                className="px-4 py-2 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shrink-0 active:scale-95 transition-transform"
-              >
-                Go Live to Claim #1
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {topTwoBroadcasters.map((entry, idx) => {
-                const isFirst = entry.rank === 1 || idx === 0;
-                const matchingStream = liveStreams.find(
-                  (s) => s.id === entry.liveStreamId || s.host.id === entry.user.id
-                );
-
-                return (
-                  <div
-                    key={entry.user.id}
-                    onClick={() => handleOpenBroadcaster(entry)}
-                    className={`relative rounded-2xl overflow-hidden p-4 cursor-pointer transition-all border shadow-xl group ${
-                      isFirst
-                        ? 'bg-gradient-to-br from-[#2B193D] via-[#1C0F2E] to-[#3B174A] border-[#FFC84A]/60 hover:border-[#FFC84A]'
-                        : 'bg-gradient-to-br from-[#1C1230] via-[#160C25] to-[#24133D] border-slate-300/40 hover:border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="relative shrink-0">
-                          {entry.user.avatar ? (
-                            <img
-                              src={entry.user.avatar}
-                              alt={entry.user.name}
-                              referrerPolicy="no-referrer"
-                              className={`w-14 h-14 rounded-2xl object-cover ring-2 ${
-                                isFirst ? 'ring-[#FFC84A]' : 'ring-slate-300'
-                              }`}
-                            />
-                          ) : (
-                            <div
-                              className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg text-white ring-2 bg-[#2A1645] ${
-                                isFirst ? 'ring-[#FFC84A]' : 'ring-slate-300'
-                              }`}
-                            >
-                              {(entry.user.name || 'B').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span
-                            className={`absolute -top-2 -left-2 px-2 py-0.5 rounded-full text-[10px] font-black shadow ${
-                              isFirst
-                                ? 'bg-[#FFC84A] text-[#090611]'
-                                : 'bg-slate-200 text-[#090611]'
-                            }`}
-                          >
-                            #{entry.rank}
-                          </span>
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-sm font-black text-white truncate">
-                              {entry.user.name}
-                            </span>
-                            <LevelBadge level={entry.user.level || 0} size="sm" />
-                          </div>
-
-                          <div className="flex items-center gap-3 text-[11px] text-[#B9AECF] mt-1 font-mono">
-                            <span className="flex items-center gap-1 text-cyan-300">
-                              <Eye className="w-3 h-3" />
-                              {entry.breakdown.uniqueViewers.toLocaleString()}
-                            </span>
-                            <span className="flex items-center gap-1 text-[#FFC84A]">
-                              <Flame className="w-3 h-3" />
-                              {entry.formattedScore}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {entry.isCurrentlyLive || matchingStream ? (
-                          <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                            WATCH LIVE
-                          </span>
-                        ) : (
-                          <span className="bg-white/10 text-white/80 text-[10px] font-bold px-2.5 py-1 rounded-full">
-                            Profile
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
       </div>
+
+      {/* Payment Slip Order Modal for Selected Coin Seller Agency */}
+      {currentUser && (
+        <CoinSlipOrderModal
+          isOpen={Boolean(slipModalAgency)}
+          onClose={() => setSlipModalAgency(null)}
+          agency={slipModalAgency}
+          currentUser={currentUser}
+          onSendMessage={onSendMessage}
+        />
+      )}
     </div>
   );
 };
