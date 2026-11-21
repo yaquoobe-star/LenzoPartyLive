@@ -551,6 +551,7 @@ function scheduleRankingsPersist() {
 
 const serverUsers = new Map<string, any>();
 
+
 function loadRankingsStoreFromDisk() {
   try {
     if (!fs.existsSync(RANKINGS_STORE_PATH)) return;
