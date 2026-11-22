@@ -62,7 +62,9 @@ export interface FirestoreRoomParticipantDoc {
   avatar?: string;
   level?: number;
   vipLevel?: number;
+  superVipLevel?: number;
   isVIP?: boolean;
+  isSuperVIP?: boolean;
   isHost?: boolean;
   isSpeaker?: boolean;
   joinedAt?: number;
@@ -80,9 +82,11 @@ function mapViewerInfo(raw: any, fallbackId: string): LiveViewerInfo {
     name: String(raw?.name || 'User'),
     username: String(raw?.username || ''),
     avatar: String(raw?.avatar || ''),
-    level: typeof raw?.level === 'number' ? raw.level : 1,
+    level: typeof raw?.level === 'number' ? raw.level : 0,
     vipLevel: typeof raw?.vipLevel === 'number' ? raw.vipLevel : 0,
-    isVIP: Boolean(raw?.isVIP),
+    superVipLevel: typeof raw?.superVipLevel === 'number' ? raw.superVipLevel : 0,
+    isVIP: Boolean(raw?.isVIP || (typeof raw?.vipLevel === 'number' && raw.vipLevel > 0)),
+    isSuperVIP: Boolean(raw?.isSuperVIP || (typeof raw?.superVipLevel === 'number' && raw.superVipLevel > 0)),
     isHost: Boolean(raw?.isHost),
     joinedAt: typeof raw?.joinedAt === 'number' ? raw.joinedAt : now,
     lastSeen: typeof raw?.lastSeen === 'number' ? raw.lastSeen : now,
@@ -317,7 +321,10 @@ export async function sendFirestoreLiveComment(
     senderId: uid,
     senderName: sender.name || 'User',
     senderAvatar: sender.avatar || '',
-    senderVip: sender.vipLevel || 0,
+    senderLevel: typeof sender.level === 'number' ? sender.level : 0,
+    senderVip: typeof sender.vipLevel === 'number' ? sender.vipLevel : 0,
+    senderSuperVip: typeof sender.superVipLevel === 'number' ? sender.superVipLevel : 0,
+    senderIsVip: Boolean(sender.isVIP || (sender.vipLevel || 0) > 0),
     text: trimmed,
     timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     isHost,
@@ -360,7 +367,10 @@ export function subscribeFirestoreLiveComments(
               text: String(data.text || ''),
               timestamp: String(data.timestamp || 'Now'),
               isHost: Boolean(data.isHost),
+              senderLevel: typeof data.senderLevel === 'number' ? data.senderLevel : typeof data.level === 'number' ? data.level : 0,
               senderVip: typeof data.senderVip === 'number' ? data.senderVip : typeof data.vipLevel === 'number' ? data.vipLevel : 0,
+              senderSuperVip: typeof data.senderSuperVip === 'number' ? data.senderSuperVip : typeof data.superVipLevel === 'number' ? data.superVipLevel : 0,
+              senderIsVip: Boolean(data.senderIsVip || data.isVIP || (typeof data.senderVip === 'number' && data.senderVip > 0)),
               isSystem: Boolean(data.isSystem),
             } as ChatMessage,
           };
@@ -414,9 +424,11 @@ export async function joinFirestoreRoomParticipant(
         name: user.name || 'User',
         username: user.username || '',
         avatar: user.avatar || '',
-        level: user.level || 1,
-        vipLevel: user.vipLevel || 0,
-        isVIP: Boolean(user.isVIP),
+        level: typeof user.level === 'number' ? user.level : 0,
+        vipLevel: typeof user.vipLevel === 'number' ? user.vipLevel : 0,
+        superVipLevel: typeof user.superVipLevel === 'number' ? user.superVipLevel : 0,
+        isVIP: Boolean(user.isVIP || (user.vipLevel || 0) > 0),
+        isSuperVIP: Boolean(user.isSuperVIP || (user.superVipLevel || 0) > 0),
         isHost: Boolean(isHost),
         isSpeaker: Boolean(isSpeaker),
         joinedAt: now,
@@ -457,6 +469,18 @@ export async function leaveFirestoreRoomParticipant(roomId: string): Promise<voi
     await deleteDoc(doc(db, 'party_rooms', roomId, 'participants', uid));
   } catch {
     // ignore
+  }
+}
+
+export async function evictFirestoreRoomParticipant(
+  roomId: string,
+  targetUserId: string
+): Promise<void> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId) || !isValidFirestoreId(targetUserId)) return;
+  try {
+    await deleteDoc(doc(db, 'party_rooms', roomId, 'participants', targetUserId));
+  } catch {
+    // ignore if participant doc already absent
   }
 }
 
@@ -565,7 +589,10 @@ export async function sendFirestoreRoomMessage(
     senderId: uid,
     senderName: sender.name || 'User',
     senderAvatar: sender.avatar || '',
-    senderVip: sender.vipLevel || 0,
+    senderLevel: typeof sender.level === 'number' ? sender.level : 0,
+    senderVip: typeof sender.vipLevel === 'number' ? sender.vipLevel : 0,
+    senderSuperVip: typeof sender.superVipLevel === 'number' ? sender.superVipLevel : 0,
+    senderIsVip: Boolean(sender.isVIP || (sender.vipLevel || 0) > 0),
     text: trimmed,
     timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     isHost,
@@ -608,7 +635,10 @@ export function subscribeFirestoreRoomMessages(
               text: String(data.text || ''),
               timestamp: String(data.timestamp || 'Now'),
               isHost: Boolean(data.isHost),
+              senderLevel: typeof data.senderLevel === 'number' ? data.senderLevel : typeof data.level === 'number' ? data.level : 0,
               senderVip: typeof data.senderVip === 'number' ? data.senderVip : typeof data.vipLevel === 'number' ? data.vipLevel : 0,
+              senderSuperVip: typeof data.senderSuperVip === 'number' ? data.senderSuperVip : typeof data.superVipLevel === 'number' ? data.superVipLevel : 0,
+              senderIsVip: Boolean(data.senderIsVip || data.isVIP || (typeof data.senderVip === 'number' && data.senderVip > 0)),
               isSystem: Boolean(data.isSystem),
             } as ChatMessage,
           };
@@ -703,6 +733,7 @@ export async function syncFirestorePartyRoomState(
     backgroundType?: 'preset' | 'host_dp' | 'custom';
     backgroundId?: string;
     backgroundImage?: string;
+    seatTheme?: 'default' | 'gold' | 'green';
   }
 ): Promise<void> {
   if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
@@ -779,6 +810,13 @@ export async function syncFirestorePartyRoomState(
           !trimmed || !trimmed.startsWith('data:') || trimmed.length <= 160000
             ? trimmed.slice(0, 160000)
             : '';
+      }
+      if (
+        patch.seatTheme === 'default' ||
+        patch.seatTheme === 'gold' ||
+        patch.seatTheme === 'green'
+      ) {
+        payload.seatTheme = patch.seatTheme;
       }
     }
     if (Object.keys(payload).length === 0) return;

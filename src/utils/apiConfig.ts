@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { auth } from '../firebase';
 
-const DEFAULT_BACKEND_API_ORIGIN = 'https://api.lenzoparty.com';
+export const DEFAULT_BACKEND_API_ORIGIN = 'https://api.lenzoparty.com';
 const FRONTEND_PRODUCTION_HOSTS = new Set([
   'lenzoparty.com',
   'www.lenzoparty.com',

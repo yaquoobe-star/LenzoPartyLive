@@ -30,14 +30,14 @@ import {
   GiftItem,
 } from '../types';
 
-// Default Global Wallet Settings
+// Default Global Wallet Settings (60% Host Diamonds / 40% App Share)
 export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
-  commissionRatePercent: 20, // 20% platform commission on gifts received
-  exchangeRatePkrPerCoin: 2.0, // 1 coin = 2 PKR
-  minWithdrawalCoins: 2500, // min 2,500 coins (= 5,000 PKR)
-  maxWithdrawalCoins: 250000, // max 250,000 coins (= 500,000 PKR)
+  commissionRatePercent: 40, // 40% platform share, 60% host share converted to Diamonds
+  exchangeRatePkrPerCoin: 2.0, // 1 Diamond = 2 PKR
+  minWithdrawalCoins: 2500, // min 2,500 Diamonds (= 5,000 PKR)
+  maxWithdrawalCoins: 250000, // max 250,000 Diamonds (= 500,000 PKR)
   withdrawalFeePercent: 2.0, // 2% processing fee
-  earningsToWalletConversionRate: 1.0, // 1 earned coin = 1 wallet purchased coin
+  earningsToWalletConversionRate: 1.0, // 1 Diamond = 1 Gifting Wallet Coin
 };
 
 // Default Coin Recharge Packages
@@ -100,135 +100,45 @@ export const DEFAULT_COIN_PACKAGES: WalletRechargePackage[] = [
   },
 ];
 
-// Default Payout Methods
+// Default Payout Methods (Bank Transfer, EasyPaisa, JazzCash)
 export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
   {
     id: 'bank_transfer',
-    name: 'Direct Bank Transfer (1Link / IBFT)',
+    name: 'Bank Transfer (IBFT / 1Link)',
     type: 'bank_transfer',
     enabled: true,
-    instructions: 'Provide your Full Account Title, Bank Name, and 24-digit IBAN (PK...)',
-    minAmountCoins: 2500,
-  },
-  {
-    id: 'jazzcash',
-    name: 'JazzCash Mobile Wallet',
-    type: 'jazzcash',
-    enabled: true,
-    instructions: 'Provide registered JazzCash 11-digit mobile number and Account Title',
+    instructions: 'Provide your Full Account Title, Bank Name, and Account Number / 24-digit IBAN',
     minAmountCoins: 2500,
   },
   {
     id: 'easypaisa',
-    name: 'EasyPaisa Mobile Wallet',
+    name: 'EasyPaisa',
     type: 'easypaisa',
     enabled: true,
-    instructions: 'Provide registered EasyPaisa mobile number and CNIC details',
+    instructions: 'Provide your registered EasyPaisa 11-digit mobile number and Account Title',
     minAmountCoins: 2500,
   },
   {
-    id: 'cash_pickup',
-    name: 'Authorized Cash Out Agent',
-    type: 'cash_pickup',
+    id: 'jazzcash',
+    name: 'JazzCash',
+    type: 'jazzcash',
     enabled: true,
-    instructions: 'Withdraw directly in cash at our verified city merchant partner desks',
-    minAmountCoins: 5000,
+    instructions: 'Provide your registered JazzCash 11-digit mobile number and Account Title',
+    minAmountCoins: 2500,
   },
 ];
 
-// Default Official Offline Coin Seller Agencies (editable live by Verified Admin in Firestore)
-export const DEFAULT_COIN_SELLER_AGENCIES: CoinSellerAgency[] = [
-  {
-    id: 'agency_lenzo_hq_lhr',
-    name: 'Lenzo Official Coin Desk — Lahore',
-    ownerName: 'Official Lenzo Desk',
-    agencyCode: 'LP-COIN-01',
-    city: 'Lahore',
-    country: 'Pakistan',
-    whatsapp: '+923001122334',
-    phone: '+923001122334',
-    paymentMethods: ['JazzCash', 'EasyPaisa', 'Bank Transfer', 'Cash'],
-    workingHours: '24/7 Instant Delivery',
-    minCoinsOrder: 1000,
-    rateNote: 'Official Rate • Instant Top-Up',
-    badge: 'OFFICIAL HQ',
-    isVerified: true,
-    isOnline: true,
-    enabled: true,
-  },
-  {
-    id: 'agency_karachi_gold',
-    name: 'Royal Coins Agency — Karachi',
-    ownerName: 'Zainab & Partners',
-    agencyCode: 'LP-COIN-02',
-    city: 'Karachi',
-    country: 'Pakistan',
-    whatsapp: '+923212233445',
-    phone: '+923212233445',
-    paymentMethods: ['EasyPaisa', 'JazzCash', 'Bank Transfer'],
-    workingHours: '9:00 AM – 2:00 AM PKT',
-    minCoinsOrder: 1000,
-    rateNote: 'Fast 2–5 Min Delivery',
-    badge: 'TOP SELLER',
-    isVerified: true,
-    isOnline: true,
-    enabled: true,
-  },
-  {
-    id: 'agency_isb_rwp_prime',
-    name: 'Capital Prime Coin Hub — Islamabad / RWP',
-    ownerName: 'Hamza Tariq',
-    agencyCode: 'LP-COIN-03',
-    city: 'Islamabad',
-    country: 'Pakistan',
-    whatsapp: '+923333344556',
-    phone: '+923333344556',
-    paymentMethods: ['Bank Transfer', 'JazzCash', 'EasyPaisa', 'Cash'],
-    workingHours: '10:00 AM – 1:00 AM PKT',
-    minCoinsOrder: 1000,
-    rateNote: 'VIP Bulk Discounts Available',
-    badge: 'VIP DESK',
-    isVerified: true,
-    isOnline: true,
-    enabled: true,
-  },
-  {
-    id: 'agency_multan_fsd_star',
-    name: 'Starlight Coin Agency — Multan & Faisalabad',
-    ownerName: 'Bilal Raza',
-    agencyCode: 'LP-COIN-04',
-    city: 'Multan',
-    country: 'Pakistan',
-    whatsapp: '+923014455667',
-    phone: '+923014455667',
-    paymentMethods: ['JazzCash', 'EasyPaisa', 'Cash'],
-    workingHours: '10:00 AM – 12:00 AM PKT',
-    minCoinsOrder: 500,
-    rateNote: 'Trusted Offline Counter & Mobile Pay',
-    badge: 'VERIFIED',
-    isVerified: true,
-    isOnline: true,
-    enabled: true,
-  },
-  {
-    id: 'agency_gulf_international',
-    name: 'Gulf & Overseas Coin Desk — Dubai / KSA / UK',
-    ownerName: 'Lenzo International Desk',
-    agencyCode: 'LP-COIN-05',
-    city: 'Dubai / Overseas',
-    country: 'International',
-    whatsapp: '+971501122334',
-    phone: '+971501122334',
-    paymentMethods: ['Bank Transfer', 'Remittance', 'UAE Exchange'],
-    workingHours: '24/7 Overseas Support',
-    minCoinsOrder: 5000,
-    rateNote: 'AED / SAR / GBP / USD Accepted',
-    badge: 'OVERSEAS',
-    isVerified: true,
-    isOnline: true,
-    enabled: true,
-  },
-];
+// Strictly real Firestore agencies only — NO fake/mock placeholder agencies
+export const DEFAULT_COIN_SELLER_AGENCIES: CoinSellerAgency[] = [];
+
+// Legacy placeholder IDs that must never be displayed even if previously seeded
+const LEGACY_PLACEHOLDER_AGENCY_IDS = new Set([
+  'agency_lenzo_hq_lhr',
+  'agency_karachi_gold',
+  'agency_isb_rwp_prime',
+  'agency_multan_fsd_star',
+  'agency_gulf_international',
+]);
 
 function isVerifiedAdminSession(): boolean {
   return (
@@ -246,10 +156,29 @@ export function subscribeWalletSettings(onUpdate: (settings: WalletSettings) => 
     docRef,
     (snap) => {
       if (snap.exists()) {
-        onUpdate({ ...DEFAULT_WALLET_SETTINGS, ...snap.data() } as WalletSettings);
+        const raw = snap.data() as WalletSettings & { commissionPolicyVersion?: string };
+        // Upgrade legacy 20% default automatically to the 40% App / 60% Host Diamonds policy
+        const needsPolicyUpgrade = raw.commissionPolicyVersion !== 'v2_60_40' && raw.commissionRatePercent === 20;
+        const normalized: WalletSettings = {
+          ...DEFAULT_WALLET_SETTINGS,
+          ...raw,
+          commissionRatePercent: needsPolicyUpgrade ? 40 : (raw.commissionRatePercent ?? 40),
+        };
+        if (needsPolicyUpgrade && isVerifiedAdminSession()) {
+          setDoc(
+            docRef,
+            { commissionRatePercent: 40, commissionPolicyVersion: 'v2_60_40', updatedAt: serverTimestamp() },
+            { merge: true }
+          ).catch(() => {});
+        }
+        onUpdate(normalized);
       } else {
         if (isVerifiedAdminSession()) {
-          setDoc(docRef, DEFAULT_WALLET_SETTINGS, { merge: true }).catch((err) =>
+          setDoc(
+            docRef,
+            { ...DEFAULT_WALLET_SETTINGS, commissionPolicyVersion: 'v2_60_40' },
+            { merge: true }
+          ).catch((err) =>
             console.warn('Failed to auto-seed wallet settings:', err)
           );
         }
@@ -266,7 +195,11 @@ export function subscribeWalletSettings(onUpdate: (settings: WalletSettings) => 
 export async function updateWalletSettings(settings: Partial<WalletSettings>): Promise<void> {
   const docRef = doc(db, 'wallet_settings', 'global');
   try {
-    await setDoc(docRef, { ...settings, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(
+      docRef,
+      { ...settings, commissionPolicyVersion: 'v2_60_40', updatedAt: serverTimestamp() },
+      { merge: true }
+    );
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, 'wallet_settings/global');
   }
@@ -309,7 +242,7 @@ export async function saveCoinPackage(pkg: WalletRechargePackage): Promise<void>
 }
 
 /**
- * 2B. OFFICIAL OFFLINE COIN SELLER AGENCIES SERVICE
+ * 2B. REAL COIN SELLER AGENCIES SERVICE (ZERO FAKE/MOCK SEEDING)
  */
 export function subscribeCoinSellerAgencies(
   isAdmin: boolean,
@@ -321,29 +254,18 @@ export function subscribeCoinSellerAgencies(
   return onSnapshot(
     q,
     (snap) => {
-      if (!snap.empty) {
-        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as CoinSellerAgency));
-        items.sort((a, b) => {
-          if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
-          return (a.agencyCode || a.name).localeCompare(b.agencyCode || b.name);
-        });
-        onUpdate(items);
-      } else {
-        if (isVerifiedAdminSession()) {
-          DEFAULT_COIN_SELLER_AGENCIES.forEach((agency) => {
-            setDoc(
-              doc(db, 'coin_seller_agencies', agency.id),
-              { ...agency, updatedAt: new Date().toISOString() },
-              { merge: true }
-            ).catch(console.warn);
-          });
-        }
-        onUpdate(DEFAULT_COIN_SELLER_AGENCIES);
-      }
+      const items = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as CoinSellerAgency))
+        .filter((item) => !LEGACY_PLACEHOLDER_AGENCY_IDS.has(item.id));
+      items.sort((a, b) => {
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        return (a.agencyCode || a.name).localeCompare(b.agencyCode || b.name);
+      });
+      onUpdate(items);
     },
     (err) => {
       console.warn('Coin seller agencies listener notice:', err);
-      onUpdate(DEFAULT_COIN_SELLER_AGENCIES);
+      onUpdate([]);
     }
   );
 }
@@ -494,10 +416,10 @@ export async function purchaseCoins(
 }
 
 /**
- * 6. ATOMIC GIFT SENDING & COMMISSION SYSTEM
- * - Deducts gift cost from sender's walletPurchasedCoins.
- * - Deducts application commission % (default 20%).
- * - Credits net eligible amount to recipient's availableEarningsCoins.
+ * 6. ATOMIC GIFT SENDING & 40% APP / 60% HOST DIAMONDS SPLIT
+ * - Deducts 100% of gift cost from sender's Gifting Wallet (Coins).
+ * - Platform share: 40% (recorded in commission_transactions).
+ * - Host share: 60% converted into Diamonds in recipient's Earnings Wallet & users/{uid}.diamonds.
  * - Records all transactions immutably.
  */
 export async function processGiftTransaction(
@@ -508,29 +430,35 @@ export async function processGiftTransaction(
   settings: WalletSettings = DEFAULT_WALLET_SETTINGS
 ): Promise<{ success: boolean; netEarnings: number; commission: number; error?: string }> {
   try {
-    const totalCost = gift.coins * quantity;
-    if (totalCost <= 0) return { success: false, netEarnings: 0, commission: 0, error: 'Invalid gift amount' };
+    const totalCost = Math.floor(gift.coins * quantity);
+    if (!Number.isFinite(totalCost) || totalCost <= 0) {
+      return { success: false, netEarnings: 0, commission: 0, error: 'Invalid gift amount' };
+    }
 
     const senderWalletRef = doc(db, 'wallets', senderUser.id);
     const recipientEarningsRef = doc(db, 'earnings', recipientUser.id);
     const senderUserRef = doc(db, 'users', senderUser.id);
     const recipientUserRef = doc(db, 'users', recipientUser.id);
 
-    // Calculate commission
-    const commissionPercent = settings.commissionRatePercent || 20;
+    // 40% App share / 60% Host Diamonds share
+    const commissionPercent = settings.commissionRatePercent || 40;
+    const hostSharePercent = Math.max(0, 100 - commissionPercent);
     const commissionCoins = Math.round(totalCost * (commissionPercent / 100));
-    const netEarningsCoins = totalCost - commissionCoins;
+    const netEarningsDiamonds = totalCost - commissionCoins;
 
     await runTransaction(db, async (tx) => {
-      // 1. Check sender's purchased wallet balance
+      // 1. Check sender's real Gifting Wallet coin balance
       const senderSnap = await tx.get(senderWalletRef);
-      const senderCoins = senderSnap.exists() ? (senderSnap.data().walletPurchasedCoins ?? 0) : senderUser.coins;
+      const senderUserSnap = await tx.get(senderUserRef);
+      const walletCoins = senderSnap.exists() ? Number(senderSnap.data().walletPurchasedCoins ?? 0) : 0;
+      const profileCoins = senderUserSnap.exists() ? Number(senderUserSnap.data().coins ?? 0) : 0;
+      const senderCoins = senderSnap.exists() && walletCoins > 0 ? walletCoins : Math.max(walletCoins, profileCoins);
 
       if (senderCoins < totalCost) {
         throw new Error(`Insufficient wallet balance. You have ${senderCoins.toLocaleString()} coins, but need ${totalCost.toLocaleString()} coins.`);
       }
 
-      // 2. Deduct from sender's wallet
+      // 2. Deduct 100% from sender's Buying/Gifting Wallet (Coins)
       const newSenderCoins = senderCoins - totalCost;
       const prevSpent = senderSnap.exists() ? (senderSnap.data().totalCoinsSpent || 0) : 0;
 
@@ -553,20 +481,20 @@ export async function processGiftTransaction(
         { merge: true }
       );
 
-      // 3. Credit recipient's earnings
+      // 3. Credit 60% host share as Diamonds in recipient's Earnings Wallet
       const recipientSnap = await tx.get(recipientEarningsRef);
-      const currentEarnings = recipientSnap.exists() ? (recipientSnap.data().availableEarningsCoins || 0) : 0;
+      const currentDiamonds = recipientSnap.exists() ? (recipientSnap.data().availableEarningsCoins || 0) : 0;
       const prevGross = recipientSnap.exists() ? (recipientSnap.data().grossGiftCoinsReceived || 0) : 0;
       const prevCommission = recipientSnap.exists() ? (recipientSnap.data().totalCommissionDeducted || 0) : 0;
       const prevGiftCount = recipientSnap.exists() ? (recipientSnap.data().totalGiftsCount || 0) : 0;
 
-      const newAvailableEarnings = currentEarnings + netEarningsCoins;
+      const newAvailableDiamonds = currentDiamonds + netEarningsDiamonds;
 
       tx.set(
         recipientEarningsRef,
         {
           userId: recipientUser.id,
-          availableEarningsCoins: newAvailableEarnings,
+          availableEarningsCoins: newAvailableDiamonds,
           grossGiftCoinsReceived: prevGross + totalCost,
           totalCommissionDeducted: prevCommission + commissionCoins,
           totalGiftsCount: prevGiftCount + quantity,
@@ -575,16 +503,16 @@ export async function processGiftTransaction(
         { merge: true }
       );
 
-      // Recipient diamonds track earnings
+      // Recipient's users/{uid}.diamonds mirrors Earnings Wallet Diamonds
       tx.set(
         recipientUserRef,
         {
-          diamonds: newAvailableEarnings,
+          diamonds: newAvailableDiamonds,
         },
         { merge: true }
       );
 
-      // 4. Create Transaction for Sender in wallet_transactions
+      // 4. Create Transaction for Sender in wallet_transactions (Coins)
       const senderTxRef = doc(collection(db, 'wallet_transactions'));
       tx.set(senderTxRef, {
         id: senderTxRef.id,
@@ -606,17 +534,17 @@ export async function processGiftTransaction(
         },
       });
 
-      // 5. Create Transaction for Recipient in earnings_transactions
+      // 5. Create Transaction for Recipient in earnings_transactions (Diamonds)
       const recipientTxRef = doc(collection(db, 'earnings_transactions'));
       tx.set(recipientTxRef, {
         id: recipientTxRef.id,
         userId: recipientUser.id,
         category: 'gift_received',
         balanceType: 'earnings',
-        amount: netEarningsCoins,
-        pkrAmount: Math.round(netEarningsCoins * settings.exchangeRatePkrPerCoin),
+        amount: netEarningsDiamonds,
+        pkrAmount: Math.round(netEarningsDiamonds * settings.exchangeRatePkrPerCoin),
         status: 'completed',
-        description: `Received ${quantity}x ${gift.name} ${gift.icon} from ${senderUser.name} (${netEarningsCoins.toLocaleString()} net after ${commissionPercent}% platform commission)`,
+        description: `Received ${quantity}x ${gift.name} ${gift.icon} from ${senderUser.name} (+${netEarningsDiamonds.toLocaleString()} Diamonds • ${hostSharePercent}% host share)`,
         timestamp: new Date().toLocaleString(),
         timestampMillis: Date.now(),
         referenceId: gift.id,
@@ -626,10 +554,11 @@ export async function processGiftTransaction(
           grossGiftCost: totalCost,
           commissionCoins,
           commissionPercent,
+          hostSharePercent,
         },
       });
 
-      // 6. Record Platform Commission Transaction
+      // 6. Record Platform Commission Transaction (40% App Share)
       const commissionTxRef = doc(collection(db, 'commission_transactions'));
       tx.set(commissionTxRef, {
         id: commissionTxRef.id,
@@ -637,7 +566,7 @@ export async function processGiftTransaction(
         recipientId: recipientUser.id,
         grossCost: totalCost,
         commissionCoins,
-        netEarningsCoins,
+        netEarningsCoins: netEarningsDiamonds,
         commissionPercent,
         timestamp: serverTimestamp(),
         timestampMillis: Date.now(),
@@ -646,7 +575,7 @@ export async function processGiftTransaction(
 
     return {
       success: true,
-      netEarnings: netEarningsCoins,
+      netEarnings: netEarningsDiamonds,
       commission: commissionCoins,
     };
   } catch (err: any) {
@@ -683,14 +612,14 @@ export async function convertEarningsToWallet(
       const availableEarnings = earningsSnap.exists() ? (earningsSnap.data().availableEarningsCoins || 0) : 0;
 
       if (availableEarnings < coinsToConvert) {
-        throw new Error(`Insufficient earnings. Available: ${availableEarnings.toLocaleString()} coins.`);
+        throw new Error(`Insufficient Diamonds. Available: ${availableEarnings.toLocaleString()} Diamonds.`);
       }
 
       const walletSnap = await tx.get(walletRef);
       const currentWalletCoins = walletSnap.exists() ? (walletSnap.data().walletPurchasedCoins || 0) : 0;
       const prevConverted = earningsSnap.exists() ? (earningsSnap.data().totalConvertedToWallet || 0) : 0;
 
-      // Deduct from earnings
+      // Deduct Diamonds from Earnings Wallet
       const newAvailableEarnings = availableEarnings - coinsToConvert;
       tx.set(
         earningsRef,
@@ -702,7 +631,7 @@ export async function convertEarningsToWallet(
         { merge: true }
       );
 
-      // Credit to wallet
+      // Credit Coins to Buying/Gifting Wallet
       const newWalletCoins = currentWalletCoins + walletCoinsReceived;
       tx.set(
         walletRef,
@@ -714,10 +643,10 @@ export async function convertEarningsToWallet(
         { merge: true }
       );
 
-      // Update user coins profile
+      // Sync user profile coins + diamonds
       tx.set(userRef, { coins: newWalletCoins, diamonds: newAvailableEarnings }, { merge: true });
 
-      // Transaction in earnings
+      // Transaction in Earnings Wallet (Diamonds)
       const earningsTx = doc(collection(db, 'earnings_transactions'));
       tx.set(earningsTx, {
         id: earningsTx.id,
@@ -726,12 +655,12 @@ export async function convertEarningsToWallet(
         balanceType: 'earnings',
         amount: -coinsToConvert,
         status: 'completed',
-        description: `Converted ${coinsToConvert.toLocaleString()} earnings coins to ${walletCoinsReceived.toLocaleString()} Wallet Coins`,
+        description: `Exchanged ${coinsToConvert.toLocaleString()} Diamonds to ${walletCoinsReceived.toLocaleString()} Gifting Wallet Coins`,
         timestamp: new Date().toLocaleString(),
         timestampMillis: Date.now(),
       });
 
-      // Transaction in wallet
+      // Transaction in Buying/Gifting Wallet (Coins)
       const walletTx = doc(collection(db, 'wallet_transactions'));
       tx.set(walletTx, {
         id: walletTx.id,
@@ -740,7 +669,7 @@ export async function convertEarningsToWallet(
         balanceType: 'wallet',
         amount: walletCoinsReceived,
         status: 'completed',
-        description: `Received ${walletCoinsReceived.toLocaleString()} Wallet Coins converted from Creator Earnings`,
+        description: `Received ${walletCoinsReceived.toLocaleString()} Gifting Coins exchanged from Earnings Diamonds`,
         timestamp: new Date().toLocaleString(),
         timestampMillis: Date.now(),
       });
@@ -748,13 +677,13 @@ export async function convertEarningsToWallet(
 
     return { success: true, walletCoinsReceived };
   } catch (err: any) {
-    return { success: false, walletCoinsReceived: 0, error: err?.message || 'Conversion failed' };
+    return { success: false, walletCoinsReceived: 0, error: err?.message || 'Exchange failed' };
   }
 }
 
 /**
- * 8. ATOMIC WITHDRAWAL REQUEST
- * - Deducts requested coins from availableEarningsCoins.
+ * 8. ATOMIC DIAMOND WITHDRAWAL REQUEST (Bank Transfer, EasyPaisa, JazzCash)
+ * - Deducts requested Diamonds from Earnings Wallet (availableEarningsCoins).
  * - Moves them into pendingWithdrawalCoins.
  * - Creates a withdrawal_requests document with status: 'pending'.
  */
@@ -775,10 +704,10 @@ export async function requestWithdrawal(
 ): Promise<{ success: boolean; requestId: string; finalPayablePkr: number; error?: string }> {
   try {
     if (coinsRequested < settings.minWithdrawalCoins) {
-      return { success: false, requestId: '', finalPayablePkr: 0, error: `Minimum withdrawal limit is ${settings.minWithdrawalCoins.toLocaleString()} coins (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})` };
+      return { success: false, requestId: '', finalPayablePkr: 0, error: `Minimum withdrawal limit is ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})` };
     }
     if (coinsRequested > settings.maxWithdrawalCoins) {
-      return { success: false, requestId: '', finalPayablePkr: 0, error: `Maximum withdrawal limit is ${settings.maxWithdrawalCoins.toLocaleString()} coins per transaction` };
+      return { success: false, requestId: '', finalPayablePkr: 0, error: `Maximum withdrawal limit is ${settings.maxWithdrawalCoins.toLocaleString()} Diamonds per transaction` };
     }
 
     const exchangeRate = settings.exchangeRatePkrPerCoin || 2.0;
@@ -796,7 +725,7 @@ export async function requestWithdrawal(
       const pending = earningsSnap.exists() ? (earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
 
       if (available < coinsRequested) {
-        throw new Error(`Insufficient available earnings. Available: ${available.toLocaleString()} coins.`);
+        throw new Error(`Insufficient available Diamonds. Available: ${available.toLocaleString()} Diamonds.`);
       }
 
       // Deduct from available, add to pending
@@ -849,7 +778,7 @@ export async function requestWithdrawal(
         amount: -coinsRequested,
         pkrAmount: finalPayablePkr,
         status: 'pending',
-        description: `Withdrawal request #${reqDocRef.id.slice(-6).toUpperCase()} for ${coinsRequested.toLocaleString()} coins (PKR ${finalPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName})`,
+        description: `Diamond withdrawal #${reqDocRef.id.slice(-6).toUpperCase()} for ${coinsRequested.toLocaleString()} Diamonds (PKR ${finalPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName})`,
         timestamp: new Date().toLocaleString(),
         timestampMillis: Date.now(),
         referenceId: reqDocRef.id,
@@ -924,7 +853,7 @@ export async function adminUpdateWithdrawalStatus(
 
         tx.update(reqRef, {
           status: newStatus,
-          adminRemarks: adminRemarks || 'Request rejected. Coins returned to your available earnings balance.',
+          adminRemarks: adminRemarks || 'Request rejected. Diamonds returned to your Earnings Wallet.',
           updatedAt: new Date().toLocaleString(),
         });
 
@@ -938,7 +867,7 @@ export async function adminUpdateWithdrawalStatus(
           amount: request.coinsRequested,
           pkrAmount: request.finalPayablePkr,
           status: 'completed',
-          description: `Withdrawal #${request.id.slice(-6).toUpperCase()} rejected: ${adminRemarks || 'Funds restored to available earnings.'}`,
+          description: `Withdrawal #${request.id.slice(-6).toUpperCase()} rejected: ${adminRemarks || 'Diamonds restored to Earnings Wallet.'}`,
           timestamp: new Date().toLocaleString(),
           timestampMillis: Date.now(),
           referenceId: request.id,

@@ -43,6 +43,20 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/blocked_users/$(blockerUid + '_' + targetUid));
     }
 
+    function isKickedFromRoom(roomId, uid) {
+      return roomId is string
+        && uid is string
+        && exists(/databases/$(database)/documents/room_kicks/$(roomId + '_' + uid))
+        && (
+          get(/databases/$(database)/documents/room_kicks/$(roomId + '_' + uid)).data.durationType == 'session'
+          || (
+            'expiresAt' in get(/databases/$(database)/documents/room_kicks/$(roomId + '_' + uid)).data
+            && get(/databases/$(database)/documents/room_kicks/$(roomId + '_' + uid)).data.expiresAt is number
+            && get(/databases/$(database)/documents/room_kicks/$(roomId + '_' + uid)).data.expiresAt > request.time.toMillis()
+          )
+        );
+    }
+
     function isActiveCoinSellerOwner() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid))
@@ -315,9 +329,11 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && isValidId(roomId)
                     && incoming().host.id == request.auth.uid
+                    && (!('seatTheme' in incoming()) || incoming().seatTheme in ['default', 'gold', 'green'])
                     && isValidPartyRoomSeatConfig(incoming(), request.auth.uid);
       allow update: if isSignedIn()
                     && isValidId(roomId)
+                    && (!('seatTheme' in incoming()) || incoming().seatTheme in ['default', 'gold', 'green'])
                     && (
                       isAdmin()
                       || (
@@ -330,6 +346,7 @@ service cloud.firestore {
                       )
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
+                        && !isKickedFromRoom(roomId, request.auth.uid)
                         && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount', 'lastHeartEvent'])
                         && (
                           !incoming().diff(existing()).affectedKeys().hasAny(['seats'])
@@ -347,6 +364,7 @@ service cloud.firestore {
                       && isValidId(messageId)
                       && exists(/databases/$(database)/documents/party_rooms/$(roomId))
                       && !isBlockedBy(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
+                      && !isKickedFromRoom(roomId, request.auth.uid)
                       && incoming().userId == request.auth.uid
                       && incoming().text is string
                       && incoming().text.size() > 0
@@ -373,6 +391,7 @@ service cloud.firestore {
                                 (
                                   participantId == request.auth.uid
                                   && !isBlockedBy(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
+                                  && !isKickedFromRoom(roomId, request.auth.uid)
                                 )
                                 || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
                                 || isAdmin()
@@ -844,7 +863,9 @@ service cloud.firestore {
                     && incoming().followingId is string
                     && incoming().followingId.size() > 0
                     && incoming().followingId.size() <= 128
-                    && incoming().followingId != request.auth.uid;
+                    && incoming().followingId != request.auth.uid
+                    && !isBlockedBy(incoming().followingId, request.auth.uid)
+                    && !isBlockedBy(request.auth.uid, incoming().followingId);
       allow update: if false;
       allow delete: if isSignedIn()
                     && isValidId(followId)
@@ -995,6 +1016,50 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 16B. PARTY ROOM KICKS (/room_kicks/{kickId})
+    // ========================================================
+    function isValidRoomKick(data) {
+      return data.keys().hasAll(['roomId', 'hostId', 'targetUserId', 'targetUserName', 'durationType', 'kickedAt'])
+        && data.keys().hasOnly([
+          'roomId', 'roomTitle', 'hostId', 'targetUserId',
+          'targetUserName', 'targetUserAvatar', 'durationType', 'kickedAt', 'expiresAt'
+        ])
+        && data.roomId is string && data.roomId.size() > 0 && data.roomId.size() <= 128
+        && (!('roomTitle' in data) || (data.roomTitle is string && data.roomTitle.size() <= 100))
+        && data.hostId is string && data.hostId.size() > 0 && data.hostId.size() <= 128
+        && data.targetUserId is string && data.targetUserId.size() > 0 && data.targetUserId.size() <= 128
+        && data.hostId != data.targetUserId
+        && data.targetUserName is string && data.targetUserName.size() > 0 && data.targetUserName.size() <= 64
+        && (!('targetUserAvatar' in data) || (data.targetUserAvatar is string && data.targetUserAvatar.size() <= 1500))
+        && data.durationType in ['session', '24h', '15d', '30d']
+        && data.kickedAt is number && data.kickedAt > 0
+        && (!('expiresAt' in data) || (data.expiresAt is number && data.expiresAt > data.kickedAt));
+    }
+
+    match /room_kicks/{kickId} {
+      allow get: if isSignedIn()
+                 && isValidId(kickId)
+                 && (existing().hostId == request.auth.uid || existing().targetUserId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn()
+                  && (resource.data.hostId == request.auth.uid || resource.data.targetUserId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn()
+                            && isValidId(kickId)
+                            && kickId == (incoming().roomId + '_' + incoming().targetUserId)
+                            && isValidRoomKick(incoming())
+                            && (
+                              isAdmin()
+                              || (
+                                incoming().hostId == request.auth.uid
+                                && exists(/databases/$(database)/documents/party_rooms/$(incoming().roomId))
+                                && get(/databases/$(database)/documents/party_rooms/$(incoming().roomId)).data.host.id == request.auth.uid
+                              )
+                            );
+      allow delete: if isSignedIn()
+                    && isValidId(kickId)
+                    && (existing().hostId == request.auth.uid || isAdmin());
+    }
+
+    // ========================================================
     // 17. REELS COLLECTION (/reels/{reelId})
     // ========================================================
     function isValidReel(data) {
@@ -1058,7 +1123,11 @@ service cloud.firestore {
                     && incoming().reelId is string
                     && incoming().reelId.size() > 0
                     && incoming().reelId.size() <= 128
-                    && likeId == (incoming().reelId + '_' + request.auth.uid);
+                    && likeId == (incoming().reelId + '_' + request.auth.uid)
+                    && (
+                      !exists(/databases/$(database)/documents/reels/$(incoming().reelId))
+                      || !isBlockedBy(get(/databases/$(database)/documents/reels/$(incoming().reelId)).data.creatorUID, request.auth.uid)
+                    );
       allow update: if false;
       allow delete: if isSignedIn()
                     && isValidId(likeId)
@@ -1074,6 +1143,10 @@ service cloud.firestore {
                     && incoming().reelId is string
                     && incoming().reelId.size() > 0
                     && incoming().reelId.size() <= 128
+                    && (
+                      !exists(/databases/$(database)/documents/reels/$(incoming().reelId))
+                      || !isBlockedBy(get(/databases/$(database)/documents/reels/$(incoming().reelId)).data.creatorUID, request.auth.uid)
+                    )
                     && incoming().text is string
                     && incoming().text.size() > 0
                     && incoming().text.size() <= 400

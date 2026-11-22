@@ -16,23 +16,24 @@ export const LevelProgressBar: React.FC<LevelProgressBarProps> = ({
   onViewPerks,
 }) => {
   const progress = getUserLevelProgress(user);
-  const nextLevel = progress.currentLevel + 1;
+  const isMax = progress.currentLevel >= 100 && progress.remainingExp === 0;
+  const nextLevel = Math.min(100, progress.currentLevel + 1);
 
   return (
     <div className={`w-full p-4 rounded-2xl bg-gradient-to-br from-[#160C25] to-[#211333] border border-white/10 shadow-lg ${className}`}>
-      {/* Header Row: Level Badges and EXP figures */}
+      {/* Header Row: Level Badges and Coin figures */}
       <div className="flex items-center justify-between mb-2 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <LevelBadge level={progress.currentLevel} size="sm" showTierName={true} />
         </div>
 
         <div className="flex items-center gap-1.5 text-right shrink-0">
-          <span className="text-[11px] font-mono font-bold text-white">
+          <span className="text-[11px] font-mono font-bold text-white tabular-nums">
             {progress.expInCurrentLevel.toLocaleString()}
           </span>
           <span className="text-[11px] text-[#B9AECF]">/</span>
-          <span className="text-[11px] font-mono text-[#B9AECF]">
-            {progress.expNeededForNextLevel.toLocaleString()} EXP
+          <span className="text-[11px] font-mono text-[#B9AECF] tabular-nums">
+            {progress.expNeededForNextLevel.toLocaleString()} Coins
           </span>
         </div>
       </div>
@@ -49,17 +50,24 @@ export const LevelProgressBar: React.FC<LevelProgressBarProps> = ({
         </div>
       </div>
 
-      {/* Footer Info Row: Remaining EXP & Percentage */}
-      <div className="flex items-center justify-between text-[11px]">
-        <div className="flex items-center gap-1.5 text-[#B9AECF]">
-          <Zap className="w-3.5 h-3.5 text-[#FFC84A]" />
-          <span>
-            <span className="text-white font-bold font-mono">{progress.remainingExp.toLocaleString()} EXP</span> required for <span className="text-[#FFC84A] font-bold">Level {nextLevel}</span>
+      {/* Footer Info Row: Remaining Coins & Percentage */}
+      <div className="flex items-center justify-between text-[11px] gap-2">
+        <div className="flex items-center gap-1.5 text-[#B9AECF] min-w-0">
+          <Zap className="w-3.5 h-3.5 text-[#FFC84A] shrink-0" />
+          <span className="truncate">
+            {isMax ? (
+              <span className="text-[#FFC84A] font-bold">Max Level 100 (Legend Sovereign) Reached!</span>
+            ) : (
+              <>
+                <span className="text-white font-bold font-mono tabular-nums">{progress.remainingExp.toLocaleString()} Coins</span> required for{' '}
+                <span className="text-[#FFC84A] font-bold">Level {nextLevel}</span>
+              </>
+            )}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="font-mono font-extrabold text-[#F328D5] bg-[#F328D5]/10 px-2 py-0.5 rounded-full border border-[#F328D5]/20">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="font-mono font-extrabold text-[#F328D5] bg-[#F328D5]/10 px-2 py-0.5 rounded-full border border-[#F328D5]/20 tabular-nums">
             {progress.progressPercent}%
           </span>
           {onViewPerks && (
@@ -67,7 +75,7 @@ export const LevelProgressBar: React.FC<LevelProgressBarProps> = ({
               onClick={onViewPerks}
               className="text-[#FFC84A] hover:text-white transition-colors flex items-center gap-0.5 font-bold"
             >
-              <span>Perks</span>
+              <span>Chart</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           )}

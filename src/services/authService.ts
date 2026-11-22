@@ -24,7 +24,7 @@ import {
 } from 'firebase/firestore';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { apiFetch } from '../utils/apiConfig';
+import { apiFetch, DEFAULT_BACKEND_API_ORIGIN, getApiBaseUrl } from '../utils/apiConfig';
 import { UserProfile } from '../types';
 import { rememberAuthenticatedAccount } from './accountSwitcherService';
 
@@ -527,6 +527,74 @@ export async function signInWithGoogle(options?: {
 /**
  * REAL Email & Password Registration via Firebase
  */
+// Track which backend origin issued the latest Email OTP challenge so verify-otp hits the exact same server.
+let lastEmailOtpBaseUrl: string | null = null;
+
+function isAiStudioPreviewHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  return host.endsWith('.run.app') || host === 'localhost' || host === '127.0.0.1';
+}
+
+async function postEmailOtpJson(
+  path: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+  explicitBaseUrl?: string | null
+): Promise<{
+  response: Response;
+  data: any;
+  looksLikeHtml: boolean;
+  usedBaseUrl: string;
+}> {
+  const usedBaseUrl = explicitBaseUrl !== undefined && explicitBaseUrl !== null ? explicitBaseUrl : getApiBaseUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  let response: Response;
+  if (usedBaseUrl && usedBaseUrl !== getApiBaseUrl()) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      response = await fetch(`${usedBaseUrl.replace(/\/+$/, '')}${normalizedPath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller?.signal,
+      });
+    } catch (err: any) {
+      const wrapped: any = new Error(
+        `Unable to reach backend (${usedBaseUrl}${normalizedPath}): ${err?.message || 'Network unavailable'}`
+      );
+      wrapped.isNetworkError = true;
+      throw wrapped;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  } else {
+    response = await apiFetch(normalizedPath, {
+      method: 'POST',
+      skipAuth: true,
+      body: JSON.stringify(payload),
+      timeoutMs,
+    });
+  }
+
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const rawText = await response.text().catch(() => '');
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
+  }
+
+  const looksLikeHtml =
+    contentType.includes('text/html') ||
+    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+
+  return { response, data, looksLikeHtml, usedBaseUrl };
+}
+
 /**
  * Send a short-lived 6-digit email OTP through the Lenzo backend (Resend).
  * The backend returns a signed challenge; the OTP itself is never stored client-side.
@@ -542,36 +610,78 @@ export async function sendEmailOtp(email: string): Promise<{
     throw new Error('Please enter a valid email address.');
   }
 
-  const response = await apiFetch('/api/auth/email/send-otp', {
-    method: 'POST',
-    skipAuth: true,
-    body: JSON.stringify({ email: cleanEmail }),
-    timeoutMs: 20000,
-  });
+  const primaryBase = getApiBaseUrl();
+  const canFallbackToProdApi = !primaryBase && isAiStudioPreviewHost();
 
-  const contentType = (response.headers.get('content-type') || '').toLowerCase();
-  const rawText = await response.text().catch(() => '');
-  let data: any = null;
+  let attempt: Awaited<ReturnType<typeof postEmailOtpJson>> | null = null;
+  let primaryNetworkError: any = null;
+
   try {
-    data = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    data = null;
+    attempt = await postEmailOtpJson('/api/auth/email/send-otp', { email: cleanEmail }, 20000);
+  } catch (err: any) {
+    if (canFallbackToProdApi) {
+      primaryNetworkError = err;
+    } else if (err?.isNetworkError) {
+      throw new Error(
+        `Unable to reach the Lenzo email backend (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}). Check that Railway is running and Cloudflare DNS/SSL for api.lenzoparty.com is not returning 502 (${err?.message || 'Failed to fetch'}).`
+      );
+    } else {
+      throw err;
+    }
   }
 
-  const looksLikeHtml =
-    contentType.includes('text/html') ||
-    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+  // On AI Studio Preview (*.run.app), if same-origin hits an iframe cookie HTML redirect,
+  // throws a CORS-redirect network error, or lacks local RESEND_API_KEY (503 EMAIL_PROVIDER_NOT_CONFIGURED),
+  // automatically try the live Railway API.
+  const shouldTryProdFallback =
+    canFallbackToProdApi &&
+    (Boolean(primaryNetworkError) ||
+      Boolean(attempt?.looksLikeHtml) ||
+      (attempt?.response.status === 503 && attempt?.data?.code === 'EMAIL_PROVIDER_NOT_CONFIGURED'));
+
+  if (shouldTryProdFallback) {
+    try {
+      const prodAttempt = await postEmailOtpJson(
+        '/api/auth/email/send-otp',
+        { email: cleanEmail },
+        20000,
+        DEFAULT_BACKEND_API_ORIGIN
+      );
+      if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) {
+        attempt = prodAttempt;
+      } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) {
+        attempt = prodAttempt;
+      } else {
+        throw new Error(
+          `Email OTP could not be sent. In AI Studio Preview, add RESEND_API_KEY, RESEND_FROM_EMAIL, and EMAIL_OTP_SECRET in AI Studio Settings -> Secrets, OR bring the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) online (currently returning HTTP ${prodAttempt.response.status}).`
+        );
+      }
+    } catch (fallbackErr: any) {
+      if (fallbackErr?.isNetworkError) {
+        throw new Error(
+          `Email OTP could not be sent. AI Studio Preview is missing RESEND_API_KEY / RESEND_FROM_EMAIL / EMAIL_OTP_SECRET in Settings -> Secrets, and the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is currently unreachable (offline / 502 Bad Gateway).`
+        );
+      }
+      throw fallbackErr;
+    }
+  }
+
+  if (!attempt) {
+    throw primaryNetworkError || new Error('Could not reach the email verification service.');
+  }
+
+  const { response, data, looksLikeHtml, usedBaseUrl } = attempt;
 
   if (!response.ok || !data?.success || !data?.challenge) {
     if (looksLikeHtml) {
       const targetInfo = response.url || '/api/auth/email/send-otp';
       throw new Error(
-        `Email API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Please open the app directly on https://lenzoparty.com and ensure the Railway backend (https://api.lenzoparty.com) is online and deployed.`
+        `Email API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`
       );
     }
     if (response.status >= 502 && !data?.error) {
       throw new Error(
-        `Lenzo backend email service is temporarily unreachable (HTTP ${response.status}). Please check Railway deployment for https://api.lenzoparty.com.`
+        `Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs and Cloudflare DNS/SSL for api.lenzoparty.com.`
       );
     }
     const err: any = new Error(
@@ -583,6 +693,8 @@ export async function sendEmailOtp(email: string): Promise<{
     }
     throw err;
   }
+
+  lastEmailOtpBaseUrl = usedBaseUrl;
 
   return {
     challenge: String(data.challenge),
@@ -606,36 +718,23 @@ export async function verifyEmailOtp(email: string, otp: string, challenge: stri
     throw new Error('Verification session expired. Please request a new code.');
   }
 
-  const response = await apiFetch('/api/auth/email/verify-otp', {
-    method: 'POST',
-    skipAuth: true,
-    body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, challenge: challenge.trim() }),
-    timeoutMs: 15000,
-  });
-
-  const contentType = (response.headers.get('content-type') || '').toLowerCase();
-  const rawText = await response.text().catch(() => '');
-  let data: any = null;
-  try {
-    data = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    data = null;
-  }
-
-  const looksLikeHtml =
-    contentType.includes('text/html') ||
-    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+  const { response, data, looksLikeHtml } = await postEmailOtpJson(
+    '/api/auth/email/verify-otp',
+    { email: cleanEmail, otp: cleanOtp, challenge: challenge.trim() },
+    15000,
+    lastEmailOtpBaseUrl
+  );
 
   if (!response.ok || !data?.success || !data?.verified) {
     if (looksLikeHtml) {
       const targetInfo = response.url || '/api/auth/email/verify-otp';
       throw new Error(
-        `Email verification API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (https://api.lenzoparty.com) is online and deployed.`
+        `Email verification API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`
       );
     }
     if (response.status >= 502 && !data?.error) {
       throw new Error(
-        `Lenzo backend verification service is temporarily unreachable (HTTP ${response.status}). Please check Railway deployment for https://api.lenzoparty.com.`
+        `Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs for api.lenzoparty.com.`
       );
     }
     const err: any = new Error(

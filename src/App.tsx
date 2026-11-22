@@ -10,7 +10,8 @@ import {
   PKMatchSession,
   PKMatchInvitation,
   VideoItem,
-  BroadcasterRankingEntry
+  BroadcasterRankingEntry,
+  RoomKickRecord
 } from './types';
 import { 
   CURRENT_USER, 
@@ -65,6 +66,8 @@ import {
   processGiftTransaction,
   subscribeUserWallet,
   subscribeUserEarnings,
+  subscribeWalletSettings,
+  DEFAULT_WALLET_SETTINGS,
 } from './services/walletService';
 import {
   BlockedUserRecord,
@@ -73,6 +76,11 @@ import {
   subscribeBlockedByMe,
   subscribeBlockedMe,
 } from './services/blockService';
+import {
+  subscribeMyActiveRoomKicks,
+  getActiveKickForRoom,
+  formatRemainingKickTime,
+} from './services/roomModerationService';
 import {
   clampPartyMaxSeatsForHostLevel,
   enforcePartyRoomSeatPolicy,
@@ -205,11 +213,13 @@ export default function App() {
   const [isLoadingMoreReels, setIsLoadingMoreReels] = useState(false);
   const previousAuthUidRef = useRef<string | null>(auth.currentUser?.uid || null);
 
-  // User Blocking State (Real-time Firestore + Backend Sync)
+  // User Blocking & Party Room Kick Moderation State (Real-time Firestore + Backend Sync)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
   const [blockedByUserIds, setBlockedByUserIds] = useState<string[]>([]);
+  const [activeRoomKicks, setActiveRoomKicks] = useState<RoomKickRecord[]>([]);
   const [appToast, setAppToast] = useState<string | null>(null);
   const appToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const walletSettingsRef = useRef(DEFAULT_WALLET_SETTINGS);
 
   const showAppToast = (msg: string) => {
     setAppToast(msg);
@@ -225,12 +235,13 @@ export default function App() {
   const isBlockedRelationship = (userId?: string | null) =>
     isBlockedByMe(userId) || isBlockedByTarget(userId);
 
-  // Subscribe to current user's blocked list & users who blocked current user
+  // Subscribe to current user's blocked list, users who blocked current user, & active party room kicks
   useEffect(() => {
     const uid = currentUser?.id;
     if (!uid) {
       setBlockedUsers([]);
       setBlockedByUserIds([]);
+      setActiveRoomKicks([]);
       return;
     }
 
@@ -239,6 +250,9 @@ export default function App() {
     });
     const unsubBlockedMe = subscribeBlockedMe(uid, (ids) => {
       setBlockedByUserIds(ids);
+    });
+    const unsubRoomKicks = subscribeMyActiveRoomKicks(uid, (kicks) => {
+      setActiveRoomKicks(kicks);
     });
 
     // Also react immediately to real-time WebSocket block/unblock push events
@@ -255,6 +269,7 @@ export default function App() {
     return () => {
       unsubByMe();
       unsubBlockedMe();
+      unsubRoomKicks();
       unsubWsBlocks();
     };
   }, [currentUser?.id]);
@@ -281,9 +296,28 @@ export default function App() {
     ) {
       setActiveAudioRoom(null);
       setCurrentScreen('rooms');
-      showAppToast('You can no longer access or interact with this party room.');
+      showAppToast('You have been blocked by this host and cannot access their party room.');
     }
   }, [activeAudioRoom, blockedByUserIds, currentUser.id]);
+
+  // Real-time ejection if the host kicks the current user from an active party room
+  useEffect(() => {
+    if (!activeAudioRoom || activeAudioRoom.host.id === currentUser.id) return;
+    const activeKick = getActiveKickForRoom(
+      activeRoomKicks,
+      activeAudioRoom.id,
+      activeAudioRoom.host.id
+    );
+    if (activeKick) {
+      setActiveAudioRoom(null);
+      setCurrentScreen('rooms');
+      showAppToast(
+        activeKick.durationType === 'session'
+          ? 'You were kicked from this party stream and cannot re-enter this session.'
+          : `You were kicked from this party room (${formatRemainingKickTime(activeKick)}).`
+      );
+    }
+  }, [activeAudioRoom, activeRoomKicks, currentUser.id]);
 
   const handleBlockUser = async (target: UserProfile) => {
     if (!target?.id || target.id === currentUser.id) return;
@@ -856,6 +890,10 @@ export default function App() {
       });
     });
 
+    const unsubWalletSettings = subscribeWalletSettings((s) => {
+      walletSettingsRef.current = s;
+    });
+
     const unsubLevels = subscribeUserLevelProgression(authenticatedUid, 0, (prog) => {
       setCurrentUser((prev) => {
         const next = {
@@ -975,6 +1013,7 @@ export default function App() {
       unsubUserDoc();
       unsubWallet();
       unsubEarnings();
+      unsubWalletSettings();
       unsubLevels();
       unsubStreams();
       unsubRooms();
@@ -1247,6 +1286,17 @@ export default function App() {
       );
       return;
     }
+    if (room.host.id !== currentUser.id) {
+      const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+      if (activeKick) {
+        showAppToast(
+          activeKick.durationType === 'session'
+            ? 'You were kicked from this party stream and cannot re-enter this session.'
+            : `You are kicked from this room (${formatRemainingKickTime(activeKick)}).`
+        );
+        return;
+      }
+    }
     setActiveAudioRoom(room);
     setCurrentScreen('audio_room');
   };
@@ -1514,34 +1564,64 @@ export default function App() {
       return;
     }
     const cost = gift.coins * quantity;
-    if (currentUser.coins >= cost) {
-      // Optimistic update for sender
-      setCurrentUser((prev) => {
-        const next = {
-          ...prev,
-          coins: prev.coins - cost,
-        };
-        saveStoredUserProfile(next);
-        return next;
-      });
+    if (currentUser.coins < cost) {
+      showAppToast(`Insufficient Coins (${currentUser.coins.toLocaleString()}). Buy coins from an Active Agency.`);
+      return;
+    }
 
-      // Atomic backend execution: Deducts wallet coins from sender, takes commission %, credits recipient earnings
-      try {
-        const result = await processGiftTransaction(currentUser, recipient, gift, quantity);
-        if (result.success && recipient.id === currentUser.id) {
-          // If sending to self in demo/test mode, update diamonds earnings immediately
-          setCurrentUser((prev) => {
-            const next = {
-              ...prev,
-              diamonds: (prev.diamonds || 0) + result.netEarnings,
-            };
-            saveStoredUserProfile(next);
-            return next;
-          });
-        }
-      } catch (e) {
-        console.warn('Gift transaction backend error:', e);
+    // Optimistic update for sender (rolled back automatically if Firestore transaction fails)
+    setCurrentUser((prev) => {
+      const next = {
+        ...prev,
+        coins: prev.coins - cost,
+      };
+      saveStoredUserProfile(next);
+      return next;
+    });
+
+    // Atomic backend execution: Deducts 100% Coins from sender's Gifting Wallet,
+    // takes 40% App share, credits 60% as Diamonds to host's Earnings Wallet
+    let giftSucceeded = false;
+    try {
+      const result = await processGiftTransaction(
+        currentUser,
+        recipient,
+        gift,
+        quantity,
+        walletSettingsRef.current
+      );
+      if (!result.success) {
+        // Rollback optimistic deduction
+        setCurrentUser((prev) => {
+          const restored = { ...prev, coins: prev.coins + cost };
+          saveStoredUserProfile(restored);
+          return restored;
+        });
+        showAppToast(result.error || 'Gift failed. Please check your Coin balance.');
+        return;
       }
+      giftSucceeded = true;
+      if (recipient.id === currentUser.id) {
+        setCurrentUser((prev) => {
+          const next = {
+            ...prev,
+            diamonds: (prev.diamonds || 0) + result.netEarnings,
+          };
+          saveStoredUserProfile(next);
+          return next;
+        });
+      }
+    } catch (e: any) {
+      setCurrentUser((prev) => {
+        const restored = { ...prev, coins: prev.coins + cost };
+        saveStoredUserProfile(restored);
+        return restored;
+      });
+      showAppToast(e?.message || 'Gift failed. Please try again.');
+      return;
+    }
+
+    if (giftSucceeded) {
 
       // Authoritative 100-Level, 12-VIP, 6-Super-VIP & Achievement Progression Update
       try {
@@ -1737,17 +1817,24 @@ export default function App() {
     setCurrentScreen('messages');
   };
 
-  // Filter out streams and party rooms hosted by users who blocked the current user
+  // Filter out streams, party rooms, videos, and hosts belonging to users who permanently blocked the current user
   const visibleLiveStreams = liveStreams.filter(
     (s) => s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id)
   );
   const visiblePartyRooms = partyRooms.filter(
     (r) => r.host.id === currentUser.id || !blockedByUserIds.includes(r.host.id)
   );
+  const visibleVideos = videos.filter((v) => {
+    const ownerId = v.creatorUid || v.creator?.id;
+    if (!ownerId || ownerId === currentUser.id) return true;
+    return !blockedByUserIds.includes(ownerId) && !blockedByUserIds.includes(v.creator?.id || '');
+  });
 
-  // Derived unread count and top hosts
+  // Derived unread count and top hosts (excluding users who blocked current user)
   const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-  const topHostsList = topBroadcasters.map((b) => b.user);
+  const topHostsList = topBroadcasters
+    .map((b) => b.user)
+    .filter((u) => u.id === currentUser.id || !blockedByUserIds.includes(u.id));
 
   // Full Screen Overlays (Splash & Auth)
   if (currentScreen === 'splash') {
@@ -1857,6 +1944,11 @@ export default function App() {
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
           onViewFullProfile={(u) => {
+            if (isBlockedByTarget(u.id)) {
+              setViewingProfileUser(null);
+              showAppToast('You cannot view this user\'s profile or videos.');
+              return;
+            }
             setViewingProfileUser(null);
             setActiveLiveStream(null);
             setActivePKSession(null);
@@ -1920,6 +2012,8 @@ export default function App() {
           activeGiftCelebration={activeGiftCelebration}
           blockedUserIds={blockedUserIds}
           blockedByUserIds={blockedByUserIds}
+          activeRoomKicks={activeRoomKicks}
+          onBlockUser={handleBlockUser}
         />
         {/* Supporting Modals when inside audio room */}
         <GiftShopModal
@@ -1947,6 +2041,11 @@ export default function App() {
           onBlockUser={handleBlockUser}
           onUnblockUser={handleUnblockUser}
           onViewFullProfile={(u) => {
+            if (isBlockedByTarget(u.id)) {
+              setViewingProfileUser(null);
+              showAppToast('You cannot view this user\'s profile or videos.');
+              return;
+            }
             setViewingProfileUser(null);
             setActiveAudioRoom(null);
             setNavigatingProfileUser(u);
@@ -2079,6 +2178,52 @@ export default function App() {
                   diamonds: newDiamonds,
                 }));
               }}
+              onCoinsSpent={(coinsSpent, reason) => {
+                if (!currentUser.id || coinsSpent <= 0) return;
+                const txId = `store_prog_${currentUser.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                addQualifyingGiftingCoins(currentUser.id, coinsSpent, {
+                  transactionId: txId,
+                  reason,
+                  userSnapshot: {
+                    name: currentUser.name,
+                    avatar: currentUser.avatar,
+                    email: currentUser.email,
+                  },
+                })
+                  .then((levelRes) => {
+                    const prog = levelRes.progression;
+                    setCurrentUser((prev) => {
+                      const next = {
+                        ...prev,
+                        level: prog.currentLevel,
+                        totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+                        vipLevel: prog.highestUnlockedVipTier,
+                        isVIP: prog.highestUnlockedVipTier > 0,
+                        superVipLevel: prog.highestUnlockedSuperVipTier,
+                        isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
+                        activeFrameType: prog.activeFrameType,
+                        equippedVipFrame: prog.equippedVipFrame,
+                        equippedSuperVipFrame: prog.equippedSuperVipFrame,
+                        unlockedVipTiers: prog.unlockedVipTiers,
+                        unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+                      };
+                      saveStoredUserProfile(next);
+                      return next;
+                    });
+                    if (levelRes.levelUpEvent && levelRes.levelUpEvent.newLevel > levelRes.levelUpEvent.oldLevel) {
+                      const event = levelRes.levelUpEvent;
+                      setLevelUpData({
+                        oldLevel: event.oldLevel,
+                        newLevel: event.newLevel,
+                        coinsSpent,
+                        unlockedVipFrames: event.unlockedVipFrames,
+                        unlockedSuperVipFrames: event.unlockedSuperVipFrames,
+                        newlyEarnedAchievements: event.newlyEarnedAchievements,
+                      });
+                    }
+                  })
+                  .catch(() => {});
+              }}
             />
           )}
 
@@ -2103,7 +2248,7 @@ export default function App() {
 
           {currentScreen === 'videos' && (
             <VideoFeedScreen
-              videos={videos}
+              videos={visibleVideos}
               currentUser={currentUser}
               onOpenGiftShop={(recipient) => {
                 setGiftRecipient(recipient);
@@ -2180,7 +2325,7 @@ export default function App() {
                 setIsLevelVIPOpen(true);
               }}
               onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
-              userVideos={videos}
+              userVideos={visibleVideos}
               onSelectVideo={(_v) => setCurrentScreen('videos')}
               onOpenUploadVideo={handleOpenPlusUpload}
               onDeleteVideo={async (id) => {
@@ -2414,6 +2559,11 @@ export default function App() {
         onBlockUser={handleBlockUser}
         onUnblockUser={handleUnblockUser}
         onViewFullProfile={(u) => {
+          if (isBlockedByTarget(u.id)) {
+            setViewingProfileUser(null);
+            showAppToast('You cannot view this user\'s profile or videos.');
+            return;
+          }
           setViewingProfileUser(null);
           setNavigatingProfileUser(u);
           setCurrentScreen('profile');

@@ -17,6 +17,7 @@ import {
   MAX_EQUIPPED_ACHIEVEMENT_BADGES,
   SUPER_VIP_TIER_DEFINITIONS,
   SuperVipTierDefinition,
+  TOTAL_PROGRESSION_COINS_EXACT,
   UserActivityMetrics,
   VIP_TIER_DEFINITIONS,
   VipTierDefinition,
@@ -5851,7 +5852,7 @@ app.post('/api/progression/spend', (req: AuthenticatedRequest, res: Response) =>
   if (!userId) {
     return res.status(400).json({ error: 'userId is required.' });
   }
-  if (!Number.isFinite(coinsSpent) || coinsSpent <= 0 || coinsSpent > 2_000_000_000) {
+  if (!Number.isFinite(coinsSpent) || coinsSpent <= 0 || coinsSpent > TOTAL_PROGRESSION_COINS_EXACT) {
     return res.status(400).json({ error: 'coinsSpent must be a positive integer.' });
   }
 
@@ -6379,7 +6380,7 @@ app.post('/api/admin/progression/adjust-user', requireAdminMiddleware, (req: Aut
   const oldState = calculateProgressionState(oldCoins);
 
   if (Number.isFinite(addCoins) && addCoins !== 0) {
-    rec.totalQualifyingCoinsSpent = Math.max(0, Math.min(2_000_000_000, rec.totalQualifyingCoinsSpent + addCoins));
+    rec.totalQualifyingCoinsSpent = Math.max(0, Math.min(TOTAL_PROGRESSION_COINS_EXACT, rec.totalQualifyingCoinsSpent + addCoins));
     rec.metrics.totalQualifyingCoinsSpent = rec.totalQualifyingCoinsSpent;
   }
 

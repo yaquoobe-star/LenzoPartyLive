@@ -39,6 +39,7 @@ interface StoreScreenProps {
   onOpenWallet: () => void;
   onOpenVIP: () => void;
   onUpdateUserBalance: (newCoins: number, newDiamonds: number) => void;
+  onCoinsSpent?: (coinsSpent: number, reason: string) => void;
 }
 
 /**
@@ -143,6 +144,7 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
   onNavigate,
   onOpenWallet,
   onUpdateUserBalance,
+  onCoinsSpent,
 }) => {
   // Real-time catalog, inventory & authoritative wallet state
   const [categories, setCategories] = useState<StoreCategoryRecord[]>(DEFAULT_STORE_CATEGORIES);
@@ -295,6 +297,10 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
     if (typeof result.newBalance === 'number') {
       setWalletCoins(result.newBalance);
       onUpdateUserBalance(result.newBalance, currentUser.diamonds ?? 0);
+    }
+
+    if (onCoinsSpent && targetProduct.priceCoins > 0) {
+      onCoinsSpent(targetProduct.priceCoins, `store:${targetProduct.name}`);
     }
 
     setPurchaseSuccessModal({

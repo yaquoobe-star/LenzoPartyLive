@@ -67,6 +67,7 @@ import {
   DualAgencyRecord,
   buildWhatsAppUrl,
   subscribeActiveAgencies,
+  transferCoinsFromAgency,
 } from '../../services/agencyService';
 import { uploadUserImage } from '../../services/storageService';
 import { CoinSlipOrderModal } from '../agency/CoinSlipOrderModal';
@@ -119,6 +120,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
   const [imageLightboxUrl, setImageLightboxUrl] = useState<string | null>(null);
   const chatImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Agency Owner Quick Real Coin Transfer directly inside In-App Inbox
+  const [showOwnerQuickSend, setShowOwnerQuickSend] = useState(false);
+  const [ownerSendAmount, setOwnerSendAmount] = useState('');
+  const [ownerSendPin, setOwnerSendPin] = useState('');
+  const [ownerSendNote, setOwnerSendNote] = useState('');
+  const [isOwnerSendingCoins, setIsOwnerSendingCoins] = useState(false);
 
   // Selected Conversation State (deterministic symmetric chatId for real-time 2-way messaging)
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(() => {
@@ -401,6 +409,72 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setIsSendingCoinCard(false);
     setCallToast(`Coin request card (${cleanCoins.toLocaleString()} coins) sent to ${activeChatAgency.name}!`);
     setTimeout(() => setCallToast(null), 2600);
+  };
+
+  // Agency Owner: Atomically transfer real coins to the buyer right inside the In-App Inbox
+  const handleOwnerQuickSendCoins = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!myOwnedCoinAgency || !selectedConversation || selectedConversation.type === 'group') return;
+    const buyer = selectedConversation.user;
+    if (!buyer?.id || buyer.id === currentUser.id) return;
+
+    const cleanAmount = Math.floor(Number(ownerSendAmount));
+    if (!Number.isFinite(cleanAmount) || cleanAmount <= 0) {
+      setCallToast('Enter a valid coin amount greater than 0.');
+      setTimeout(() => setCallToast(null), 2600);
+      return;
+    }
+    if (!/^\d{4,5}$/.test(ownerSendPin.trim())) {
+      setCallToast('Enter your 4 or 5 digit Agency Transfer PIN.');
+      setTimeout(() => setCallToast(null), 2600);
+      return;
+    }
+
+    setIsOwnerSendingCoins(true);
+    const res = await transferCoinsFromAgency({
+      agencyId: myOwnedCoinAgency.id,
+      recipient: {
+        uid: buyer.id,
+        fullName: buyer.name || 'Lenzo User',
+        username: buyer.username || '@user',
+        displayId: buyer.displayId || buyer.id.slice(0, 8),
+        email: buyer.email || '',
+        avatar: buyer.avatar || '',
+        coins: buyer.coins || 0,
+        level: buyer.level || 1,
+      },
+      amount: cleanAmount,
+      pin: ownerSendPin.trim(),
+      note: ownerSendNote.trim() || 'In-App Agency Inbox Coin Order',
+    });
+    setIsOwnerSendingCoins(false);
+
+    if (!res.success) {
+      setCallToast(res.error || 'Coin transfer failed.');
+      setTimeout(() => setCallToast(null), 3200);
+      return;
+    }
+
+    const confirmText = `✅ ${myOwnedCoinAgency.name} sent ${cleanAmount.toLocaleString()} real Coins to your Gifting Wallet!${ownerSendNote.trim() ? ` Note: ${ownerSendNote.trim()}` : ''}`;
+    await sendChatMessage(selectedConversation.id, {
+      text: confirmText,
+      senderId: currentUser.id,
+      senderName: myOwnedCoinAgency.name || currentUser.name,
+      senderAvatar: myOwnedCoinAgency.ownerAvatar || currentUser.avatar,
+      senderDisplayId: myOwnedCoinAgency.agencyCode || currentUser.displayId || currentUser.id.slice(0, 8),
+      recipientId: buyer.id,
+      recipientName: buyer.name,
+      recipientAvatar: buyer.avatar,
+      recipientDisplayId: buyer.displayId || buyer.id.slice(0, 8),
+      type: 'text',
+    });
+
+    setOwnerSendAmount('');
+    setOwnerSendPin('');
+    setOwnerSendNote('');
+    setShowOwnerQuickSend(false);
+    setCallToast(`${cleanAmount.toLocaleString()} real Coins credited to ${buyer.name}'s wallet!`);
+    setTimeout(() => setCallToast(null), 3200);
   };
 
   // Upload real Payment Slip / Gallery Photo directly in chat
@@ -1228,11 +1302,14 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                             {myOwnedCoinAgency && !isMe && (
                               <button
                                 type="button"
-                                onClick={() => onNavigate('profile')}
-                                className="w-full py-1.5 px-2.5 rounded-xl bg-emerald-500 text-black text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
+                                onClick={() => {
+                                  setOwnerSendAmount(String(msg.coinRequest?.coins || ''));
+                                  setShowOwnerQuickSend(true);
+                                }}
+                                className="w-full py-2 px-2.5 rounded-xl bg-emerald-500 text-black text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
                               >
                                 <ShieldCheck className="w-3.5 h-3.5" />
-                                <span>Open Agency Panel to Send Coins</span>
+                                <span>Send {Number(msg.coinRequest.coins || 0).toLocaleString()} Coins Now</span>
                               </button>
                             )}
                           </div>
@@ -1443,6 +1520,83 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 )}
               </div>
             )}
+
+            {/* A5c. AGENCY OWNER REAL COIN TRANSFER BAR (When an Active Coin Seller Agency Owner chats with a Buyer) */}
+            {myOwnedCoinAgency &&
+              !activeChatAgency &&
+              selectedConversation.type !== 'group' &&
+              selectedConversation.user.id !== currentUser.id &&
+              !isSelectedChatBlocked && (
+                <div className="bg-[#121D1A] border-t border-emerald-400/35 px-3 py-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowOwnerQuickSend((prev) => !prev)}
+                      className="flex items-center gap-1.5 text-[11px] font-black text-emerald-300"
+                    >
+                      <Coins className="w-3.5 h-3.5 text-[#FFC84A] shrink-0" />
+                      <span>
+                        Send Real Coins to {selectedConversation.user.name} (Agency Bal:{' '}
+                        {(myOwnedCoinAgency.coinBalance || 0).toLocaleString()})
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform ${
+                          showOwnerQuickSend ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                    <span className="text-[10px] font-mono text-[#FFC84A] shrink-0">
+                      ID: {selectedConversation.user.displayId || selectedConversation.user.id.slice(0, 8)}
+                    </span>
+                  </div>
+
+                  {showOwnerQuickSend && (
+                    <form onSubmit={handleOwnerQuickSendCoins} className="space-y-2 pt-1">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={myOwnedCoinAgency.coinBalance}
+                          required
+                          value={ownerSendAmount}
+                          onChange={(e) => setOwnerSendAmount(e.target.value)}
+                          placeholder="Coins amount"
+                          className="w-full bg-black/50 border border-white/15 focus:border-[#FFC84A] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[#FFC84A] outline-none"
+                        />
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={5}
+                          required
+                          value={ownerSendPin}
+                          onChange={(e) =>
+                            setOwnerSendPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))
+                          }
+                          placeholder="4–5 Digit PIN"
+                          className="w-full bg-black/50 border border-amber-400/40 focus:border-[#FFC84A] rounded-xl px-3 py-2 text-xs font-mono tracking-[0.25em] text-white outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={120}
+                          value={ownerSendNote}
+                          onChange={(e) => setOwnerSendNote(e.target.value)}
+                          placeholder="Note (e.g. EasyPaisa slip verified)"
+                          className="flex-1 min-w-0 bg-black/45 border border-white/15 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isOwnerSendingCoins}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-black text-xs font-black shrink-0 disabled:opacity-50 active:scale-95 transition-transform"
+                        >
+                          {isOwnerSendingCoins ? 'Sending...' : 'Send Coins'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
 
             {/* A5. Attachment Action Sheet */}
             {isAttachmentOpen && (

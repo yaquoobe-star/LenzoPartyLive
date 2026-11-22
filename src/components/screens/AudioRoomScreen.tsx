@@ -26,6 +26,10 @@ import {
   Users,
   Trophy,
   Image as ImageIcon,
+  Star,
+  Ban,
+  ShieldOff,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
 import {
@@ -33,6 +37,8 @@ import {
   PartyBackgroundSelection,
 } from '../common/PartyBackgroundPickerModal';
 import { PartySofaSeat } from '../common/PartySofaSeat';
+import { LevelBadge } from '../common/LevelBadge';
+import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
 import {
   DEFAULT_PARTY_BACKGROUND_ID,
   PartyBackgroundType,
@@ -42,6 +48,9 @@ import {
 } from '../../utils/partyBackgrounds';
 import {
   PartyRoom,
+  PartySofaTheme,
+  RoomKickDuration,
+  RoomKickRecord,
   UserProfile,
   GiftItem,
   SeatRequest,
@@ -62,6 +71,7 @@ import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import {
   cancelFirestoreSeatRequest,
+  evictFirestoreRoomParticipant,
   FirestoreRoomHeartEvent,
   joinFirestoreRoomParticipant,
   leaveFirestoreRoomParticipant,
@@ -78,6 +88,15 @@ import {
   updateFirestoreRoomParticipantState,
   vacateFirestoreSeat,
 } from '../../services/firestoreRealtimeService';
+import {
+  ROOM_KICK_OPTIONS,
+  formatKickDurationLabel,
+  formatRemainingKickTime,
+  getActiveKickForRoom,
+  kickUserFromRoom,
+  subscribeRoomKicksForHost,
+  unkickUserFromRoom,
+} from '../../services/roomModerationService';
 import { roomService } from '../../utils/roomService';
 import {
   PARTY_SEAT_TIERS,
@@ -108,13 +127,20 @@ interface AudioRoomScreenProps {
   } | null;
   blockedUserIds?: string[];
   blockedByUserIds?: string[];
+  activeRoomKicks?: RoomKickRecord[];
+  onBlockUser?: (user: UserProfile) => Promise<void> | void;
 }
 
 interface ActivityItem {
   id: string;
+  userId?: string;
   name: string;
   avatar: string;
   text: string;
+  level?: number;
+  vipLevel?: number;
+  superVipLevel?: number;
+  isVIP?: boolean;
   isHost?: boolean;
   type?: 'join' | 'vip' | 'chat' | 'gift';
 }
@@ -140,6 +166,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   activeGiftCelebration,
   blockedUserIds = [],
   blockedByUserIds = [],
+  activeRoomKicks = [],
+  onBlockUser,
 }) => {
   const isRoomHost = currentUser.id === room.host.id;
   const blockedUserIdsRef = useRef<Set<string>>(new Set(blockedUserIds));
@@ -184,6 +212,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   }, [blockedByUserIds, isRoomHost, room.host.id, room.id, onClose]);
 
+  // Real-time Kick enforcement: if Host kicks current user (session / 24h / 15d / 30d), eject immediately
+  useEffect(() => {
+    if (isRoomHost) return;
+    const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+    if (activeKick) {
+      hasExplicitlyLeftRef.current = true;
+      webrtcMediaService.stopPartyVoice();
+      agoraRtcService.leaveChannel().catch(() => {});
+      void leaveFirestoreRoomParticipant(room.id);
+      showToast(
+        activeKick.durationType === 'session'
+          ? 'You were kicked from this party stream and cannot re-enter this session.'
+          : `You were kicked from this room (${formatRemainingKickTime(activeKick)}).`
+      );
+      const timer = setTimeout(() => {
+        onClose();
+      }, 650);
+      return () => clearTimeout(timer);
+    }
+  }, [activeRoomKicks, isRoomHost, room.id, room.host.id, onClose]);
+
   const [liveHostLevel, setLiveHostLevel] = useState<number>(() =>
     sanitizeUserLevel(isRoomHost ? currentUser.level : room.host.level)
   );
@@ -223,7 +272,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [showRequestConfirmModal, setShowRequestConfirmModal] = useState(false);
   const [showInviteToSeatModal, setShowInviteToSeatModal] = useState<number | null>(null);
   const [incomingSeatInvite, setIncomingSeatInvite] = useState<SeatInvitation | null>(null);
-  const [selectedSeatMember, setSelectedSeatMember] = useState<{ index: number; user: UserProfile } | null>(null);
+  const [selectedSeatMember, setSelectedSeatMember] = useState<{ index: number | null; user: UserProfile } | null>(null);
+  const [showKickDurationPicker, setShowKickDurationPicker] = useState(false);
+  const [showBlockMemberConfirm, setShowBlockMemberConfirm] = useState(false);
+  const [moderationBusy, setModerationBusy] = useState(false);
+  const [hostRoomKicks, setHostRoomKicks] = useState<RoomKickRecord[]>([]);
+  const [showKickedUsersModal, setShowKickedUsersModal] = useState(false);
   const [showOwnerSeatChoice, setShowOwnerSeatChoice] = useState<number | null>(null);
   const [showCloseRoomConfirmModal, setShowCloseRoomConfirmModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
@@ -235,7 +289,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
-  const [partyEntryNotice, setPartyEntryNotice] = useState<{ id: string; name: string } | null>(null);
+  const [partyEntryNotice, setPartyEntryNotice] = useState<{
+    id: string;
+    name: string;
+    level?: number;
+    vipLevel?: number;
+    superVipLevel?: number;
+    isVIP?: boolean;
+  } | null>(null);
   const [speakingSeats, setSpeakingSeats] = useState<Record<number, number>>({});
   const [realMicVolume, setRealMicVolume] = useState(0);
   const [agoraVoiceState, setAgoraVoiceState] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -285,6 +346,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [backgroundType, setBackgroundType] = useState<PartyBackgroundType>(initialBg.backgroundType);
   const [backgroundId, setBackgroundId] = useState<string>(initialBg.backgroundId);
   const [backgroundImage, setBackgroundImage] = useState<string>(initialBg.backgroundImage);
+  const [seatTheme, setSeatTheme] = useState<PartySofaTheme>(
+    room.seatTheme === 'gold' || room.seatTheme === 'green' ? room.seatTheme : 'default'
+  );
   const backgroundRef = useRef({
     backgroundType: initialBg.backgroundType,
     backgroundId: initialBg.backgroundId,
@@ -352,9 +416,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setBackgroundType(nextBg.backgroundType);
     setBackgroundId(nextBg.backgroundId);
     setBackgroundImage(nextBg.backgroundImage);
+    setSeatTheme(room.seatTheme === 'gold' || room.seatTheme === 'green' ? room.seatTheme : 'default');
     seenSeatReqIdsRef.current = new Set((room.seatRequests || []).map((r) => r.id));
     seatReqHydratedRef.current = false;
   }, [room.id]);
+
+  // Host subscribes to active kicks for this room so they can review or lift kicks
+  useEffect(() => {
+    if (!isRoomHost) {
+      setHostRoomKicks([]);
+      return;
+    }
+    return subscribeRoomKicksForHost(room.id, currentUser.id, (records) => {
+      setHostRoomKicks(records);
+    });
+  }, [isRoomHost, room.id, currentUser.id]);
 
   // Keep maxSeats, locked Seat #2, and host.level strictly synchronized if Host level changes or hydrates
   useEffect(() => {
@@ -396,7 +472,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         const now = Date.now();
         if (now - kickedToastShownAtRef.current > 2500) {
           kickedToastShownAtRef.current = now;
-          showToast('You were kicked from the seat by Host');
+          showToast('You were removed from the seat by Host');
         }
       }
       selfLeftSeatRef.current = false;
@@ -483,6 +559,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (typeof nextRoom.backgroundImage === 'string') {
         setBackgroundImage(nextRoom.backgroundImage);
       }
+      if (nextRoom.seatTheme === 'default' || nextRoom.seatTheme === 'gold' || nextRoom.seatTheme === 'green') {
+        setSeatTheme(nextRoom.seatTheme);
+      }
       if (typeof nextRoom.numericParticipants === 'number') {
         setParticipantTotal((prev) => Math.max(prev, nextRoom.numericParticipants || 0));
       }
@@ -544,14 +623,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           setActivities((prev) => {
             const seen = new Set(prev.map((a) => a.id));
             const next = [...prev];
-            res.messages.forEach((m) => {
+            res.messages.forEach((m: any) => {
               if (!seen.has(m.id)) {
                 seen.add(m.id);
                 next.push({
                   id: m.id,
+                  userId: m.senderId,
                   name: m.senderName,
                   avatar: m.senderAvatar,
                   text: m.text,
+                  level: typeof m.senderLevel === 'number' ? m.senderLevel : typeof m.level === 'number' ? m.level : 0,
+                  vipLevel: typeof m.senderVip === 'number' ? m.senderVip : typeof m.vipLevel === 'number' ? m.vipLevel : 0,
+                  superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
+                  isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
                   isHost: m.isHost,
                   type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
                 });
@@ -593,16 +677,28 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
             if (now - lastSeen > 10000) {
               seenPartyEntriesRef.current.set(p.userId, now);
-              setPartyEntryNotice({ id: `entry_fs_${p.userId}_${now}`, name: p.name || 'Viewer' });
+              setPartyEntryNotice({
+                id: `entry_fs_${p.userId}_${now}`,
+                name: p.name || 'Viewer',
+                level: typeof p.level === 'number' ? p.level : 0,
+                vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
+                superVipLevel: typeof p.superVipLevel === 'number' ? p.superVipLevel : 0,
+                isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
+              });
               if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
               partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
               setActivities((prev) => [
                 ...prev.slice(-49),
                 {
                   id: `join_fs_${p.userId}_${now}`,
+                  userId: p.userId,
                   name: p.name || 'Viewer',
                   avatar: p.avatar || '',
                   text: 'joined the party room',
+                  level: typeof p.level === 'number' ? p.level : 0,
+                  vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
+                  superVipLevel: typeof p.superVipLevel === 'number' ? p.superVipLevel : 0,
+                  isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
                   isHost: Boolean(p.isHost),
                   type: 'join',
                 },
@@ -632,9 +728,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             seen.add(m.id);
             next.push({
               id: m.id,
+              userId: m.senderId,
               name: m.senderName,
               avatar: m.senderAvatar,
               text: m.text,
+              level: typeof m.senderLevel === 'number' ? m.senderLevel : 0,
+              vipLevel: typeof m.senderVip === 'number' ? m.senderVip : 0,
+              superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
+              isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
               isHost: m.isHost,
               type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
             });
@@ -725,6 +826,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (typeof data.backgroundImage === 'string') {
           setBackgroundImage(data.backgroundImage);
         }
+        if (data.seatTheme === 'default' || data.seatTheme === 'gold' || data.seatTheme === 'green') {
+          setSeatTheme(data.seatTheme);
+        }
       } else if (roomDocEverExisted && !isRoomHost) {
         showToast('Party room was closed by the host');
         webrtcMediaService.stopPartyVoice();
@@ -804,9 +908,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 .filter((m: any) => !isRoomHost || !blockedUserIdsRef.current.has(m.senderId))
                 .map((m: any) => ({
                   id: m.id,
+                  userId: m.senderId,
                   name: m.senderName,
                   avatar: m.senderAvatar,
                   text: m.text,
+                  level: typeof m.senderLevel === 'number' ? m.senderLevel : typeof m.level === 'number' ? m.level : 0,
+                  vipLevel: typeof m.senderVip === 'number' ? m.senderVip : typeof m.vipLevel === 'number' ? m.vipLevel : 0,
+                  superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
+                  isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
                   isHost: m.isHost,
                   type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
                 }))
@@ -833,16 +942,28 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
           if (now - lastSeen > 10000) {
             seenPartyEntriesRef.current.set(p.userId, now);
-            setPartyEntryNotice({ id: `entry_${p.userId}_${now}`, name: p.name || 'Viewer' });
+            setPartyEntryNotice({
+              id: `entry_${p.userId}_${now}`,
+              name: p.name || 'Viewer',
+              level: typeof p.level === 'number' ? p.level : 0,
+              vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
+              superVipLevel: typeof p.superVipLevel === 'number' ? p.superVipLevel : 0,
+              isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
+            });
             if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
             partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
             setActivities((prev) => [
               ...prev.slice(-49),
               {
                 id: `join_${p.userId}_${now}`,
+                userId: p.userId,
                 name: p.name || 'Viewer',
                 avatar: p.avatar || '',
                 text: 'joined the party room',
+                level: typeof p.level === 'number' ? p.level : 0,
+                vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
+                superVipLevel: typeof p.superVipLevel === 'number' ? p.superVipLevel : 0,
+                isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
                 isHost: Boolean(p.isHost),
                 type: 'join',
               },
@@ -929,7 +1050,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const now = Date.now();
           if (now - kickedToastShownAtRef.current > 2500) {
             kickedToastShownAtRef.current = now;
-            showToast(`You were kicked from Seat #${(payload.seatIndex ?? 0) + 1} by Host`);
+            showToast(`You were removed from Seat #${(payload.seatIndex ?? 0) + 1} by Host`);
           }
         }
       } else if (event === 'room:chat' && payload.message) {
@@ -941,9 +1062,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 ...prev,
                 {
                   id: m.id,
+                  userId: m.senderId,
                   name: m.senderName,
                   avatar: m.senderAvatar,
                   text: m.text,
+                  level: typeof m.senderLevel === 'number' ? m.senderLevel : typeof m.level === 'number' ? m.level : 0,
+                  vipLevel: typeof m.senderVip === 'number' ? m.senderVip : typeof m.vipLevel === 'number' ? m.vipLevel : 0,
+                  superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
+                  isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
                   isHost: m.isHost,
                   type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
                 },
@@ -1775,19 +1901,41 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  const handleKickMember = async () => {
-    if (!isRoomHost || !selectedSeatMember) return;
+  const handleSelectSeatTheme = (nextTheme: PartySofaTheme) => {
+    setSeatTheme(nextTheme);
+    onUpdateRoom?.({ ...room, seatTheme: nextTheme });
+    if (isRoomHost) {
+      void syncFirestorePartyRoomState(room.id, true, { seatTheme: nextTheme });
+    }
+    showToast(
+      nextTheme === 'gold'
+        ? 'Seats changed to Golden theme'
+        : nextTheme === 'green'
+        ? 'Seats changed to Light Green theme'
+        : 'Seats reset to Default color'
+    );
+  };
+
+  const closeModerationModal = () => {
+    setSelectedSeatMember(null);
+    setShowKickDurationPicker(false);
+    setShowBlockMemberConfirm(false);
+  };
+
+  // Remove from Seat ONLY (steps user down to audience without kicking from room)
+  const handleRemoveFromSeat = async () => {
+    if (!isRoomHost || !selectedSeatMember || selectedSeatMember.index === null) return;
     const idx = selectedSeatMember.index;
     const member = selectedSeatMember.user;
     if (member.id === currentUser.id) {
-      setSelectedSeatMember(null);
+      closeModerationModal();
       return;
     }
 
     // Optimistically remove from seat & unmute that slot so the plump sofa fluff-up triggers immediately
     const optimisticSeats = seats.map((s, i) => (i === idx || s?.id === member.id ? null : s));
     const nextMuted = mutedSeatIndices.filter((mIdx) => mIdx !== idx);
-    setSelectedSeatMember(null);
+    closeModerationModal();
     setSeats(optimisticSeats);
     setMutedSeatIndices(nextMuted);
 
@@ -1815,7 +1963,91 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setSeats(updated);
     setMutedSeatIndices(resolvedMuted);
     syncRoom(updated, undefined, undefined, undefined, undefined, fsRes.success);
-    showToast(`Kicked ${member.name} from Seat #${idx + 1}`);
+    showToast(`Removed ${member.name} from Seat #${idx + 1}`);
+  };
+
+  // Kick User from Room for chosen duration (This Stream / 24 Hours / 15 Days / 30 Days)
+  const handleKickUserWithDuration = async (durationType: RoomKickDuration) => {
+    if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+    const member = selectedSeatMember.user;
+    const seatIdx = selectedSeatMember.index;
+    if (member.id === currentUser.id) {
+      closeModerationModal();
+      return;
+    }
+    setModerationBusy(true);
+    try {
+      const res = await kickUserFromRoom({
+        roomId: room.id,
+        roomTitle: room.title,
+        hostId: currentUser.id,
+        targetUser: member,
+        durationType,
+        maxSeats,
+      });
+      if (!res.success) {
+        showToast(res.error || 'Could not kick user. Please try again.');
+        return;
+      }
+      // Also notify Express seat removal if seated
+      if (seatIdx !== null) {
+        void roomService
+          .removeSeat(
+            room.id,
+            currentUser.id,
+            seatIdx,
+            { host: room.host, title: room.title, maxSeats },
+            member.id
+          )
+          .catch(() => null);
+      }
+      const nextSeats = seats.map((s) => (s?.id === member.id ? null : s));
+      const nextReqs = seatRequests.filter((r) => r.user.id !== member.id);
+      setSeats(nextSeats);
+      setSeatRequests(nextReqs);
+      setParticipantsList((prev) => {
+        const filtered = prev.filter((p) => p.userId !== member.id);
+        setParticipantTotal(filtered.length);
+        return filtered;
+      });
+      closeModerationModal();
+      showToast(`Kicked ${member.name} (${formatKickDurationLabel(durationType)})`);
+    } finally {
+      setModerationBusy(false);
+    }
+  };
+
+  // Permanently Block User (cannot view host ID/profile, videos, rooms, live, or interact)
+  const handlePermanentBlockMember = async () => {
+    if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+    const member = selectedSeatMember.user;
+    const seatIdx = selectedSeatMember.index;
+    if (member.id === currentUser.id) {
+      closeModerationModal();
+      return;
+    }
+    setModerationBusy(true);
+    try {
+      await Promise.all([
+        onBlockUser ? Promise.resolve(onBlockUser(member)) : Promise.resolve(),
+        vacateFirestoreSeat(room.id, member.id, seatIdx ?? undefined, maxSeats).catch(() => null),
+        cancelFirestoreSeatRequest(room.id, member.id).catch(() => null),
+        evictFirestoreRoomParticipant(room.id, member.id).catch(() => null),
+      ]);
+      const nextSeats = seats.map((s) => (s?.id === member.id ? null : s));
+      const nextReqs = seatRequests.filter((r) => r.user.id !== member.id);
+      setSeats(nextSeats);
+      setSeatRequests(nextReqs);
+      setParticipantsList((prev) => {
+        const filtered = prev.filter((p) => p.userId !== member.id);
+        setParticipantTotal(filtered.length);
+        return filtered;
+      });
+      closeModerationModal();
+      showToast(`Permanently blocked ${member.name}`);
+    } finally {
+      setModerationBusy(false);
+    }
   };
 
   const handleSendSeatInvite = async (targetUser: UserProfile) => {
@@ -1972,9 +2204,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               ...prev,
               {
                 id: msgToAdd.id,
+                userId: currentUser.id,
                 name: msgToAdd.senderName,
                 avatar: msgToAdd.senderAvatar,
                 text: msgToAdd.text,
+                level: typeof currentUser.level === 'number' ? currentUser.level : 0,
+                vipLevel: typeof currentUser.vipLevel === 'number' ? currentUser.vipLevel : 0,
+                superVipLevel: typeof currentUser.superVipLevel === 'number' ? currentUser.superVipLevel : 0,
+                isVIP: Boolean(currentUser.isVIP || (currentUser.vipLevel || 0) > 0),
                 isHost: msgToAdd.isHost,
                 type: 'chat',
               },
@@ -2399,9 +2636,57 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#240B3D]/85 border border-[#FA26A0]/35 text-[10px] font-black text-[#FFB3DE]">
-            <span>💖</span>
-            <span className="font-mono">{roomLikesCount.toLocaleString()}</span>
+          <div className="flex items-center gap-1.5" data-no-doubletap="true">
+            {/* 3-Star Seat Color Switcher (Golden, Light Green, Default Seat Color) next to Heart */}
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#17092E]/88 border border-white/15 shadow-md backdrop-blur-md"
+              title="Tap a Star to change Party Seat colors"
+            >
+              <button
+                type="button"
+                onClick={() => handleSelectSeatTheme('gold')}
+                aria-label="Golden Seats Theme"
+                title="Golden Seats"
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                  seatTheme === 'gold'
+                    ? 'bg-amber-400/25 ring-2 ring-[#FFD700] scale-110 shadow-[0_0_10px_rgba(255,215,0,0.75)]'
+                    : 'hover:bg-white/10 opacity-85 hover:opacity-100'
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 text-[#FFD700] fill-[#FFD700]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectSeatTheme('green')}
+                aria-label="Light Green Seats Theme"
+                title="Light Green Seats"
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                  seatTheme === 'green'
+                    ? 'bg-emerald-300/25 ring-2 ring-[#6EE7B7] scale-110 shadow-[0_0_10px_rgba(110,231,183,0.75)]'
+                    : 'hover:bg-white/10 opacity-85 hover:opacity-100'
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 text-[#6EE7B7] fill-[#6EE7B7]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectSeatTheme('default')}
+                aria-label="Default Seats Theme"
+                title="Default Seat Color"
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                  seatTheme === 'default'
+                    ? 'bg-purple-400/25 ring-2 ring-[#A855F7] scale-110 shadow-[0_0_10px_rgba(168,85,247,0.75)]'
+                    : 'hover:bg-white/10 opacity-85 hover:opacity-100'
+                }`}
+              >
+                <Star className="w-3.5 h-3.5 text-[#A855F7] fill-[#A855F7]" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#240B3D]/85 border border-[#FA26A0]/35 text-[10px] font-black text-[#FFB3DE]">
+              <span>💖</span>
+              <span className="font-mono">{roomLikesCount.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
@@ -2413,8 +2698,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
         {partyEntryNotice && (
           <div className="max-w-md mx-auto w-full flex justify-center animate-fade-in">
-            <div className="px-4 py-1 rounded-full bg-gradient-to-r from-[#8B20FF]/90 to-[#FA26A0]/90 border border-white/25 text-white text-[11px] font-bold shadow-lg">
-              {partyEntryNotice.name} joined the party room
+            <div className="inline-flex flex-wrap items-center justify-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-[#8B20FF]/90 to-[#FA26A0]/90 border border-white/25 text-white text-[11px] font-bold shadow-lg">
+              <LevelBadge level={partyEntryNotice.level ?? 0} size="xs" />
+              <VipTierBadge tier={partyEntryNotice.vipLevel ?? 0} size="xs" />
+              {(partyEntryNotice.superVipLevel ?? 0) > 0 && (
+                <SuperVipTierBadge tier={partyEntryNotice.superVipLevel ?? 0} size="xs" />
+              )}
+              <span>{partyEntryNotice.name} joined the party room</span>
             </div>
           </div>
         )}
@@ -2603,6 +2893,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             isLocked={false}
             badgeText="Host"
             label={seatZero ? seatZero.name : isRoomHost ? 'Take Seat' : 'Empty'}
+            seatTheme={seatTheme}
             onClick={() => handleSeatClick(0)}
           />
 
@@ -2627,6 +2918,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             levelLockText="Lv.5"
             badgeText={isCoHostSeatLevelLocked ? 'Lv.5 Lock' : 'Seat 2'}
             label={isCoHostSeatLevelLocked ? 'Unlocks Lv.5' : seatOne ? seatOne.name : 'Join'}
+            seatTheme={seatTheme}
             onClick={() => handleSeatClick(1)}
           />
         </div>
@@ -2654,13 +2946,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 isLocked={isSeatLocked}
                 compact={maxSeats === 16}
                 label={member ? member.name.split(' ')[0] : `No.${idx + 1}`}
+                seatTheme={seatTheme}
                 onClick={() => handleSeatClick(idx)}
               />
             );
           })}
         </div>
 
-        {/* LIVE ROOM CHAT / ACTIVITY FEED */}
+        {/* LIVE ROOM CHAT / ACTIVITY FEED (With Level & VIP Badges on Comments + Joins) */}
         <div className="flex items-end justify-between gap-3 pt-2 pb-1 max-w-lg mx-auto w-full flex-1 min-h-[120px]">
           <div className="flex-1 space-y-1.5 max-h-44 overflow-y-auto no-scrollbar pr-1">
             {activities.length === 0 ? (
@@ -2668,28 +2961,108 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 Say hi to start the conversation in {room.title}.
               </div>
             ) : (
-              activities.map((act) => (
-                <div
-                  key={act.id}
-                  className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#17092E]/85 backdrop-blur-md border border-purple-500/30 text-[11px] shadow-sm w-fit max-w-full"
-                >
-                  {act.avatar ? (
-                    <img
-                      src={act.avatar}
-                      alt={act.name}
-                      className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400"
-                    />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0">
-                      {(act.name || 'U').charAt(0).toUpperCase()}
+              activities.map((act) => {
+                const matchedParticipant = act.userId
+                  ? participantsList.find((p) => p.userId === act.userId)
+                  : undefined;
+                const matchedSeatIdx = act.userId
+                  ? seats.findIndex((s) => s?.id === act.userId)
+                  : -1;
+                const matchedSeatedUser = matchedSeatIdx >= 0 ? seats[matchedSeatIdx] : null;
+                const resolvedLevel =
+                  typeof act.level === 'number'
+                    ? act.level
+                    : matchedSeatedUser?.level ?? matchedParticipant?.level ?? 0;
+                const resolvedVip =
+                  typeof act.vipLevel === 'number'
+                    ? act.vipLevel
+                    : matchedSeatedUser?.vipLevel ?? matchedParticipant?.vipLevel ?? 0;
+                const resolvedSuperVip =
+                  typeof act.superVipLevel === 'number'
+                    ? act.superVipLevel
+                    : matchedSeatedUser?.superVipLevel ?? matchedParticipant?.superVipLevel ?? 0;
+
+                const handleTapActivityUser = () => {
+                  if (!act.userId) return;
+                  const targetProfile: UserProfile = matchedSeatedUser || {
+                    id: act.userId,
+                    displayId: act.userId.slice(-6).toUpperCase(),
+                    name: act.name,
+                    username: matchedParticipant?.username || `@${act.name.toLowerCase().replace(/\s+/g, '')}`,
+                    avatar: act.avatar || matchedParticipant?.avatar || '',
+                    bio: '',
+                    level: resolvedLevel,
+                    vipLevel: resolvedVip,
+                    superVipLevel: resolvedSuperVip,
+                    isVIP: resolvedVip > 0,
+                    fansCount: '0',
+                    followingCount: 0,
+                    likesCount: '0',
+                    coins: 0,
+                    diamonds: 0,
+                  };
+                  if (isRoomHost && act.userId !== currentUser.id) {
+                    setShowKickDurationPicker(false);
+                    setShowBlockMemberConfirm(false);
+                    setSelectedSeatMember({
+                      index: matchedSeatIdx >= 0 ? matchedSeatIdx : null,
+                      user: targetProfile,
+                    });
+                  } else {
+                    onSelectUser(targetProfile);
+                  }
+                };
+
+                return (
+                  <div
+                    key={act.id}
+                    data-no-doubletap="true"
+                    onClick={handleTapActivityUser}
+                    className={`flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${
+                      act.userId ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
+                    } ${
+                      act.type === 'join'
+                        ? 'bg-[#210D40]/85 border-[#FA26A0]/35'
+                        : 'bg-[#17092E]/85 border-purple-500/30'
+                    }`}
+                  >
+                    {act.avatar ? (
+                      <img
+                        src={act.avatar}
+                        alt={act.name}
+                        className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400 mt-0.5"
+                      />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                        {(act.name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1 text-[11px] leading-snug min-w-0">
+                      <LevelBadge level={resolvedLevel} size="xs" className="shrink-0" />
+                      <VipTierBadge tier={resolvedVip} size="xs" className="shrink-0" />
+                      {resolvedSuperVip > 0 && (
+                        <SuperVipTierBadge tier={resolvedSuperVip} size="xs" className="shrink-0" />
+                      )}
+                      {act.isHost && (
+                        <span className="px-1.5 py-0.5 rounded bg-[#FFC84A] text-black text-[8px] font-black uppercase leading-none shrink-0">
+                          HOST
+                        </span>
+                      )}
+                      <span className="font-extrabold text-[#FFE043] shrink-0">
+                        {act.name}
+                        {act.type === 'join' ? '' : ':'}
+                      </span>
+                      <span
+                        className={`font-medium break-words ${
+                          act.type === 'join' ? 'text-[#FFB3DE]' : 'text-white/95'
+                        }`}
+                      >
+                        {act.text}
+                      </span>
                     </div>
-                  )}
-                  <div className="flex items-baseline gap-1 text-[11px] truncate">
-                    <span className="font-extrabold text-[#FFE043] shrink-0">{act.name}:</span>
-                    <span className="text-white/95 font-medium truncate">{act.text}</span>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
             <div ref={activityBottomRef} />
           </div>
@@ -2816,47 +3189,77 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               {participantsList.length === 0 ? (
                 <p className="text-xs text-white/60 text-center py-8">No active listeners right now.</p>
               ) : (
-                participantsList.map((p) => (
-                  <div
-                    key={p.userId}
-                    onClick={() => {
-                      setShowParticipantsModal(false);
-                      onSelectUser({
-                        id: p.userId,
-                        displayId: p.userId.slice(-6).toUpperCase(),
-                        name: p.name,
-                        username: p.username || `@${p.name.toLowerCase().replace(/\s+/g, '')}`,
-                        avatar: p.avatar,
-                        bio: '',
-                        level: p.level || 1,
-                        vipLevel: p.vipLevel || 0,
-                        isVIP: Boolean(p.isVIP),
-                        fansCount: '0',
-                        followingCount: 0,
-                        likesCount: '0',
-                        coins: 0,
-                        diamonds: 0,
-                      });
-                    }}
-                    className="flex items-center justify-between p-2.5 rounded-2xl bg-[#200E38] border border-white/5 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {p.avatar ? (
-                        <img src={p.avatar} alt={p.name} className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-[#8B20FF] text-xs font-black flex items-center justify-center">
-                          {(p.name || 'U').charAt(0).toUpperCase()}
+                participantsList.map((p) => {
+                  const memberProfile: UserProfile = {
+                    id: p.userId,
+                    displayId: p.userId.slice(-6).toUpperCase(),
+                    name: p.name,
+                    username: p.username || `@${p.name.toLowerCase().replace(/\s+/g, '')}`,
+                    avatar: p.avatar,
+                    bio: '',
+                    level: typeof p.level === 'number' ? p.level : 0,
+                    vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
+                    superVipLevel: typeof p.superVipLevel === 'number' ? p.superVipLevel : 0,
+                    isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
+                    fansCount: '0',
+                    followingCount: 0,
+                    likesCount: '0',
+                    coins: 0,
+                    diamonds: 0,
+                  };
+                  const seatedIdx = seats.findIndex((s) => s?.id === p.userId);
+                  return (
+                    <div
+                      key={p.userId}
+                      onClick={() => {
+                        setShowParticipantsModal(false);
+                        if (isRoomHost && p.userId !== currentUser.id) {
+                          setShowKickDurationPicker(false);
+                          setShowBlockMemberConfirm(false);
+                          setSelectedSeatMember({
+                            index: seatedIdx >= 0 ? seatedIdx : null,
+                            user: memberProfile,
+                          });
+                        } else {
+                          onSelectUser(memberProfile);
+                        }
+                      }}
+                      className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#200E38] border border-white/5 cursor-pointer hover:border-white/15 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {p.avatar ? (
+                          <img src={p.avatar} alt={p.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#8B20FF] text-xs font-black flex items-center justify-center shrink-0">
+                            {(p.name || 'U').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-white truncate block">{p.name}</span>
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                            <LevelBadge level={p.level ?? 0} size="xs" />
+                            <VipTierBadge tier={p.vipLevel ?? 0} size="xs" />
+                            {(p.superVipLevel ?? 0) > 0 && (
+                              <SuperVipTierBadge tier={p.superVipLevel ?? 0} size="xs" />
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {p.isHost && (
+                          <span className="px-2 py-0.5 rounded bg-[#FFC84A] text-black text-[9px] font-black">
+                            HOST
+                          </span>
+                        )}
+                        {isRoomHost && p.userId !== currentUser.id && (
+                          <span className="px-2 py-1 rounded-lg bg-white/10 text-[10px] font-bold text-white/85">
+                            Manage
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {p.isHost && (
-                      <span className="px-2 py-0.5 rounded bg-[#FFC84A] text-black text-[9px] font-black">
-                        HOST
-                      </span>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -2926,6 +3329,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     <span className="text-xs font-bold text-white">Edit Announcement</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/50" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowSettingsSheet(false);
+                    setShowKickedUsersModal(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldOff className="w-4 h-4 text-rose-400" />
+                    <span className="text-xs font-bold text-white">Kicked Users</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/25 border border-rose-400/40 text-rose-200 text-[10px] font-bold font-mono">
+                    {hostRoomKicks.length}
+                  </span>
                 </button>
 
                 {/* Host Level-Gated Seat Layout Switcher (Level 1: 4/5, Level 2: 8 @ Lv.10, Level 3: 16 @ Lv.20) */}
@@ -3431,16 +3850,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       )}
 
-      {/* MANAGE OCCUPIED SEAT PARTICIPANT (HOST ACTIONS MENU) */}
+      {/* MANAGE PARTICIPANT / OCCUPIED SEAT (HOST MODERATION MENU: REMOVE FROM SEAT, 4-TIER KICK, PERMANENT BLOCK) */}
       {selectedSeatMember && isRoomHost && (
         <div
           data-no-doubletap="true"
-          onClick={() => setSelectedSeatMember(null)}
+          onClick={closeModerationModal}
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-3"
+            className="w-full max-w-sm bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-3 max-h-[85vh] overflow-y-auto no-scrollbar"
           >
             <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10">
               <div className="flex items-center gap-3 min-w-0">
@@ -3459,73 +3878,256 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   <span className="text-sm font-black text-white truncate">
                     {selectedSeatMember.user.name}
                   </span>
-                  <span className="text-[10px] text-[#FA26A0] font-mono font-bold">
-                    Seat #{selectedSeatMember.index + 1} • Host Actions
+                  <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                    <LevelBadge level={selectedSeatMember.user.level ?? 0} size="xs" />
+                    <VipTierBadge tier={selectedSeatMember.user.vipLevel ?? 0} size="xs" />
+                    {(selectedSeatMember.user.superVipLevel ?? 0) > 0 && (
+                      <SuperVipTierBadge tier={selectedSeatMember.user.superVipLevel ?? 0} size="xs" />
+                    )}
+                  </div>
+                  <span className="text-[10px] text-[#FA26A0] font-mono font-bold mt-0.5">
+                    {selectedSeatMember.index !== null
+                      ? `Seat #${selectedSeatMember.index + 1} • Host Controls`
+                      : 'Room Audience • Host Controls'}
                   </span>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedSeatMember(null)}
+                onClick={closeModerationModal}
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white shrink-0"
-                aria-label="Close seat actions"
+                aria-label="Close moderation menu"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const target = selectedSeatMember.user;
-                  setSelectedSeatMember(null);
-                  onSelectUser(target);
-                }}
-                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-              >
-                <UserCheck className="w-4 h-4 text-cyan-400" />
-                <span>View User Profile</span>
-              </button>
+            {showKickDurationPicker ? (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-rose-200 flex items-center gap-1.5">
+                    <ShieldOff className="w-4 h-4 text-rose-400" />
+                    Select Kick Duration
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowKickDurationPicker(false)}
+                    className="text-[11px] font-bold text-white/65 hover:text-white"
+                  >
+                    Back
+                  </button>
+                </div>
+                <p className="text-[11px] text-white/65 leading-snug">
+                  Kicked users are removed immediately and cannot re-enter or interact during the selected period.
+                </p>
+                <div className="space-y-1.5 pt-1">
+                  {ROOM_KICK_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      disabled={moderationBusy}
+                      onClick={() => void handleKickUserWithDuration(opt.type)}
+                      className="w-full p-3 rounded-2xl bg-[#22103D] hover:bg-rose-600/25 border border-white/10 hover:border-rose-400/50 text-left transition-all flex items-center justify-between gap-2 disabled:opacity-50"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-xs font-black text-white block">{opt.label}</span>
+                        <span className="text-[10px] text-white/65 block">{opt.description}</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-lg bg-rose-500/25 text-rose-200 text-[10px] font-black shrink-0">
+                        {opt.shortLabel}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : showBlockMemberConfirm ? (
+              <div className="space-y-3 pt-1">
+                <div className="p-3 rounded-2xl bg-rose-950/60 border border-rose-500/40 space-y-1.5">
+                  <div className="flex items-center gap-2 text-rose-300 text-xs font-black">
+                    <Ban className="w-4 h-4 shrink-0" />
+                    <span>Permanently Block {selectedSeatMember.user.name}?</span>
+                  </div>
+                  <p className="text-[11px] text-rose-100/80 leading-relaxed">
+                    They will be permanently blocked from viewing your profile/ID, watching your videos, entering your party rooms or live streams, and interacting with you.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={moderationBusy}
+                    onClick={() => setShowBlockMemberConfirm(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={moderationBusy}
+                    onClick={() => void handlePermanentBlockMember()}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg disabled:opacity-50"
+                  >
+                    {moderationBusy ? 'Blocking...' : 'Confirm Block'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = selectedSeatMember.user;
+                    closeModerationModal();
+                    onSelectUser(target);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <UserCheck className="w-4 h-4 text-cyan-400" />
+                  <span>View User Profile</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const idx = selectedSeatMember.index;
-                  setSelectedSeatMember(null);
-                  handleToggleSeatMute(idx);
-                }}
-                className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-              >
-                {mutedSeatIndices.includes(selectedSeatMember.index) ? (
+                {selectedSeatMember.index !== null && (
                   <>
-                    <Mic className="w-4 h-4" />
-                    <span>Unmute Seat Microphone</span>
-                  </>
-                ) : (
-                  <>
-                    <MicOff className="w-4 h-4" />
-                    <span>Mute Seat Microphone</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const idx = selectedSeatMember.index!;
+                        closeModerationModal();
+                        handleToggleSeatMute(idx);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                      {mutedSeatIndices.includes(selectedSeatMember.index) ? (
+                        <>
+                          <Mic className="w-4 h-4" />
+                          <span>Unmute Seat Microphone</span>
+                        </>
+                      ) : (
+                        <>
+                          <MicOff className="w-4 h-4" />
+                          <span>Mute Seat Microphone</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveFromSeat()}
+                      className="w-full py-2.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-400/40 text-orange-200 text-xs font-black flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <ArrowDownCircle className="w-4 h-4" />
+                      <span>Remove from Seat</span>
+                    </button>
                   </>
                 )}
-              </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBlockMemberConfirm(false);
+                    setShowKickDurationPicker(true);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 border border-rose-400/40 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 active:scale-[0.99] transition-all"
+                >
+                  <ShieldOff className="w-4 h-4" />
+                  <span>Kick User (Session / 24h / 15d / 30d)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowKickDurationPicker(false);
+                    setShowBlockMemberConfirm(true);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-red-950/80 hover:bg-red-900/80 border border-red-500/50 text-red-200 text-xs font-black flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Ban className="w-4 h-4" />
+                  <span>Block User (Permanent)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeModerationModal}
+                  className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/65 text-xs font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* KICKED USERS MANAGEMENT MODAL (HOST ONLY) */}
+      {showKickedUsersModal && isRoomHost && (
+        <div
+          data-no-doubletap="true"
+          onClick={() => setShowKickedUsersModal(false)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#160A2B] border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <ShieldOff className="w-4 h-4 text-rose-400" />
+                <span>Kicked Users ({hostRoomKicks.length})</span>
+              </h3>
               <button
                 type="button"
-                onClick={() => void handleKickMember()}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-rose-400/40 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 active:scale-98 transition-all"
+                onClick={() => setShowKickedUsersModal(false)}
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white"
               >
-                <UserX className="w-4 h-4" />
-                <span>Kick</span>
+                <X className="w-4 h-4" />
               </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedSeatMember(null)}
-                className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/65 text-xs font-bold transition-colors"
-              >
-                Cancel
-              </button>
+            </div>
+            <div className="space-y-2 overflow-y-auto no-scrollbar py-1">
+              {hostRoomKicks.length === 0 ? (
+                <p className="text-xs text-white/60 text-center py-8">
+                  No users are currently kicked from this room.
+                </p>
+              ) : (
+                hostRoomKicks.map((kick) => (
+                  <div
+                    key={kick.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#200E38] border border-white/10"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {kick.targetUserAvatar ? (
+                        <img
+                          src={kick.targetUserAvatar}
+                          alt={kick.targetUserName}
+                          className="w-9 h-9 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-rose-600/40 text-xs font-black flex items-center justify-center shrink-0">
+                          {(kick.targetUserName || 'U').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-white truncate block">
+                          {kick.targetUserName}
+                        </span>
+                        <span className="text-[10px] text-rose-300 font-semibold block">
+                          {formatKickDurationLabel(kick.durationType)} • {formatRemainingKickTime(kick)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await unkickUserFromRoom(kick.roomId, kick.targetUserId);
+                        if (res.success) {
+                          showToast(`Removed kick for ${kick.targetUserName}`);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-emerald-500/25 border border-white/15 text-white text-[10px] font-black shrink-0"
+                    >
+                      Unkick
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

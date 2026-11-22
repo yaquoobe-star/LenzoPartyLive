@@ -43,11 +43,11 @@ export type LevelTier =
   | 'gold'
   | 'platinum'
   | 'diamond'
-  | 'ruby'
-  | 'emerald'
   | 'sapphire'
-  | 'crown'
-  | 'royal';
+  | 'emerald'
+  | 'ruby'
+  | 'royal'
+  | 'legend';
 
 export type VerificationTier = 'none' | 'blue' | 'gold';
 
@@ -191,6 +191,23 @@ export interface LiveStream {
   isPrivate?: boolean;
 }
 
+export type PartySofaTheme = 'default' | 'gold' | 'green';
+
+export type RoomKickDuration = 'session' | '24h' | '15d' | '30d';
+
+export interface RoomKickRecord {
+  id: string; // deterministic: `${roomId}_${targetUserId}`
+  roomId: string;
+  roomTitle?: string;
+  hostId: string;
+  targetUserId: string;
+  targetUserName: string;
+  targetUserAvatar?: string;
+  durationType: RoomKickDuration;
+  kickedAt: number;
+  expiresAt: number | null; // null = current stream/session only
+}
+
 export interface PartyRoom {
   id: string;
   title: string;
@@ -217,6 +234,7 @@ export interface PartyRoom {
   backgroundType?: 'preset' | 'host_dp' | 'custom';
   backgroundId?: string;
   backgroundImage?: string;
+  seatTheme?: PartySofaTheme;
 }
 
 export interface LiveViewerInfo {
@@ -226,7 +244,9 @@ export interface LiveViewerInfo {
   avatar: string;
   level: number;
   vipLevel: number;
+  superVipLevel?: number;
   isVIP: boolean;
+  isSuperVIP?: boolean;
   joinedAt: number;
   lastSeen: number;
   isHost?: boolean;
@@ -300,7 +320,10 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   senderAvatar: string;
+  senderLevel?: number;
   senderVip?: number;
+  senderSuperVip?: number;
+  senderIsVip?: boolean;
   isHost?: boolean;
   isPinned?: boolean;
   text: string;

@@ -109,7 +109,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const didSwipeCarouselRef = useRef<boolean>(false);
 
   useEffect(() => {
-    const unsub = subscribeActiveAgencies('coin_seller', (list) => {
+    const unsub = subscribeActiveAgencies('all', (list) => {
       setCoinSellerAgencies(list);
       setAgenciesLoaded(true);
     });
@@ -125,12 +125,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   }, [coinSellerAgencies.length, activeSlideIndex]);
 
-  // Smooth auto-advance across all active Coin Seller Agency cards
+  // Smooth auto-advance across ALL active agency cards
   useEffect(() => {
     if (coinSellerAgencies.length <= 1 || isCarouselPaused || slipModalAgency) return;
     const timer = window.setInterval(() => {
       setActiveSlideIndex((prev) => (prev + 1) % coinSellerAgencies.length);
-    }, 4500);
+    }, 4000);
     return () => window.clearInterval(timer);
   }, [coinSellerAgencies.length, isCarouselPaused, slipModalAgency]);
 
@@ -168,23 +168,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const handleInAppAgencyChat = (agency: DualAgencyRecord) => {
-    if (!onSendMessage) {
+    // Never redirect to Profile / Agency Center when tapping an agency card!
+    // Always open direct In-App Inbox with the tapped agency (or Inbox messages if it's your own agency).
+    if (!onSendMessage || (currentUser && agency.ownerUid === currentUser.id)) {
       onNavigate('chat');
-      return;
-    }
-    if (currentUser && agency.ownerUid === currentUser.id) {
-      onNavigate('profile');
       return;
     }
     const ownerProfile: UserProfile = {
       id: agency.ownerUid,
       displayId: agency.ownerDisplayId || agency.ownerUid.slice(0, 8),
-      name: agency.name || agency.ownerName || 'Coin Seller Agency',
+      name: agency.name || agency.ownerName || 'Verified Agency',
       username: agency.ownerUsername || `@${agency.agencyCode.toLowerCase()}`,
       avatar:
         agency.ownerAvatar ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(agency.name || 'Agency')}&background=8B20FF&color=fff`,
-      bio: agency.description || 'Official Verified Lenzo Coin Seller Agency',
+      bio: agency.description || 'Official Verified Lenzo Agency',
       level: 1,
       vipLevel: 0,
       isVIP: false,
@@ -326,7 +324,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         {/* ===================================================================== */}
-        {/* 1. MOVING COIN SELLER AGENCY CAROUSEL (Replaces Dream Big Go Live)    */}
+        {/* 1. AUTO-SLIDING ACTIVE AGENCIES CAROUSEL (DIRECT INBOX & WHATSAPP)   */}
         {/* ===================================================================== */}
         <section className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
@@ -335,28 +333,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <Coins className="w-3.5 h-3.5" />
               </div>
               <h2 className="text-xs sm:text-sm font-black tracking-wide text-white uppercase truncate">
-                Official Coin Seller Agencies
+                Active Official Agencies
               </h2>
             </div>
 
             {coinSellerAgencies.length > 1 && (
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-mono font-bold text-[#C5B9DE]">
+                <span className="text-[10px] font-mono font-bold text-[#C5B9DE] tabular-nums">
                   {activeSlideIndex + 1} / {coinSellerAgencies.length}
                 </span>
                 <button
                   type="button"
                   onClick={goToPrevAgency}
-                  aria-label="Previous Coin Seller Agency"
-                  className="w-7 h-7 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                  aria-label="Previous Agency"
+                  className="w-8 h-8 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={goToNextAgency}
-                  aria-label="Next Coin Seller Agency"
-                  className="w-7 h-7 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
+                  aria-label="Next Agency"
+                  className="w-8 h-8 rounded-full bg-[#190D2E] hover:bg-[#281547] border border-white/15 flex items-center justify-center text-white active:scale-95 transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -365,34 +363,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           {coinSellerAgencies.length === 0 ? (
-            /* Clean Official Fallback Banner when 0 Coin Seller Agencies are active yet */
-            <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#23113E] via-[#1A0C30] to-[#3A164B] border border-amber-400/35 p-5 shadow-xl">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-2 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/45 text-emerald-300 text-[9px] font-black uppercase tracking-wider">
-                      <BadgeCheck className="w-3 h-3" />
-                      Verified Agency
-                    </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/45 text-[#FFC84A] text-[9px] font-black uppercase tracking-wider">
-                      <ShieldCheck className="w-3 h-3" />
-                      Official Agency
-                    </span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-black text-white font-display leading-snug">
-                    {agenciesLoaded ? 'Official Coin Seller Desk' : 'Loading Verified Coin Seller Agencies...'}
+            /* Honest Empty State — Zero Fake/Mock Agencies & Never Redirects to Profile */
+            <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#23113E] via-[#1A0C30] to-[#3A164B] border border-amber-400/30 p-5 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-400/35 flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6 text-[#FFC84A]" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-black text-white font-display leading-snug">
+                    {agenciesLoaded ? 'No Active Agencies Yet' : 'Loading Active Agencies...'}
                   </h3>
-                  <p className="text-xs text-[#C5B9DE] max-w-md leading-relaxed">
-                    Approved Coin Seller Agencies appear here as sliding cards. Buy coins safely via In-App Payment Slip or WhatsApp, or apply from Profile → Agency Center to become an Official Coin Seller.
+                  <p className="text-xs text-[#C5B9DE] leading-relaxed">
+                    All approved active agencies appear here automatically as sliding cards with direct WhatsApp &amp; In-App Inbox contact for coins.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('profile')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-xs font-black shadow-md active:scale-95 transition-transform"
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Open Agency Center</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -410,7 +393,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 style={{ transform: `translateX(-${activeSlideIndex * 100}%)` }}
               >
                 {coinSellerAgencies.map((agency) => {
-                  const waText = `Salam ${agency.name} (${agency.agencyCode})! I want to buy Lenzo Coins. My Lenzo ID is ${buyerDisplayId}. Please share your payment details so I can send my payment slip.`;
+                  const isCoinSeller = agency.agencyType === 'coin_seller';
+                  const isOwnAgency = Boolean(currentUser && agency.ownerUid === currentUser.id);
+                  const waText = isCoinSeller
+                    ? `Salam ${agency.name} (${agency.agencyCode})! I want to buy Lenzo Coins. My Lenzo ID is ${buyerDisplayId}. Please share your payment details so I can send my payment receipt.`
+                    : `Salam ${agency.name} (${agency.agencyCode})! I want to contact your agency on Lenzo Party Live. My Lenzo ID is ${buyerDisplayId}.`;
                   const waHref = buildWhatsAppUrl(agency.whatsappNumber, waText);
 
                   return (
@@ -435,46 +422,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         <div className="absolute -bottom-12 -left-10 w-44 h-44 rounded-full bg-[#F328D5]/15 blur-2xl pointer-events-none" />
 
                         <div className="relative z-10 space-y-3">
-                          {/* Top Official Tags Strip */}
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[9px] font-black uppercase tracking-wider">
-                                <BadgeCheck className="w-3 h-3 shrink-0" />
-                                Verified Agency
+                          {/* Top Meta Strip (Clean, Low-Clutter) */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                                <BadgeCheck className="w-3.5 h-3.5 shrink-0" />
+                                <span>{isCoinSeller ? 'Coin Seller Agency' : 'Official Host Agency'}</span>
                               </span>
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/50 text-[#FFC84A] text-[9px] font-black uppercase tracking-wider">
-                                <ShieldCheck className="w-3 h-3 shrink-0" />
-                                Official Agency
-                              </span>
-                              <span className="px-2 py-0.5 rounded-md bg-[#8B20FF]/30 border border-[#C084FC]/45 text-[#F3E8FF] text-[9px] font-black uppercase tracking-wider">
-                                Coin Seller
+                              <span className="text-[#6F5F8E]">•</span>
+                              <span className="text-[10px] font-mono font-bold text-[#FFC84A] truncate">
+                                {agency.agencyCode}
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="px-2 py-0.5 rounded-md bg-black/45 border border-white/15 text-[#FFC84A] text-[10px] font-mono font-black">
-                                {agency.agencyCode}
-                              </span>
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-[10px] font-bold shrink-0 ${
+                                agency.isOnline ? 'text-emerald-300' : 'text-[#B9AECF]'
+                              }`}
+                            >
                               <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black ${
-                                  agency.isOnline
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
-                                    : 'bg-white/10 text-[#B9AECF]'
+                                className={`w-2 h-2 rounded-full ${
+                                  agency.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-[#A59AB8]'
                                 }`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    agency.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-[#A59AB8]'
-                                  }`}
-                                />
-                                {agency.isOnline ? 'Online' : 'Away'}
-                              </span>
-                            </div>
+                              />
+                              {agency.isOnline ? 'Active Now' : 'Online'}
+                            </span>
                           </div>
 
                           {/* Agency Identity Row */}
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-[#FFC84A] via-[#F59E0B] to-[#FA26A0] p-[2px] shrink-0 shadow-lg">
+                            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-[#FFC84A] via-[#F59E0B] to-[#FA26A0] p-[2px] shrink-0 shadow-lg">
                               <div className="w-full h-full rounded-[14px] bg-[#160A26] overflow-hidden flex items-center justify-center">
                                 {agency.ownerAvatar ? (
                                   <img
@@ -494,63 +471,90 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                 {agency.name}
                               </h3>
                               <p className="text-[11px] text-[#D8CEE8] truncate mt-0.5">
-                                Holder: <strong className="text-white">{agency.ownerName}</strong> · Tap card to open In-App Coin Inbox
+                                {agency.ownerName} · {isOwnAgency ? 'Tap to open your Agency Inbox' : 'Tap card to message agency for coins'}
                               </p>
                               <p className="text-[11px] text-[#B9AECF] line-clamp-1 mt-0.5">
                                 {agency.description ||
-                                  'Tap to open agency inbox, send a coin request card or message & buy coins directly.'}
+                                  'Order coins via In-App Inbox or WhatsApp, send payment receipt & receive real coins directly.'}
                               </p>
                             </div>
                           </div>
 
-                          {/* Direct Actions: Open Agency Inbox (Primary), WhatsApp Contact, Send Slip */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+                          {/* Direct Actions: In-App Agency Inbox, Direct WhatsApp, Send Receipt */}
+                          <div className={`grid gap-2 pt-0.5 ${isCoinSeller && !isOwnAgency ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'}`}>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleInAppAgencyChat(agency);
                               }}
-                              className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F97316] text-[#090611] text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-transform"
+                              className="min-h-[44px] py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F97316] text-[#090611] text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-transform"
                             >
                               <MessageSquare className="w-4 h-4 shrink-0" />
-                              <span className="truncate">Open Agency Inbox</span>
+                              <span className="truncate">
+                                {isOwnAgency ? 'Agency Inbox' : 'In-App Inbox'}
+                              </span>
                             </button>
 
-                            <div className="grid grid-cols-2 sm:contents gap-2">
-                              {waHref ? (
-                                <a
-                                  href={waHref}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051B0E] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
-                                >
-                                  <MessageCircle className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">WhatsApp</span>
-                                </a>
-                              ) : (
-                                <span className="py-2.5 px-3 rounded-xl bg-white/5 text-[#8E7FA8] text-xs font-bold flex items-center justify-center">
-                                  No WhatsApp
-                                </span>
-                              )}
+                            {isCoinSeller && !isOwnAgency ? (
+                              <div className="grid grid-cols-2 sm:contents gap-2">
+                                {waHref ? (
+                                  <a
+                                    href={waHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="min-h-[44px] py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#22c55e] text-[#041B0D] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
+                                  >
+                                    <MessageCircle className="w-4 h-4 shrink-0" />
+                                    <span className="truncate">WhatsApp</span>
+                                  </a>
+                                ) : (
+                                  <span className="min-h-[44px] py-2.5 px-3 rounded-xl bg-white/5 text-[#8E7FA8] text-xs font-bold flex items-center justify-center">
+                                    No WhatsApp
+                                  </span>
+                                )}
 
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (currentUser) {
+                                      setSlipModalAgency(agency);
+                                    } else {
+                                      handleInAppAgencyChat(agency);
+                                    }
+                                  }}
+                                  className="min-h-[44px] py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                                >
+                                  <Receipt className="w-4 h-4 text-[#FFC84A] shrink-0" />
+                                  <span className="truncate">Send Receipt</span>
+                                </button>
+                              </div>
+                            ) : waHref ? (
+                              <a
+                                href={waHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="min-h-[44px] py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#22c55e] text-[#041B0D] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
+                              >
+                                <MessageCircle className="w-4 h-4 shrink-0" />
+                                <span className="truncate">WhatsApp</span>
+                              </a>
+                            ) : (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (currentUser) {
-                                    setSlipModalAgency(agency);
-                                  } else {
-                                    onNavigate('profile');
-                                  }
+                                  handleInAppAgencyChat(agency);
                                 }}
-                                className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                                className="min-h-[44px] py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                               >
-                                <Receipt className="w-4 h-4 text-[#FFC84A] shrink-0" />
-                                <span className="truncate">Send Slip</span>
+                                <MessageSquare className="w-4 h-4 text-[#FFC84A] shrink-0" />
+                                <span className="truncate">Message</span>
                               </button>
-                            </div>
+                            )}
                           </div>
                         </div>
                       </div>

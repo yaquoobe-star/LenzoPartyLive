@@ -24,6 +24,10 @@ import {
   SuperVipTierDefinition,
   VipTierDefinition,
 } from '../../types/levelAndVip';
+import {
+  ALL_100_LEVELS,
+  getProgressionMathAudit,
+} from '../../utils/levelAndVipConfig';
 import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
@@ -250,32 +254,35 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
         )}
 
         {/* Mathematical Integrity Bar */}
-        {overview?.audit && (
-          <div className="mx-5 mt-3 p-3 rounded-2xl bg-[#180C2F] border border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-            <div>
-              <span className="text-[10px] text-[#B9AECF] block">Total Levels</span>
-              <span className="text-sm font-black font-mono text-white">{overview.audit.totalLevels}</span>
+        {(() => {
+          const localAudit = getProgressionMathAudit();
+          return (
+            <div className="mx-5 mt-3 p-3 rounded-2xl bg-[#180C2F] border border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div>
+                <span className="text-[10px] text-[#B9AECF] block">Total Levels</span>
+                <span className="text-sm font-black font-mono text-white">{localAudit.totalLevels}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#B9AECF] block">Lv 1–50 Exact Sum</span>
+                <span className="text-sm font-black font-mono text-emerald-400">
+                  {localAudit.sumLevels1To50.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#B9AECF] block">Lv 51–100 Exact Sum</span>
+                <span className="text-sm font-black font-mono text-fuchsia-300">
+                  {localAudit.sumLevels51To100.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#B9AECF] block">Grand Total (Exact)</span>
+                <span className="text-sm font-black font-mono text-[#FFC84A]">
+                  {localAudit.grandTotalCoins.toLocaleString()}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-[#B9AECF] block">Lv 1–50 Exact Sum</span>
-              <span className="text-sm font-black font-mono text-emerald-400">
-                {overview.audit.sumLevels1To50.toLocaleString()}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-[#B9AECF] block">Lv 51–100 Exact Sum</span>
-              <span className="text-sm font-black font-mono text-fuchsia-300">
-                {overview.audit.sumLevels51To100.toLocaleString()}
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-[#B9AECF] block">Grand Total (Exact)</span>
-              <span className="text-sm font-black font-mono text-[#FFC84A]">
-                {overview.audit.grandTotalCoins.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Navigation Tabs */}
         <div className="px-5 pt-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
@@ -364,7 +371,7 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.06]">
-                      {overview.levels.map((lvl) => (
+                      {ALL_100_LEVELS.map((lvl) => (
                         <tr key={lvl.level} className="hover:bg-white/[0.03]">
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">

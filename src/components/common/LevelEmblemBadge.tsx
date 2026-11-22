@@ -20,10 +20,9 @@ export interface LevelEmblemPalette {
 }
 
 /**
- * 11 bespoke visual palettes faithfully matching the 0–100 Level Emblem Chart:
- * 0–9 Silver-Teal Crystal · 10–19 Bronze Flame · 20–29 Frost Steel · 30–39 Imperial Gold
- * 40–49 Emerald Jade · 50–59 Electric Sapphire · 60–69 Crimson Ruby · 70–79 Amethyst Mystic
- * 80–89 Obsidian Magenta · 90–99 Celestial Platinum-Gold · 100 Supreme Golden Phoenix
+ * 11 bespoke visual palettes faithfully matching the Lenzo Party 0–100 Level Coin Chart:
+ * 0–10 Bronze · 11–20 Silver · 21–30 Gold · 31–40 Platinum · 41–50 Diamond
+ * 51–60 Sapphire · 61–70 Emerald · 71–80 Ruby · 81–90 Royal · 91–99 Legend · 100 Legend Sovereign
  */
 export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
   const level = Math.max(0, Math.min(100, Math.floor(Number.isFinite(rawLevel) ? rawLevel : 0)));
@@ -31,7 +30,7 @@ export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
   if (level === 100) {
     return {
       decade: 10,
-      label: 'ROYAL 100',
+      label: 'LEGEND 100',
       frameLight: '#FFF7C2',
       frameMid: '#F59E0B',
       frameDark: '#92400E',
@@ -49,30 +48,11 @@ export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
     };
   }
 
-  const decade = Math.floor(level / 10);
+  const decade = level <= 0 ? 0 : Math.min(9, Math.floor((level - 1) / 10));
   const palettes: LevelEmblemPalette[] = [
-    // 0–9: Brushed Steel & Glowing Aqua Crystal
+    // 0–10: Burnished Bronze & Amber Flame
     {
       decade: 0,
-      label: 'CRYSTAL',
-      frameLight: '#F1F5F9',
-      frameMid: '#94A3B8',
-      frameDark: '#334155',
-      innerTop: '#162831',
-      innerBottom: '#0A131A',
-      gemLight: '#CCFBF1',
-      gemMid: '#2DD4BF',
-      gemDark: '#0F766E',
-      wingLight: '#99F6E4',
-      wingMid: '#14B8A6',
-      wingDark: '#115E59',
-      glow: 'rgba(45, 212, 191, 0.48)',
-      textColor: '#F8FAFC',
-      crownColor: '#5EEAD4',
-    },
-    // 10–19: Burnished Bronze & Amber Flame Laurel
-    {
-      decade: 1,
       label: 'BRONZE',
       frameLight: '#FDE68A',
       frameMid: '#CD7F32',
@@ -85,32 +65,32 @@ export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
       wingLight: '#FCD34D',
       wingMid: '#D97706',
       wingDark: '#7C2D12',
-      glow: 'rgba(245, 158, 11, 0.5)',
+      glow: 'rgba(205, 127, 50, 0.48)',
       textColor: '#FFFBEB',
       crownColor: '#FBBF24',
     },
-    // 20–29: Frost Steel & Glacier Blue Paladin
+    // 11–20: Brushed Silver & Frost Steel
+    {
+      decade: 1,
+      label: 'SILVER',
+      frameLight: '#F8FAFC',
+      frameMid: '#CBD5E1',
+      frameDark: '#475569',
+      innerTop: '#1E293B',
+      innerBottom: '#0F172A',
+      gemLight: '#F1F5F9',
+      gemMid: '#94A3B8',
+      gemDark: '#334155',
+      wingLight: '#E2E8F0',
+      wingMid: '#94A3B8',
+      wingDark: '#475569',
+      glow: 'rgba(203, 213, 225, 0.5)',
+      textColor: '#F8FAFC',
+      crownColor: '#E2E8F0',
+    },
+    // 21–30: Imperial Gold Sovereign
     {
       decade: 2,
-      label: 'SILVER',
-      frameLight: '#F0F9FF',
-      frameMid: '#93C5FD',
-      frameDark: '#1E3A8A',
-      innerTop: '#11203B',
-      innerBottom: '#081020',
-      gemLight: '#E0F2FE',
-      gemMid: '#38BDF8',
-      gemDark: '#0369A1',
-      wingLight: '#DBEAFE',
-      wingMid: '#60A5FA',
-      wingDark: '#1D4ED8',
-      glow: 'rgba(96, 165, 250, 0.52)',
-      textColor: '#F0F9FF',
-      crownColor: '#BAE6FD',
-    },
-    // 30–39: Imperial Gold Sovereign
-    {
-      decade: 3,
       label: 'GOLD',
       frameLight: '#FEF9C3',
       frameMid: '#FACC15',
@@ -127,26 +107,45 @@ export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
       textColor: '#FFFDF0',
       crownColor: '#FDE047',
     },
-    // 40–49: Emerald Jade Dragon
+    // 31–40: Platinum Amethyst Prism
+    {
+      decade: 3,
+      label: 'PLATINUM',
+      frameLight: '#EDE9FE',
+      frameMid: '#A78BFA',
+      frameDark: '#4338CA',
+      innerTop: '#23164B',
+      innerBottom: '#100926',
+      gemLight: '#F5F3FF',
+      gemMid: '#8B5CF6',
+      gemDark: '#4F46E5',
+      wingLight: '#DDD6FE',
+      wingMid: '#A78BFA',
+      wingDark: '#4F46E5',
+      glow: 'rgba(167, 139, 250, 0.54)',
+      textColor: '#FAF5FF',
+      crownColor: '#C4B5FD',
+    },
+    // 41–50: Crystalline Diamond Cyan
     {
       decade: 4,
-      label: 'EMERALD',
-      frameLight: '#D1FAE5',
-      frameMid: '#10B981',
-      frameDark: '#065F46',
-      innerTop: '#0A291D',
-      innerBottom: '#04140E',
-      gemLight: '#ECFDF5',
-      gemMid: '#34D399',
-      gemDark: '#047857',
-      wingLight: '#A7F3D0',
-      wingMid: '#10B981',
-      wingDark: '#065F46',
-      glow: 'rgba(16, 185, 129, 0.54)',
-      textColor: '#ECFDF5',
-      crownColor: '#6EE7B7',
+      label: 'DIAMOND',
+      frameLight: '#CFFAFE',
+      frameMid: '#22D3EE',
+      frameDark: '#1D4ED8',
+      innerTop: '#0B273A',
+      innerBottom: '#061321',
+      gemLight: '#ECFEFF',
+      gemMid: '#06B6D4',
+      gemDark: '#1D4ED8',
+      wingLight: '#A5F3FC',
+      wingMid: '#22D3EE',
+      wingDark: '#0369A1',
+      glow: 'rgba(34, 211, 238, 0.56)',
+      textColor: '#ECFEFF',
+      crownColor: '#67E8F9',
     },
-    // 50–59: Electric Sapphire Crystal
+    // 51–60: Electric Sapphire Crystal
     {
       decade: 5,
       label: 'SAPPHIRE',
@@ -161,85 +160,85 @@ export function getLevelEmblemPalette(rawLevel: number): LevelEmblemPalette {
       wingLight: '#7DD3FC',
       wingMid: '#3B82F6',
       wingDark: '#1E40AF',
-      glow: 'rgba(56, 189, 248, 0.58)',
+      glow: 'rgba(59, 130, 246, 0.58)',
       textColor: '#F0F9FF',
       crownColor: '#7DD3FC',
     },
-    // 60–69: Crimson Ruby Inferno
+    // 61–70: Imperial Emerald Jade
     {
       decade: 6,
-      label: 'RUBY',
-      frameLight: '#FDE68A',
-      frameMid: '#EF4444',
-      frameDark: '#7F1D1D',
-      innerTop: '#38090C',
-      innerBottom: '#180406',
-      gemLight: '#FEF08A',
-      gemMid: '#F97316',
-      gemDark: '#B91C1C',
-      wingLight: '#FCA5A5',
-      wingMid: '#EF4444',
-      wingDark: '#991B1B',
-      glow: 'rgba(239, 68, 68, 0.58)',
-      textColor: '#FFF5F5',
-      crownColor: '#FDBA74',
+      label: 'EMERALD',
+      frameLight: '#D1FAE5',
+      frameMid: '#10B981',
+      frameDark: '#065F46',
+      innerTop: '#0A291D',
+      innerBottom: '#04140E',
+      gemLight: '#ECFDF5',
+      gemMid: '#34D399',
+      gemDark: '#047857',
+      wingLight: '#A7F3D0',
+      wingMid: '#10B981',
+      wingDark: '#065F46',
+      glow: 'rgba(16, 185, 129, 0.56)',
+      textColor: '#ECFDF5',
+      crownColor: '#6EE7B7',
     },
-    // 70–79: Amethyst Violet Mystic
+    // 71–80: Crimson Ruby Inferno
     {
       decade: 7,
-      label: 'AMETHYST',
-      frameLight: '#F3E8FF',
-      frameMid: '#A855F7',
-      frameDark: '#581C87',
-      innerTop: '#260C44',
-      innerBottom: '#120521',
-      gemLight: '#FAE8FF',
-      gemMid: '#D946EF',
-      gemDark: '#7E22CE',
-      wingLight: '#E9D5FF',
-      wingMid: '#A855F7',
-      wingDark: '#6B21A8',
-      glow: 'rgba(168, 85, 247, 0.6)',
-      textColor: '#FAF5FF',
-      crownColor: '#E879F9',
+      label: 'RUBY',
+      frameLight: '#FECDD3',
+      frameMid: '#F43F5E',
+      frameDark: '#881337',
+      innerTop: '#380915',
+      innerBottom: '#18040A',
+      gemLight: '#FFE4E6',
+      gemMid: '#E11D48',
+      gemDark: '#9F1239',
+      wingLight: '#FDA4AF',
+      wingMid: '#F43F5E',
+      wingDark: '#9F1239',
+      glow: 'rgba(244, 63, 94, 0.58)',
+      textColor: '#FFF1F2',
+      crownColor: '#FB7185',
     },
-    // 80–89: Obsidian Chrome & Neon Magenta
+    // 81–90: Royal Sovereign Gold & Violet
     {
       decade: 8,
-      label: 'CROWN',
-      frameLight: '#F8FAFC',
-      frameMid: '#CBD5E1',
-      frameDark: '#831843',
-      innerTop: '#1E091E',
-      innerBottom: '#0B0410',
-      gemLight: '#FCE7F3',
-      gemMid: '#EC4899',
-      gemDark: '#9D174D',
-      wingLight: '#FBCFE8',
-      wingMid: '#EC4899',
-      wingDark: '#831843',
-      glow: 'rgba(236, 72, 153, 0.6)',
-      textColor: '#FFF1F2',
-      crownColor: '#F472B6',
-    },
-    // 90–99: Celestial Platinum-Gold Winged Crown
-    {
-      decade: 9,
       label: 'ROYAL',
       frameLight: '#FEF9C3',
       frameMid: '#F59E0B',
-      frameDark: '#78350F',
-      innerTop: '#1A1424',
-      innerBottom: '#090710',
-      gemLight: '#E0E7FF',
-      gemMid: '#818CF8',
-      gemDark: '#4338CA',
-      wingLight: '#FFFFFF',
-      wingMid: '#CBD5E1',
-      wingDark: '#94A3B8',
-      glow: 'rgba(253, 224, 71, 0.62)',
-      textColor: '#FFFFFF',
+      frameDark: '#7C3AED',
+      innerTop: '#24103B',
+      innerBottom: '#11061E',
+      gemLight: '#FEF08A',
+      gemMid: '#A855F7',
+      gemDark: '#6B21A8',
+      wingLight: '#FDE68A',
+      wingMid: '#F59E0B',
+      wingDark: '#7C3AED',
+      glow: 'rgba(245, 158, 11, 0.62)',
+      textColor: '#FFFBEB',
       crownColor: '#FDE047',
+    },
+    // 91–99: Legend Celestial Magenta-Gold
+    {
+      decade: 9,
+      label: 'LEGEND',
+      frameLight: '#FFF7D6',
+      frameMid: '#FA26A0',
+      frameDark: '#7C3AED',
+      innerTop: '#26092A',
+      innerBottom: '#0E0414',
+      gemLight: '#FCE7F3',
+      gemMid: '#FFC84A',
+      gemDark: '#DB2777',
+      wingLight: '#FFC84A',
+      wingMid: '#FA26A0',
+      wingDark: '#7C3AED',
+      glow: 'rgba(250, 38, 160, 0.66)',
+      textColor: '#FFFFFF',
+      crownColor: '#FFC84A',
     },
   ];
 
@@ -280,7 +279,7 @@ export const LevelEmblemBadge: React.FC<LevelEmblemBadgeProps> = ({
 }) => {
   const safeLevel = Math.max(0, Math.min(100, Math.floor(Number.isFinite(level) ? level : 0)));
   const isGrand100 = safeLevel === 100;
-  const step = isGrand100 ? 10 : safeLevel % 10; // 0..9 progressive ornamentation per decade
+  const step = isGrand100 ? 10 : safeLevel === 0 ? 0 : (safeLevel - 1) % 10; // 0..9 progressive ornamentation per 10-level tier
   const palette = getLevelEmblemPalette(safeLevel);
   const rawUid = useId();
   const uid = rawUid.replace(/[^a-zA-Z0-9_-]/g, '');

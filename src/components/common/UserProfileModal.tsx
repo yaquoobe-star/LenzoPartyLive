@@ -87,6 +87,46 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  if (!isSelf && isBlockedByTarget) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-sm bg-[#160C25] border border-rose-500/25 rounded-3xl overflow-hidden shadow-2xl relative p-6 text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center">
+            <Ban className="w-7 h-7 text-rose-400" />
+          </div>
+
+          <h3 className="text-base font-extrabold text-white mb-1.5">
+            Profile Unavailable
+          </h3>
+          <p className="text-xs text-[#B9AECF] leading-relaxed mb-5">
+            You cannot view this user&apos;s ID, profile, videos, or interact with them.
+          </p>
+
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-xs font-bold text-white transition-all active:scale-95"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div 
@@ -170,7 +210,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {!isSelf && interactionBlocked && (
             <div className="w-full mb-4 px-3 py-2 rounded-xl bg-rose-950/60 border border-rose-500/40 text-[11px] font-semibold text-rose-200">
               {isBlockedProp
-                ? `You blocked ${user.name}. Unblock to interact again.`
+                ? `You permanently blocked ${user.name}. Unblock to interact again.`
                 : `You cannot interact with ${user.name}.`}
             </div>
           )}
@@ -214,7 +254,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           )}
 
-          {onViewFullProfile && (
+          {onViewFullProfile && !isBlockedByTarget && (
             <button
               onClick={() => {
                 onClose();

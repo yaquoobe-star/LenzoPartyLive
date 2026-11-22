@@ -2,12 +2,14 @@
  * LENZO PARTY LIVE — AUTHORITATIVE 100-LEVEL, 12-VIP, 6-SUPER-VIP & ACHIEVEMENT ENGINE
  * Shared pure TypeScript module imported by BOTH Express backend (server.ts) and React client.
  *
- * Exact Mathematical Specification:
- * - Total levels: 100
- * - 10 Tiers (every 10 levels): Bronze, Silver, Gold, Platinum, Diamond, Ruby, Emerald, Sapphire, Crown, Royal
- * - Levels 1–50 exact total:    600,000,000 coins (Lv 1 = 1,000,000; Lv 50 = 23,000,000)
- * - Levels 51–100 exact total: 1,400,000,000 coins (Lv 51 = 23,200,000; Lv 100 = 32,800,000)
- * - Grand total (Lv 1–100):    2,000,000,000 coins EXACT
+ * Exact Mathematical Specification (Lenzo Party 100-Level Coin Chart):
+ * - Total levels: 101 (Level 0 Starter through Level 100 Legend Sovereign)
+ * - 10 Tiers (exact 10-level bands):
+ *   Bronze (0–10), Silver (11–20), Gold (21–30), Platinum (31–40), Diamond (41–50),
+ *   Sapphire (51–60), Emerald (61–70), Ruby (71–80), Royal (81–90), Legend (91–100)
+ * - Levels 1–50 exact total:      20,000,000 coins (Lv 1 = 50,000; Lv 2 = 30,000; Lv 50 = 1,353,684)
+ * - Levels 51–100 exact total: 1,313,333,333 coins (Lv 51 = 1,500,000; Lv 100 = 112,042,291)
+ * - Grand total (Lv 1–100):    1,333,333,333 coins EXACT
  * - 12 VIP Tiers: every 8 levels (Lv 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96)
  * - 6 Super VIP Tiers: every 12 levels (Lv 12, 24, 36, 48, 60, 72 — remains highest through Lv 100)
  * - 10 Independent Achievement Badges with unique shapes, artwork keys, and criteria
@@ -19,18 +21,18 @@ export type LevelTierId =
   | 'gold'
   | 'platinum'
   | 'diamond'
-  | 'ruby'
-  | 'emerald'
   | 'sapphire'
-  | 'crown'
-  | 'royal';
+  | 'emerald'
+  | 'ruby'
+  | 'royal'
+  | 'legend';
 
 export type ActiveFrameType = 'none' | 'vip' | 'super_vip';
 
 export interface LevelTierConfig {
   id: LevelTierId;
-  name: string; // e.g., 'BRONZE', 'SILVER', ..., 'ROYAL'
-  displayName: string; // e.g., 'Bronze', 'Silver', ..., 'Royal'
+  name: string; // e.g., 'BRONZE', 'SILVER', ..., 'LEGEND'
+  displayName: string; // e.g., 'Bronze', 'Silver', ..., 'Legend'
   minLevel: number;
   maxLevel: number;
   primaryColor: string;
@@ -49,11 +51,13 @@ export interface LevelDefinition {
   level: number;
   tierId: LevelTierId;
   tierName: string;
-  subRank: string; // Roman I..X within the 10-level tier
+  subRank: string; // '0' for Lv 0, Roman I..X within each 10-level tier (1–10, 11–20, ..., 91–100)
   title: string;
-  coinsForThisLevel: number; // Exact individual cost of Level N
+  coinsForThisLevel: number; // Exact individual cost of Level N from Lenzo Party Coin Chart
   cumulativeStart: number; // Cumulative coins at the start of Level N
   cumulativeCoins: number; // Exact cumulative total through Level N
+  levelValuePkr: number; // Exact level value in PKR (coins * 0.03)
+  cumulativeValuePkr: number; // Exact cumulative value in PKR
   colorHex: string;
   secondaryHex: string;
   gradientCss: string;
@@ -223,12 +227,42 @@ export interface MilestoneUnlockDiff {
 export const MIN_LEVEL = 0;
 export const TOTAL_LEVELS = 100; // Maximum reachable level (0..100 = 101 total levels)
 export const TOTAL_LEVEL_COUNT = 101;
-export const LEVELS_1_TO_50_EXACT_TOTAL = 600_000_000;
-export const LEVELS_51_TO_100_EXACT_TOTAL = 1_400_000_000;
-export const TOTAL_PROGRESSION_COINS_EXACT = 2_000_000_000;
+export const LEVELS_1_TO_50_EXACT_TOTAL = 20_000_000;
+export const LEVELS_51_TO_100_EXACT_TOTAL = 1_313_333_333;
+export const TOTAL_PROGRESSION_COINS_EXACT = 1_333_333_333;
 export const MAX_EQUIPPED_ACHIEVEMENT_BADGES = 3;
 
 const ROMAN_SUBRANKS = ['0', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+/**
+ * Exact 100-Level Coin Chart (Levels 1..100) from Lenzo_Party_100_Level_Coin_Chart.csv:
+ * - Index 0 = Level 1 (50,000 coins), Index 1 = Level 2 (30,000 coins), ..., Index 99 = Level 100 (112,042,291 coins)
+ * - Sum Levels 1..50   =    20,000,000 EXACT
+ * - Sum Levels 51..100 = 1,313,333,333 EXACT
+ * - Grand Total        = 1,333,333,333 EXACT
+ */
+export const EXACT_100_LEVEL_COINS: readonly number[] = [
+  // Lv 1–10 (Bronze): Total 500,000
+  50_000, 30_000, 50_000, 50_000, 50_000, 50_000, 50_000, 50_000, 60_000, 60_000,
+  // Lv 11–20 (Silver): Cumulative 1,875,705
+  100_000, 106_909, 114_295, 122_191, 130_633, 139_658, 149_307, 159_622, 170_650, 182_440,
+  // Lv 21–30 (Gold): Cumulative 4,558,935
+  195_044, 208_519, 222_925, 238_327, 254_792, 272_395, 291_214, 311_333, 332_843, 355_838,
+  // Lv 31–40 (Platinum): Cumulative 9,792,414
+  380_422, 406_704, 434_802, 464_842, 496_957, 531_290, 567_996, 607_237, 649_189, 694_040,
+  // Lv 41–50 (Diamond): Cumulative 20,000,000 EXACT
+  741_990, 793_252, 848_056, 906_646, 969_284, 1_036_249, 1_107_841, 1_184_379, 1_266_205, 1_353_684,
+  // Lv 51–60 (Sapphire): Cumulative 43,010,227
+  1_500_000, 1_638_029, 1_788_760, 1_953_361, 2_133_109, 2_329_396, 2_543_746, 2_777_821, 3_033_435, 3_312_570,
+  // Lv 61–70 (Emerald): Cumulative 98,501,556
+  3_617_391, 3_950_262, 4_313_764, 4_710_714, 5_144_192, 5_617_558, 6_134_484, 6_698_976, 7_315_413, 7_988_575,
+  // Lv 71–80 (Ruby): Cumulative 232,324,123
+  8_723_680, 9_526_429, 10_403_047, 11_360_331, 12_405_704, 13_547_271, 14_793_885, 16_155_212, 17_641_808, 19_265_200,
+  // Lv 81–90 (Royal): Cumulative 555,049,849
+  21_037_975, 22_973_881, 25_087_928, 27_396_508, 29_917_523, 32_670_521, 35_676_848, 38_959_816, 42_544_882, 46_459_844,
+  // Lv 91–100 (Legend): Cumulative 1,333,333,333 EXACT
+  50_735_059, 55_403_677, 60_501_900, 66_069_259, 72_148_924, 78_788_038, 86_038_079, 93_955_267, 102_600_990, 112_042_291,
+] as const;
 
 export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
   {
@@ -236,7 +270,7 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     name: 'BRONZE',
     displayName: 'Bronze',
     minLevel: 0,
-    maxLevel: 9,
+    maxLevel: 10,
     primaryColor: '#CD7F32',
     secondaryColor: '#8C4A19',
     accentColor: '#F3B87A',
@@ -247,7 +281,7 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'shield',
     visualEffect: 'metallic',
     tierPerks: [
-      'Bronze Metallic Insignia on Profile & Rooms',
+      'Bronze Metallic Insignia on Profile & Rooms (Lv 0–10)',
       'Room Chat Level Tag Highlight',
       'Eligible for VIP 1 Frame at Level 8',
     ],
@@ -256,8 +290,8 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     id: 'silver',
     name: 'SILVER',
     displayName: 'Silver',
-    minLevel: 10,
-    maxLevel: 19,
+    minLevel: 11,
+    maxLevel: 20,
     primaryColor: '#CBD5E1',
     secondaryColor: '#64748B',
     accentColor: '#F8FAFC',
@@ -268,7 +302,7 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'chevron',
     visualEffect: 'brushed',
     tierPerks: [
-      'Brushed Silver Crest Insignia',
+      'Brushed Silver Crest Insignia (Lv 11–20)',
       'Unlocks Super VIP 1 at Level 12 & VIP 2 at Level 16',
       'Silver Entrance Sparkle in Audio Party Rooms',
     ],
@@ -277,8 +311,8 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     id: 'gold',
     name: 'GOLD',
     displayName: 'Gold',
-    minLevel: 20,
-    maxLevel: 29,
+    minLevel: 21,
+    maxLevel: 30,
     primaryColor: '#FBBF24',
     secondaryColor: '#B45309',
     accentColor: '#FEF08A',
@@ -289,7 +323,7 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'star',
     visualEffect: 'shimmer',
     tierPerks: [
-      '24K Golden Star Insignia with Shimmer',
+      '24K Golden Star Insignia with Shimmer (Lv 21–30)',
       'Unlocks VIP 3 & Super VIP 2 Dual Milestone at Level 24',
       'Golden Room Entry Callout Banner',
     ],
@@ -298,8 +332,8 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     id: 'platinum',
     name: 'PLATINUM',
     displayName: 'Platinum',
-    minLevel: 30,
-    maxLevel: 39,
+    minLevel: 31,
+    maxLevel: 40,
     primaryColor: '#A78BFA',
     secondaryColor: '#4F46E5',
     accentColor: '#E0E7FF',
@@ -310,7 +344,7 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'prism',
     visualEffect: 'hologram',
     tierPerks: [
-      'Platinum Prism Holographic Badge',
+      'Platinum Prism Holographic Badge (Lv 31–40)',
       'Unlocks VIP 4 (Lv 32), Super VIP 3 (Lv 36) & VIP 5 (Lv 40)',
       'Priority Guest Seat Queue in Live & Party Rooms',
     ],
@@ -319,8 +353,8 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     id: 'diamond',
     name: 'DIAMOND',
     displayName: 'Diamond',
-    minLevel: 40,
-    maxLevel: 49,
+    minLevel: 41,
+    maxLevel: 50,
     primaryColor: '#22D3EE',
     secondaryColor: '#2563EB',
     accentColor: '#CFFAFE',
@@ -331,59 +365,17 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'diamond',
     visualEffect: 'crystalline',
     tierPerks: [
-      'Faceted Diamond Crystal Emblem',
+      'Faceted Diamond Crystal Emblem (Lv 41–50 · 20M Milestone)',
       'Unlocks VIP 6 & Super VIP 4 Dual Milestone at Level 48',
       'Crystalline Aura in Top Broadcaster Rankings',
-    ],
-  },
-  {
-    id: 'ruby',
-    name: 'RUBY',
-    displayName: 'Ruby',
-    minLevel: 50,
-    maxLevel: 59,
-    primaryColor: '#F43F5E',
-    secondaryColor: '#9F1239',
-    accentColor: '#FECDD3',
-    gradientCss: 'linear-gradient(135deg, #FDA4AF 0%, #E11D48 48%, #881337 100%)',
-    borderHex: '#FB7185',
-    glowRgba: 'rgba(244, 63, 94, 0.55)',
-    textColorHex: '#FFE4E6',
-    insignia: 'flame',
-    visualEffect: 'ember',
-    tierPerks: [
-      'Crimson Ruby Flame Emblem (Elite Halfway Tier)',
-      'Unlocks VIP 7 (Lv 56) & Super VIP 5 Diamond Aurora (Lv 60)',
-      'Ruby Spotlight Entrance Across All Streams',
-    ],
-  },
-  {
-    id: 'emerald',
-    name: 'EMERALD',
-    displayName: 'Emerald',
-    minLevel: 60,
-    maxLevel: 69,
-    primaryColor: '#10B981',
-    secondaryColor: '#065F46',
-    accentColor: '#A7F3D0',
-    gradientCss: 'linear-gradient(135deg, #6EE7B7 0%, #10B981 48%, #064E3B 100%)',
-    borderHex: '#34D399',
-    glowRgba: 'rgba(16, 185, 129, 0.55)',
-    textColorHex: '#D1FAE5',
-    insignia: 'leaf',
-    visualEffect: 'aurora',
-    tierPerks: [
-      'Imperial Emerald Crest with Aurora Sheen',
-      'Unlocks VIP 8 Sapphire Frame at Level 64',
-      'Dedicated VIP Lounge Badge & Priority Support',
     ],
   },
   {
     id: 'sapphire',
     name: 'SAPPHIRE',
     displayName: 'Sapphire',
-    minLevel: 70,
-    maxLevel: 79,
+    minLevel: 51,
+    maxLevel: 60,
     primaryColor: '#3B82F6',
     secondaryColor: '#1E3A8A',
     accentColor: '#BFDBFE',
@@ -394,17 +386,59 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'gem',
     visualEffect: 'celestial',
     tierPerks: [
-      'Deep Celestial Sapphire Jewel Emblem',
-      'Unlocks VIP 9 & Ultimate Super VIP 6 Cosmic Gold at Level 72, VIP 10 at Level 80',
+      'Deep Celestial Sapphire Jewel Emblem (Lv 51–60)',
+      'Unlocks VIP 7 (Lv 56) & Super VIP 5 Diamond Aurora (Lv 60)',
       'Celestial Entrance Wave on Stream Join',
     ],
   },
   {
-    id: 'crown',
-    name: 'CROWN',
-    displayName: 'Crown',
-    minLevel: 80,
-    maxLevel: 89,
+    id: 'emerald',
+    name: 'EMERALD',
+    displayName: 'Emerald',
+    minLevel: 61,
+    maxLevel: 70,
+    primaryColor: '#10B981',
+    secondaryColor: '#065F46',
+    accentColor: '#A7F3D0',
+    gradientCss: 'linear-gradient(135deg, #6EE7B7 0%, #10B981 48%, #064E3B 100%)',
+    borderHex: '#34D399',
+    glowRgba: 'rgba(16, 185, 129, 0.55)',
+    textColorHex: '#D1FAE5',
+    insignia: 'leaf',
+    visualEffect: 'aurora',
+    tierPerks: [
+      'Imperial Emerald Crest with Aurora Sheen (Lv 61–70)',
+      'Unlocks VIP 8 Sapphire Frame at Level 64',
+      'Dedicated VIP Lounge Badge & Priority Support',
+    ],
+  },
+  {
+    id: 'ruby',
+    name: 'RUBY',
+    displayName: 'Ruby',
+    minLevel: 71,
+    maxLevel: 80,
+    primaryColor: '#F43F5E',
+    secondaryColor: '#9F1239',
+    accentColor: '#FECDD3',
+    gradientCss: 'linear-gradient(135deg, #FDA4AF 0%, #E11D48 48%, #881337 100%)',
+    borderHex: '#FB7185',
+    glowRgba: 'rgba(244, 63, 94, 0.55)',
+    textColorHex: '#FFE4E6',
+    insignia: 'flame',
+    visualEffect: 'ember',
+    tierPerks: [
+      'Crimson Ruby Flame Emblem (Lv 71–80)',
+      'Unlocks VIP 9 & Ultimate Super VIP 6 Cosmic Gold (Lv 72), VIP 10 (Lv 80)',
+      'Ruby Spotlight Entrance Across All Streams',
+    ],
+  },
+  {
+    id: 'royal',
+    name: 'ROYAL',
+    displayName: 'Royal',
+    minLevel: 81,
+    maxLevel: 90,
     primaryColor: '#F59E0B',
     secondaryColor: '#9333EA',
     accentColor: '#FDE68A',
@@ -415,16 +449,16 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'crown',
     visualEffect: 'radiant',
     tierPerks: [
-      'Sovereign Crown Radiant Emblem',
+      'Sovereign Royal Crown Radiant Emblem (Lv 81–90)',
       'Unlocks VIP 11 Luxury Animated Frame at Level 88',
       'Global Sovereign Banner on High-Value Gifts',
     ],
   },
   {
-    id: 'royal',
-    name: 'ROYAL',
-    displayName: 'Royal',
-    minLevel: 90,
+    id: 'legend',
+    name: 'LEGEND',
+    displayName: 'Legend',
+    minLevel: 91,
     maxLevel: 100,
     primaryColor: '#FA26A0',
     secondaryColor: '#7C3AED',
@@ -436,9 +470,9 @@ export const LEVEL_TIER_CONFIGS: LevelTierConfig[] = [
     insignia: 'imperial',
     visualEffect: 'imperial_aura',
     tierPerks: [
-      'Supreme Lenzo Royal Imperial Insignia (Lv 91–100)',
+      'Supreme Lenzo Legend Imperial Insignia (Lv 91–100)',
       'Unlocks VIP 12 Ultimate Legendary Frame at Level 96',
-      'Permanent Hall of Royalty Distinction & Cosmic Entrance',
+      'Permanent Hall of Legends Distinction & Cosmic Entrance',
     ],
   },
 ];
@@ -884,65 +918,14 @@ export const ACHIEVEMENT_BADGE_DEFINITIONS: AchievementBadgeDefinition[] = [
   },
 ];
 
-/**
- * Deterministic largest-remainder (Hamilton) integer apportionment for a 50-level linear ramp.
- * Guarantees exact endpoints (startCost, endCost), strictly increasing costs, and exact integer total.
- */
-function buildLinearRampExact(
-  count: number,
-  startCost: number,
-  endCost: number,
-  expectedSum: number
-): number[] {
-  const step = (endCost - startCost) / (count - 1);
-  const floors: number[] = [];
-  const remainders: Array<{ index: number; frac: number }> = [];
-  let sumFloors = 0;
-
-  for (let i = 0; i < count; i++) {
-    if (i === 0) {
-      floors.push(startCost);
-      sumFloors += startCost;
-    } else if (i === count - 1) {
-      floors.push(endCost);
-      sumFloors += endCost;
-    } else {
-      const exact = startCost + i * step;
-      const floored = Math.floor(exact);
-      floors.push(floored);
-      sumFloors += floored;
-      remainders.push({ index: i, frac: exact - floored });
-    }
-  }
-
-  let residual = expectedSum - sumFloors;
-  if (residual > 0) {
-    remainders.sort((a, b) => b.frac - a.frac || a.index - b.index);
-    for (let k = 0; k < residual && k < remainders.length; k++) {
-      floors[remainders[k].index] += 1;
-    }
-  } else if (residual < 0) {
-    remainders.sort((a, b) => a.frac - b.frac || b.index - a.index);
-    for (let k = 0; k < -residual && k < remainders.length; k++) {
-      floors[remainders[k].index] -= 1;
-    }
-  }
-
-  return floors;
-}
-
 export function getTierConfigForLevel(level: number): LevelTierConfig {
   const safe = Number.isFinite(level) ? Math.floor(level) : 0;
   const clamped = Math.max(MIN_LEVEL, Math.min(TOTAL_LEVELS, safe));
-  const tierIndex = Math.min(LEVEL_TIER_CONFIGS.length - 1, Math.floor(clamped / 10));
+  const tierIndex = clamped <= 0 ? 0 : Math.min(LEVEL_TIER_CONFIGS.length - 1, Math.floor((clamped - 1) / 10));
   return LEVEL_TIER_CONFIGS[tierIndex];
 }
 
 function generateAll101Levels(): LevelDefinition[] {
-  const firstHalf = buildLinearRampExact(50, 1_000_000, 23_000_000, LEVELS_1_TO_50_EXACT_TOTAL);
-  const secondHalf = buildLinearRampExact(50, 23_200_000, 32_800_000, LEVELS_51_TO_100_EXACT_TOTAL);
-  const allCosts = [...firstHalf, ...secondHalf];
-
   const vipByLevel = new Map<number, VipTierDefinition>();
   for (const v of VIP_TIER_DEFINITIONS) vipByLevel.set(v.unlockLevel, v);
 
@@ -962,14 +945,16 @@ function generateAll101Levels(): LevelDefinition[] {
     coinsForThisLevel: 0,
     cumulativeStart: 0,
     cumulativeCoins: 0,
+    levelValuePkr: 0,
+    cumulativeValuePkr: 0,
     colorHex: starterTier.primaryColor,
     secondaryHex: starterTier.secondaryColor,
     gradientCss: starterTier.gradientCss,
     glowRgba: starterTier.glowRgba,
     insignia: starterTier.insignia,
     perks: [
-      'Level 0 Crystal Shield Emblem on Profile',
-      'Send gifts in Live & Party Rooms to advance to Level 1 (1,000,000 coins)',
+      'Level 0 Starter Emblem on Profile',
+      'Spend 50,000 coins on gifts or store items to reach Level 1 (Bronze I)',
       ...starterTier.tierPerks,
     ],
   });
@@ -978,12 +963,12 @@ function generateAll101Levels(): LevelDefinition[] {
 
   for (let i = 0; i < TOTAL_LEVELS; i++) {
     const level = i + 1;
-    const cost = allCosts[i];
+    const cost = EXACT_100_LEVEL_COINS[i];
     const cumulativeStart = runningCumulative;
     runningCumulative += cost;
 
     const tierCfg = getTierConfigForLevel(level);
-    const subIdx = level === 100 ? 10 : (level % 10) + 1;
+    const subIdx = ((level - 1) % 10) + 1; // 1..10 -> I..X within each 10-level tier
     const subRank = ROMAN_SUBRANKS[Math.min(ROMAN_SUBRANKS.length - 1, subIdx)];
     const vipUnlock = vipByLevel.get(level);
     const superVipUnlock = superVipByLevel.get(level);
@@ -1001,10 +986,12 @@ function generateAll101Levels(): LevelDefinition[] {
       tierId: tierCfg.id,
       tierName: tierCfg.name,
       subRank,
-      title: level === 100 ? 'Royal Sovereign 100' : `${tierCfg.displayName} ${subRank}`,
+      title: level === 100 ? 'Legend Sovereign 100' : `${tierCfg.displayName} ${subRank}`,
       coinsForThisLevel: cost,
       cumulativeStart,
       cumulativeCoins: runningCumulative,
+      levelValuePkr: Math.round(cost * 3) / 100,
+      cumulativeValuePkr: Math.round(runningCumulative * 3) / 100,
       colorHex: tierCfg.primaryColor,
       secondaryHex: tierCfg.secondaryColor,
       gradientCss: tierCfg.gradientCss,
@@ -1049,10 +1036,10 @@ export function getUnlockedSuperVipTiersForLevel(level: number): number[] {
 
 /**
  * Authoritative progression calculation from total qualifying coins spent.
- * 101 Levels (0..100):
- * - 0 coins starts at Level 0 (0 -> 1 requires 1,000,000 coins)
- * - Reaching Level 50 = 600,000,000 coins EXACT
- * - Reaching Level 100 = 2,000,000,000 coins EXACT (Lv 51–100 = 1,400,000,000)
+ * 101 Levels (0..100) matching Lenzo Party 100-Level Coin Chart:
+ * - 0 coins starts at Level 0 (0 -> 1 requires 50,000 coins; 1 -> 2 requires 30,000 coins)
+ * - Reaching Level 50 = 20,000,000 coins EXACT
+ * - Reaching Level 100 = 1,333,333,333 coins EXACT (Lv 51-100 = 1,313,333,333)
  */
 export function calculateProgressionState(
   totalQualifyingCoinsSpent: number,
@@ -1273,7 +1260,7 @@ export function evaluateAchievementBadges(
 }
 
 /**
- * Utility formatter for large progression coin values (e.g., 1,000,000 -> "1M", 2,000,000,000 -> "2B").
+ * Utility formatter for large progression coin values (e.g., 50,000 -> "50K", 1,333,333,333 -> "1.33B").
  */
 export function formatCoinsCompact(coins: number): string {
   if (!Number.isFinite(coins) || coins <= 0) return '0';
@@ -1307,6 +1294,7 @@ export function getProgressionMathAudit() {
     totalAchievements: ACHIEVEMENT_BADGE_DEFINITIONS.length,
     level0Cost: ALL_100_LEVELS[0].coinsForThisLevel,
     level1Cost: ALL_100_LEVELS[1].coinsForThisLevel,
+    level2Cost: ALL_100_LEVELS[2].coinsForThisLevel,
     level50Cost: ALL_100_LEVELS[50].coinsForThisLevel,
     level51Cost: ALL_100_LEVELS[51].coinsForThisLevel,
     level100Cost: ALL_100_LEVELS[100].coinsForThisLevel,
@@ -1317,6 +1305,9 @@ export function getProgressionMathAudit() {
       ALL_100_LEVELS.length === TOTAL_LEVEL_COUNT &&
       ALL_100_LEVELS[0].level === 0 &&
       ALL_100_LEVELS[100].level === 100 &&
+      ALL_100_LEVELS[1].coinsForThisLevel === 50_000 &&
+      ALL_100_LEVELS[2].coinsForThisLevel === 30_000 &&
+      ALL_100_LEVELS[50].cumulativeCoins === LEVELS_1_TO_50_EXACT_TOTAL &&
       sum1to50 === LEVELS_1_TO_50_EXACT_TOTAL &&
       sum51to100 === LEVELS_51_TO_100_EXACT_TOTAL &&
       grandTotal === TOTAL_PROGRESSION_COINS_EXACT,

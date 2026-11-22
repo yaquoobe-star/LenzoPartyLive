@@ -69,7 +69,6 @@ import {
   adminAdjustBalance,
   DEFAULT_WALLET_SETTINGS,
   DEFAULT_COIN_PACKAGES,
-  DEFAULT_COIN_SELLER_AGENCIES,
   DEFAULT_PAYOUT_METHODS
 } from '../../services/walletService';
 import { auth } from '../../firebase';
@@ -114,7 +113,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   // Settings & Live Balances from Firestore
   const [settings, setSettings] = useState<WalletSettings>(DEFAULT_WALLET_SETTINGS);
   const [coinPackages, setCoinPackages] = useState<WalletRechargePackage[]>(DEFAULT_COIN_PACKAGES);
-  const [coinSellerAgencies, setCoinSellerAgencies] = useState<CoinSellerAgency[]>(DEFAULT_COIN_SELLER_AGENCIES);
+  const [coinSellerAgencies, setCoinSellerAgencies] = useState<CoinSellerAgency[]>([]);
   const [approvedDualCoinSellers, setApprovedDualCoinSellers] = useState<DualAgencyRecord[]>([]);
 
   // Online Purchasing Coming Soon & Offline Agency Directory State
@@ -468,11 +467,11 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const handleConvertEarnings = async () => {
     const num = parseInt(convertCoinsInput, 10);
     if (isNaN(num) || num <= 0) {
-      showError('Please enter a valid amount of coins to convert');
+      showError('Please enter a valid number of Diamonds to exchange');
       return;
     }
     if (num > earningsData.availableEarningsCoins) {
-      showError(`Cannot convert more than available earnings (${earningsData.availableEarningsCoins.toLocaleString()} coins)`);
+      showError(`Cannot exchange more than available Diamonds (💎 ${earningsData.availableEarningsCoins.toLocaleString()})`);
       return;
     }
 
@@ -482,29 +481,40 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
     if (res.success) {
       setIsConvertModalOpen(false);
-      showToast(`Successfully converted ${num.toLocaleString()} earnings into ${res.walletCoinsReceived.toLocaleString()} Wallet Coins!`);
+      showToast(`Exchanged 💎 ${num.toLocaleString()} Diamonds into 🪙 ${res.walletCoinsReceived.toLocaleString()} Gifting Wallet Coins!`);
       if (onRechargeSuccess) onRechargeSuccess(res.walletCoinsReceived);
     } else {
-      showError(res.error || 'Conversion failed');
+      showError(res.error || 'Exchange failed');
     }
   };
 
   const handleSubmitWithdrawal = async () => {
     const num = parseInt(withdrawCoinsInput, 10);
     if (isNaN(num) || num < settings.minWithdrawalCoins) {
-      showError(`Minimum withdrawal is ${settings.minWithdrawalCoins.toLocaleString()} coins (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})`);
+      showError(`Minimum withdrawal is 💎 ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})`);
       return;
     }
     if (num > settings.maxWithdrawalCoins) {
-      showError(`Maximum withdrawal is ${settings.maxWithdrawalCoins.toLocaleString()} coins per request`);
+      showError(`Maximum withdrawal is 💎 ${settings.maxWithdrawalCoins.toLocaleString()} Diamonds per request`);
       return;
     }
     if (num > earningsData.availableEarningsCoins) {
-      showError(`Insufficient available earnings (${earningsData.availableEarningsCoins.toLocaleString()} coins available)`);
+      showError(`Insufficient available Diamonds (💎 ${earningsData.availableEarningsCoins.toLocaleString()} available)`);
       return;
     }
-    if (!accountTitle.trim() || !accountNumber.trim()) {
-      showError('Please enter valid account title and account / IBAN number');
+    const resolvedProvider =
+      selectedPayoutMethod === 'easypaisa'
+        ? 'EasyPaisa'
+        : selectedPayoutMethod === 'jazzcash'
+          ? 'JazzCash'
+          : bankOrProviderName.trim();
+
+    if (!accountTitle.trim() || !accountNumber.trim() || !resolvedProvider) {
+      showError(
+        selectedPayoutMethod === 'bank_transfer'
+          ? 'Please enter Account Title, Bank Name, and Account / IBAN Number'
+          : `Please enter Account Title and 11-digit ${resolvedProvider} mobile number`
+      );
       return;
     }
 
@@ -517,8 +527,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       {
         accountTitle: accountTitle.trim(),
         accountNumber: accountNumber.trim(),
-        bankOrProviderName: bankOrProviderName.trim(),
-        phoneNumber: phoneNumber.trim(),
+        bankOrProviderName: resolvedProvider,
+        phoneNumber: phoneNumber.trim() || (selectedPayoutMethod !== 'bank_transfer' ? accountNumber.trim() : ''),
       },
       settings
     );
@@ -526,7 +536,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
     if (res.success) {
       setIsWithdrawModalOpen(false);
-      showToast(`Withdrawal request #${res.requestId.slice(-6).toUpperCase()} submitted! PKR ${res.finalPayablePkr.toLocaleString()} will be sent upon review.`);
+      showToast(`Diamond withdrawal #${res.requestId.slice(-6).toUpperCase()} submitted via ${resolvedProvider}! Net PKR ${res.finalPayablePkr.toLocaleString()}.`);
     } else {
       showError(res.error || 'Withdrawal submission failed');
     }
@@ -617,7 +627,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   Verified Currency
                 </span>
               </div>
-              <p className="text-[11px] text-[#A59AB8]">Separate Purchased Coins & Creator Earnings System</p>
+              <p className="text-[11px] text-[#A59AB8]">Coins Buying/Gifting Wallet &amp; Diamonds Earnings Wallet</p>
             </div>
           </div>
 
@@ -644,9 +654,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           </div>
         </div>
 
-        {/* 2. TWO MAIN TABS: 1. WALLET | 2. EARNINGS */}
+        {/* 2. TWO MAIN TABS: 1. BUYING/GIFTING WALLET (COINS) | 2. EARNINGS WALLET (DIAMONDS) */}
         <div className="grid grid-cols-2 p-2 bg-[#120822] border-b border-white/[0.06] gap-2">
-          {/* TAB 1: WALLET */}
+          {/* TAB 1: COINS WALLET */}
           <button
             onClick={() => {
               setActiveMainTab('wallet');
@@ -659,13 +669,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
             }`}
           >
             <span className="text-base">🪙</span>
-            <span>WALLET COINS</span>
+            <span>WALLET (COINS)</span>
             {activeMainTab === 'wallet' && (
               <span className="w-2 h-2 rounded-full bg-[#FFC84A] animate-pulse" />
             )}
           </button>
 
-          {/* TAB 2: EARNINGS */}
+          {/* TAB 2: DIAMONDS EARNINGS WALLET */}
           <button
             onClick={() => {
               setActiveMainTab('earnings');
@@ -673,14 +683,14 @@ export const WalletModal: React.FC<WalletModalProps> = ({
             }}
             className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all ${
               activeMainTab === 'earnings'
-                ? 'bg-gradient-to-r from-[#8B20FF]/25 via-[#F328D5]/20 to-[#FA26A0]/20 border border-[#F328D5]/50 text-[#ff7df1] shadow-[0_4px_16px_rgba(243,40,213,0.2)]'
+                ? 'bg-gradient-to-r from-cyan-500/25 via-[#8B20FF]/25 to-[#F328D5]/25 border border-cyan-400/50 text-cyan-200 shadow-[0_4px_16px_rgba(34,211,238,0.2)]'
                 : 'text-[#A59AB8] hover:text-white hover:bg-white/5 border border-transparent'
             }`}
           >
-            <TrendingUp className="w-4 h-4 text-[#F328D5]" />
-            <span>EARNINGS</span>
+            <span className="text-base">💎</span>
+            <span>EARNINGS (DIAMONDS)</span>
             {activeMainTab === 'earnings' && (
-              <span className="w-2 h-2 rounded-full bg-[#F328D5] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse" />
             )}
           </button>
         </div>
@@ -920,112 +930,117 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           )}
 
           {/* ========================================================== */}
-          {/* TAB 2 CONTENT: CREATOR EARNINGS & WITHDRAWAL SYSTEM       */}
+          {/* TAB 2 CONTENT: EARNINGS WALLET (DIAMONDS ONLY)             */}
           {/* ========================================================== */}
           {activeMainTab === 'earnings' && (
             <div className="space-y-5">
-              {/* Earnings Balance Card */}
-              <div className="relative p-5 rounded-3xl bg-gradient-to-br from-[#2a0e42] via-[#1a0833] to-[#100520] border border-[#F328D5]/30 shadow-xl overflow-hidden">
-                <div className="absolute -top-10 -right-10 w-44 h-44 bg-[#F328D5]/15 rounded-full blur-3xl pointer-events-none" />
+              {/* Diamonds Earnings Balance Card */}
+              <div className="relative p-5 rounded-3xl bg-gradient-to-br from-[#0E2444] via-[#1B103D] to-[#120624] border border-cyan-400/35 shadow-xl overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-44 h-44 bg-cyan-400/15 rounded-full blur-3xl pointer-events-none" />
 
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#e1d5f3] flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-[#F328D5]" />
-                    Available Net Earnings
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-bold text-cyan-100 flex items-center gap-1.5">
+                    <span>💎</span> Available Diamonds
                   </span>
-                  <span className="text-[10px] text-pink-300 font-extrabold px-2 py-0.5 rounded-full bg-[#F328D5]/20 border border-[#F328D5]/30">
-                    Eligible for Cash Payout
+                  <span className="text-[10px] text-cyan-200 font-extrabold px-2.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/35">
+                    {100 - settings.commissionRatePercent}% Host Share • {settings.commissionRatePercent}% App
                   </span>
                 </div>
 
                 <div className="flex items-baseline justify-between flex-wrap gap-2">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl sm:text-4xl font-black text-[#ff83f3] font-mono tracking-tight">
+                    <span className="text-3xl sm:text-4xl font-black text-cyan-300 font-mono tabular-nums tracking-tight">
                       {earningsData.availableEarningsCoins.toLocaleString()}
                     </span>
-                    <span className="text-xs text-[#A59AB8] font-bold">Coins</span>
+                    <span className="text-xs text-cyan-100/80 font-extrabold uppercase tracking-wide">Diamonds</span>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-sm font-extrabold text-emerald-400 font-mono">
+                    <span className="text-sm font-extrabold text-emerald-400 font-mono tabular-nums">
                       ≈ PKR {(earningsData.availableEarningsCoins * settings.exchangeRatePkrPerCoin).toLocaleString()}
                     </span>
-                    <div className="text-[10px] text-[#A59AB8]">Net after {settings.commissionRatePercent}% Commission</div>
+                    <div className="text-[10px] text-[#B9AECF]">
+                      Converted from {100 - settings.commissionRatePercent}% of gifts received
+                    </div>
                   </div>
                 </div>
 
-                {/* Sub-balances breakdown */}
+                {/* Sub-balances breakdown (Strictly Diamonds) */}
                 <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10 text-xs">
                   <div>
                     <span className="text-[10px] text-[#A59AB8] block">Pending Payout</span>
-                    <span className="font-bold text-amber-300 font-mono">🪙 {earningsData.pendingWithdrawalCoins.toLocaleString()}</span>
+                    <span className="font-bold text-amber-300 font-mono tabular-nums">💎 {earningsData.pendingWithdrawalCoins.toLocaleString()}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-[#A59AB8] block">Withdrawn Paid</span>
-                    <span className="font-bold text-emerald-400 font-mono">🪙 {earningsData.totalWithdrawnCoins.toLocaleString()}</span>
+                    <span className="font-bold text-emerald-400 font-mono tabular-nums">💎 {earningsData.totalWithdrawnCoins.toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#A59AB8] block">Gross Received</span>
-                    <span className="font-bold text-purple-300 font-mono">🪙 {earningsData.grossGiftCoinsReceived.toLocaleString()}</span>
+                    <span className="text-[10px] text-[#A59AB8] block">Exchanged to Coins</span>
+                    <span className="font-bold text-cyan-300 font-mono tabular-nums">💎 {earningsData.totalConvertedToWallet.toLocaleString()}</span>
                   </div>
                 </div>
 
-                {/* Action Buttons: WITHDRAW & Convert Earnings to Wallet */}
-                <div className="flex items-center gap-3 mt-4 pt-2">
+                {/* Action Buttons: WITHDRAW DIAMONDS & EXCHANGE DIAMONDS -> COINS */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4 pt-2">
                   <button
+                    type="button"
                     onClick={() => setIsWithdrawModalOpen(true)}
-                    className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white text-xs font-black shadow-[0_4px_16px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    className="min-h-[46px] py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-105 text-[#041B10] text-xs font-black shadow-[0_4px_16px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all"
                   >
-                    <DollarSign className="w-4 h-4" />
-                    <span>WITHDRAW CASH</span>
+                    <DollarSign className="w-4 h-4 shrink-0" />
+                    <span>Withdraw Diamonds</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setIsConvertModalOpen(true)}
-                    className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#c415f5] hover:opacity-95 text-white text-xs font-black shadow-[0_4px_16px_rgba(243,40,213,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    className="min-h-[46px] py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-[#8B20FF] to-[#F328D5] hover:brightness-105 text-white text-xs font-black shadow-[0_4px_16px_rgba(139,32,255,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all"
                   >
-                    <ArrowRightLeft className="w-4 h-4" />
-                    <span>Convert to Wallet</span>
+                    <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                    <span>Exchange Diamonds → Coins</span>
                   </button>
                 </div>
               </div>
 
-              {/* Commission & Earnings Metrics Card */}
-              <div className="p-4 rounded-2xl bg-[#150a25] border border-white/10 space-y-3">
+              {/* Host Split & Diamonds Payout Metrics Card */}
+              <div className="p-4 rounded-2xl bg-[#150a25] border border-white/10 space-y-2.5">
                 <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
-                  <span className="text-[#A59AB8]">Platform Commission Rate:</span>
-                  <span className="font-bold text-amber-300">{settings.commissionRatePercent}%</span>
+                  <span className="text-[#A59AB8]">Gift Earnings Split:</span>
+                  <span className="font-bold text-cyan-300">
+                    {100 - settings.commissionRatePercent}% Host Diamonds / {settings.commissionRatePercent}% App
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
-                  <span className="text-[#A59AB8]">Exchange Rate:</span>
-                  <span className="font-bold text-emerald-400">1 Coin = PKR {settings.exchangeRatePkrPerCoin}</span>
+                  <span className="text-[#A59AB8]">Diamond Cash Value:</span>
+                  <span className="font-bold text-emerald-400">1 💎 Diamond = PKR {settings.exchangeRatePkrPerCoin}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
-                  <span className="text-[#A59AB8]">Total Platform Commission Paid:</span>
-                  <span className="font-mono text-purple-300">🪙 {earningsData.totalCommissionDeducted.toLocaleString()}</span>
+                  <span className="text-[#A59AB8]">Supported Payout Methods:</span>
+                  <span className="font-bold text-white">Bank Transfer · EasyPaisa · JazzCash</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#A59AB8]">Total Converted to Wallet Coins:</span>
-                  <span className="font-mono text-cyan-300">🪙 {earningsData.totalConvertedToWallet.toLocaleString()}</span>
+                  <span className="text-[#A59AB8]">Diamond → Coin Exchange Rate:</span>
+                  <span className="font-bold text-amber-300">1 💎 Diamond = 1 🪙 Gifting Coin</span>
                 </div>
               </div>
 
-              {/* Earnings Transaction History */}
+              {/* Diamonds Earnings Transaction History */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-black text-white flex items-center gap-1.5">
-                    <History className="w-4 h-4 text-[#A59AB8]" />
-                    Earnings & Payout History
+                    <History className="w-4 h-4 text-cyan-300" />
+                    Diamonds History
                   </h3>
                   <select
                     value={selectedTxFilter}
                     onChange={(e) => setSelectedTxFilter(e.target.value)}
                     className="bg-[#1b0e33] border border-white/10 rounded-xl px-2.5 py-1 text-[11px] text-white focus:outline-none"
                   >
-                    <option value="all">All Earnings Events</option>
-                    <option value="gift_received">Gifts Received</option>
-                    <option value="withdrawal_request">Withdrawals</option>
-                    <option value="earnings_conversion">Converted to Wallet</option>
+                    <option value="all">All Diamond Events</option>
+                    <option value="gift_received">Gifts Received (60% 💎)</option>
+                    <option value="withdrawal_request">Diamond Withdrawals</option>
+                    <option value="earnings_conversion">Exchanged to Coins</option>
                     <option value="withdrawal_refund">Refunds</option>
                   </select>
                 </div>
@@ -1033,8 +1048,10 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 <div className="space-y-2">
                   {filteredTxs.length === 0 ? (
                     <div className="p-8 text-center text-[#8e82a3] bg-[#140a24] rounded-2xl border border-white/5">
-                      <p className="text-xs font-bold text-white">No Earnings History</p>
-                      <p className="text-[11px] mt-0.5">Host live rooms, stream PK battles, or receive virtual gifts to build earnings.</p>
+                      <p className="text-xs font-bold text-white">No Diamond Earnings Yet</p>
+                      <p className="text-[11px] mt-0.5">
+                        Receive gifts in Live Streams, Audio Party Rooms, Reels, or Chat to earn {100 - settings.commissionRatePercent}% as Diamonds.
+                      </p>
                     </div>
                   ) : (
                     filteredTxs.map((tx) => (
@@ -1044,19 +1061,19 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                            tx.amount > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-pink-500/20 text-pink-400'
+                            tx.amount > 0 ? 'bg-cyan-500/20 text-cyan-300' : 'bg-pink-500/20 text-pink-300'
                           }`}>
                             {tx.amount > 0 ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                           </div>
                           <div className="min-w-0">
                             <p className="font-bold text-white truncate text-[11px]">{tx.description}</p>
-                            <span className="text-[10px] text-gray-500">{tx.timestamp}</span>
+                            <span className="text-[10px] text-gray-400">{tx.timestamp}</span>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0 ml-2">
-                          <span className={`font-mono font-bold ${tx.amount > 0 ? 'text-emerald-400' : 'text-pink-400'}`}>
-                            {tx.amount > 0 ? `+${tx.amount.toLocaleString()}` : tx.amount.toLocaleString()} 🪙
+                          <span className={`font-mono font-bold tabular-nums ${tx.amount > 0 ? 'text-cyan-300' : 'text-pink-300'}`}>
+                            {tx.amount > 0 ? `+${tx.amount.toLocaleString()}` : tx.amount.toLocaleString()} 💎
                           </span>
                           {tx.pkrAmount && (
                             <div className="text-[9px] text-emerald-300 font-mono">≈ PKR {tx.pkrAmount.toLocaleString()}</div>
@@ -1072,76 +1089,79 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         </div>
 
         {/* ========================================================== */}
-        {/* MODAL 1: CONVERT EARNINGS TO WALLET COINS                  */}
+        {/* MODAL 1: EXCHANGE DIAMONDS -> GIFTING WALLET COINS         */}
         {/* ========================================================== */}
         {isConvertModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="w-full max-w-sm rounded-3xl bg-[#190e2e] border border-white/15 p-5 space-y-4 shadow-2xl">
+            <div className="w-full max-w-sm rounded-3xl bg-[#190e2e] border border-cyan-400/25 p-5 space-y-4 shadow-2xl">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4 text-[#F328D5]" />
-                  Convert Earnings to Wallet
+                  <ArrowRightLeft className="w-4 h-4 text-cyan-300" />
+                  Exchange Diamonds to Coins
                 </h3>
                 <button onClick={() => setIsConvertModalOpen(false)} className="text-gray-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#110820] border border-white/5 space-y-1 text-xs">
+              <div className="p-3 rounded-2xl bg-[#110820] border border-white/5 space-y-1.5 text-xs">
                 <div className="flex justify-between text-[#A59AB8]">
-                  <span>Available Earnings:</span>
-                  <span className="font-mono font-bold text-white">🪙 {earningsData.availableEarningsCoins.toLocaleString()}</span>
+                  <span>Available Diamonds:</span>
+                  <span className="font-mono font-bold text-cyan-300 tabular-nums">💎 {earningsData.availableEarningsCoins.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-[#A59AB8]">
-                  <span>Conversion Rate:</span>
-                  <span className="font-bold text-amber-300">1:1 (No conversion fee)</span>
+                  <span>Exchange Rate:</span>
+                  <span className="font-bold text-amber-300">1 💎 Diamond = 1 🪙 Coin</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-300">Enter Coins to Convert</label>
+                <label className="text-xs font-bold text-gray-300">Enter Diamonds to Exchange</label>
                 <div className="relative mt-1">
                   <input
                     type="number"
                     value={convertCoinsInput}
                     onChange={(e) => setConvertCoinsInput(e.target.value)}
                     max={earningsData.availableEarningsCoins}
-                    className="w-full bg-[#23133e] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono font-bold focus:outline-none focus:border-[#F328D5]"
+                    className="w-full bg-[#23133e] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono font-bold focus:outline-none focus:border-cyan-400"
                   />
                   <button
+                    type="button"
                     onClick={() => setConvertCoinsInput(earningsData.availableEarningsCoins.toString())}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded text-[10px] font-bold bg-[#F328D5]/20 text-[#ff8cf4]"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-[10px] font-black bg-cyan-500/20 text-cyan-200"
                   >
                     MAX
                   </button>
                 </div>
               </div>
 
-              {/* Conversion Preview */}
-              <div className="p-3 rounded-xl bg-purple-900/30 border border-purple-500/20 text-xs flex items-center justify-between">
-                <span className="text-[#d7c9ec]">You will receive:</span>
-                <span className="text-sm font-black text-amber-300 font-mono">
-                  🪙 {willReceiveWalletCoins.toLocaleString()} Wallet Coins
+              {/* Exchange Preview */}
+              <div className="p-3 rounded-xl bg-purple-900/30 border border-amber-400/25 text-xs flex items-center justify-between">
+                <span className="text-[#d7c9ec]">Credited to Gifting Wallet:</span>
+                <span className="text-sm font-black text-amber-300 font-mono tabular-nums">
+                  🪙 {willReceiveWalletCoins.toLocaleString()} Coins
                 </span>
               </div>
 
-              <p className="text-[10px] text-gray-400 leading-tight">
-                * Converted coins will be instantly credited to your Wallet Coins balance and can be used for gifting. Converted coins cannot be withdrawn as cash.
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                * Exchanged Coins are credited immediately to your Buying/Gifting Wallet for sending gifts, buying frames, and store items. Exchanged Coins cannot be withdrawn back as cash.
               </p>
 
               <div className="flex items-center gap-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => setIsConvertModalOpen(false)}
                   className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-white font-bold"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   disabled={isConverting || convertCoinsNum <= 0 || convertCoinsNum > earningsData.availableEarningsCoins}
                   onClick={handleConvertEarnings}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg disabled:opacity-50 active:scale-95 transition-all"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-[#8B20FF] to-[#F328D5] text-white text-xs font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
                 >
-                  {isConverting ? 'Converting...' : 'Confirm Conversion'}
+                  {isConverting ? 'Exchanging...' : 'Confirm Exchange'}
                 </button>
               </div>
             </div>
@@ -1149,44 +1169,44 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         )}
 
         {/* ========================================================== */}
-        {/* MODAL 2: WITHDRAWAL REQUEST SYSTEM                         */}
+        {/* MODAL 2: WITHDRAW DIAMONDS (BANK / EASYPAISA / JAZZCASH)   */}
         {/* ========================================================== */}
         {isWithdrawModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-            <div className="w-full max-w-md rounded-3xl bg-[#170a29] border border-white/15 p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="w-full max-w-md rounded-3xl bg-[#170a29] border border-cyan-400/25 p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-base font-black text-white">Withdraw Creator Earnings</h3>
+                  <h3 className="text-base font-black text-white">Withdraw Diamonds</h3>
                 </div>
                 <button onClick={() => setIsWithdrawModalOpen(false)} className="text-gray-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Limits Strip */}
+              {/* Limits Strip (Strictly Diamonds) */}
               <div className="grid grid-cols-2 gap-2 text-[11px] p-3 rounded-2xl bg-[#10061e] border border-white/5">
                 <div>
-                  <span className="text-[#A59AB8] block">Available Earnings:</span>
-                  <span className="font-bold text-white font-mono">🪙 {earningsData.availableEarningsCoins.toLocaleString()}</span>
+                  <span className="text-[#A59AB8] block">Available Diamonds:</span>
+                  <span className="font-bold text-cyan-300 font-mono tabular-nums">💎 {earningsData.availableEarningsCoins.toLocaleString()}</span>
                 </div>
                 <div>
-                  <span className="text-[#A59AB8] block">Exchange Rate:</span>
-                  <span className="font-bold text-emerald-400 font-mono">1 Coin = PKR {settings.exchangeRatePkrPerCoin}</span>
+                  <span className="text-[#A59AB8] block">Payout Rate:</span>
+                  <span className="font-bold text-emerald-400 font-mono">1 💎 = PKR {settings.exchangeRatePkrPerCoin}</span>
                 </div>
                 <div className="pt-1 border-t border-white/5">
                   <span className="text-[#A59AB8] block">Min Limit:</span>
-                  <span className="font-bold text-amber-300 font-mono">🪙 {settings.minWithdrawalCoins.toLocaleString()}</span>
+                  <span className="font-bold text-amber-300 font-mono tabular-nums">💎 {settings.minWithdrawalCoins.toLocaleString()}</span>
                 </div>
                 <div className="pt-1 border-t border-white/5">
-                  <span className="text-[#A59AB8] block">Withdrawal Fee:</span>
+                  <span className="text-[#A59AB8] block">Processing Fee:</span>
                   <span className="font-bold text-purple-300 font-mono">{settings.withdrawalFeePercent}%</span>
                 </div>
               </div>
 
-              {/* Amount to Withdraw */}
+              {/* Diamonds to Withdraw */}
               <div>
-                <label className="text-xs font-bold text-gray-300">Withdrawal Amount (in Coins)</label>
+                <label className="text-xs font-bold text-gray-300">Diamonds to Withdraw</label>
                 <div className="relative mt-1">
                   <input
                     type="number"
@@ -1194,91 +1214,107 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                     onChange={(e) => setWithdrawCoinsInput(e.target.value)}
                     min={settings.minWithdrawalCoins}
                     max={Math.min(settings.maxWithdrawalCoins, earningsData.availableEarningsCoins)}
-                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2 text-sm text-white font-mono font-bold focus:outline-none focus:border-emerald-400"
+                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono font-bold focus:outline-none focus:border-emerald-400"
                   />
                   <button
+                    type="button"
                     onClick={() => setWithdrawCoinsInput(earningsData.availableEarningsCoins.toString())}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-500/20 text-emerald-300"
                   >
                     MAX
                   </button>
                 </div>
               </div>
 
-              {/* Payout Method Selection */}
+              {/* Payout Method Selection: Bank Transfer, EasyPaisa, JazzCash */}
               <div>
-                <label className="text-xs font-bold text-gray-300">Select Payout Method</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
+                <label className="text-xs font-bold text-gray-300">Select Withdrawal Method</label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
                   {DEFAULT_PAYOUT_METHODS.map((m) => (
                     <button
                       key={m.id}
-                      onClick={() => setSelectedPayoutMethod(m.type)}
-                      className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
+                      type="button"
+                      onClick={() => {
+                        setSelectedPayoutMethod(m.type);
+                        if (m.type === 'easypaisa') setBankOrProviderName('EasyPaisa');
+                        else if (m.type === 'jazzcash') setBankOrProviderName('JazzCash');
+                        else if (bankOrProviderName === 'EasyPaisa' || bankOrProviderName === 'JazzCash') {
+                          setBankOrProviderName('');
+                        }
+                      }}
+                      className={`min-h-[58px] p-2.5 rounded-xl border text-left text-xs transition-all ${
                         selectedPayoutMethod === m.type
-                          ? 'border-emerald-400 bg-emerald-950/30 text-white font-bold shadow'
+                          ? 'border-emerald-400 bg-emerald-950/40 text-white font-black shadow'
                           : 'border-white/10 bg-[#22103a] text-[#A59AB8] hover:text-white'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        {m.type === 'bank_transfer' && <Building2 className="w-3.5 h-3.5 text-emerald-400" />}
-                        {m.type === 'jazzcash' && <Smartphone className="w-3.5 h-3.5 text-amber-400" />}
-                        {m.type === 'easypaisa' && <Smartphone className="w-3.5 h-3.5 text-teal-400" />}
-                        {m.type === 'cash_pickup' && <CreditCard className="w-3.5 h-3.5 text-cyan-400" />}
-                        <span className="truncate">{m.name.split(' ')[0]}</span>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {m.type === 'bank_transfer' && <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                        {m.type === 'easypaisa' && <Smartphone className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
+                        {m.type === 'jazzcash' && <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                        <span className="truncate text-[11px]">
+                          {m.type === 'bank_transfer' ? 'Bank' : m.name}
+                        </span>
                       </div>
-                      <span className="text-[10px] opacity-70 block">{m.type === 'bank_transfer' ? 'IBAN / 1Link' : 'Mobile Account'}</span>
+                      <span className="text-[9px] opacity-75 block truncate">
+                        {m.type === 'bank_transfer' ? 'IBAN / 1Link' : 'Mobile Wallet'}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Payment Details Form */}
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-300">Account Title / Full Legal Name</label>
+                  <label className="text-[11px] font-semibold text-gray-300">Account Title / Full Name *</label>
                   <input
                     type="text"
                     value={accountTitle}
                     onChange={(e) => setAccountTitle(e.target.value)}
-                    placeholder="e.g. Sara Ali Khan"
-                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white mt-0.5 focus:outline-none focus:border-emerald-400"
+                    placeholder="e.g. Muhammad Ali"
+                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white mt-0.5 focus:outline-none focus:border-emerald-400"
                   />
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-300">
-                    {selectedPayoutMethod === 'bank_transfer' ? 'Bank Name' : 'Provider Name'}
-                  </label>
-                  <input
-                    type="text"
-                    value={bankOrProviderName}
-                    onChange={(e) => setBankOrProviderName(e.target.value)}
-                    placeholder="e.g. Meezan Bank / HBL / JazzCash"
-                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white mt-0.5 focus:outline-none focus:border-emerald-400"
-                  />
-                </div>
+                {selectedPayoutMethod === 'bank_transfer' && (
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-300">Bank Name *</label>
+                    <input
+                      type="text"
+                      value={bankOrProviderName}
+                      onChange={(e) => setBankOrProviderName(e.target.value)}
+                      placeholder="e.g. Meezan Bank / HBL / UBL / Alfalah"
+                      className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white mt-0.5 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="text-[11px] font-semibold text-gray-300">
-                    {selectedPayoutMethod === 'bank_transfer' ? 'Account Number / 24-Digit IBAN' : 'Mobile Account Number'}
+                    {selectedPayoutMethod === 'bank_transfer'
+                      ? 'Bank Account Number / 24-Digit IBAN *'
+                      : selectedPayoutMethod === 'easypaisa'
+                        ? 'EasyPaisa 11-Digit Mobile Number *'
+                        : 'JazzCash 11-Digit Mobile Number *'}
                   </label>
                   <input
                     type="text"
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
-                    placeholder={selectedPayoutMethod === 'bank_transfer' ? 'PK00MEZN0000000000000000' : '03001234567'}
-                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono mt-0.5 focus:outline-none focus:border-emerald-400"
+                    placeholder={selectedPayoutMethod === 'bank_transfer' ? 'PK00MEZN0000000000000000' : '03XXXXXXXXX'}
+                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono mt-0.5 focus:outline-none focus:border-emerald-400"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-300">Contact Mobile Number (for confirmation)</label>
+                  <label className="text-[11px] font-semibold text-gray-300">Contact Phone / WhatsApp (Optional)</label>
                   <input
                     type="tel"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="03001234567"
-                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono mt-0.5 focus:outline-none focus:border-emerald-400"
+                    placeholder="03XXXXXXXXX"
+                    className="w-full bg-[#22103a] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono mt-0.5 focus:outline-none focus:border-emerald-400"
                   />
                 </div>
               </div>
@@ -1286,32 +1322,34 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               {/* Net Payable Breakdown Card */}
               <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-teal-950/40 border border-emerald-500/30 space-y-1.5 text-xs">
                 <div className="flex justify-between text-[#A59AB8]">
-                  <span>Gross Equivalent (PKR):</span>
-                  <span className="font-mono text-white">PKR {withdrawGrossPkr.toLocaleString()}</span>
+                  <span>Gross Value (💎 {withdrawCoinsNum.toLocaleString()}):</span>
+                  <span className="font-mono text-white tabular-nums">PKR {withdrawGrossPkr.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-[#A59AB8]">
                   <span>Processing Fee ({settings.withdrawalFeePercent}%):</span>
-                  <span className="font-mono text-rose-300">- PKR {withdrawFeePkr.toLocaleString()}</span>
+                  <span className="font-mono text-rose-300 tabular-nums">- PKR {withdrawFeePkr.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-emerald-500/20 font-black text-sm">
                   <span className="text-white">Final Payable Amount:</span>
-                  <span className="font-mono text-emerald-400">PKR {withdrawNetPkr.toLocaleString()}</span>
+                  <span className="font-mono text-emerald-400 tabular-nums">PKR {withdrawNetPkr.toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => setIsWithdrawModalOpen(false)}
                   className="flex-1 py-3 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/15"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   disabled={isSubmittingWithdrawal || withdrawCoinsNum < settings.minWithdrawalCoins || withdrawCoinsNum > earningsData.availableEarningsCoins}
                   onClick={handleSubmitWithdrawal}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-[#041B10] text-xs font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all"
                 >
-                  {isSubmittingWithdrawal ? 'Submitting...' : 'Confirm & Request Payout'}
+                  {isSubmittingWithdrawal ? 'Submitting...' : 'Request Payout'}
                 </button>
               </div>
             </div>

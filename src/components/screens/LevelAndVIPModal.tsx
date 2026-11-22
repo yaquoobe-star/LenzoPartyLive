@@ -28,7 +28,10 @@ import {
   ALL_100_LEVELS,
   ACHIEVEMENT_BADGE_DEFINITIONS,
   LEVEL_TIER_CONFIGS,
+  LEVELS_1_TO_50_EXACT_TOTAL,
+  LEVELS_51_TO_100_EXACT_TOTAL,
   SUPER_VIP_TIER_DEFINITIONS,
+  TOTAL_PROGRESSION_COINS_EXACT,
   VIP_FRAME_DEFINITIONS,
   calculateLevelProgression,
   evaluateAchievementBadges,
@@ -407,7 +410,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
                         <span className="text-white font-bold">
                           {progression.totalQualifyingCoinsSpent.toLocaleString()}
                         </span>{' '}
-                        / 2,000,000,000 Coins
+                        / {TOTAL_PROGRESSION_COINS_EXACT.toLocaleString()} Coins
                       </p>
                     </div>
                   </div>
@@ -417,7 +420,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
                       {progression.percentage}%
                     </span>
                     <span className="block text-[10px] uppercase tracking-wider text-[#B9AECF] font-bold">
-                      {progression.isMaxMastery ? 'ROYAL MASTERY' : `LV.${progression.currentLevel} PROGRESS`}
+                      {progression.isMaxMastery ? 'LEGEND MASTERY' : `LV.${progression.currentLevel} PROGRESS`}
                     </span>
                   </div>
                 </div>
@@ -434,7 +437,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
                     <span className="text-[#C5B9DE]">
                       {progression.isMaxMastery ? (
                         <span className="text-[#FFC84A] font-bold">
-                          All 100 Levels &amp; 2,000,000,000 Coin Mastery Complete!
+                          All 100 Levels &amp; {TOTAL_PROGRESSION_COINS_EXACT.toLocaleString()} Coin Legend Mastery Complete!
                         </span>
                       ) : (
                         <>
@@ -443,15 +446,17 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
                             {progression.remainingCoinsNeeded.toLocaleString()}
                           </span>{' '}
                           more coins for{' '}
-                          {progression.currentLevel < 100
-                            ? `Level ${progression.currentLevel + 1}`
-                            : 'Level 100 Mastery'}
+                          <span className="text-[#FFC84A] font-bold">
+                            {progression.currentLevel < 100
+                              ? `Level ${progression.currentLevel + 1}`
+                              : 'Level 100 Mastery'}
+                          </span>
                         </>
                       )}
                     </span>
                     <span className="font-mono text-[#FFC84A] font-bold">
-                      {formatCoinsCompact(progression.coinsInCurrentLevel)} /{' '}
-                      {formatCoinsCompact(progression.coinsNeededForNextLevel)}
+                      {progression.coinsInCurrentLevel.toLocaleString()} /{' '}
+                      {progression.coinsNeededForNextLevel.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -506,7 +511,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
                   </div>
                   <span className="text-[10px] font-mono text-[#B9AECF] flex items-center gap-1">
                     <Coins className="w-3 h-3 text-[#FFC84A]" />
-                    Lv 0–50: 600M · Lv 51–100: 1.4B
+                    Lv 1–50: {formatCoinsCompact(LEVELS_1_TO_50_EXACT_TOTAL)} · Lv 51–100: {formatCoinsCompact(LEVELS_51_TO_100_EXACT_TOTAL)}
                   </span>
                 </div>
 
@@ -613,11 +618,11 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
 
                             <div className="flex items-center gap-2 mt-1 text-[10px] font-mono text-[#C5B9DE] flex-wrap tabular-nums">
                               <span>
-                                Cost: <strong className="text-white">{lvl.coinsForThisLevel.toLocaleString()}</strong>
+                                Required: <strong className="text-white">+{lvl.coinsForThisLevel.toLocaleString()}</strong>
                               </span>
                               <span className="text-white/25">·</span>
                               <span>
-                                Total: <strong className="text-[#FFC84A]">{lvl.cumulativeCoins.toLocaleString()}</strong>
+                                Target: <strong className="text-[#FFC84A]">{lvl.cumulativeCoins.toLocaleString()}</strong>
                               </span>
                             </div>
 
@@ -1158,18 +1163,33 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="p-3 rounded-2xl bg-black/40 border border-white/10">
-                  <span className="text-[10px] text-[#B9AECF] block">Level {inspectedLevel.level} Cost</span>
+                  <span className="text-[10px] text-[#B9AECF] block">Level {inspectedLevel.level} Required</span>
                   <span className="text-sm font-black font-mono text-white tabular-nums">
                     {inspectedLevel.coinsForThisLevel.toLocaleString()}
                   </span>
                 </div>
                 <div className="p-3 rounded-2xl bg-black/40 border border-white/10">
-                  <span className="text-[10px] text-[#B9AECF] block">Cumulative Total</span>
+                  <span className="text-[10px] text-[#B9AECF] block">Total Coins Threshold</span>
                   <span className="text-sm font-black font-mono text-[#FFC84A] tabular-nums">
                     {inspectedLevel.cumulativeCoins.toLocaleString()}
                   </span>
                 </div>
               </div>
+
+              {inspectedLevel.level > 0 && (
+                <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between text-[11px] font-mono tabular-nums">
+                  <span className="text-[#B9AECF]">
+                    Range: {inspectedLevel.cumulativeStart.toLocaleString()} → {inspectedLevel.cumulativeCoins.toLocaleString()}
+                  </span>
+                  {inspectedLevel.cumulativeCoins > progression.totalQualifyingCoinsSpent ? (
+                    <span className="text-[#FFC84A] font-bold">
+                      Need {(inspectedLevel.cumulativeCoins - progression.totalQualifyingCoinsSpent).toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">Unlocked</span>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[#B9AECF]">

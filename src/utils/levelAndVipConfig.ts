@@ -67,7 +67,7 @@ export function getVipFrameDefinition(tier: number): VipFrameDefinition | undefi
 }
 
 /**
- * Computes full UserLevelProgression from total qualifying coins spent using the exact 2B coin engine.
+ * Computes full UserLevelProgression from total qualifying coins spent using the exact 1,333,333,333 coin chart.
  */
 export function calculateLevelProgression(
   totalQualifyingCoinsSpent: number,

@@ -186,6 +186,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Load real content tabs and follower/following counts
   const loadProfileData = async () => {
+    if (!isOwner && isCurrentUserBlockedByTarget) {
+      setPublicVideos([]);
+      setPrivateVideos([]);
+      setSavedVideos([]);
+      setPostsList([]);
+      setLikedVideos([]);
+      setIsLoadingContent(false);
+      return;
+    }
     setIsLoadingContent(true);
     try {
       const [tabs, followersList, followingList] = await Promise.all([
@@ -580,6 +589,58 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       showUploadCta: false,
     },
   };
+
+  if (!isOwner && isCurrentUserBlockedByTarget) {
+    return (
+      <div
+        className="w-full min-h-dvh-screen bg-[#090611] text-white font-sans flex flex-col"
+        style={{ paddingBottom: 'calc(7.5rem + var(--safe-bottom, 0px))' }}
+      >
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-3.5 bg-[#090611]/90 backdrop-blur-md border-b border-white/[0.06]">
+          <button
+            type="button"
+            onClick={() => {
+              if (onBack) {
+                onBack();
+              } else {
+                onNavigate('home');
+              }
+            }}
+            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center text-white transition-colors"
+            aria-label="Back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-bold text-white">Account Unavailable</span>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/35 flex items-center justify-center mb-4">
+            <Ban className="w-8 h-8 text-rose-400" />
+          </div>
+          <h2 className="text-lg font-extrabold text-white mb-2">
+            Account Unavailable
+          </h2>
+          <p className="text-xs text-[#B9AECF] max-w-xs leading-relaxed mb-6">
+            You cannot view this user&apos;s ID, profile, videos, or interact with them.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (onBack) {
+                onBack();
+              } else {
+                onNavigate('home');
+              }
+            }}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-bold shadow-lg active:scale-95 transition-transform"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1380,8 +1441,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       </p>
                       <p className="text-[11px] text-[#B9AECF] truncate font-mono tabular-nums">
                         {fullProgression.isMaxMastery
-                          ? '2B Coin Royal Mastery Complete'
-                          : `${formatCoinsCompact(fullProgression.remainingCoinsNeeded)} coins to Lv.${Math.min(100, fullProgression.currentLevel + 1)}`}
+                          ? '1.33B Coin Legend Mastery Complete'
+                          : `Need ${fullProgression.remainingCoinsNeeded.toLocaleString()} coins for Lv.${Math.min(100, fullProgression.currentLevel + 1)}`}
                       </p>
                     </div>
                   </div>
@@ -1393,11 +1454,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   </div>
                 </div>
 
-                <div className="h-2 rounded-full bg-black/55 border border-white/[0.08] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500"
-                    style={{ width: `${Math.max(4, fullProgression.percentage)}%` }}
-                  />
+                <div className="space-y-1">
+                  <div className="h-2 rounded-full bg-black/55 border border-white/[0.08] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#8B20FF] via-[#FA26A0] to-[#FFC84A] transition-all duration-500"
+                      style={{ width: `${Math.max(4, fullProgression.percentage)}%` }}
+                    />
+                  </div>
+                  {!fullProgression.isMaxMastery && (
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[#B9AECF] tabular-nums">
+                      <span>Spent: {fullProgression.totalQualifyingCoinsSpent.toLocaleString()}</span>
+                      <span className="text-[#FFC84A]">
+                        {fullProgression.coinsInCurrentLevel.toLocaleString()} / {fullProgression.coinsNeededForNextLevel.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

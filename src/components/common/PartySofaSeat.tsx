@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'motion/react';
 import { Lock, Mic, MicOff, Plus } from 'lucide-react';
-import { UserProfile } from '../../types';
+import { PartySofaTheme, UserProfile } from '../../types';
 
 export type PartySofaVariant = 'host' | 'cohost' | 'guest';
 
@@ -17,6 +17,7 @@ interface PartySofaSeatProps {
   badgeText?: string;
   label: string;
   compact?: boolean;
+  seatTheme?: PartySofaTheme;
   onClick: () => void;
 }
 
@@ -43,8 +44,119 @@ function getSofaPalette(
   variant: PartySofaVariant,
   occupied: boolean,
   isSpeaking: boolean,
-  isLevelLocked: boolean
+  isLevelLocked: boolean,
+  seatTheme: PartySofaTheme = 'default'
 ): SofaPalette {
+  if (seatTheme === 'gold') {
+    if (isLevelLocked && variant === 'cohost') {
+      return {
+        backTop: '#5C4212',
+        backMid: '#3C2A0A',
+        backBottom: '#1F1504',
+        cushionTop: '#6E5018',
+        cushionBottom: '#2B1D06',
+        armTop: '#563D11',
+        armBottom: '#1D1304',
+        trimStart: '#FEF08A',
+        trimMid: '#D4AF37',
+        trimEnd: '#854D0E',
+        glowColor: 'rgba(250, 204, 21, 0.38)',
+        floorGlow:
+          'radial-gradient(ellipse at center, rgba(250,204,21,0.34) 0%, rgba(180,83,9,0.18) 52%, transparent 76%)',
+        puffColor: 'rgba(250, 204, 21, 0.45)',
+        avatarRingClass:
+          'bg-gradient-to-tr from-[#78350F] via-[#FACC15] to-[#FEF08A] shadow-[0_0_14px_rgba(250,204,21,0.35)]',
+        emptyIconColor: 'text-amber-200',
+        badgeClass:
+          'bg-gradient-to-r from-[#4A320A] to-[#6E4C10] border border-amber-300/60 text-amber-100',
+      };
+    }
+
+    const isHeroSeat = variant === 'host' || variant === 'cohost';
+    return {
+      backTop: isHeroSeat ? '#A16207' : occupied ? '#8F5808' : '#6B4208',
+      backMid: isHeroSeat ? '#713F12' : occupied ? '#5C3608' : '#452806',
+      backBottom: '#261403',
+      cushionTop: isHeroSeat ? '#CA8A04' : occupied ? '#B4760A' : '#85530A',
+      cushionBottom: '#3D2205',
+      armTop: isHeroSeat ? '#B47A0B' : '#7C4D09',
+      armBottom: '#2C1804',
+      trimStart: isSpeaking ? '#A7F3D0' : '#FFF7C2',
+      trimMid: isSpeaking ? '#34D399' : '#FFD700',
+      trimEnd: isSpeaking ? '#059669' : '#B45309',
+      glowColor: isSpeaking ? 'rgba(52, 211, 153, 0.65)' : 'rgba(255, 215, 0, 0.52)',
+      floorGlow: isSpeaking
+        ? 'radial-gradient(ellipse at center, rgba(52,211,153,0.58) 0%, rgba(255,215,0,0.34) 48%, transparent 76%)'
+        : 'radial-gradient(ellipse at center, rgba(255,215,0,0.52) 0%, rgba(217,119,6,0.24) 50%, transparent 76%)',
+      puffColor: 'rgba(255, 215, 0, 0.6)',
+      avatarRingClass: isSpeaking
+        ? 'bg-gradient-to-tr from-emerald-400 via-yellow-300 to-amber-300 shadow-[0_0_16px_rgba(52,211,153,0.55)]'
+        : 'bg-gradient-to-tr from-[#92400E] via-[#FFD700] to-[#FFF7C2] shadow-[0_0_18px_rgba(255,215,0,0.52)]',
+      emptyIconColor: 'text-[#FEF08A]',
+      badgeClass:
+        variant === 'host'
+          ? 'bg-gradient-to-r from-[#FFF099] via-[#FFD700] to-[#F59E0B] text-[#221202]'
+          : variant === 'cohost'
+          ? 'bg-gradient-to-r from-[#F59E0B] to-[#D97706] text-white'
+          : 'bg-[#3D2205]/90 border border-amber-400/40 text-amber-100',
+    };
+  }
+
+  if (seatTheme === 'green') {
+    if (isLevelLocked && variant === 'cohost') {
+      return {
+        backTop: '#164E3F',
+        backMid: '#0F362B',
+        backBottom: '#071F18',
+        cushionTop: '#1D5E4C',
+        cushionBottom: '#0B2A21',
+        armTop: '#14473A',
+        armBottom: '#081F19',
+        trimStart: '#BBF7D0',
+        trimMid: '#6EE7B7',
+        trimEnd: '#10B981',
+        glowColor: 'rgba(110, 231, 183, 0.38)',
+        floorGlow:
+          'radial-gradient(ellipse at center, rgba(110,231,183,0.34) 0%, rgba(16,185,129,0.16) 52%, transparent 76%)',
+        puffColor: 'rgba(110, 231, 183, 0.45)',
+        avatarRingClass:
+          'bg-gradient-to-tr from-[#065F46] via-[#6EE7B7] to-[#D1FAE5] shadow-[0_0_14px_rgba(110,231,183,0.36)]',
+        emptyIconColor: 'text-emerald-200',
+        badgeClass:
+          'bg-gradient-to-r from-[#0F3D30] to-[#175B48] border border-emerald-300/60 text-emerald-100',
+      };
+    }
+
+    const isHeroSeat = variant === 'host' || variant === 'cohost';
+    return {
+      backTop: isHeroSeat ? '#1E7A5D' : occupied ? '#1A6B52' : '#145340',
+      backMid: isHeroSeat ? '#125440' : occupied ? '#104937' : '#0D3B2D',
+      backBottom: '#062018',
+      cushionTop: isHeroSeat ? '#289974' : occupied ? '#228666' : '#1B6E54',
+      cushionBottom: '#0A3024',
+      armTop: isHeroSeat ? '#218766' : '#18634C',
+      armBottom: '#08251C',
+      trimStart: '#DCFCE7',
+      trimMid: isSpeaking ? '#34D399' : '#6EE7B7',
+      trimEnd: '#10B981',
+      glowColor: isSpeaking ? 'rgba(52, 211, 153, 0.7)' : 'rgba(110, 231, 183, 0.48)',
+      floorGlow: isSpeaking
+        ? 'radial-gradient(ellipse at center, rgba(52,211,153,0.62) 0%, rgba(110,231,183,0.32) 48%, transparent 76%)'
+        : 'radial-gradient(ellipse at center, rgba(110,231,183,0.48) 0%, rgba(16,185,129,0.22) 50%, transparent 76%)',
+      puffColor: 'rgba(110, 231, 183, 0.58)',
+      avatarRingClass: isSpeaking
+        ? 'bg-gradient-to-tr from-emerald-300 via-teal-200 to-green-300 shadow-[0_0_18px_rgba(110,231,183,0.65)]'
+        : 'bg-gradient-to-tr from-[#047857] via-[#6EE7B7] to-[#D1FAE5] shadow-[0_0_16px_rgba(110,231,183,0.48)]',
+      emptyIconColor: 'text-[#A7F3D0]',
+      badgeClass:
+        variant === 'host'
+          ? 'bg-gradient-to-r from-[#BBF7D0] via-[#6EE7B7] to-[#34D399] text-[#052319]'
+          : variant === 'cohost'
+          ? 'bg-gradient-to-r from-[#34D399] to-[#10B981] text-[#052319]'
+          : 'bg-[#0B3327]/90 border border-emerald-300/40 text-emerald-100',
+    };
+  }
+
   if (variant === 'host') {
     return {
       backTop: '#5E1B89',
@@ -175,12 +287,13 @@ export const PartySofaSeat: React.FC<PartySofaSeatProps> = ({
   badgeText,
   label,
   compact = false,
+  seatTheme = 'default',
   onClick,
 }) => {
   const isHero = variant === 'host' || variant === 'cohost';
   const occupied = Boolean(occupant) && !isLevelLocked;
   const occupantKey = occupied && occupant ? occupant.id : null;
-  const palette = getSofaPalette(variant, occupied, isSpeaking, isLevelLocked);
+  const palette = getSofaPalette(variant, occupied, isSpeaking, isLevelLocked, seatTheme);
 
   // Motion controllers for physical "plump" cushion squish (join) & fluff-up rebound (leave)
   const sofaCushionControls = useAnimationControls();

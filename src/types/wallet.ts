@@ -8,23 +8,24 @@ export interface UserWalletData {
 
 export interface UserEarningsData {
   userId: string;
-  availableEarningsCoins: number; // Net earnings from gifts received, withdrawable or convertible
-  pendingWithdrawalCoins: number; // Reserved during active withdrawal requests
-  totalWithdrawnCoins: number;    // Successfully paid out
-  grossGiftCoinsReceived: number; // Total raw gift coins received before commission
-  totalCommissionDeducted: number;// Total platform commission
-  totalConvertedToWallet: number; // Total earnings converted into purchased coins
+  availableEarningsCoins: number; // Net Diamonds earned from 60% host share of gifts, withdrawable or exchangeable to Coins
+  pendingWithdrawalCoins: number; // Diamonds reserved during active withdrawal requests
+  totalWithdrawnCoins: number;    // Diamonds successfully paid out
+  grossGiftCoinsReceived: number; // Total gross gift coins received before 40% app share
+  totalCommissionDeducted: number;// Total 40% platform share
+  totalConvertedToWallet: number; // Total Diamonds exchanged into Gifting Wallet Coins
   totalGiftsCount: number;
   updatedAt: string;
 }
 
 export interface WalletSettings {
-  commissionRatePercent: number; // default 20%
-  exchangeRatePkrPerCoin: number; // default 2 PKR per coin
-  minWithdrawalCoins: number;    // default 2,500 coins (= 5,000 PKR)
-  maxWithdrawalCoins: number;    // default 250,000 coins (= 500,000 PKR)
+  commissionRatePercent: number; // default 40% (60% Host Diamonds / 40% App)
+  exchangeRatePkrPerCoin: number; // default 2 PKR per Diamond
+  minWithdrawalCoins: number;    // default 2,500 Diamonds (= 5,000 PKR)
+  maxWithdrawalCoins: number;    // default 250,000 Diamonds (= 500,000 PKR)
   withdrawalFeePercent: number;  // default 2%
-  earningsToWalletConversionRate: number; // default 1.0 (1 earned coin = 1 wallet coin)
+  earningsToWalletConversionRate: number; // default 1.0 (1 Diamond = 1 Gifting Wallet Coin)
+  commissionPolicyVersion?: string;
 }
 
 export interface WalletRechargePackage {

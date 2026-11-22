@@ -492,6 +492,9 @@ export function subscribeActiveAgencies(
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() } as DualAgencyRecord))
         .sort((a, b) => {
+          if (agencyType === 'all' && a.agencyType !== b.agencyType) {
+            return a.agencyType === 'coin_seller' ? -1 : 1;
+          }
           if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
           return (b.updatedAt || '').localeCompare(a.updatedAt || '');
         });
@@ -752,6 +755,7 @@ export async function searchUsersForCoinTransfer(
     const matchesMap = new Map<string, TransferRecipientCandidate>();
 
     // 1. Direct UID lookup (works instantly for pasted Firebase UIDs)
+    // 1. Direct UID lookup (works even if user isn't in the first 300 docs)
     if (/^[a-zA-Z0-9_-]{6,128}$/.test(q)) {
       try {
         const directSnap = await getDoc(doc(db, 'users', q));
@@ -762,11 +766,37 @@ export async function searchUsersForCoinTransfer(
           }
         }
       } catch {
-        // Continue to collection search
+        // Continue to targeted queries & collection search
       }
     }
 
-    // 2. Collection query (allowed for active Coin Seller Agencies & Admins in firestore.rules)
+    // 1b. Targeted exact lookups by email, displayId, and username (scales beyond 300 users)
+    const exactLookups: Array<Promise<void>> = [];
+    const runExactLookup = (field: string, value: string) =>
+      getDocs(query(collection(db, 'users'), where(field, '==', value), limit(10)))
+        .then((snap) => {
+          snap.docs.forEach((docSnap) => {
+            const cand = mapDoc(docSnap.id, docSnap.data());
+            if (!excludeUid || cand.uid !== excludeUid) {
+              matchesMap.set(cand.uid, cand);
+            }
+          });
+        })
+        .catch(() => {
+          // Non-fatal; collection scan below will still match
+        });
+
+    if (qLower.includes('@') && qLower.includes('.')) {
+      exactLookups.push(runExactLookup('email', qLower));
+      if (q !== qLower) exactLookups.push(runExactLookup('email', q));
+    } else {
+      exactLookups.push(runExactLookup('displayId', q));
+      exactLookups.push(runExactLookup('username', `@${qNoAt}`));
+      exactLookups.push(runExactLookup('username', qNoAt));
+    }
+    await Promise.all(exactLookups);
+
+    // 2. Collection query for partial name / username / email / ID matches
     const usersSnap = await getDocs(query(collection(db, 'users'), limit(300)));
     usersSnap.docs.forEach((docSnap) => {
       const cand = mapDoc(docSnap.id, docSnap.data());

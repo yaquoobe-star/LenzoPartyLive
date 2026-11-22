@@ -214,6 +214,11 @@
           "type": "string",
           "description": "Room announcement message",
           "maxLength": 500
+        },
+        "seatTheme": {
+          "type": "string",
+          "description": "Party room sofa seat color theme chosen by host",
+          "enum": ["default", "gold", "green"]
         }
       },
       "required": ["title", "category", "maxSeats"]
@@ -686,6 +691,23 @@
       },
       "required": ["blockerId", "blockedUserId", "blockedUserName"]
     },
+    "RoomKick": {
+      "title": "RoomKick",
+      "description": "Host-issued party room kick preventing re-entry and interaction for current stream session, 24h, 15d, or 30d",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string", "maxLength": 128 },
+        "roomTitle": { "type": "string", "maxLength": 100 },
+        "hostId": { "type": "string", "maxLength": 128 },
+        "targetUserId": { "type": "string", "maxLength": 128 },
+        "targetUserName": { "type": "string", "maxLength": 64 },
+        "targetUserAvatar": { "type": "string", "maxLength": 1500 },
+        "durationType": { "type": "string", "enum": ["session", "24h", "15d", "30d"] },
+        "kickedAt": { "type": "number" },
+        "expiresAt": { "type": "number" }
+      },
+      "required": ["roomId", "hostId", "targetUserId", "targetUserName", "durationType", "kickedAt"]
+    },
     "Reel": {
       "title": "Reel",
       "description": "Short-form vertical video (max 100 MB) stored in persistent media storage or Firebase Storage and indexed in Firestore",
@@ -1062,6 +1084,10 @@
     "/blocked_users/{blockId}": {
       "schema": "BlockedUser",
       "description": "Persisted user blocking records keyed by blockerId_blockedUserId"
+    },
+    "/room_kicks/{kickId}": {
+      "schema": "RoomKick",
+      "description": "Persisted host party room kick records keyed by roomId_targetUserId enforcing session, 24h, 15d, and 30d re-entry bans"
     },
     "/reels/{reelId}": {
       "schema": "Reel",

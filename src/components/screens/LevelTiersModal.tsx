@@ -1,6 +1,12 @@
 import React from 'react';
-import { X, Trophy, Sparkles, Check, Crown, Flame, Gem, Shield, Star, Gift, ArrowRight } from 'lucide-react';
+import { X, Trophy, Check, Gift } from 'lucide-react';
 import { LevelBadge } from '../common/LevelBadge';
+import {
+  ALL_100_LEVELS,
+  LEVEL_TIER_CONFIGS,
+  TOTAL_PROGRESSION_COINS_EXACT,
+  getTierConfigForLevel,
+} from '../../utils/levelAndVipConfig';
 
 interface LevelTiersModalProps {
   isOpen: boolean;
@@ -15,60 +21,14 @@ export const LevelTiersModal: React.FC<LevelTiersModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const tiers = [
-    {
-      range: 'Level 1 - 9',
-      name: 'Bronze Star',
-      levelSample: 5,
-      gradient: 'from-amber-600 to-amber-800',
-      description: 'New creator tier. Start your party journey, engage with audience, and receive first community gifts.',
-      perks: ['Bronze Level Badge', 'Standard Stream Chat Access', 'Daily Free Gift Claim'],
-    },
-    {
-      range: 'Level 10 - 24',
-      name: 'Silver Knight',
-      levelSample: 15,
-      gradient: 'from-slate-300 via-slate-400 to-slate-500',
-      description: 'Active broadcaster. Unlocks silver nickname highlights and early party room seat priority.',
-      perks: ['Silver Shield Nickname Frame', 'Custom Chat Glow', '5% Bonus on Gifting Activity'],
-    },
-    {
-      range: 'Level 25 - 49',
-      name: 'Gold Champion',
-      levelSample: 42,
-      gradient: 'from-[#FFC84A] to-[#D97706]',
-      description: 'Top-tier creator and party host. Unlocks golden crown room badge and acoustic sound entrance.',
-      perks: ['Golden Crown Profile Badge', 'Special Sound Effect on Room Entry', '10% Bonus Diamonds on Gifts', 'Gold Badge in Host Chat'],
-    },
-    {
-      range: 'Level 50 - 74',
-      name: 'Platinum Legend',
-      levelSample: 60,
-      gradient: 'from-[#8B20FF] via-[#A855F7] to-[#F328D5]',
-      description: 'Celebrity broadcaster. Unlocks radiant platinum entrance, animated stickers, and priority support.',
-      perks: ['Platinum Shimmer Entrance', 'Exclusive Animated Stickers', '15% Gift Coin Cash-back', 'Dedicated VIP Fast-Lane Support'],
-    },
-    {
-      range: 'Level 75 - 99',
-      name: 'Diamond Master',
-      levelSample: 85,
-      gradient: 'from-[#06B6D4] via-[#3B82F6] to-[#8B20FF]',
-      description: 'Elite superstar. Unlocks diamond chat bubble, 20% login coin boost, and VIP host privileges.',
-      perks: ['Diamond Sparkle Chat Bubble', '20% Coin Bonus on Daily Login', 'Priority Guest Microphone Access', 'Diamond Crown Room Badge'],
-    },
-    {
-      range: 'Level 100',
-      name: 'Emperor Supreme',
-      levelSample: 100,
-      gradient: 'from-[#F328D5] via-[#8B20FF] to-[#FFC84A]',
-      description: 'The pinnacle of Lenzo Party Live prestige (Max Level 100). Imperial dragon entrance and global join announcements.',
-      perks: ['Imperial Dragon Entrance Animation', 'Custom 3D Profile Hologram Border', 'Global Banner Broadcast on Stream Join', 'Top Seat Override in Audio Rooms'],
-    },
-  ];
+  const activeTier = getTierConfigForLevel(currentLevel);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none">
-      <div 
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in select-none"
+      onClick={onClose}
+    >
+      <div
         className="w-full max-w-lg bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -79,8 +39,10 @@ export const LevelTiersModal: React.FC<LevelTiersModalProps> = ({
               <Trophy className="w-5 h-5 fill-current" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white font-display">Creator Level Tiers</h3>
-              <p className="text-[11px] text-[#B9AECF]">Progression milestones and exclusive unlocked privileges</p>
+              <h3 className="text-base font-bold text-white font-display">Lenzo Level Tiers (0–100)</h3>
+              <p className="text-[11px] text-[#B9AECF]">
+                10 Official Tiers · {TOTAL_PROGRESSION_COINS_EXACT.toLocaleString()} Total Coins
+              </p>
             </div>
           </div>
 
@@ -98,42 +60,40 @@ export const LevelTiersModal: React.FC<LevelTiersModalProps> = ({
             <Gift className="w-5 h-5" />
           </div>
           <div className="text-xs">
-            <span className="font-bold text-white block">Gift-Based Level Progression:</span>
+            <span className="font-bold text-white block">Real-Time Coin Progression:</span>
             <span className="text-[#B9AECF] text-[11px]">
-              Every 1 Coin of gift value received adds 1 EXP directly to your level bar. Level thresholds unlock automatically upon reaching milestones!
+              Every coin you spend on gifts or store items instantly advances your level in real time — starting at 50,000 coins for Level 1 up to 1,333,333,333 coins for Level 100 Legend!
             </span>
           </div>
         </div>
 
-        {/* Tiers List */}
+        {/* 10 Authoritative Tiers List */}
         <div className="p-4 sm:p-5 overflow-y-auto no-scrollbar flex-1 space-y-3">
-          {tiers.map((tier, i) => {
-            const isUserTier = 
-              (tier.name === 'Bronze Star' && currentLevel < 10) ||
-              (tier.name === 'Silver Knight' && currentLevel >= 10 && currentLevel < 25) ||
-              (tier.name === 'Gold Champion' && currentLevel >= 25 && currentLevel < 50) ||
-              (tier.name === 'Platinum Legend' && currentLevel >= 50 && currentLevel < 75) ||
-              (tier.name === 'Diamond Master' && currentLevel >= 75 && currentLevel < 100) ||
-              (tier.name === 'Emperor Supreme' && currentLevel >= 100);
+          {LEVEL_TIER_CONFIGS.map((tier) => {
+            const isUserTier = activeTier.id === tier.id;
+            const startLevelDef = ALL_100_LEVELS[tier.minLevel === 0 ? 1 : tier.minLevel];
+            const endLevelDef = ALL_100_LEVELS[tier.maxLevel];
 
             return (
               <div
-                key={i}
+                key={tier.id}
                 className={`p-4 rounded-2xl border transition-all ${
                   isUserTier
                     ? 'bg-gradient-to-br from-[#26133e] to-[#361858] border-[#FFC84A]/60 shadow-lg shadow-[#8B20FF]/20 ring-1 ring-[#FFC84A]/40'
                     : 'bg-[#211333]/90 border-white/5'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <LevelBadge level={tier.levelSample} size="sm" />
-                    <span className="text-sm font-bold text-white font-display">{tier.name}</span>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <LevelBadge level={tier.maxLevel} size="sm" />
+                    <span className="text-sm font-bold text-white font-display truncate">
+                      {tier.displayName} Tier
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs font-mono font-semibold text-[#FFC84A]">
-                      {tier.range}
+                      Lv {tier.minLevel}–{tier.maxLevel}
                     </span>
                     {isUserTier && (
                       <span className="px-2 py-0.5 rounded-full bg-[#FFC84A] text-[#090611] text-[9px] font-black uppercase">
@@ -143,12 +103,19 @@ export const LevelTiersModal: React.FC<LevelTiersModalProps> = ({
                   </div>
                 </div>
 
-                <p className="text-xs text-[#B9AECF] mb-3 leading-relaxed">
-                  {tier.description}
+                <p className="text-[11px] font-mono text-[#D7CEEB] mb-3 tabular-nums">
+                  Coins Range:{' '}
+                  <span className="text-white font-bold">
+                    {startLevelDef.cumulativeStart.toLocaleString()}
+                  </span>{' '}
+                  →{' '}
+                  <span className="text-[#FFC84A] font-bold">
+                    {endLevelDef.cumulativeCoins.toLocaleString()}
+                  </span>
                 </p>
 
-                <div className="space-y-1.5 pt-1 border-t border-white/[0.06]">
-                  {tier.perks.map((perk, j) => (
+                <div className="space-y-1.5 pt-2 border-t border-white/[0.06]">
+                  {tier.tierPerks.map((perk, j) => (
                     <div key={j} className="flex items-center gap-2 text-[11px] text-white/90">
                       <Check className="w-3 h-3 text-[#FFC84A] shrink-0" />
                       <span>{perk}</span>
