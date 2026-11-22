@@ -232,8 +232,8 @@ export async function blockUser(params: {
   );
   writeLocalBlocks(blockerId, [record, ...existing]);
 
-  // Persist to Firestore (when authenticated as blocker)
-  if (auth.currentUser && auth.currentUser.uid === blockerId) {
+  // Persist to Firestore (authorized for owner OR verified Host Moderator via Firestore rules)
+  if (auth.currentUser) {
     try {
       await setDoc(doc(db, 'blocked_users', blockId), {
         blockerId: record.blockerId,
@@ -249,11 +249,13 @@ export async function blockUser(params: {
       console.warn('[BlockService] Firestore block write notice:', err);
     }
 
-    // Also remove follow doc in Firestore if it exists
-    try {
-      await deleteDoc(doc(db, 'follows', `${blockerId}_${targetUser.id}`)).catch(() => {});
-    } catch {
-      // ignore
+    // Also remove follow doc in Firestore when the blocker is acting on their own account
+    if (auth.currentUser.uid === blockerId) {
+      try {
+        await deleteDoc(doc(db, 'follows', `${blockerId}_${targetUser.id}`)).catch(() => {});
+      } catch {
+        // ignore
+      }
     }
   }
 

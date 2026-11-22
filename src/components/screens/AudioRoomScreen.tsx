@@ -29,7 +29,10 @@ import {
   Star,
   Ban,
   ShieldOff,
+  ShieldCheck,
   ArrowDownCircle,
+  Reply,
+  Eraser,
 } from 'lucide-react';
 import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
 import {
@@ -47,6 +50,7 @@ import {
   resolvePartyRoomBackground,
 } from '../../utils/partyBackgrounds';
 import {
+  HostModeratorRecord,
   PartyRoom,
   PartySofaTheme,
   RoomKickDuration,
@@ -71,6 +75,8 @@ import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import {
   cancelFirestoreSeatRequest,
+  clearFirestoreRoomMessages,
+  deleteFirestoreRoomMessage,
   evictFirestoreRoomParticipant,
   FirestoreRoomHeartEvent,
   joinFirestoreRoomParticipant,
@@ -90,13 +96,17 @@ import {
 } from '../../services/firestoreRealtimeService';
 import {
   ROOM_KICK_OPTIONS,
+  assignHostModerator,
   formatKickDurationLabel,
   formatRemainingKickTime,
   getActiveKickForRoom,
   kickUserFromRoom,
+  removeHostModerator,
+  subscribeHostModerators,
   subscribeRoomKicksForHost,
   unkickUserFromRoom,
 } from '../../services/roomModerationService';
+import { blockUser as blockUserService } from '../../services/blockService';
 import { roomService } from '../../utils/roomService';
 import {
   PARTY_SEAT_TIERS,
@@ -143,6 +153,13 @@ interface ActivityItem {
   isVIP?: boolean;
   isHost?: boolean;
   type?: 'join' | 'vip' | 'chat' | 'gift';
+  replyTo?: {
+    id: string;
+    senderId?: string;
+    senderName: string;
+    text: string;
+  };
+  fromFirestore?: boolean;
 }
 
 interface FloatingHeart {
@@ -170,6 +187,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   onBlockUser,
 }) => {
   const isRoomHost = currentUser.id === room.host.id;
+  const [hostModerators, setHostModerators] = useState<HostModeratorRecord[]>([]);
+  const moderatorIdsSet = new Set(hostModerators.map((m) => m.moderatorUserId));
+  const isCurrentUserModerator = !isRoomHost && moderatorIdsSet.has(currentUser.id);
+  const canModerate = isRoomHost || isCurrentUserModerator;
+  const canModerateTarget = (targetUserId?: string | null): boolean => {
+    if (!targetUserId || targetUserId === currentUser.id) return false;
+    if (isRoomHost) return true;
+    if (!isCurrentUserModerator) return false;
+    if (targetUserId === room.host.id) return false;
+    if (moderatorIdsSet.has(targetUserId)) return false;
+    return true;
+  };
   const blockedUserIdsRef = useRef<Set<string>>(new Set(blockedUserIds));
   const blockedByUserIdsRef = useRef<Set<string>>(new Set(blockedByUserIds));
 
@@ -278,6 +307,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [moderationBusy, setModerationBusy] = useState(false);
   const [hostRoomKicks, setHostRoomKicks] = useState<RoomKickRecord[]>([]);
   const [showKickedUsersModal, setShowKickedUsersModal] = useState(false);
+  const [showModeratorsListModal, setShowModeratorsListModal] = useState(false);
+  const [showClearChatConfirmModal, setShowClearChatConfirmModal] = useState(false);
+  const [isClearingChat, setIsClearingChat] = useState(false);
   const [showOwnerSeatChoice, setShowOwnerSeatChoice] = useState<number | null>(null);
   const [showCloseRoomConfirmModal, setShowCloseRoomConfirmModal] = useState(false);
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
@@ -291,6 +323,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
   const [partyEntryNotice, setPartyEntryNotice] = useState<{
     id: string;
+    userId?: string;
     name: string;
     level?: number;
     vipLevel?: number;
@@ -361,6 +394,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [inputMessage, setInputMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [replyTarget, setReplyTarget] = useState<{
+    id: string;
+    senderId?: string;
+    senderName: string;
+    text: string;
+  } | null>(null);
+  const [swipingMsgId, setSwipingMsgId] = useState<string | null>(null);
+  const [swipeOffsetX, setSwipeOffsetX] = useState(0);
+  const swipeTouchRef = useRef<{
+    id: string;
+    startX: number;
+    startY: number;
+    triggered: boolean;
+  } | null>(null);
+  const lastChatClearedAtRef = useRef<number>(
+    typeof room.chatClearedAt === 'number' ? room.chatClearedAt : 0
+  );
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const activityBottomRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string) => {
@@ -421,16 +472,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     seatReqHydratedRef.current = false;
   }, [room.id]);
 
-  // Host subscribes to active kicks for this room so they can review or lift kicks
+  // Real-time subscription to this Host's lifetime Moderators (visible to everyone in the room)
   useEffect(() => {
-    if (!isRoomHost) {
+    if (!room.host.id) {
+      setHostModerators([]);
+      return;
+    }
+    return subscribeHostModerators(room.host.id, (records) => {
+      setHostModerators(records);
+    });
+  }, [room.host.id]);
+
+  // Host & Moderators subscribe to active kicks for this room so they can review or lift kicks
+  useEffect(() => {
+    if (!canModerate) {
       setHostRoomKicks([]);
       return;
     }
-    return subscribeRoomKicksForHost(room.id, currentUser.id, (records) => {
+    return subscribeRoomKicksForHost(room.id, room.host.id, (records) => {
       setHostRoomKicks(records);
     });
-  }, [isRoomHost, room.id, currentUser.id]);
+  }, [canModerate, room.id, room.host.id]);
 
   // Keep maxSeats, locked Seat #2, and host.level strictly synchronized if Host level changes or hydrates
   useEffect(() => {
@@ -480,14 +542,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     prevSeatedRef.current = isCurrentlySeated;
   }, [isCurrentlySeated, userSeatIndex, isRoomHost]);
 
-  // Notify Host immediately when a new viewer seat request arrives via Firestore or WS
+  // Notify Host & Moderators immediately when a new viewer seat request arrives via Firestore or WS
   useEffect(() => {
     if (!seatReqHydratedRef.current) {
       seatRequests.forEach((r) => seenSeatReqIdsRef.current.add(r.id));
       seatReqHydratedRef.current = true;
       return;
     }
-    if (isRoomHost) {
+    if (canModerate) {
       for (const req of seatRequests) {
         if (req?.id && !seenSeatReqIdsRef.current.has(req.id) && req.user?.id !== currentUser.id) {
           seenSeatReqIdsRef.current.add(req.id);
@@ -495,7 +557,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         }
       }
     }
-  }, [seatRequests, isRoomHost, currentUser.id]);
+  }, [seatRequests, canModerate, currentUser.id]);
 
   // Unlock browser / Android WebView remote audio automatically on the user's first tap anywhere in the room
   useEffect(() => {
@@ -679,6 +741,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               seenPartyEntriesRef.current.set(p.userId, now);
               setPartyEntryNotice({
                 id: `entry_fs_${p.userId}_${now}`,
+                userId: p.userId,
                 name: p.name || 'Viewer',
                 level: typeof p.level === 'number' ? p.level : 0,
                 vipLevel: typeof p.vipLevel === 'number' ? p.vipLevel : 0,
@@ -715,13 +778,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       }
     });
 
-    // Cloud Firestore real-time room messages subscription
+    // Cloud Firestore real-time room messages subscription (syncs new messages, replies, AND deletions in real time)
     const unsubFsMessages = subscribeFirestoreRoomMessages(room.id, (fsMessages) => {
-      if (!active || fsMessages.length === 0) return;
+      if (!active) return;
+      const fsIds = new Set(fsMessages.map((m) => m.id));
       setActivities((prev) => {
-        const seen = new Set(prev.map((a) => a.id));
-        const next = [...prev];
-        let changed = false;
+        // Remove any previously synced Firestore chat items that were deleted by Host/Moderator/author
+        const kept = prev.filter((item) => !item.fromFirestore || fsIds.has(item.id));
+        const seen = new Set(kept.map((a) => a.id));
+        const next = [...kept];
+        let changed = kept.length !== prev.length;
+
         fsMessages.forEach((m) => {
           if (isRoomHost && blockedUserIdsRef.current.has(m.senderId)) return;
           if (!seen.has(m.id)) {
@@ -738,8 +805,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
               isHost: m.isHost,
               type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
+              ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+              fromFirestore: true,
             });
             changed = true;
+          } else {
+            // Upgrade any local optimistic item with Firestore reply/synced metadata
+            const idx = next.findIndex((a) => a.id === m.id);
+            if (idx !== -1 && (!next[idx].fromFirestore || (!next[idx].replyTo && m.replyTo))) {
+              next[idx] = {
+                ...next[idx],
+                ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+                fromFirestore: true,
+              };
+              changed = true;
+            }
           }
         });
         return changed ? next.slice(-60) : prev;
@@ -828,6 +908,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         }
         if (data.seatTheme === 'default' || data.seatTheme === 'gold' || data.seatTheme === 'green') {
           setSeatTheme(data.seatTheme);
+        }
+        if (
+          typeof data.chatClearedAt === 'number' &&
+          data.chatClearedAt > lastChatClearedAtRef.current
+        ) {
+          lastChatClearedAtRef.current = data.chatClearedAt;
+          setActivities([]);
+          setReplyTarget(null);
         }
       } else if (roomDocEverExisted && !isRoomHost) {
         showToast('Party room was closed by the host');
@@ -1121,60 +1209,66 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         setVoiceTransport('connecting');
         void setNativeLiveAudioMode(true);
 
-        let localMicStream: MediaStream | null = realMicStreamRef.current;
-        if (initiallySeated && !localMicStream) {
-          try {
-            localMicStream = await acquireRealMicrophone();
-            if (!isMounted) {
-              stopMediaStream(localMicStream);
-              return;
-            }
-            localMicStream.getAudioTracks().forEach((t) => {
-              t.enabled = !effectiveMuted;
-            });
-            realMicStreamRef.current = localMicStream;
-            realMicAnalyserRef.current = createAudioAnalyser(localMicStream);
-            setMicPermissionDenied(false);
-          } catch (micErr) {
-            console.warn('[Party Voice] Mic acquisition notice:', micErr);
-            if (isMounted) setMicPermissionDenied(true);
-          }
-        }
+        // Parallelize real microphone capture + fast Agora token lookup (eliminates redundant sequential config wait!)
+        const micPromise: Promise<MediaStream | null> =
+          initiallySeated && !realMicStreamRef.current
+            ? acquireRealMicrophone()
+                .then((stream) => {
+                  if (!isMounted) {
+                    stopMediaStream(stream);
+                    return null;
+                  }
+                  stream.getAudioTracks().forEach((t) => {
+                    t.enabled = !effectiveMuted;
+                  });
+                  realMicStreamRef.current = stream;
+                  realMicAnalyserRef.current = createAudioAnalyser(stream);
+                  setMicPermissionDenied(false);
+                  return stream;
+                })
+                .catch((micErr) => {
+                  console.warn('[Party Voice] Mic acquisition notice:', micErr);
+                  if (isMounted) setMicPermissionDenied(true);
+                  return null;
+                })
+            : Promise.resolve(realMicStreamRef.current);
 
-        const config = await agoraRtcService.getAgoraConfig();
+        const tokenPromise = agoraRtcService.requestRtcToken(
+          `party_${room.id}`,
+          currentUser.id,
+          initiallySeated ? 'broadcaster' : 'audience',
+          false,
+          1800
+        );
+
+        const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
         if (!isMounted) return;
 
-        if (config.configured && config.appId) {
-          try {
-            const tokenData = await agoraRtcService.requestRtcToken(
-              `party_${room.id}`,
-              currentUser.id,
-              initiallySeated ? 'broadcaster' : 'audience'
-            );
-            if (!isMounted) return;
+        const canJoinAgora =
+          Boolean(tokenData.configured && tokenData.appId) &&
+          (Boolean(tokenData.token) || tokenData.tokenRequired === false);
 
-            const canJoinAgora = Boolean(tokenData.token) || (tokenData.configured && tokenData.tokenRequired === false);
-            if (canJoinAgora) {
-              await agoraRtcService.joinChannel({
-                appId: config.appId,
-                channelName: `party_${room.id}`,
-                userAccount: currentUser.id,
-                role: initialRole,
-                token: tokenData.token,
-                enableVideo: false,
-                enableAudio: initiallySeated,
-                mediaStream: initiallySeated ? localMicStream : null,
-              });
-              if (!isMounted) return;
-              if (initiallySeated && effectiveMuted) {
-                await agoraRtcService.setMicrophoneMuted(true);
-              }
-              voiceJoinedRef.current = true;
-              activePublishedRoleRef.current = initialRole;
-              setVoiceTransport('agora');
-              setAgoraVoiceState('connected');
-              return;
+        if (canJoinAgora) {
+          try {
+            await agoraRtcService.joinChannel({
+              appId: tokenData.appId,
+              channelName: `party_${room.id}`,
+              userAccount: currentUser.id,
+              role: initialRole,
+              token: tokenData.token,
+              enableVideo: false,
+              enableAudio: initiallySeated,
+              mediaStream: initiallySeated ? localMicStream : null,
+            });
+            if (!isMounted) return;
+            if (initiallySeated && effectiveMuted) {
+              await agoraRtcService.setMicrophoneMuted(true);
             }
+            voiceJoinedRef.current = true;
+            activePublishedRoleRef.current = initialRole;
+            setVoiceTransport('agora');
+            setAgoraVoiceState('connected');
+            return;
           } catch (agoraErr) {
             console.warn('[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:', agoraErr);
             await agoraRtcService.leaveChannel().catch(() => {});
@@ -1183,7 +1277,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
         if (!isMounted) return;
 
-        // WebRTC Real-Time Party Voice Mesh fallback
+        // WebRTC Real-Time Party Voice Mesh fallback (connects within ~1.5-3s)
         webrtcMediaService.startPartyVoice(
           room.id,
           currentUser.id,
@@ -1498,6 +1592,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     onUpdateRoom?.(nextRoom);
     if (!skipFirestoreSync) {
       void syncFirestorePartyRoomState(room.id, isRoomHost, {
+        isModerator: isCurrentUserModerator,
         hostLevel: effectiveLevel,
         maxSeats: resolvedMaxSeats,
         seats: sanitizedSeats,
@@ -1644,7 +1739,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
 
     if (occupant) {
-      if (isRoomHost && occupant.id !== currentUser.id) {
+      if (canModerateTarget(occupant.id)) {
+        setShowKickDurationPicker(false);
+        setShowBlockMemberConfirm(false);
         setSelectedSeatMember({ index, user: occupant });
       } else {
         onSelectUser(occupant);
@@ -1652,7 +1749,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
 
-    if (isRoomHost) {
+    if (canModerate) {
       const ownerSittingIdx = seats.findIndex((s) => s?.id === currentUser.id);
       if (ownerSittingIdx === -1) {
         setShowOwnerSeatChoice(index);
@@ -1880,7 +1977,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   const handleToggleSeatMute = async (seatIndex: number) => {
-    if (!isRoomHost) return;
+    if (!canModerate) return;
+    const occupant = seats[seatIndex];
+    if (occupant && !canModerateTarget(occupant.id)) {
+      showToast('You cannot mute this user');
+      return;
+    }
     const currentlyMuted = mutedSeatIndices.includes(seatIndex);
     try {
       const nextMuted = await liveAndRoomService.muteRoomSeat(
@@ -1890,13 +1992,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         !currentlyMuted
       );
       setMutedSeatIndices(nextMuted);
+      void syncFirestorePartyRoomState(room.id, isRoomHost, {
+        isModerator: isCurrentUserModerator,
+        mutedSeatIndices: nextMuted,
+      });
       showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
     } catch {
       const nextMuted = currentlyMuted
         ? mutedSeatIndices.filter((i) => i !== seatIndex)
         : [...mutedSeatIndices, seatIndex];
       setMutedSeatIndices(nextMuted);
-      void syncFirestorePartyRoomState(room.id, true, { mutedSeatIndices: nextMuted });
+      void syncFirestorePartyRoomState(room.id, isRoomHost, {
+        isModerator: isCurrentUserModerator,
+        mutedSeatIndices: nextMuted,
+      });
       showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
     }
   };
@@ -1922,12 +2031,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setShowBlockMemberConfirm(false);
   };
 
-  // Remove from Seat ONLY (steps user down to audience without kicking from room)
+  // Remove from Seat ONLY (steps user down to audience without kicking from room — Host & Moderator)
   const handleRemoveFromSeat = async () => {
-    if (!isRoomHost || !selectedSeatMember || selectedSeatMember.index === null) return;
+    if (!canModerate || !selectedSeatMember || selectedSeatMember.index === null) return;
     const idx = selectedSeatMember.index;
     const member = selectedSeatMember.user;
-    if (member.id === currentUser.id) {
+    if (!canModerateTarget(member.id)) {
       closeModerationModal();
       return;
     }
@@ -1966,12 +2075,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     showToast(`Removed ${member.name} from Seat #${idx + 1}`);
   };
 
-  // Kick User from Room for chosen duration (This Stream / 24 Hours / 15 Days / 30 Days)
+  // Kick User from Room for chosen duration (This Stream / 24 Hours / 15 Days / 30 Days — Host & Moderator)
   const handleKickUserWithDuration = async (durationType: RoomKickDuration) => {
-    if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+    if (!canModerate || !selectedSeatMember || moderationBusy) return;
     const member = selectedSeatMember.user;
     const seatIdx = selectedSeatMember.index;
-    if (member.id === currentUser.id) {
+    if (!canModerateTarget(member.id)) {
       closeModerationModal();
       return;
     }
@@ -1980,7 +2089,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       const res = await kickUserFromRoom({
         roomId: room.id,
         roomTitle: room.title,
-        hostId: currentUser.id,
+        hostId: room.host.id,
         targetUser: member,
         durationType,
         maxSeats,
@@ -2017,19 +2126,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  // Permanently Block User (cannot view host ID/profile, videos, rooms, live, or interact)
+  // Permanently Block User (Host & Moderator — Moderator blocks on behalf of Host's rooms/streams)
   const handlePermanentBlockMember = async () => {
-    if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+    if (!canModerate || !selectedSeatMember || moderationBusy) return;
     const member = selectedSeatMember.user;
     const seatIdx = selectedSeatMember.index;
-    if (member.id === currentUser.id) {
+    if (!canModerateTarget(member.id)) {
       closeModerationModal();
       return;
     }
     setModerationBusy(true);
     try {
       await Promise.all([
-        onBlockUser ? Promise.resolve(onBlockUser(member)) : Promise.resolve(),
+        isRoomHost && onBlockUser
+          ? Promise.resolve(onBlockUser(member))
+          : blockUserService({
+              blockerId: room.host.id,
+              targetUser: member,
+              reason: `Blocked by Moderator ${currentUser.name}`,
+            }),
         vacateFirestoreSeat(room.id, member.id, seatIdx ?? undefined, maxSeats).catch(() => null),
         cancelFirestoreSeatRequest(room.id, member.id).catch(() => null),
         evictFirestoreRoomParticipant(room.id, member.id).catch(() => null),
@@ -2048,6 +2163,84 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     } finally {
       setModerationBusy(false);
     }
+  };
+
+  // Host-only: Assign or Remove Lifetime Moderator
+  const handleToggleModeratorRole = async (target: UserProfile) => {
+    if (!isRoomHost || !target?.id || target.id === currentUser.id || moderationBusy) return;
+    const currentlyMod = moderatorIdsSet.has(target.id);
+    setModerationBusy(true);
+    try {
+      if (currentlyMod) {
+        const res = await removeHostModerator({
+          hostId: currentUser.id,
+          moderatorUserId: target.id,
+        });
+        if (res.success) {
+          showToast(`Removed ${target.name} from Moderators`);
+          closeModerationModal();
+        } else {
+          showToast(res.error || 'Could not remove moderator');
+        }
+      } else {
+        const res = await assignHostModerator({
+          hostId: currentUser.id,
+          hostName: currentUser.name,
+          targetUser: target,
+        });
+        if (res.success) {
+          showToast(`${target.name} is now your Lifetime Moderator`);
+          closeModerationModal();
+        } else {
+          showToast(res.error || 'Could not assign moderator');
+        }
+      }
+    } finally {
+      setModerationBusy(false);
+    }
+  };
+
+  // Delete single comment (Host, Moderator, or comment author)
+  const handleDeleteSingleComment = async (act: ActivityItem) => {
+    if (!act?.id) return;
+    const canDelete = canModerate || act.userId === currentUser.id;
+    if (!canDelete) return;
+    setActivities((prev) => prev.filter((item) => item.id !== act.id));
+    if (replyTarget?.id === act.id) setReplyTarget(null);
+    if (act.type !== 'join') {
+      await deleteFirestoreRoomMessage(room.id, act.id);
+    }
+    showToast('Comment deleted');
+  };
+
+  // Clear entire room comment history (Host & Moderator)
+  const handleClearAllComments = async () => {
+    if (!canModerate || isClearingChat) return;
+    setIsClearingChat(true);
+    try {
+      const ok = await clearFirestoreRoomMessages(room.id);
+      lastChatClearedAtRef.current = Date.now();
+      setActivities([]);
+      setReplyTarget(null);
+      setShowClearChatConfirmModal(false);
+      showToast(ok ? 'All chat comments cleared' : 'Chat cleared locally');
+    } finally {
+      setIsClearingChat(false);
+    }
+  };
+
+  // Start swipe/tap reply & @mention for a comment
+  const handleStartReply = (act: ActivityItem) => {
+    if (!act?.name) return;
+    setReplyTarget({
+      id: act.id,
+      senderId: act.userId,
+      senderName: act.name,
+      text: act.text,
+    });
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 30);
   };
 
   const handleSendSeatInvite = async (targetUser: UserProfile) => {
@@ -2162,15 +2355,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const text = inputMessage.trim();
-    if (!text) return;
+    const rawText = inputMessage.trim();
+    if (!rawText) return;
 
     if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
       showToast('You are blocked from chatting in this room.');
       return;
     }
 
+    const activeReply = replyTarget;
+    const mentionTag = activeReply ? `@${activeReply.senderName}` : '';
+    const text =
+      activeReply && !rawText.toLowerCase().startsWith(mentionTag.toLowerCase())
+        ? `${mentionTag} ${rawText}`
+        : rawText;
+
     setInputMessage('');
+    setReplyTarget(null);
     setShowEmojiPicker(false);
 
     let saved: {
@@ -2184,7 +2385,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     try {
       const backendSaved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
       saved = backendSaved;
-      void sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id);
+      void sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id, activeReply);
     } catch (err: any) {
       const errMsg = String(err?.message || err || '');
       if (/block|403|forbidden/i.test(errMsg)) {
@@ -2192,7 +2393,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         return;
       }
       const fallbackId = `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId);
+      saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId, activeReply);
     }
 
     if (saved) {
@@ -2214,13 +2415,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 isVIP: Boolean(currentUser.isVIP || (currentUser.vipLevel || 0) > 0),
                 isHost: msgToAdd.isHost,
                 type: 'chat',
+                ...(activeReply ? { replyTo: activeReply } : {}),
+                fromFirestore: true,
               },
             ]
       );
       setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
     } else {
       showToast('Could not send message. Please check your connection.');
-      setInputMessage(text);
+      setInputMessage(rawText);
+      if (activeReply) setReplyTarget(activeReply);
     }
   };
 
@@ -2588,7 +2792,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             title="Room Settings"
           >
             <MoreHorizontal className="w-3.5 h-3.5" />
-            {isRoomHost && seatRequests.length > 0 && (
+            {canModerate && seatRequests.length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FA26A0] text-[9px] font-black flex items-center justify-center">
                 {seatRequests.length}
               </span>
@@ -2704,6 +2908,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               {(partyEntryNotice.superVipLevel ?? 0) > 0 && (
                 <SuperVipTierBadge tier={partyEntryNotice.superVipLevel ?? 0} size="xs" />
               )}
+              {partyEntryNotice.userId && moderatorIdsSet.has(partyEntryNotice.userId) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-500 text-white text-[8.5px] font-black uppercase">
+                  <ShieldCheck className="w-2.5 h-2.5" />
+                  MOD
+                </span>
+              )}
               <span>{partyEntryNotice.name} joined the party room</span>
             </div>
           </div>
@@ -2770,8 +2980,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           </div>
         )}
 
-        {/* Prominent 1-Tap Host Seat Request Banner */}
-        {isRoomHost && seatRequests.length > 0 && (() => {
+        {/* Prominent 1-Tap Host & Moderator Seat Request Banner */}
+        {canModerate && seatRequests.length > 0 && (() => {
           const latestReq = seatRequests[seatRequests.length - 1];
           if (!latestReq?.user) return null;
           return (
@@ -2917,6 +3127,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             isLevelLocked={isCoHostSeatLevelLocked}
             levelLockText="Lv.5"
             badgeText={isCoHostSeatLevelLocked ? 'Lv.5 Lock' : 'Seat 2'}
+            isModerator={Boolean(!isCoHostSeatLevelLocked && seatOne && moderatorIdsSet.has(seatOne.id))}
             label={isCoHostSeatLevelLocked ? 'Unlocks Lv.5' : seatOne ? seatOne.name : 'Join'}
             seatTheme={seatTheme}
             onClick={() => handleSeatClick(1)}
@@ -2945,6 +3156,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 isSpeaking={isSpeaking}
                 isLocked={isSeatLocked}
                 compact={maxSeats === 16}
+                isModerator={Boolean(member && moderatorIdsSet.has(member.id))}
                 label={member ? member.name.split(' ')[0] : `No.${idx + 1}`}
                 seatTheme={seatTheme}
                 onClick={() => handleSeatClick(idx)}
@@ -2953,8 +3165,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           })}
         </div>
 
-        {/* LIVE ROOM CHAT / ACTIVITY FEED (With Level & VIP Badges on Comments + Joins) */}
-        <div className="flex items-end justify-between gap-3 pt-2 pb-1 max-w-lg mx-auto w-full flex-1 min-h-[120px]">
+        {/* LIVE ROOM CHAT / ACTIVITY FEED (With Level, VIP, MOD Badges, Swipe-to-Reply @Mention & Comment Delete) */}
+        <div className="flex flex-col justify-end gap-1.5 pt-2 pb-1 max-w-lg mx-auto w-full flex-1 min-h-[125px]">
+          {canModerate && activities.length > 0 && (
+            <div className="flex items-center justify-between px-1" data-no-doubletap="true">
+              <span className="text-[9.5px] font-bold text-white/45">
+                Swipe any comment right to reply
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowClearChatConfirmModal(true)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/35 text-rose-200 text-[9.5px] font-extrabold active:scale-95 transition-all"
+              >
+                <Eraser className="w-2.5 h-2.5" />
+                <span>Clear Chat</span>
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 space-y-1.5 max-h-44 overflow-y-auto no-scrollbar pr-1">
             {activities.length === 0 ? (
               <div className="px-3 py-1.5 rounded-full bg-[#17092E]/70 border border-white/10 text-[11px] text-[#B9AECF] w-fit">
@@ -2981,6 +3209,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   typeof act.superVipLevel === 'number'
                     ? act.superVipLevel
                     : matchedSeatedUser?.superVipLevel ?? matchedParticipant?.superVipLevel ?? 0;
+                const isActModerator = Boolean(act.userId && moderatorIdsSet.has(act.userId));
+                const canDeleteThisComment = canModerate || act.userId === currentUser.id;
+                const isBeingSwiped = swipingMsgId === act.id && swipeOffsetX > 4;
 
                 const handleTapActivityUser = () => {
                   if (!act.userId) return;
@@ -3001,7 +3232,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     coins: 0,
                     diamonds: 0,
                   };
-                  if (isRoomHost && act.userId !== currentUser.id) {
+                  if (canModerateTarget(act.userId)) {
                     setShowKickDurationPicker(false);
                     setShowBlockMemberConfirm(false);
                     setSelectedSeatMember({
@@ -3013,52 +3244,163 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   }
                 };
 
+                const renderTextWithMentions = (raw: string) => {
+                  const parts = raw.split(/(@[^\s@]+(?:\s[A-Za-z0-9_]+)?)/g);
+                  return parts.map((part, i) =>
+                    part.startsWith('@') ? (
+                      <span key={i} className="text-cyan-300 font-extrabold">
+                        {part}
+                      </span>
+                    ) : (
+                      <React.Fragment key={i}>{part}</React.Fragment>
+                    )
+                  );
+                };
+
                 return (
                   <div
                     key={act.id}
                     data-no-doubletap="true"
-                    onClick={handleTapActivityUser}
-                    className={`flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${
-                      act.userId ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
-                    } ${
-                      act.type === 'join'
-                        ? 'bg-[#210D40]/85 border-[#FA26A0]/35'
-                        : 'bg-[#17092E]/85 border-purple-500/30'
-                    }`}
+                    className="relative flex items-center gap-1 max-w-full group"
+                    onTouchStart={(e) => {
+                      if (act.type === 'join' || !e.touches[0]) return;
+                      swipeTouchRef.current = {
+                        id: act.id,
+                        startX: e.touches[0].clientX,
+                        startY: e.touches[0].clientY,
+                        triggered: false,
+                      };
+                    }}
+                    onTouchMove={(e) => {
+                      const st = swipeTouchRef.current;
+                      if (!st || st.id !== act.id || !e.touches[0]) return;
+                      const dx = e.touches[0].clientX - st.startX;
+                      const dy = Math.abs(e.touches[0].clientY - st.startY);
+                      if (dy > 32 && !st.triggered) {
+                        swipeTouchRef.current = null;
+                        setSwipingMsgId(null);
+                        setSwipeOffsetX(0);
+                        return;
+                      }
+                      if (dx > 8) {
+                        setSwipingMsgId(act.id);
+                        setSwipeOffsetX(Math.min(62, dx));
+                        if (dx >= 42 && !st.triggered) {
+                          st.triggered = true;
+                          handleStartReply(act);
+                        }
+                      }
+                    }}
+                    onTouchEnd={() => {
+                      swipeTouchRef.current = null;
+                      setSwipingMsgId(null);
+                      setSwipeOffsetX(0);
+                    }}
+                    onTouchCancel={() => {
+                      swipeTouchRef.current = null;
+                      setSwipingMsgId(null);
+                      setSwipeOffsetX(0);
+                    }}
                   >
-                    {act.avatar ? (
-                      <img
-                        src={act.avatar}
-                        alt={act.name}
-                        className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400 mt-0.5"
-                      />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5">
-                        {(act.name || 'U').charAt(0).toUpperCase()}
+                    {isBeingSwiped && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-cyan-500/30 border border-cyan-300/60 flex items-center justify-center text-cyan-200 pointer-events-none">
+                        <Reply className="w-3.5 h-3.5" />
                       </div>
                     )}
-                    <div className="flex flex-wrap items-center gap-1 text-[11px] leading-snug min-w-0">
-                      <LevelBadge level={resolvedLevel} size="xs" className="shrink-0" />
-                      <VipTierBadge tier={resolvedVip} size="xs" className="shrink-0" />
-                      {resolvedSuperVip > 0 && (
-                        <SuperVipTierBadge tier={resolvedSuperVip} size="xs" className="shrink-0" />
+
+                    <div
+                      style={
+                        isBeingSwiped
+                          ? { transform: `translateX(${swipeOffsetX}px)`, transition: 'none' }
+                          : { transform: 'translateX(0px)', transition: 'transform 180ms ease-out' }
+                      }
+                      onClick={handleTapActivityUser}
+                      className={`flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${
+                        act.userId ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
+                      } ${
+                        act.type === 'join'
+                          ? 'bg-[#210D40]/85 border-[#FA26A0]/35'
+                          : 'bg-[#17092E]/88 border-purple-500/30'
+                      }`}
+                    >
+                      {act.avatar ? (
+                        <img
+                          src={act.avatar}
+                          alt={act.name}
+                          className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400 mt-0.5"
+                        />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                          {(act.name || 'U').charAt(0).toUpperCase()}
+                        </div>
                       )}
-                      {act.isHost && (
-                        <span className="px-1.5 py-0.5 rounded bg-[#FFC84A] text-black text-[8px] font-black uppercase leading-none shrink-0">
-                          HOST
-                        </span>
+                      <div className="flex flex-col min-w-0">
+                        {act.replyTo && (
+                          <div className="mb-0.5 pl-2 border-l-2 border-cyan-400/80 text-[10px] text-cyan-200/85 truncate max-w-[220px]">
+                            <span className="font-bold text-cyan-300">↩ @{act.replyTo.senderName}</span>
+                            {act.replyTo.text ? `: ${act.replyTo.text}` : ''}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1 text-[11px] leading-snug min-w-0">
+                          <LevelBadge level={resolvedLevel} size="xs" className="shrink-0" />
+                          <VipTierBadge tier={resolvedVip} size="xs" className="shrink-0" />
+                          {resolvedSuperVip > 0 && (
+                            <SuperVipTierBadge tier={resolvedSuperVip} size="xs" className="shrink-0" />
+                          )}
+                          {act.isHost && (
+                            <span className="px-1.5 py-0.5 rounded bg-[#FFC84A] text-black text-[8px] font-black uppercase leading-none shrink-0">
+                              HOST
+                            </span>
+                          )}
+                          {!act.isHost && isActModerator && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[8px] font-black uppercase leading-none shrink-0">
+                              <ShieldCheck className="w-2.5 h-2.5" />
+                              MOD
+                            </span>
+                          )}
+                          <span className="font-extrabold text-[#FFE043] shrink-0">
+                            {act.name}
+                            {act.type === 'join' ? '' : ':'}
+                          </span>
+                          <span
+                            className={`font-medium break-words ${
+                              act.type === 'join' ? 'text-[#FFB3DE]' : 'text-white/95'
+                            }`}
+                          >
+                            {act.type === 'join' ? act.text : renderTextWithMentions(act.text)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Quick Tap Reply + Delete Actions */}
+                      {act.type !== 'join' && (
+                        <div className="flex items-center gap-1 ml-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartReply(act);
+                            }}
+                            title={`Reply to @${act.name}`}
+                            className="w-5 h-5 rounded-full bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center text-cyan-200/80 hover:text-cyan-200 transition-colors"
+                          >
+                            <Reply className="w-3 h-3" />
+                          </button>
+                          {canDeleteThisComment && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteSingleComment(act);
+                              }}
+                              title="Delete comment"
+                              className="w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
                       )}
-                      <span className="font-extrabold text-[#FFE043] shrink-0">
-                        {act.name}
-                        {act.type === 'join' ? '' : ':'}
-                      </span>
-                      <span
-                        className={`font-medium break-words ${
-                          act.type === 'join' ? 'text-[#FFB3DE]' : 'text-white/95'
-                        }`}
-                      >
-                        {act.text}
-                      </span>
                     </div>
                   </div>
                 );
@@ -3069,8 +3411,32 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       </main>
 
-      {/* BOTTOM BAR (Single Gift Box + Seated Guest/Host Mic Toggle + Chat Input + Heart) */}
+      {/* BOTTOM BAR (Reply Preview + Single Gift Box + Seated Guest/Host Mic Toggle + Chat Input + Heart) */}
       <footer className="relative z-30 px-3 safe-pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent">
+        {replyTarget && (
+          <div className="max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-cyan-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in">
+            <div className="flex items-center gap-2 min-w-0">
+              <Reply className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] font-black text-cyan-300 block truncate">
+                  Replying to @{replyTarget.senderName}
+                </span>
+                <span className="text-[10px] text-white/70 block truncate">
+                  {replyTarget.text}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTarget(null)}
+              className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0"
+              aria-label="Cancel reply"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2 max-w-md mx-auto">
           <button
             type="button"
@@ -3119,8 +3485,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               <Smile className="w-5 h-5" />
             </button>
             <input
+              ref={chatInputRef}
               type="text"
-              placeholder="Say Hi..."
+              placeholder={replyTarget ? `Reply to @${replyTarget.senderName}...` : 'Say Hi...'}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               className="w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
@@ -3208,12 +3575,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     diamonds: 0,
                   };
                   const seatedIdx = seats.findIndex((s) => s?.id === p.userId);
+                  const isParticipantMod = moderatorIdsSet.has(p.userId);
                   return (
                     <div
                       key={p.userId}
                       onClick={() => {
                         setShowParticipantsModal(false);
-                        if (isRoomHost && p.userId !== currentUser.id) {
+                        if (canModerateTarget(p.userId)) {
                           setShowKickDurationPicker(false);
                           setShowBlockMemberConfirm(false);
                           setSelectedSeatMember({
@@ -3251,7 +3619,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                             HOST
                           </span>
                         )}
-                        {isRoomHost && p.userId !== currentUser.id && (
+                        {!p.isHost && isParticipantMod && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[9px] font-black uppercase">
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            MOD
+                          </span>
+                        )}
+                        {canModerateTarget(p.userId) && (
                           <span className="px-2 py-1 rounded-lg bg-white/10 text-[10px] font-bold text-white/85">
                             Manage
                           </span>
@@ -3283,8 +3657,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               </button>
             </div>
 
-            {isRoomHost ? (
-              <div className="space-y-2">
+            {canModerate ? (
+              <div className="space-y-2 max-h-[68vh] overflow-y-auto no-scrollbar pr-0.5">
+                {isCurrentUserModerator && (
+                  <div className="px-3 py-2 rounded-2xl bg-cyan-500/15 border border-cyan-400/35 flex items-center gap-2 text-[11px] font-bold text-cyan-200">
+                    <ShieldCheck className="w-4 h-4 text-cyan-300 shrink-0" />
+                    <span>Moderator Mode Active — Full Room &amp; Seat Controls</span>
+                  </div>
+                )}
+
                 <button
                   onClick={() => {
                     setShowSettingsSheet(false);
@@ -3298,24 +3679,26 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    setShowSettingsSheet(false);
-                    setShowBackgroundPicker(true);
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ImageIcon className="w-4 h-4 text-[#FA26A0]" />
-                    <div className="text-left">
-                      <span className="text-xs font-bold text-white block">Party Background</span>
-                      <span className="text-[10px] text-white/60 block">
-                        Current: {activeStageBackground.label} (Themes, Host DP, Gallery)
-                      </span>
+                {isRoomHost && (
+                  <button
+                    onClick={() => {
+                      setShowSettingsSheet(false);
+                      setShowBackgroundPicker(true);
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <ImageIcon className="w-4 h-4 text-[#FA26A0]" />
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-white block">Party Background</span>
+                        <span className="text-[10px] text-white/60 block">
+                          Current: {activeStageBackground.label} (Themes, Host DP, Gallery)
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-white/50" />
-                </button>
+                    <ChevronRight className="w-4 h-4 text-white/50" />
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -3330,6 +3713,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/50" />
                 </button>
+
+                {isRoomHost && (
+                  <button
+                    onClick={() => {
+                      setShowSettingsSheet(false);
+                      setShowModeratorsListModal(true);
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                      <span className="text-xs font-bold text-white">Lifetime Moderators</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-bold font-mono">
+                      {hostModerators.length}
+                    </span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -3347,51 +3748,67 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </span>
                 </button>
 
-                {/* Host Level-Gated Seat Layout Switcher (Level 1: 4/5, Level 2: 8 @ Lv.10, Level 3: 16 @ Lv.20) */}
-                <div className="p-3 rounded-2xl bg-white/5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">Room Seat Mode</span>
-                    <span className="text-[10px] font-bold text-[#D8B4FE]">Host Lv.{hostLevel}</span>
+                <button
+                  onClick={() => {
+                    setShowSettingsSheet(false);
+                    setShowClearChatConfirmModal(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-400/25 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Eraser className="w-4 h-4 text-rose-300" />
+                    <span className="text-xs font-bold text-rose-200">Clear Comment History</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {PARTY_SEAT_TIERS.map((tier) => {
-                      const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
-                      const active = maxSeats === tier.maxSeats;
-                      return (
-                        <button
-                          key={tier.maxSeats}
-                          type="button"
-                          onClick={() => handleChangeSeatMode(tier.maxSeats)}
-                          className={`py-2 px-1.5 rounded-xl text-center flex flex-col items-center gap-0.5 border transition-all ${
-                            active
-                              ? 'bg-[#FA26A0] border-[#FF85C8] text-white shadow'
-                              : unlocked
-                              ? 'bg-[#200E38] border-white/10 text-white/90 hover:border-[#FA26A0]/60'
-                              : 'bg-[#120822] border-white/5 text-white/40'
-                          }`}
-                        >
-                          <span className="text-[9px] font-black uppercase opacity-80">{tier.tierLabel}</span>
-                          <span className="text-[11px] font-black flex items-center gap-1">
-                            {!unlocked && <Lock className="w-3 h-3 text-amber-300" />}
-                            {tier.maxSeats === 5 && hostLevel < 5 ? '4+1' : tier.maxSeats} Seats
-                          </span>
-                          {!unlocked && (
-                            <span className="text-[8px] font-bold text-amber-300">Lv.{tier.minLevel}</span>
-                          )}
-                        </button>
-                      );
-                    })}
+                  <ChevronRight className="w-4 h-4 text-rose-300/60" />
+                </button>
+
+                {/* Host Level-Gated Seat Layout Switcher (Host Only) */}
+                {isRoomHost && (
+                  <div className="p-3 rounded-2xl bg-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">Room Seat Mode</span>
+                      <span className="text-[10px] font-bold text-[#D8B4FE]">Host Lv.{hostLevel}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {PARTY_SEAT_TIERS.map((tier) => {
+                        const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
+                        const active = maxSeats === tier.maxSeats;
+                        return (
+                          <button
+                            key={tier.maxSeats}
+                            type="button"
+                            onClick={() => handleChangeSeatMode(tier.maxSeats)}
+                            className={`py-2 px-1.5 rounded-xl text-center flex flex-col items-center gap-0.5 border transition-all ${
+                              active
+                                ? 'bg-[#FA26A0] border-[#FF85C8] text-white shadow'
+                                : unlocked
+                                ? 'bg-[#200E38] border-white/10 text-white/90 hover:border-[#FA26A0]/60'
+                                : 'bg-[#120822] border-white/5 text-white/40'
+                            }`}
+                          >
+                            <span className="text-[9px] font-black uppercase opacity-80">{tier.tierLabel}</span>
+                            <span className="text-[11px] font-black flex items-center gap-1">
+                              {!unlocked && <Lock className="w-3 h-3 text-amber-300" />}
+                              {tier.maxSeats === 5 && hostLevel < 5 ? '4+1' : tier.maxSeats} Seats
+                            </span>
+                            {!unlocked && (
+                              <span className="text-[8px] font-bold text-amber-300">Lv.{tier.minLevel}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-[#B9AECF] leading-snug pt-0.5">
+                      {hostLevel < 5
+                        ? 'Lv.0–4: 4 open seats + Seat #2 unlocks at Lv.5 • 8 seats at Lv.10 • 16 seats at Lv.20'
+                        : hostLevel < 10
+                        ? 'Lv.5+: All 5 seats unlocked! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
+                        : hostLevel < 20
+                        ? 'Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
+                        : 'Lv.20+: Full access to switch between 5, 8, or 16 seats anytime.'}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-[#B9AECF] leading-snug pt-0.5">
-                    {hostLevel < 5
-                      ? 'Lv.0–4: 4 open seats + Seat #2 unlocks at Lv.5 • 8 seats at Lv.10 • 16 seats at Lv.20'
-                      : hostLevel < 10
-                      ? 'Lv.5+: All 5 seats unlocked! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
-                      : hostLevel < 20
-                      ? 'Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
-                      : 'Lv.20+: Full access to switch between 5, 8, or 16 seats anytime.'}
-                  </p>
-                </div>
+                )}
 
                 <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5">
                   <span className="text-xs font-bold text-white">Lock Seats</span>
@@ -3437,24 +3854,36 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </button>
                 )}
 
-                <button
-                  onClick={handleCleanLeaveParty}
-                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Exit Room View (Keep Party Active)</span>
-                </button>
+                {isRoomHost ? (
+                  <>
+                    <button
+                      onClick={handleCleanLeaveParty}
+                      className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Exit Room View (Keep Party Active)</span>
+                    </button>
 
-                <button
-                  onClick={() => {
-                    setShowSettingsSheet(false);
-                    setShowCloseRoomConfirmModal(true);
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-rose-600/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-600/30"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Permanently Close Room</span>
-                </button>
+                    <button
+                      onClick={() => {
+                        setShowSettingsSheet(false);
+                        setShowCloseRoomConfirmModal(true);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-rose-600/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-600/30"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Permanently Close Room</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleCleanLeaveParty}
+                    className="w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Leave Party Room</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -3850,8 +4279,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       )}
 
-      {/* MANAGE PARTICIPANT / OCCUPIED SEAT (HOST MODERATION MENU: REMOVE FROM SEAT, 4-TIER KICK, PERMANENT BLOCK) */}
-      {selectedSeatMember && isRoomHost && (
+      {/* MANAGE PARTICIPANT / OCCUPIED SEAT (HOST & MODERATOR MENU: MAKE MODERATOR, REMOVE FROM SEAT, 4-TIER KICK, PERMANENT BLOCK) */}
+      {selectedSeatMember && canModerateTarget(selectedSeatMember.user.id) && (
         <div
           data-no-doubletap="true"
           onClick={closeModerationModal}
@@ -3875,9 +4304,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </div>
                 )}
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-black text-white truncate">
-                    {selectedSeatMember.user.name}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-black text-white truncate">
+                      {selectedSeatMember.user.name}
+                    </span>
+                    {moderatorIdsSet.has(selectedSeatMember.user.id) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[8.5px] font-black uppercase shrink-0">
+                        <ShieldCheck className="w-2.5 h-2.5" />
+                        MOD
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                     <LevelBadge level={selectedSeatMember.user.level ?? 0} size="xs" />
                     <VipTierBadge tier={selectedSeatMember.user.vipLevel ?? 0} size="xs" />
@@ -3887,8 +4324,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   </div>
                   <span className="text-[10px] text-[#FA26A0] font-mono font-bold mt-0.5">
                     {selectedSeatMember.index !== null
-                      ? `Seat #${selectedSeatMember.index + 1} • Host Controls`
-                      : 'Room Audience • Host Controls'}
+                      ? `Seat #${selectedSeatMember.index + 1} • ${isRoomHost ? 'Host' : 'Moderator'} Controls`
+                      : `Room Audience • ${isRoomHost ? 'Host' : 'Moderator'} Controls`}
                   </span>
                 </div>
               </div>
@@ -3948,7 +4385,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     <span>Permanently Block {selectedSeatMember.user.name}?</span>
                   </div>
                   <p className="text-[11px] text-rose-100/80 leading-relaxed">
-                    They will be permanently blocked from viewing your profile/ID, watching your videos, entering your party rooms or live streams, and interacting with you.
+                    They will be permanently blocked from entering this Host&apos;s party rooms or live streams and interacting in the room.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -3984,6 +4421,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   <UserCheck className="w-4 h-4 text-cyan-400" />
                   <span>View User Profile</span>
                 </button>
+
+                {/* Host-only: Make / Remove Lifetime Moderator */}
+                {isRoomHost && (
+                  <button
+                    type="button"
+                    disabled={moderationBusy}
+                    onClick={() => void handleToggleModeratorRole(selectedSeatMember.user)}
+                    className={`w-full py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${
+                      moderatorIdsSet.has(selectedSeatMember.user.id)
+                        ? 'bg-cyan-950/70 hover:bg-cyan-900/70 border-cyan-400/50 text-cyan-200'
+                        : 'bg-gradient-to-r from-cyan-500/90 via-sky-500/90 to-indigo-500/90 hover:opacity-95 border-cyan-300/60 text-white shadow-lg shadow-cyan-500/20'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>
+                      {moderatorIdsSet.has(selectedSeatMember.user.id)
+                        ? 'Remove Moderator'
+                        : 'Make Moderator (Lifetime)'}
+                    </span>
+                  </button>
+                )}
 
                 {selectedSeatMember.index !== null && (
                   <>
@@ -4057,8 +4515,133 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       )}
 
-      {/* KICKED USERS MANAGEMENT MODAL (HOST ONLY) */}
-      {showKickedUsersModal && isRoomHost && (
+      {/* LIFETIME MODERATORS LIST MODAL (HOST ONLY) */}
+      {showModeratorsListModal && isRoomHost && (
+        <div
+          data-no-doubletap="true"
+          onClick={() => setShowModeratorsListModal(false)}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#160A2B] border-t sm:border border-cyan-500/30 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <div>
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-cyan-300" />
+                  <span>Lifetime Moderators ({hostModerators.length})</span>
+                </h3>
+                <p className="text-[10px] text-cyan-200/75 mt-0.5">
+                  Active across all your broadcasts until removed here or in Settings
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModeratorsListModal(false)}
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 overflow-y-auto no-scrollbar py-1">
+              {hostModerators.length === 0 ? (
+                <p className="text-xs text-white/60 text-center py-8 leading-relaxed">
+                  No moderators assigned yet. Tap any user on a seat, comment, or audience list and tap{' '}
+                  <span className="text-cyan-300 font-bold">Make Moderator</span>.
+                </p>
+              ) : (
+                hostModerators.map((mod) => (
+                  <div
+                    key={mod.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#200E38] border border-white/10"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {mod.moderatorAvatar ? (
+                        <img
+                          src={mod.moderatorAvatar}
+                          alt={mod.moderatorName}
+                          className="w-9 h-9 rounded-full object-cover ring-2 ring-cyan-400/70 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-cyan-600/40 text-xs font-black flex items-center justify-center shrink-0">
+                          {(mod.moderatorName || 'M').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-white truncate block">
+                          {mod.moderatorName}
+                        </span>
+                        <span className="text-[10px] text-cyan-300 font-semibold block">
+                          Moderator • Added {new Date(mod.assignedAt || Date.now()).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await removeHostModerator({
+                          hostId: currentUser.id,
+                          moderatorUserId: mod.moderatorUserId,
+                        });
+                        if (res.success) {
+                          showToast(`Removed ${mod.moderatorName} from Moderators`);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 text-[10px] font-black shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CLEAR COMMENT HISTORY CONFIRMATION MODAL (HOST & MODERATOR) */}
+      {showClearChatConfirmModal && canModerate && (
+        <div
+          data-no-doubletap="true"
+          onClick={() => setShowClearChatConfirmModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#160A2B] border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 text-center"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center mx-auto text-rose-300">
+              <Eraser className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-black text-white">Clear All Comment History?</h3>
+            <p className="text-xs text-white/70 leading-relaxed">
+              This will permanently delete all room comments for everyone in this party room.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={isClearingChat}
+                onClick={() => setShowClearChatConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isClearingChat}
+                onClick={() => void handleClearAllComments()}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black disabled:opacity-50"
+              >
+                {isClearingChat ? 'Clearing...' : 'Clear All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KICKED USERS MANAGEMENT MODAL (HOST & MODERATOR) */}
+      {showKickedUsersModal && canModerate && (
         <div
           data-no-doubletap="true"
           onClick={() => setShowKickedUsersModal(false)}

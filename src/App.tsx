@@ -11,7 +11,8 @@ import {
   PKMatchInvitation,
   VideoItem,
   BroadcasterRankingEntry,
-  RoomKickRecord
+  RoomKickRecord,
+  HostModeratorRecord
 } from './types';
 import { 
   CURRENT_USER, 
@@ -80,6 +81,8 @@ import {
   subscribeMyActiveRoomKicks,
   getActiveKickForRoom,
   formatRemainingKickTime,
+  subscribeHostModerators,
+  removeHostModerator,
 } from './services/roomModerationService';
 import {
   clampPartyMaxSeatsForHostLevel,
@@ -235,13 +238,16 @@ export default function App() {
   const isBlockedRelationship = (userId?: string | null) =>
     isBlockedByMe(userId) || isBlockedByTarget(userId);
 
-  // Subscribe to current user's blocked list, users who blocked current user, & active party room kicks
+  const [myModerators, setMyModerators] = useState<HostModeratorRecord[]>([]);
+
+  // Subscribe to current user's blocked list, users who blocked current user, active party room kicks & lifetime moderators
   useEffect(() => {
     const uid = currentUser?.id;
     if (!uid) {
       setBlockedUsers([]);
       setBlockedByUserIds([]);
       setActiveRoomKicks([]);
+      setMyModerators([]);
       return;
     }
 
@@ -253,6 +259,9 @@ export default function App() {
     });
     const unsubRoomKicks = subscribeMyActiveRoomKicks(uid, (kicks) => {
       setActiveRoomKicks(kicks);
+    });
+    const unsubMyMods = subscribeHostModerators(uid, (mods) => {
+      setMyModerators(mods);
     });
 
     // Also react immediately to real-time WebSocket block/unblock push events
@@ -270,6 +279,7 @@ export default function App() {
       unsubByMe();
       unsubBlockedMe();
       unsubRoomKicks();
+      unsubMyMods();
       unsubWsBlocks();
     };
   }, [currentUser?.id]);
@@ -355,6 +365,18 @@ export default function App() {
     });
     setBlockedUsers((prev) => prev.filter((item) => item.blockedUserId !== targetUserId));
     showAppToast(`Unblocked ${targetName || 'user'}.`);
+  };
+
+  const handleRemoveModerator = async (moderatorUserId: string, moderatorName?: string) => {
+    if (!moderatorUserId || !currentUser?.id) return;
+    const res = await removeHostModerator({
+      hostId: currentUser.id,
+      moderatorUserId,
+    });
+    if (res.success) {
+      setMyModerators((prev) => prev.filter((m) => m.moderatorUserId !== moderatorUserId));
+      showAppToast(`Removed ${moderatorName || 'user'} from your Moderators.`);
+    }
   };
 
   // PK Battle Real-Time States
@@ -2357,6 +2379,8 @@ export default function App() {
               onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
               blockedUsers={blockedUsers}
               onUnblockUser={handleUnblockUser}
+              moderators={myModerators}
+              onRemoveModerator={handleRemoveModerator}
             />
           )}
 

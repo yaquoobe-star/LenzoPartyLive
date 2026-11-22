@@ -130,11 +130,12 @@ class WebRtcMediaService {
   private partyUnsubscribeWs: (() => void) | null = null;
   private partyUnsubscribeFs: (() => void) | null = null;
   private partyPresenceTimer: ReturnType<typeof setInterval> | null = null;
+  private partyQuickPresenceTimer: ReturnType<typeof setTimeout> | null = null;
 
   private getRtcConfig(): RTCConfiguration {
     return {
       iceServers: this.cachedIceServers,
-      iceCandidatePoolSize: 6,
+      iceCandidatePoolSize: 8,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
     };
@@ -1100,6 +1101,14 @@ class WebRtcMediaService {
     });
 
     this.announcePartyPresence();
+    // Fast initial re-announce at 650ms so simultaneous joiners lock audio within ~1.5-3s
+    this.partyQuickPresenceTimer = setTimeout(() => {
+      this.partyQuickPresenceTimer = null;
+      if (this.partyRoomId) {
+        this.announcePartyPresence();
+      }
+    }, 650);
+
     let ticks = 0;
     this.partyPresenceTimer = setInterval(() => {
       ticks += 1;
@@ -1111,7 +1120,7 @@ class WebRtcMediaService {
         return;
       }
       this.announcePartyPresence();
-    }, 3000);
+    }, 2400);
   }
 
   public updatePartySpeakerRole(isSpeaker: boolean, localAudioStream: MediaStream | null) {
@@ -1242,7 +1251,7 @@ class WebRtcMediaService {
         sessionId,
         ice: batch.slice(0, 32),
       });
-    }, 220);
+    }, 60);
     this.partyIceFlushTimers.set(peerId, timer);
   }
 
@@ -1542,6 +1551,10 @@ class WebRtcMediaService {
   }
 
   public stopPartyVoice() {
+    if (this.partyQuickPresenceTimer) {
+      clearTimeout(this.partyQuickPresenceTimer);
+      this.partyQuickPresenceTimer = null;
+    }
     if (this.partyPresenceTimer) {
       clearInterval(this.partyPresenceTimer);
       this.partyPresenceTimer = null;

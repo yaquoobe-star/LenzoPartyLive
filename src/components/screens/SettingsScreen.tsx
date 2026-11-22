@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Shield,
+  ShieldCheck,
   Bell,
   Globe,
   Moon,
@@ -19,7 +20,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
-import { ScreenType, UserProfile } from '../../types';
+import { HostModeratorRecord, ScreenType, UserProfile } from '../../types';
 import { BlockedUserRecord } from '../../services/blockService';
 import { BlockedUsersModal } from '../profile/BlockedUsersModal';
 import {
@@ -43,6 +44,8 @@ interface SettingsScreenProps {
   onOpenAdminProgression?: () => void;
   blockedUsers?: BlockedUserRecord[];
   onUnblockUser?: (targetUserId: string, targetName?: string) => Promise<void> | void;
+  moderators?: HostModeratorRecord[];
+  onRemoveModerator?: (moderatorUserId: string, moderatorName?: string) => Promise<void> | void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -55,6 +58,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenAdminProgression,
   blockedUsers = [],
   onUnblockUser,
+  moderators = [],
+  onRemoveModerator,
 }) => {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
@@ -73,6 +78,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<string[]>(() => getLinkedAuthProviders());
   const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
+  const [isModeratorsModalOpen, setIsModeratorsModalOpen] = useState(false);
+  const [removingModId, setRemovingModId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const savedAccountsCount = getSavedDeviceAccounts().length;
@@ -583,6 +590,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
           </div>
 
+          {/* Moderation & Lifetime Moderators */}
+          <div
+            onClick={() => setIsModeratorsModalOpen(true)}
+            className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-cyan-500/20 hover:border-cyan-400/40 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-cyan-400" />
+              <div>
+                <span className="text-sm font-semibold text-white block">Moderation &amp; Moderators</span>
+                <span className="text-[10px] text-[#B9AECF]">
+                  Manage lifetime moderators for your Party Rooms
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-[11px] font-bold text-cyan-300">
+                {moderators.length}
+              </span>
+              <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
+            </div>
+          </div>
+
           {/* Blocked Users */}
           <div
             onClick={() => setIsBlockedModalOpen(true)}
@@ -597,6 +626,106 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
             </div>
           </div>
+
+          {/* Manage Lifetime Moderators Modal */}
+          {isModeratorsModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+              <div className="w-full max-w-md rounded-3xl bg-[#140A24] border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[82vh]">
+                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-cyan-950/60 via-[#1A0D30] to-indigo-950/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5 text-cyan-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-white">My Room Moderators</h3>
+                      <p className="text-[11px] text-cyan-200/80">
+                        Active for life across all your broadcasts until removed
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsModeratorsModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-4 overflow-y-auto flex-1 space-y-2.5">
+                  {moderators.length === 0 ? (
+                    <div className="py-10 px-4 text-center space-y-2">
+                      <div className="w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-400/25 flex items-center justify-center">
+                        <ShieldCheck className="w-6 h-6 text-cyan-300/70" />
+                      </div>
+                      <p className="text-sm font-bold text-white">No Moderators Assigned Yet</p>
+                      <p className="text-xs text-[#B9AECF] leading-relaxed">
+                        Open your Party Room, tap any user on a seat, comment, or audience list, and choose{' '}
+                        <span className="text-cyan-300 font-bold">Make Moderator</span>. They will keep Moderator
+                        powers across all your future rooms until you remove them here.
+                      </p>
+                    </div>
+                  ) : (
+                    moderators.map((mod) => (
+                      <div
+                        key={mod.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/[0.04] border border-white/10"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={
+                              mod.moderatorAvatar ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(mod.moderatorName || 'M')}&background=0891b2&color=fff`
+                            }
+                            alt={mod.moderatorName}
+                            className="w-11 h-11 rounded-full object-cover border-2 border-cyan-400/70 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-black text-white truncate">
+                                {mod.moderatorName}
+                              </span>
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 text-[8.5px] font-black uppercase text-white">
+                                <ShieldCheck className="w-2.5 h-2.5" />
+                                MOD
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#B9AECF] truncate">
+                              {mod.moderatorUsername ? `${mod.moderatorUsername} · ` : ''}
+                              {mod.moderatorDisplayId ? `ID: ${mod.moderatorDisplayId}` : 'Lifetime Moderator'}
+                            </p>
+                            <p className="text-[9.5px] text-white/45 mt-0.5">
+                              Added {new Date(mod.assignedAt || Date.now()).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          disabled={removingModId === mod.moderatorUserId}
+                          onClick={async () => {
+                            if (!onRemoveModerator) return;
+                            setRemovingModId(mod.moderatorUserId);
+                            try {
+                              await onRemoveModerator(mod.moderatorUserId, mod.moderatorName);
+                              showToast(`${mod.moderatorName} removed from Moderators.`);
+                            } finally {
+                              setRemovingModId(null);
+                            }
+                          }}
+                          className="shrink-0 px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-rose-300 text-[11px] font-bold transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          {removingModId === mod.moderatorUserId ? 'Removing...' : 'Remove'}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="px-4 py-3 border-t border-white/10 bg-white/[0.02] text-[10.5px] text-[#B9AECF] leading-relaxed">
+                  Moderators can control seats, accept requests, kick or block users (except the Host), and delete or clear chat history.
+                </div>
+              </div>
+            </div>
+          )}
 
           <BlockedUsersModal
             isOpen={isBlockedModalOpen}

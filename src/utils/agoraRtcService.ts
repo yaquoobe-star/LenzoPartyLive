@@ -75,6 +75,7 @@ class AgoraRtcService {
   private activeLeavePromise: Promise<void> | null = null;
   private isLeaving: boolean = false;
   private isRenewingToken: boolean = false;
+  private backendUnavailableUntil: number = 0;
 
   // Remote streams keyed by normalized string UID
   private remoteHosts: Map<string, AgoraRemoteHost> = new Map();
@@ -150,8 +151,11 @@ class AgoraRtcService {
    * Fetch Agora Configuration from backend
    */
   async getAgoraConfig(): Promise<AgoraServerConfig> {
+    if (Date.now() < this.backendUnavailableUntil) {
+      return { configured: false, appId: '', tokenRequired: true, mode: 'unconfigured' };
+    }
     try {
-      const res = await apiFetch('/api/agora/config', { timeoutMs: 4500 });
+      const res = await apiFetch('/api/agora/config', { timeoutMs: 2200 });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
         return {
@@ -162,7 +166,11 @@ class AgoraRtcService {
           mode: data.mode,
         };
       }
+      if (res.status >= 500 || !res.headers.get('content-type')?.includes('application/json')) {
+        this.backendUnavailableUntil = Date.now() + 25_000;
+      }
     } catch (e) {
+      this.backendUnavailableUntil = Date.now() + 25_000;
       console.warn('[Agora RTC] Failed to fetch Agora config:', e);
     }
     return { configured: false, appId: '', tokenRequired: true, mode: 'unconfigured' };
@@ -175,13 +183,22 @@ class AgoraRtcService {
     channelName: string,
     userAccount: string,
     role: 'broadcaster' | 'audience',
-    isRefresh: boolean = false
+    isRefresh: boolean = false,
+    timeoutMs?: number
   ): Promise<AgoraTokenResponse> {
+    if (!isRefresh && Date.now() < this.backendUnavailableUntil) {
+      return {
+        token: null,
+        appId: '',
+        configured: false,
+        error: 'Agora token backend temporarily unavailable (using fast WebRTC fallback)',
+      };
+    }
     try {
       const endpoint = isRefresh ? '/api/agora/refresh-token' : '/api/agora/token';
       const res = await apiFetch(endpoint, {
         method: 'POST',
-        timeoutMs: 7000,
+        timeoutMs: timeoutMs ?? (isRefresh ? 5000 : 2000),
         body: JSON.stringify({
           channelName,
           uid: userAccount,
@@ -190,6 +207,9 @@ class AgoraRtcService {
       });
 
       if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) {
+        if (!isRefresh && (res.status >= 500 || !res.headers.get('content-type')?.includes('application/json'))) {
+          this.backendUnavailableUntil = Date.now() + 25_000;
+        }
         const errText = await res.text().catch(() => '');
         return {
           token: null,
@@ -200,6 +220,7 @@ class AgoraRtcService {
       }
 
       const data = await res.json();
+      this.backendUnavailableUntil = 0;
       return {
         token: data.token ?? null,
         appId: String(data.appId || ''),
@@ -209,6 +230,9 @@ class AgoraRtcService {
         error: data.error,
       };
     } catch (err: any) {
+      if (!isRefresh) {
+        this.backendUnavailableUntil = Date.now() + 25_000;
+      }
       console.warn('[Agora RTC] Failed to request RTC token:', err?.message || err);
       return {
         token: null,

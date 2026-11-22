@@ -208,6 +208,18 @@ export interface RoomKickRecord {
   expiresAt: number | null; // null = current stream/session only
 }
 
+export interface HostModeratorRecord {
+  id: string; // deterministic: `${hostId}_${moderatorUserId}`
+  hostId: string;
+  moderatorUserId: string;
+  moderatorName: string;
+  moderatorUsername?: string;
+  moderatorDisplayId?: string;
+  moderatorAvatar?: string;
+  assignedByName?: string;
+  assignedAt: number;
+}
+
 export interface PartyRoom {
   id: string;
   title: string;
@@ -231,6 +243,7 @@ export interface PartyRoom {
   isOwnerPresent?: boolean;
   startTime?: number;
   likesCount?: number;
+  chatClearedAt?: number;
   backgroundType?: 'preset' | 'host_dp' | 'custom';
   backgroundId?: string;
   backgroundImage?: string;
@@ -309,6 +322,7 @@ export interface MessageReaction {
 
 export interface MessageReplyPreview {
   id: string;
+  senderId?: string;
   senderName: string;
   text: string;
   type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share' | 'coin_request';

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'motion/react';
-import { Lock, Mic, MicOff, Plus } from 'lucide-react';
+import { Lock, Mic, MicOff, Plus, ShieldCheck } from 'lucide-react';
 import { PartySofaTheme, UserProfile } from '../../types';
 
 export type PartySofaVariant = 'host' | 'cohost' | 'guest';
@@ -15,6 +15,7 @@ interface PartySofaSeatProps {
   isLevelLocked?: boolean;
   levelLockText?: string;
   badgeText?: string;
+  isModerator?: boolean;
   label: string;
   compact?: boolean;
   seatTheme?: PartySofaTheme;
@@ -285,6 +286,7 @@ export const PartySofaSeat: React.FC<PartySofaSeatProps> = ({
   isLevelLocked = false,
   levelLockText = 'Lv.5',
   badgeText,
+  isModerator = false,
   label,
   compact = false,
   seatTheme = 'default',
@@ -819,6 +821,16 @@ export const PartySofaSeat: React.FC<PartySofaSeatProps> = ({
           {label}
         </motion.span>
       </AnimatePresence>
+
+      {/* Lifetime Moderator Tag right below name on seat */}
+      {occupied && isModerator && (
+        <div className="mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-cyan-500/95 via-sky-500/95 to-indigo-500/95 border border-cyan-200/50 shadow-[0_0_8px_rgba(34,211,238,0.45)]">
+          <ShieldCheck className="w-2.5 h-2.5 text-white shrink-0" />
+          <span className="text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-white leading-none">
+            Moderator
+          </span>
+        </div>
+      )}
     </motion.div>
   );
 };

@@ -8,7 +8,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { RoomKickDuration, RoomKickRecord, UserProfile } from '../types';
+import { HostModeratorRecord, RoomKickDuration, RoomKickRecord, UserProfile } from '../types';
 import {
   cancelFirestoreSeatRequest,
   evictFirestoreRoomParticipant,
@@ -214,8 +214,8 @@ export async function kickUserFromRoom(params: {
     expiresAt,
   };
 
-  // Persist to Firestore (primary real-time source of truth)
-  if (auth.currentUser && auth.currentUser.uid === hostId) {
+  // Persist to Firestore (authorized for Host, verified Host Moderator, or Admin)
+  if (auth.currentUser) {
     try {
       const payload: Record<string, any> = {
         roomId: record.roomId,
@@ -341,3 +341,167 @@ export function subscribeRoomKicksForHost(
     }
   );
 }
+
+// ============================================================================
+// LIFETIME HOST MODERATORS (/host_moderators/{hostId}_{moderatorUserId})
+// Persists across all future broadcasts & party rooms until manually removed
+// ============================================================================
+
+const LOCAL_MODS_KEY = 'lenzo_party_host_moderators_v1';
+
+function readLocalModerators(hostId: string): HostModeratorRecord[] {
+  try {
+    const raw = localStorage.getItem(`${LOCAL_MODS_KEY}_${hostId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalModerators(hostId: string, records: HostModeratorRecord[]) {
+  try {
+    localStorage.setItem(`${LOCAL_MODS_KEY}_${hostId}`, JSON.stringify(records));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+export function getHostModeratorDocId(hostId: string, moderatorUserId: string): string {
+  return `${hostId}_${moderatorUserId}`;
+}
+
+function mapHostModeratorDoc(id: string, raw: Record<string, any>): HostModeratorRecord {
+  return {
+    id,
+    hostId: String(raw.hostId || ''),
+    moderatorUserId: String(raw.moderatorUserId || ''),
+    moderatorName: String(raw.moderatorName || 'Moderator'),
+    moderatorUsername: raw.moderatorUsername ? String(raw.moderatorUsername) : '',
+    moderatorDisplayId: raw.moderatorDisplayId ? String(raw.moderatorDisplayId) : '',
+    moderatorAvatar: raw.moderatorAvatar ? String(raw.moderatorAvatar) : '',
+    assignedByName: raw.assignedByName ? String(raw.assignedByName) : '',
+    assignedAt: typeof raw.assignedAt === 'number' ? raw.assignedAt : Date.now(),
+  };
+}
+
+/**
+ * Assign a user as a lifetime Moderator for a Host (applies to all current & future rooms until removed).
+ */
+export async function assignHostModerator(params: {
+  hostId: string;
+  hostName?: string;
+  targetUser: Pick<UserProfile, 'id' | 'name' | 'username' | 'displayId' | 'avatar'>;
+}): Promise<{ success: boolean; record?: HostModeratorRecord; error?: string }> {
+  const { hostId, hostName = 'Host', targetUser } = params;
+  if (!isValidId(hostId) || !isValidId(targetUser?.id)) {
+    return { success: false, error: 'Invalid host or user ID.' };
+  }
+  if (hostId === targetUser.id) {
+    return { success: false, error: 'Host already has full room control.' };
+  }
+  if (!auth.currentUser || auth.currentUser.uid !== hostId) {
+    return { success: false, error: 'Only the room Host can assign moderators.' };
+  }
+
+  const modId = getHostModeratorDocId(hostId, targetUser.id);
+  const now = Date.now();
+  const record: HostModeratorRecord = {
+    id: modId,
+    hostId,
+    moderatorUserId: targetUser.id,
+    moderatorName: (targetUser.name || 'User').slice(0, 64),
+    moderatorUsername: (targetUser.username || '').slice(0, 64),
+    moderatorDisplayId: (targetUser.displayId || '').slice(0, 32),
+    moderatorAvatar: (targetUser.avatar || '').slice(0, 1500),
+    assignedByName: hostName.slice(0, 64),
+    assignedAt: now,
+  };
+
+  try {
+    await setDoc(doc(db, 'host_moderators', modId), {
+      hostId: record.hostId,
+      moderatorUserId: record.moderatorUserId,
+      moderatorName: record.moderatorName,
+      moderatorUsername: record.moderatorUsername || '',
+      moderatorDisplayId: record.moderatorDisplayId || '',
+      moderatorAvatar: record.moderatorAvatar || '',
+      assignedByName: record.assignedByName || '',
+      assignedAt: record.assignedAt,
+    });
+
+    const cached = readLocalModerators(hostId).filter(
+      (m) => m.moderatorUserId !== targetUser.id
+    );
+    writeLocalModerators(hostId, [record, ...cached]);
+    return { success: true, record };
+  } catch (err: any) {
+    console.warn('[RoomModeration] assignHostModerator error:', err);
+    return { success: false, error: err?.message || 'Could not assign moderator.' };
+  }
+}
+
+/**
+ * Permanently remove a lifetime Moderator for a Host.
+ */
+export async function removeHostModerator(params: {
+  hostId: string;
+  moderatorUserId: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { hostId, moderatorUserId } = params;
+  if (!isValidId(hostId) || !isValidId(moderatorUserId) || !auth.currentUser) {
+    return { success: false, error: 'Invalid moderator record.' };
+  }
+  const modId = getHostModeratorDocId(hostId, moderatorUserId);
+  try {
+    await deleteDoc(doc(db, 'host_moderators', modId));
+    const cached = readLocalModerators(hostId).filter(
+      (m) => m.moderatorUserId !== moderatorUserId
+    );
+    writeLocalModerators(hostId, cached);
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[RoomModeration] removeHostModerator error:', err);
+    return { success: false, error: err?.message || 'Could not remove moderator.' };
+  }
+}
+
+/**
+ * Subscribe in real time to all lifetime Moderators assigned by a specific Host.
+ * Used both in Party Rooms (to display MOD badges & grant live permissions) and in Settings.
+ */
+export function subscribeHostModerators(
+  hostId: string,
+  onUpdate: (records: HostModeratorRecord[]) => void
+): () => void {
+  if (!isValidId(hostId) || !auth.currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
+
+  const cached = readLocalModerators(hostId);
+  if (cached.length > 0) {
+    onUpdate(cached);
+  }
+
+  const q = query(
+    collection(db, 'host_moderators'),
+    where('hostId', '==', hostId)
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list = snap.docs
+        .map((d) => mapHostModeratorDoc(d.id, d.data()))
+        .sort((a, b) => b.assignedAt - a.assignedAt);
+      writeLocalModerators(hostId, list);
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('[RoomModeration] subscribeHostModerators notice:', err?.message || err);
+    }
+  );
+}
+

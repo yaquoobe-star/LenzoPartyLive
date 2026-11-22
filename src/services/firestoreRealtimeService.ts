@@ -2,10 +2,12 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   runTransaction,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { ChatMessage, LiveViewerInfo, UserProfile } from '../types';
@@ -573,7 +575,13 @@ export async function sendFirestoreRoomMessage(
   sender: UserProfile,
   text: string,
   isHost: boolean,
-  customId?: string
+  customId?: string,
+  replyTo?: {
+    id: string;
+    senderId?: string;
+    senderName: string;
+    text: string;
+  } | null
 ): Promise<ChatMessage | null> {
   const uid = auth.currentUser?.uid;
   const trimmed = text.trim().slice(0, 500);
@@ -582,6 +590,16 @@ export async function sendFirestoreRoomMessage(
   const rawId = customId && isValidFirestoreId(customId)
     ? customId
     : `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+  const cleanReply =
+    replyTo && replyTo.senderName
+      ? {
+          id: String(replyTo.id || '').slice(0, 128),
+          ...(replyTo.senderId ? { senderId: String(replyTo.senderId).slice(0, 128) } : {}),
+          senderName: String(replyTo.senderName).slice(0, 64),
+          text: String(replyTo.text || '').slice(0, 180),
+        }
+      : undefined;
 
   const now = Date.now();
   const msg: ChatMessage = {
@@ -596,18 +614,64 @@ export async function sendFirestoreRoomMessage(
     text: trimmed,
     timestamp: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     isHost,
+    ...(cleanReply ? { replyTo: cleanReply } : {}),
   };
 
   try {
-    await setDoc(doc(db, 'party_rooms', roomId, 'messages', rawId), {
+    const payload: Record<string, any> = {
       ...msg,
       userId: uid,
       createdAt: now,
-    });
+    };
+    if (cleanReply) {
+      payload.replyToMessageId = cleanReply.id;
+      if (cleanReply.senderId) payload.replyToUserId = cleanReply.senderId;
+      payload.replyToUserName = cleanReply.senderName;
+      payload.replyToText = cleanReply.text;
+    }
+    await setDoc(doc(db, 'party_rooms', roomId, 'messages', rawId), payload);
     return msg;
   } catch (err) {
     console.warn('[Firestore Room] sendMessage notice:', err);
     return null;
+  }
+}
+
+export async function deleteFirestoreRoomMessage(
+  roomId: string,
+  messageId: string
+): Promise<boolean> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId) || !isValidFirestoreId(messageId)) {
+    return false;
+  }
+  try {
+    await deleteDoc(doc(db, 'party_rooms', roomId, 'messages', messageId));
+    return true;
+  } catch (err) {
+    console.warn('[Firestore Room] deleteMessage notice:', err);
+    return false;
+  }
+}
+
+export async function clearFirestoreRoomMessages(roomId: string): Promise<boolean> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return false;
+  try {
+    const snap = await getDocs(collection(db, 'party_rooms', roomId, 'messages'));
+    const docs = snap.docs;
+    // Delete in batches of up to 400 documents
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    // Stamp chatClearedAt so every connected viewer wipes local/WS messages immediately too
+    await updateDoc(doc(db, 'party_rooms', roomId), {
+      chatClearedAt: Date.now(),
+    }).catch(() => {});
+    return true;
+  } catch (err) {
+    console.warn('[Firestore Room] clearMessages notice:', err);
+    return false;
   }
 }
 
@@ -625,6 +689,16 @@ export function subscribeFirestoreRoomMessages(
       const items = snap.docs
         .map((d) => {
           const data = d.data();
+          const rawReply = data.replyTo && typeof data.replyTo === 'object' ? data.replyTo : null;
+          const replySenderName = rawReply?.senderName || data.replyToUserName || '';
+          const replyTo = replySenderName
+            ? {
+                id: String(rawReply?.id || data.replyToMessageId || ''),
+                senderId: rawReply?.senderId || data.replyToUserId ? String(rawReply?.senderId || data.replyToUserId) : undefined,
+                senderName: String(replySenderName),
+                text: String(rawReply?.text || data.replyToText || ''),
+              }
+            : undefined;
           return {
             createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
             msg: {
@@ -634,12 +708,14 @@ export function subscribeFirestoreRoomMessages(
               senderAvatar: String(data.senderAvatar || ''),
               text: String(data.text || ''),
               timestamp: String(data.timestamp || 'Now'),
+              createdAtMillis: typeof data.createdAt === 'number' ? data.createdAt : 0,
               isHost: Boolean(data.isHost),
               senderLevel: typeof data.senderLevel === 'number' ? data.senderLevel : typeof data.level === 'number' ? data.level : 0,
               senderVip: typeof data.senderVip === 'number' ? data.senderVip : typeof data.vipLevel === 'number' ? data.vipLevel : 0,
               senderSuperVip: typeof data.senderSuperVip === 'number' ? data.senderSuperVip : typeof data.superVipLevel === 'number' ? data.superVipLevel : 0,
               senderIsVip: Boolean(data.senderIsVip || data.isVIP || (typeof data.senderVip === 'number' && data.senderVip > 0)),
               isSystem: Boolean(data.isSystem),
+              ...(replyTo ? { replyTo } : {}),
             } as ChatMessage,
           };
         })
@@ -734,6 +810,8 @@ export async function syncFirestorePartyRoomState(
     backgroundId?: string;
     backgroundImage?: string;
     seatTheme?: 'default' | 'gold' | 'green';
+    chatClearedAt?: number;
+    isModerator?: boolean;
   }
 ): Promise<void> {
   if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
@@ -784,15 +862,20 @@ export async function syncFirestorePartyRoomState(
     if (typeof patch.likesCount === 'number') {
       payload.likesCount = Math.max(0, Math.floor(patch.likesCount));
     }
+    if (typeof patch.chatClearedAt === 'number') {
+      payload.chatClearedAt = Math.max(0, Math.floor(patch.chatClearedAt));
+    }
+    if (isHost || patch.isModerator) {
+      if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
+      if (typeof patch.isLocked === 'boolean') payload.isLocked = patch.isLocked;
+      if (typeof patch.allowJoin === 'boolean') payload.allowJoin = patch.allowJoin;
+      if (typeof patch.announcement === 'string') payload.announcement = patch.announcement.slice(0, 200);
+    }
     if (isHost) {
       if (patch.host) {
         const compactHost = compactSeatUser(patch.host);
         if (compactHost) payload.host = compactHost;
       }
-      if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
-      if (typeof patch.isLocked === 'boolean') payload.isLocked = patch.isLocked;
-      if (typeof patch.allowJoin === 'boolean') payload.allowJoin = patch.allowJoin;
-      if (typeof patch.announcement === 'string') payload.announcement = patch.announcement.slice(0, 200);
       if (clampedMaxSeats !== undefined) payload.maxSeats = clampedMaxSeats;
       if (
         patch.backgroundType === 'preset' ||

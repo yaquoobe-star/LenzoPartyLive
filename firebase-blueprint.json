@@ -219,6 +219,10 @@
           "type": "string",
           "description": "Party room sofa seat color theme chosen by host",
           "enum": ["default", "gold", "green"]
+        },
+        "chatClearedAt": {
+          "type": "number",
+          "description": "Epoch milliseconds timestamp when host or moderator last cleared the room chat history"
         }
       },
       "required": ["title", "category", "maxSeats"]
@@ -566,6 +570,10 @@
         "senderName": { "type": "string", "maxLength": 80 },
         "text": { "type": "string", "maxLength": 500 },
         "type": { "type": "string", "enum": ["chat", "gift", "system"] },
+        "replyToMessageId": { "type": "string", "maxLength": 128 },
+        "replyToUserId": { "type": "string", "maxLength": 128 },
+        "replyToUserName": { "type": "string", "maxLength": 64 },
+        "replyToText": { "type": "string", "maxLength": 180 },
         "createdAt": { "type": "string" }
       },
       "required": ["userId", "text"]
@@ -707,6 +715,22 @@
         "expiresAt": { "type": "number" }
       },
       "required": ["roomId", "hostId", "targetUserId", "targetUserName", "durationType", "kickedAt"]
+    },
+    "HostModerator": {
+      "title": "HostModerator",
+      "description": "Lifetime room moderator assigned by a Host across all current and future party rooms/broadcasts until removed",
+      "type": "object",
+      "properties": {
+        "hostId": { "type": "string", "maxLength": 128 },
+        "moderatorUserId": { "type": "string", "maxLength": 128 },
+        "moderatorName": { "type": "string", "maxLength": 64 },
+        "moderatorUsername": { "type": "string", "maxLength": 64 },
+        "moderatorDisplayId": { "type": "string", "maxLength": 32 },
+        "moderatorAvatar": { "type": "string", "maxLength": 1500 },
+        "assignedByName": { "type": "string", "maxLength": 64 },
+        "assignedAt": { "type": "number" }
+      },
+      "required": ["hostId", "moderatorUserId", "moderatorName", "assignedAt"]
     },
     "Reel": {
       "title": "Reel",
@@ -1088,6 +1112,10 @@
     "/room_kicks/{kickId}": {
       "schema": "RoomKick",
       "description": "Persisted host party room kick records keyed by roomId_targetUserId enforcing session, 24h, 15d, and 30d re-entry bans"
+    },
+    "/host_moderators/{modId}": {
+      "schema": "HostModerator",
+      "description": "Persisted lifetime Host Moderator assignments keyed by hostId_moderatorUserId"
     },
     "/reels/{reelId}": {
       "schema": "Reel",

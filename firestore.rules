@@ -57,6 +57,12 @@ service cloud.firestore {
         );
     }
 
+    function isHostModerator(hostUid, candidateUid) {
+      return hostUid is string
+        && candidateUid is string
+        && exists(/databases/$(database)/documents/host_moderators/$(hostUid + '_' + candidateUid));
+    }
+
     function isActiveCoinSellerOwner() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/agencies/$('cs_' + request.auth.uid))
@@ -345,6 +351,31 @@ service cloud.firestore {
                         )
                       )
                       || (
+                        isHostModerator(existing().host.id, request.auth.uid)
+                        && incoming().host.id == existing().host.id
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'seats',
+                          'seatRequests',
+                          'mutedSeatIndices',
+                          'isLocked',
+                          'allowJoin',
+                          'announcement',
+                          'chatClearedAt',
+                          'viewersCount',
+                          'numericParticipants',
+                          'participantCount',
+                          'likesCount',
+                          'lastHeartEvent'
+                        ])
+                        && (
+                          !incoming().diff(existing()).affectedKeys().hasAny(['seats'])
+                          || isValidGuestPartySeatUpdate(incoming(), existing())
+                        )
+                        && (!('chatClearedAt' in incoming()) || incoming().chatClearedAt is number)
+                        && (!('announcement' in incoming()) || (incoming().announcement is string && incoming().announcement.size() <= 500))
+                        && (!('mutedSeatIndices' in incoming()) || (incoming().mutedSeatIndices is list && incoming().mutedSeatIndices.size() <= 16))
+                      )
+                      || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
                         && !isKickedFromRoom(roomId, request.auth.uid)
                         && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount', 'lastHeartEvent'])
@@ -368,7 +399,11 @@ service cloud.firestore {
                       && incoming().userId == request.auth.uid
                       && incoming().text is string
                       && incoming().text.size() > 0
-                      && incoming().text.size() <= 500;
+                      && incoming().text.size() <= 500
+                      && (!('replyToMessageId' in incoming()) || (incoming().replyToMessageId is string && incoming().replyToMessageId.size() <= 128))
+                      && (!('replyToUserId' in incoming()) || (incoming().replyToUserId is string && incoming().replyToUserId.size() <= 128))
+                      && (!('replyToUserName' in incoming()) || (incoming().replyToUserName is string && incoming().replyToUserName.size() <= 64))
+                      && (!('replyToText' in incoming()) || (incoming().replyToText is string && incoming().replyToText.size() <= 180));
         allow update: if false;
         allow delete: if isSignedIn()
                       && isValidId(roomId)
@@ -376,6 +411,7 @@ service cloud.firestore {
                       && (
                         existing().userId == request.auth.uid
                         || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
+                        || isHostModerator(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
                         || isAdmin()
                       );
       }
@@ -404,6 +440,7 @@ service cloud.firestore {
                       && (
                         participantId == request.auth.uid
                         || get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id == request.auth.uid
+                        || isHostModerator(get(/databases/$(database)/documents/party_rooms/$(roomId)).data.host.id, request.auth.uid)
                         || isAdmin()
                       );
       }
@@ -1006,9 +1043,16 @@ service cloud.firestore {
                   && (resource.data.blockerId == request.auth.uid || resource.data.blockedUserId == request.auth.uid || isAdmin());
       allow create: if isSignedIn()
                     && isValidId(blockId)
-                    && blockId == (request.auth.uid + '_' + incoming().blockedUserId)
+                    && blockId == (incoming().blockerId + '_' + incoming().blockedUserId)
                     && isValidBlockedUser(incoming())
-                    && incoming().blockerId == request.auth.uid;
+                    && (
+                      incoming().blockerId == request.auth.uid
+                      || (
+                        isHostModerator(incoming().blockerId, request.auth.uid)
+                        && incoming().blockedUserId != incoming().blockerId
+                        && !isHostModerator(incoming().blockerId, incoming().blockedUserId)
+                      )
+                    );
       allow update: if false;
       allow delete: if isSignedIn()
                     && isValidId(blockId)
@@ -1039,9 +1083,19 @@ service cloud.firestore {
     match /room_kicks/{kickId} {
       allow get: if isSignedIn()
                  && isValidId(kickId)
-                 && (existing().hostId == request.auth.uid || existing().targetUserId == request.auth.uid || isAdmin());
+                 && (
+                   existing().hostId == request.auth.uid
+                   || existing().targetUserId == request.auth.uid
+                   || isHostModerator(existing().hostId, request.auth.uid)
+                   || isAdmin()
+                 );
       allow list: if isSignedIn()
-                  && (resource.data.hostId == request.auth.uid || resource.data.targetUserId == request.auth.uid || isAdmin());
+                  && (
+                    resource.data.hostId == request.auth.uid
+                    || resource.data.targetUserId == request.auth.uid
+                    || isHostModerator(resource.data.hostId, request.auth.uid)
+                    || isAdmin()
+                  );
       allow create, update: if isSignedIn()
                             && isValidId(kickId)
                             && kickId == (incoming().roomId + '_' + incoming().targetUserId)
@@ -1053,9 +1107,54 @@ service cloud.firestore {
                                 && exists(/databases/$(database)/documents/party_rooms/$(incoming().roomId))
                                 && get(/databases/$(database)/documents/party_rooms/$(incoming().roomId)).data.host.id == request.auth.uid
                               )
+                              || (
+                                isHostModerator(incoming().hostId, request.auth.uid)
+                                && incoming().targetUserId != incoming().hostId
+                                && !isHostModerator(incoming().hostId, incoming().targetUserId)
+                                && exists(/databases/$(database)/documents/party_rooms/$(incoming().roomId))
+                                && get(/databases/$(database)/documents/party_rooms/$(incoming().roomId)).data.host.id == incoming().hostId
+                              )
                             );
       allow delete: if isSignedIn()
                     && isValidId(kickId)
+                    && (
+                      existing().hostId == request.auth.uid
+                      || isHostModerator(existing().hostId, request.auth.uid)
+                      || isAdmin()
+                    );
+    }
+
+    // ========================================================
+    // 16C. LIFETIME HOST MODERATORS (/host_moderators/{modId})
+    // ========================================================
+    function isValidHostModerator(data) {
+      return data.keys().hasAll(['hostId', 'moderatorUserId', 'moderatorName', 'assignedAt'])
+        && data.keys().hasOnly([
+          'hostId', 'moderatorUserId', 'moderatorName', 'moderatorUsername',
+          'moderatorDisplayId', 'moderatorAvatar', 'assignedByName', 'assignedAt'
+        ])
+        && data.hostId is string && data.hostId.size() > 0 && data.hostId.size() <= 128
+        && data.moderatorUserId is string && data.moderatorUserId.size() > 0 && data.moderatorUserId.size() <= 128
+        && data.hostId != data.moderatorUserId
+        && data.moderatorName is string && data.moderatorName.size() > 0 && data.moderatorName.size() <= 64
+        && (!('moderatorUsername' in data) || (data.moderatorUsername is string && data.moderatorUsername.size() <= 64))
+        && (!('moderatorDisplayId' in data) || (data.moderatorDisplayId is string && data.moderatorDisplayId.size() <= 32))
+        && (!('moderatorAvatar' in data) || (data.moderatorAvatar is string && data.moderatorAvatar.size() <= 1500))
+        && (!('assignedByName' in data) || (data.assignedByName is string && data.assignedByName.size() <= 64))
+        && data.assignedAt is number && data.assignedAt > 0;
+    }
+
+    match /host_moderators/{modId} {
+      // Public display info only (no PII) so viewers in any room can render Moderator badges on seats & comments
+      allow get: if isSignedIn() && isValidId(modId);
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn()
+                            && isValidId(modId)
+                            && modId == (request.auth.uid + '_' + incoming().moderatorUserId)
+                            && incoming().hostId == request.auth.uid
+                            && isValidHostModerator(incoming());
+      allow delete: if isSignedIn()
+                    && isValidId(modId)
                     && (existing().hostId == request.auth.uid || isAdmin());
     }
 

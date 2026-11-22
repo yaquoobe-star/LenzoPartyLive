@@ -60351,7 +60351,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-eSmQZI9A.js").then((m) => new m.AppWeb()), []) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-CXpgHQts.js").then((m) => new m.AppWeb()), []) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -60403,7 +60403,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-jGAitabQ.js").then((m) => new m.SplashScreenWeb()), []) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-DDQn1cE6.js").then((m) => new m.SplashScreenWeb()), []) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -62310,7 +62310,7 @@ async function blockUser(params) {
 		createdAt: nowIso
 	};
 	writeLocalBlocks(blockerId, [record, ...readLocalBlocks(blockerId).filter((r) => r.blockedUserId !== targetUser.id)]);
-	if (auth.currentUser && auth.currentUser.uid === blockerId) {
+	if (auth.currentUser) {
 		try {
 			await setDoc(doc(db, "blocked_users", blockId), {
 				blockerId: record.blockerId,
@@ -62325,7 +62325,7 @@ async function blockUser(params) {
 		} catch (err) {
 			console.warn("[BlockService] Firestore block write notice:", err);
 		}
-		try {
+		if (auth.currentUser.uid === blockerId) try {
 			await deleteDoc(doc(db, "follows", `${blockerId}_${targetUser.id}`)).catch(() => {});
 		} catch {}
 	}
@@ -62712,11 +62712,17 @@ function subscribeFirestoreRoomParticipants(roomId, onUpdate) {
 		console.warn("[Firestore Room] Participants subscription notice:", err?.message || err);
 	});
 }
-async function sendFirestoreRoomMessage(roomId, sender, text, isHost, customId) {
+async function sendFirestoreRoomMessage(roomId, sender, text, isHost, customId, replyTo) {
 	const uid = auth.currentUser?.uid;
 	const trimmed = text.trim().slice(0, 500);
 	if (!uid || !trimmed || !isValidFirestoreId(roomId)) return null;
 	const rawId = customId && isValidFirestoreId(customId) ? customId : `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+	const cleanReply = replyTo && replyTo.senderName ? {
+		id: String(replyTo.id || "").slice(0, 128),
+		...replyTo.senderId ? { senderId: String(replyTo.senderId).slice(0, 128) } : {},
+		senderName: String(replyTo.senderName).slice(0, 64),
+		text: String(replyTo.text || "").slice(0, 180)
+	} : void 0;
 	const now = Date.now();
 	const msg = {
 		id: rawId,
@@ -62732,18 +62738,52 @@ async function sendFirestoreRoomMessage(roomId, sender, text, isHost, customId) 
 			hour: "2-digit",
 			minute: "2-digit"
 		}),
-		isHost
+		isHost,
+		...cleanReply ? { replyTo: cleanReply } : {}
 	};
 	try {
-		await setDoc(doc(db, "party_rooms", roomId, "messages", rawId), {
+		const payload = {
 			...msg,
 			userId: uid,
 			createdAt: now
-		});
+		};
+		if (cleanReply) {
+			payload.replyToMessageId = cleanReply.id;
+			if (cleanReply.senderId) payload.replyToUserId = cleanReply.senderId;
+			payload.replyToUserName = cleanReply.senderName;
+			payload.replyToText = cleanReply.text;
+		}
+		await setDoc(doc(db, "party_rooms", roomId, "messages", rawId), payload);
 		return msg;
 	} catch (err) {
 		console.warn("[Firestore Room] sendMessage notice:", err);
 		return null;
+	}
+}
+async function deleteFirestoreRoomMessage(roomId, messageId) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId) || !isValidFirestoreId(messageId)) return false;
+	try {
+		await deleteDoc(doc(db, "party_rooms", roomId, "messages", messageId));
+		return true;
+	} catch (err) {
+		console.warn("[Firestore Room] deleteMessage notice:", err);
+		return false;
+	}
+}
+async function clearFirestoreRoomMessages(roomId) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return false;
+	try {
+		const docs = (await getDocs(collection(db, "party_rooms", roomId, "messages"))).docs;
+		for (let i = 0; i < docs.length; i += 400) {
+			const batch = writeBatch(db);
+			docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+			await batch.commit();
+		}
+		await updateDoc(doc(db, "party_rooms", roomId), { chatClearedAt: Date.now() }).catch(() => {});
+		return true;
+	} catch (err) {
+		console.warn("[Firestore Room] clearMessages notice:", err);
+		return false;
 	}
 }
 function subscribeFirestoreRoomMessages(roomId, onUpdate) {
@@ -62751,6 +62791,14 @@ function subscribeFirestoreRoomMessages(roomId, onUpdate) {
 	return onSnapshot(collection(db, "party_rooms", roomId, "messages"), (snap) => {
 		onUpdate(snap.docs.map((d) => {
 			const data = d.data();
+			const rawReply = data.replyTo && typeof data.replyTo === "object" ? data.replyTo : null;
+			const replySenderName = rawReply?.senderName || data.replyToUserName || "";
+			const replyTo = replySenderName ? {
+				id: String(rawReply?.id || data.replyToMessageId || ""),
+				senderId: rawReply?.senderId || data.replyToUserId ? String(rawReply?.senderId || data.replyToUserId) : void 0,
+				senderName: String(replySenderName),
+				text: String(rawReply?.text || data.replyToText || "")
+			} : void 0;
 			return {
 				createdAt: typeof data.createdAt === "number" ? data.createdAt : 0,
 				msg: {
@@ -62760,12 +62808,14 @@ function subscribeFirestoreRoomMessages(roomId, onUpdate) {
 					senderAvatar: String(data.senderAvatar || ""),
 					text: String(data.text || ""),
 					timestamp: String(data.timestamp || "Now"),
+					createdAtMillis: typeof data.createdAt === "number" ? data.createdAt : 0,
 					isHost: Boolean(data.isHost),
 					senderLevel: typeof data.senderLevel === "number" ? data.senderLevel : typeof data.level === "number" ? data.level : 0,
 					senderVip: typeof data.senderVip === "number" ? data.senderVip : typeof data.vipLevel === "number" ? data.vipLevel : 0,
 					senderSuperVip: typeof data.senderSuperVip === "number" ? data.senderSuperVip : typeof data.superVipLevel === "number" ? data.superVipLevel : 0,
 					senderIsVip: Boolean(data.senderIsVip || data.isVIP || typeof data.senderVip === "number" && data.senderVip > 0),
-					isSystem: Boolean(data.isSystem)
+					isSystem: Boolean(data.isSystem),
+					...replyTo ? { replyTo } : {}
 				}
 			};
 		}).sort((a, b) => a.createdAt - b.createdAt).slice(-80).map((x) => x.msg));
@@ -62842,15 +62892,18 @@ async function syncFirestorePartyRoomState(roomId, isHost, patch) {
 			payload.participantCount = patch.participantCount ?? String(safe);
 		}
 		if (typeof patch.likesCount === "number") payload.likesCount = Math.max(0, Math.floor(patch.likesCount));
+		if (typeof patch.chatClearedAt === "number") payload.chatClearedAt = Math.max(0, Math.floor(patch.chatClearedAt));
+		if (isHost || patch.isModerator) {
+			if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
+			if (typeof patch.isLocked === "boolean") payload.isLocked = patch.isLocked;
+			if (typeof patch.allowJoin === "boolean") payload.allowJoin = patch.allowJoin;
+			if (typeof patch.announcement === "string") payload.announcement = patch.announcement.slice(0, 200);
+		}
 		if (isHost) {
 			if (patch.host) {
 				const compactHost = compactSeatUser(patch.host);
 				if (compactHost) payload.host = compactHost;
 			}
-			if (Array.isArray(patch.mutedSeatIndices)) payload.mutedSeatIndices = patch.mutedSeatIndices;
-			if (typeof patch.isLocked === "boolean") payload.isLocked = patch.isLocked;
-			if (typeof patch.allowJoin === "boolean") payload.allowJoin = patch.allowJoin;
-			if (typeof patch.announcement === "string") payload.announcement = patch.announcement.slice(0, 200);
 			if (clampedMaxSeats !== void 0) payload.maxSeats = clampedMaxSeats;
 			if (patch.backgroundType === "preset" || patch.backgroundType === "host_dp" || patch.backgroundType === "custom") payload.backgroundType = patch.backgroundType;
 			if (typeof patch.backgroundId === "string" && patch.backgroundId.trim()) payload.backgroundId = patch.backgroundId.trim().slice(0, 48);
@@ -63259,7 +63312,7 @@ async function kickUserFromRoom(params) {
 		kickedAt: now,
 		expiresAt
 	};
-	if (auth.currentUser && auth.currentUser.uid === hostId) {
+	if (auth.currentUser) {
 		try {
 			const payload = {
 				roomId: record.roomId,
@@ -63337,6 +63390,133 @@ function subscribeRoomKicksForHost(roomId, hostId, onUpdate) {
 		onUpdate(snap.docs.map((d) => mapKickDoc(d.id, d.data())).filter((k) => isKickRecordActive(k, now) && (k.roomId === roomId || k.durationType !== "session")).sort((a, b) => b.kickedAt - a.kickedAt));
 	}, (err) => {
 		console.warn("[RoomModeration] subscribeRoomKicksForHost notice:", err?.message || err);
+	});
+}
+var LOCAL_MODS_KEY = "lenzo_party_host_moderators_v1";
+function readLocalModerators(hostId) {
+	try {
+		const raw = localStorage.getItem(`${LOCAL_MODS_KEY}_${hostId}`);
+		if (!raw) return [];
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+function writeLocalModerators(hostId, records) {
+	try {
+		localStorage.setItem(`${LOCAL_MODS_KEY}_${hostId}`, JSON.stringify(records));
+	} catch {}
+}
+function getHostModeratorDocId(hostId, moderatorUserId) {
+	return `${hostId}_${moderatorUserId}`;
+}
+function mapHostModeratorDoc(id, raw) {
+	return {
+		id,
+		hostId: String(raw.hostId || ""),
+		moderatorUserId: String(raw.moderatorUserId || ""),
+		moderatorName: String(raw.moderatorName || "Moderator"),
+		moderatorUsername: raw.moderatorUsername ? String(raw.moderatorUsername) : "",
+		moderatorDisplayId: raw.moderatorDisplayId ? String(raw.moderatorDisplayId) : "",
+		moderatorAvatar: raw.moderatorAvatar ? String(raw.moderatorAvatar) : "",
+		assignedByName: raw.assignedByName ? String(raw.assignedByName) : "",
+		assignedAt: typeof raw.assignedAt === "number" ? raw.assignedAt : Date.now()
+	};
+}
+/**
+* Assign a user as a lifetime Moderator for a Host (applies to all current & future rooms until removed).
+*/
+async function assignHostModerator(params) {
+	const { hostId, hostName = "Host", targetUser } = params;
+	if (!isValidId(hostId) || !isValidId(targetUser?.id)) return {
+		success: false,
+		error: "Invalid host or user ID."
+	};
+	if (hostId === targetUser.id) return {
+		success: false,
+		error: "Host already has full room control."
+	};
+	if (!auth.currentUser || auth.currentUser.uid !== hostId) return {
+		success: false,
+		error: "Only the room Host can assign moderators."
+	};
+	const modId = getHostModeratorDocId(hostId, targetUser.id);
+	const now = Date.now();
+	const record = {
+		id: modId,
+		hostId,
+		moderatorUserId: targetUser.id,
+		moderatorName: (targetUser.name || "User").slice(0, 64),
+		moderatorUsername: (targetUser.username || "").slice(0, 64),
+		moderatorDisplayId: (targetUser.displayId || "").slice(0, 32),
+		moderatorAvatar: (targetUser.avatar || "").slice(0, 1500),
+		assignedByName: hostName.slice(0, 64),
+		assignedAt: now
+	};
+	try {
+		await setDoc(doc(db, "host_moderators", modId), {
+			hostId: record.hostId,
+			moderatorUserId: record.moderatorUserId,
+			moderatorName: record.moderatorName,
+			moderatorUsername: record.moderatorUsername || "",
+			moderatorDisplayId: record.moderatorDisplayId || "",
+			moderatorAvatar: record.moderatorAvatar || "",
+			assignedByName: record.assignedByName || "",
+			assignedAt: record.assignedAt
+		});
+		writeLocalModerators(hostId, [record, ...readLocalModerators(hostId).filter((m) => m.moderatorUserId !== targetUser.id)]);
+		return {
+			success: true,
+			record
+		};
+	} catch (err) {
+		console.warn("[RoomModeration] assignHostModerator error:", err);
+		return {
+			success: false,
+			error: err?.message || "Could not assign moderator."
+		};
+	}
+}
+/**
+* Permanently remove a lifetime Moderator for a Host.
+*/
+async function removeHostModerator(params) {
+	const { hostId, moderatorUserId } = params;
+	if (!isValidId(hostId) || !isValidId(moderatorUserId) || !auth.currentUser) return {
+		success: false,
+		error: "Invalid moderator record."
+	};
+	const modId = getHostModeratorDocId(hostId, moderatorUserId);
+	try {
+		await deleteDoc(doc(db, "host_moderators", modId));
+		writeLocalModerators(hostId, readLocalModerators(hostId).filter((m) => m.moderatorUserId !== moderatorUserId));
+		return { success: true };
+	} catch (err) {
+		console.warn("[RoomModeration] removeHostModerator error:", err);
+		return {
+			success: false,
+			error: err?.message || "Could not remove moderator."
+		};
+	}
+}
+/**
+* Subscribe in real time to all lifetime Moderators assigned by a specific Host.
+* Used both in Party Rooms (to display MOD badges & grant live permissions) and in Settings.
+*/
+function subscribeHostModerators(hostId, onUpdate) {
+	if (!isValidId(hostId) || !auth.currentUser) {
+		onUpdate([]);
+		return () => {};
+	}
+	const cached = readLocalModerators(hostId);
+	if (cached.length > 0) onUpdate(cached);
+	return onSnapshot(query(collection(db, "host_moderators"), where("hostId", "==", hostId)), (snap) => {
+		const list = snap.docs.map((d) => mapHostModeratorDoc(d.id, d.data())).sort((a, b) => b.assignedAt - a.assignedAt);
+		writeLocalModerators(hostId, list);
+		onUpdate(list);
+	}, (err) => {
+		console.warn("[RoomModeration] subscribeHostModerators notice:", err?.message || err);
 	});
 }
 // node_modules/lucide-react/dist/esm/shared/src/utils.js
@@ -64078,6 +64258,19 @@ var Ellipsis = createLucideIcon("ellipsis", [
 		key: "1pcz8c"
 	}]
 ]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Eraser = createLucideIcon("eraser", [["path", {
+	d: "M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21",
+	key: "g5wo59"
+}], ["path", {
+	d: "m5.082 11.09 8.828 8.828",
+	key: "1wx5vj"
+}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -65049,6 +65242,19 @@ var Repeat2 = createLucideIcon("repeat-2", [
 		key: "2f72bc"
 	}]
 ]);
+/**
+* @license lucide-react v0.546.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Reply = createLucideIcon("reply", [["path", {
+	d: "M20 18v-2a4 4 0 0 0-4-4H4",
+	key: "5vmcpk"
+}], ["path", {
+	d: "m9 17-5-5 5-5",
+	key: "nvlc11"
+}]]);
 /**
 * @license lucide-react v0.546.0 - ISC
 *
@@ -120335,6 +120541,7 @@ var AgoraRtcService = class {
 		this.activeLeavePromise = null;
 		this.isLeaving = false;
 		this.isRenewingToken = false;
+		this.backendUnavailableUntil = 0;
 		this.remoteHosts = /* @__PURE__ */ new Map();
 		this.onRemoteTrackCallbacks = /* @__PURE__ */ new Set();
 		this.onUserLeftCallbacks = /* @__PURE__ */ new Set();
@@ -120372,8 +120579,14 @@ var AgoraRtcService = class {
 	* Fetch Agora Configuration from backend
 	*/
 	async getAgoraConfig() {
+		if (Date.now() < this.backendUnavailableUntil) return {
+			configured: false,
+			appId: "",
+			tokenRequired: true,
+			mode: "unconfigured"
+		};
 		try {
-			const res = await apiFetch("/api/agora/config", { timeoutMs: 4500 });
+			const res = await apiFetch("/api/agora/config", { timeoutMs: 2200 });
 			if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
 				const data = await res.json();
 				return {
@@ -120384,7 +120597,9 @@ var AgoraRtcService = class {
 					mode: data.mode
 				};
 			}
+			if (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json")) this.backendUnavailableUntil = Date.now() + 25e3;
 		} catch (e) {
+			this.backendUnavailableUntil = Date.now() + 25e3;
 			console.warn("[Agora RTC] Failed to fetch Agora config:", e);
 		}
 		return {
@@ -120397,24 +120612,34 @@ var AgoraRtcService = class {
 	/**
 	* Fetch secure RTC Token from server-side token generator
 	*/
-	async requestRtcToken(channelName, userAccount, role, isRefresh = false) {
+	async requestRtcToken(channelName, userAccount, role, isRefresh = false, timeoutMs) {
+		if (!isRefresh && Date.now() < this.backendUnavailableUntil) return {
+			token: null,
+			appId: "",
+			configured: false,
+			error: "Agora token backend temporarily unavailable (using fast WebRTC fallback)"
+		};
 		try {
 			const res = await apiFetch(isRefresh ? "/api/agora/refresh-token" : "/api/agora/token", {
 				method: "POST",
-				timeoutMs: 7e3,
+				timeoutMs: timeoutMs ?? (isRefresh ? 5e3 : 2e3),
 				body: JSON.stringify({
 					channelName,
 					uid: userAccount,
 					role
 				})
 			});
-			if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) return {
-				token: null,
-				appId: "",
-				configured: false,
-				error: await res.text().catch(() => "") || `Agora token endpoint returned ${res.status}`
-			};
+			if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) {
+				if (!isRefresh && (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json"))) this.backendUnavailableUntil = Date.now() + 25e3;
+				return {
+					token: null,
+					appId: "",
+					configured: false,
+					error: await res.text().catch(() => "") || `Agora token endpoint returned ${res.status}`
+				};
+			}
 			const data = await res.json();
+			this.backendUnavailableUntil = 0;
 			return {
 				token: data.token ?? null,
 				appId: String(data.appId || ""),
@@ -120424,6 +120649,7 @@ var AgoraRtcService = class {
 				error: data.error
 			};
 		} catch (err) {
+			if (!isRefresh) this.backendUnavailableUntil = Date.now() + 25e3;
 			console.warn("[Agora RTC] Failed to request RTC token:", err?.message || err);
 			return {
 				token: null,
@@ -121212,11 +121438,12 @@ var WebRtcMediaService = class {
 		this.partyUnsubscribeWs = null;
 		this.partyUnsubscribeFs = null;
 		this.partyPresenceTimer = null;
+		this.partyQuickPresenceTimer = null;
 	}
 	getRtcConfig() {
 		return {
 			iceServers: this.cachedIceServers,
-			iceCandidatePoolSize: 6,
+			iceCandidatePoolSize: 8,
 			bundlePolicy: "max-bundle",
 			rtcpMuxPolicy: "require"
 		};
@@ -121869,6 +122096,10 @@ var WebRtcMediaService = class {
 			});
 		});
 		this.announcePartyPresence();
+		this.partyQuickPresenceTimer = setTimeout(() => {
+			this.partyQuickPresenceTimer = null;
+			if (this.partyRoomId) this.announcePartyPresence();
+		}, 650);
 		let ticks = 0;
 		this.partyPresenceTimer = setInterval(() => {
 			ticks += 1;
@@ -121880,7 +122111,7 @@ var WebRtcMediaService = class {
 				return;
 			}
 			this.announcePartyPresence();
-		}, 3e3);
+		}, 2400);
 	}
 	updatePartySpeakerRole(isSpeaker, localAudioStream) {
 		if (!this.partyRoomId || !this.partyUserId) return;
@@ -121977,7 +122208,7 @@ var WebRtcMediaService = class {
 				sessionId,
 				ice: batch.slice(0, 32)
 			});
-		}, 220);
+		}, 60);
 		this.partyIceFlushTimers.set(peerId, timer);
 	}
 	setupPartyPeerConnection(peerId, signalType, sessionId) {
@@ -122222,6 +122453,10 @@ var WebRtcMediaService = class {
 		this.partyCallbacks?.onRemoteSpeakersChange?.(Array.from(this.partyRemoteAudioEls.keys()));
 	}
 	stopPartyVoice() {
+		if (this.partyQuickPresenceTimer) {
+			clearTimeout(this.partyQuickPresenceTimer);
+			this.partyQuickPresenceTimer = null;
+		}
 		if (this.partyPresenceTimer) {
 			clearInterval(this.partyPresenceTimer);
 			this.partyPresenceTimer = null;
@@ -134632,7 +134867,7 @@ function getSofaPalette(variant, occupied, isSpeaking, isLevelLocked, seatTheme 
 		badgeClass: "bg-[#170A2E]/90 text-white/80"
 	};
 }
-var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLocked, isLevelLocked = false, levelLockText = "Lv.5", badgeText, label, compact = false, seatTheme = "default", onClick }) => {
+var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLocked, isLevelLocked = false, levelLockText = "Lv.5", badgeText, isModerator = false, label, compact = false, seatTheme = "default", onClick }) => {
 	const isHero = variant === "host" || variant === "cohost";
 	const occupied = Boolean(occupant) && !isLevelLocked;
 	const occupantKey = occupied && occupant ? occupant.id : null;
@@ -135337,6 +135572,13 @@ var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLock
 					className: `${badgeText ? "mt-0.5" : "-mt-0.5"} ${isHero ? "text-xs font-black max-w-[98px]" : compact ? "text-[9px] sm:text-[10px] font-bold max-w-[66px]" : "text-[10px] sm:text-[11px] font-bold max-w-[78px]"} text-white/95 truncate text-center drop-shadow-[0_1px_4px_rgba(0,0,0,0.95)]`,
 					children: label
 				}, label)
+			}),
+			occupied && isModerator && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-gradient-to-r from-cyan-500/95 via-sky-500/95 to-indigo-500/95 border border-cyan-200/50 shadow-[0_0_8px_rgba(34,211,238,0.45)]",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5 text-white shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: "text-[7.5px] sm:text-[8px] font-black uppercase tracking-wider text-white leading-none",
+					children: "Moderator"
+				})]
 			})
 		]
 	});
@@ -135459,6 +135701,18 @@ var roomService = new RoomService();
 // src/components/screens/AudioRoomScreen.tsx
 var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWallet, onSelectUser, onUpdateRoom, onCloseRoom, activeGiftCelebration, blockedUserIds = [], blockedByUserIds = [], activeRoomKicks = [], onBlockUser }) => {
 	const isRoomHost = currentUser.id === room.host.id;
+	const [hostModerators, setHostModerators] = (0, import_react.useState)([]);
+	const moderatorIdsSet = new Set(hostModerators.map((m) => m.moderatorUserId));
+	const isCurrentUserModerator = !isRoomHost && moderatorIdsSet.has(currentUser.id);
+	const canModerate = isRoomHost || isCurrentUserModerator;
+	const canModerateTarget = (targetUserId) => {
+		if (!targetUserId || targetUserId === currentUser.id) return false;
+		if (isRoomHost) return true;
+		if (!isCurrentUserModerator) return false;
+		if (targetUserId === room.host.id) return false;
+		if (moderatorIdsSet.has(targetUserId)) return false;
+		return true;
+	};
 	const blockedUserIdsRef = (0, import_react.useRef)(new Set(blockedUserIds));
 	const blockedByUserIdsRef = (0, import_react.useRef)(new Set(blockedByUserIds));
 	(0, import_react.useEffect)(() => {
@@ -135553,6 +135807,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [moderationBusy, setModerationBusy] = (0, import_react.useState)(false);
 	const [hostRoomKicks, setHostRoomKicks] = (0, import_react.useState)([]);
 	const [showKickedUsersModal, setShowKickedUsersModal] = (0, import_react.useState)(false);
+	const [showModeratorsListModal, setShowModeratorsListModal] = (0, import_react.useState)(false);
+	const [showClearChatConfirmModal, setShowClearChatConfirmModal] = (0, import_react.useState)(false);
+	const [isClearingChat, setIsClearingChat] = (0, import_react.useState)(false);
 	const [showOwnerSeatChoice, setShowOwnerSeatChoice] = (0, import_react.useState)(null);
 	const [showCloseRoomConfirmModal, setShowCloseRoomConfirmModal] = (0, import_react.useState)(false);
 	const [showParticipantsModal, setShowParticipantsModal] = (0, import_react.useState)(false);
@@ -135620,6 +135877,12 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [inputMessage, setInputMessage] = (0, import_react.useState)("");
 	const [showEmojiPicker, setShowEmojiPicker] = (0, import_react.useState)(false);
 	const [activities, setActivities] = (0, import_react.useState)([]);
+	const [replyTarget, setReplyTarget] = (0, import_react.useState)(null);
+	const [swipingMsgId, setSwipingMsgId] = (0, import_react.useState)(null);
+	const [swipeOffsetX, setSwipeOffsetX] = (0, import_react.useState)(0);
+	const swipeTouchRef = (0, import_react.useRef)(null);
+	const lastChatClearedAtRef = (0, import_react.useRef)(typeof room.chatClearedAt === "number" ? room.chatClearedAt : 0);
+	const chatInputRef = (0, import_react.useRef)(null);
 	const activityBottomRef = (0, import_react.useRef)(null);
 	const showToast = (msg) => {
 		setToastMessage(msg);
@@ -135675,17 +135938,26 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		seatReqHydratedRef.current = false;
 	}, [room.id]);
 	(0, import_react.useEffect)(() => {
-		if (!isRoomHost) {
+		if (!room.host.id) {
+			setHostModerators([]);
+			return;
+		}
+		return subscribeHostModerators(room.host.id, (records) => {
+			setHostModerators(records);
+		});
+	}, [room.host.id]);
+	(0, import_react.useEffect)(() => {
+		if (!canModerate) {
 			setHostRoomKicks([]);
 			return;
 		}
-		return subscribeRoomKicksForHost(room.id, currentUser.id, (records) => {
+		return subscribeRoomKicksForHost(room.id, room.host.id, (records) => {
 			setHostRoomKicks(records);
 		});
 	}, [
-		isRoomHost,
+		canModerate,
 		room.id,
-		currentUser.id
+		room.host.id
 	]);
 	(0, import_react.useEffect)(() => {
 		const safeMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
@@ -135744,7 +136016,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			seatReqHydratedRef.current = true;
 			return;
 		}
-		if (isRoomHost) {
+		if (canModerate) {
 			for (const req of seatRequests) if (req?.id && !seenSeatReqIdsRef.current.has(req.id) && req.user?.id !== currentUser.id) {
 				seenSeatReqIdsRef.current.add(req.id);
 				showToast(`${req.user.name} requested Seat #${req.seatIndex + 1}`);
@@ -135752,7 +136024,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}
 	}, [
 		seatRequests,
-		isRoomHost,
+		canModerate,
 		currentUser.id
 	]);
 	(0, import_react.useEffect)(() => {
@@ -135889,6 +136161,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						seenPartyEntriesRef.current.set(p.userId, now);
 						setPartyEntryNotice({
 							id: `entry_fs_${p.userId}_${now}`,
+							userId: p.userId,
 							name: p.name || "Viewer",
 							level: typeof p.level === "number" ? p.level : 0,
 							vipLevel: typeof p.vipLevel === "number" ? p.vipLevel : 0,
@@ -135919,11 +136192,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			if (isRoomHost) updateFirestoreRoomParticipantCount(room.id, fsParticipants.length);
 		});
 		const unsubFsMessages = subscribeFirestoreRoomMessages(room.id, (fsMessages) => {
-			if (!active || fsMessages.length === 0) return;
+			if (!active) return;
+			const fsIds = new Set(fsMessages.map((m) => m.id));
 			setActivities((prev) => {
-				const seen = new Set(prev.map((a) => a.id));
-				const next = [...prev];
-				let changed = false;
+				const kept = prev.filter((item) => !item.fromFirestore || fsIds.has(item.id));
+				const seen = new Set(kept.map((a) => a.id));
+				const next = [...kept];
+				let changed = kept.length !== prev.length;
 				fsMessages.forEach((m) => {
 					if (isRoomHost && blockedUserIdsRef.current.has(m.senderId)) return;
 					if (!seen.has(m.id)) {
@@ -135939,9 +136214,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							superVipLevel: typeof m.senderSuperVip === "number" ? m.senderSuperVip : 0,
 							isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
 							isHost: m.isHost,
-							type: m.gift ? "gift" : m.isSystem ? "join" : "chat"
+							type: m.gift ? "gift" : m.isSystem ? "join" : "chat",
+							...m.replyTo ? { replyTo: m.replyTo } : {},
+							fromFirestore: true
 						});
 						changed = true;
+					} else {
+						const idx = next.findIndex((a) => a.id === m.id);
+						if (idx !== -1 && (!next[idx].fromFirestore || !next[idx].replyTo && m.replyTo)) {
+							next[idx] = {
+								...next[idx],
+								...m.replyTo ? { replyTo: m.replyTo } : {},
+								fromFirestore: true
+							};
+							changed = true;
+						}
 					}
 				});
 				return changed ? next.slice(-60) : prev;
@@ -135992,6 +136279,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				if (typeof data.backgroundId === "string" && data.backgroundId.trim()) setBackgroundId(data.backgroundId.trim());
 				if (typeof data.backgroundImage === "string") setBackgroundImage(data.backgroundImage);
 				if (data.seatTheme === "default" || data.seatTheme === "gold" || data.seatTheme === "green") setSeatTheme(data.seatTheme);
+				if (typeof data.chatClearedAt === "number" && data.chatClearedAt > lastChatClearedAtRef.current) {
+					lastChatClearedAtRef.current = data.chatClearedAt;
+					setActivities([]);
+					setReplyTarget(null);
+				}
 			} else if (roomDocEverExisted && !isRoomHost) {
 				showToast("Party room was closed by the host");
 				webrtcMediaService.stopPartyVoice();
@@ -136209,47 +136501,44 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				setAgoraVoiceState("connecting");
 				setVoiceTransport("connecting");
 				setNativeLiveAudioMode(true);
-				let localMicStream = realMicStreamRef.current;
-				if (initiallySeated && !localMicStream) try {
-					localMicStream = await acquireRealMicrophone();
+				const micPromise = initiallySeated && !realMicStreamRef.current ? acquireRealMicrophone().then((stream) => {
 					if (!isMounted) {
-						stopMediaStream(localMicStream);
-						return;
+						stopMediaStream(stream);
+						return null;
 					}
-					localMicStream.getAudioTracks().forEach((t) => {
+					stream.getAudioTracks().forEach((t) => {
 						t.enabled = !effectiveMuted;
 					});
-					realMicStreamRef.current = localMicStream;
-					realMicAnalyserRef.current = createAudioAnalyser(localMicStream);
+					realMicStreamRef.current = stream;
+					realMicAnalyserRef.current = createAudioAnalyser(stream);
 					setMicPermissionDenied(false);
-				} catch (micErr) {
+					return stream;
+				}).catch((micErr) => {
 					console.warn("[Party Voice] Mic acquisition notice:", micErr);
 					if (isMounted) setMicPermissionDenied(true);
-				}
-				const config = await agoraRtcService.getAgoraConfig();
+					return null;
+				}) : Promise.resolve(realMicStreamRef.current);
+				const tokenPromise = agoraRtcService.requestRtcToken(`party_${room.id}`, currentUser.id, initiallySeated ? "broadcaster" : "audience", false, 1800);
+				const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
 				if (!isMounted) return;
-				if (config.configured && config.appId) try {
-					const tokenData = await agoraRtcService.requestRtcToken(`party_${room.id}`, currentUser.id, initiallySeated ? "broadcaster" : "audience");
+				if (Boolean(tokenData.configured && tokenData.appId) && (Boolean(tokenData.token) || tokenData.tokenRequired === false)) try {
+					await agoraRtcService.joinChannel({
+						appId: tokenData.appId,
+						channelName: `party_${room.id}`,
+						userAccount: currentUser.id,
+						role: initialRole,
+						token: tokenData.token,
+						enableVideo: false,
+						enableAudio: initiallySeated,
+						mediaStream: initiallySeated ? localMicStream : null
+					});
 					if (!isMounted) return;
-					if (Boolean(tokenData.token) || tokenData.configured && tokenData.tokenRequired === false) {
-						await agoraRtcService.joinChannel({
-							appId: config.appId,
-							channelName: `party_${room.id}`,
-							userAccount: currentUser.id,
-							role: initialRole,
-							token: tokenData.token,
-							enableVideo: false,
-							enableAudio: initiallySeated,
-							mediaStream: initiallySeated ? localMicStream : null
-						});
-						if (!isMounted) return;
-						if (initiallySeated && effectiveMuted) await agoraRtcService.setMicrophoneMuted(true);
-						voiceJoinedRef.current = true;
-						activePublishedRoleRef.current = initialRole;
-						setVoiceTransport("agora");
-						setAgoraVoiceState("connected");
-						return;
-					}
+					if (initiallySeated && effectiveMuted) await agoraRtcService.setMicrophoneMuted(true);
+					voiceJoinedRef.current = true;
+					activePublishedRoleRef.current = initialRole;
+					setVoiceTransport("agora");
+					setAgoraVoiceState("connected");
+					return;
 				} catch (agoraErr) {
 					console.warn("[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:", agoraErr);
 					await agoraRtcService.leaveChannel().catch(() => {});
@@ -136512,6 +136801,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		};
 		onUpdateRoom?.(nextRoom);
 		if (!skipFirestoreSync) syncFirestorePartyRoomState(room.id, isRoomHost, {
+			isModerator: isCurrentUserModerator,
 			hostLevel: effectiveLevel,
 			maxSeats: resolvedMaxSeats,
 			seats: sanitizedSeats,
@@ -136624,14 +136914,17 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			return;
 		}
 		if (occupant) {
-			if (isRoomHost && occupant.id !== currentUser.id) setSelectedSeatMember({
-				index,
-				user: occupant
-			});
-			else onSelectUser(occupant);
+			if (canModerateTarget(occupant.id)) {
+				setShowKickDurationPicker(false);
+				setShowBlockMemberConfirm(false);
+				setSelectedSeatMember({
+					index,
+					user: occupant
+				});
+			} else onSelectUser(occupant);
 			return;
 		}
-		if (isRoomHost) {
+		if (canModerate) {
 			if (seats.findIndex((s) => s?.id === currentUser.id) === -1) setShowOwnerSeatChoice(index);
 			else {
 				liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
@@ -136789,16 +137082,28 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		showToast(`Declined request from ${req.user.name}`);
 	};
 	const handleToggleSeatMute = async (seatIndex) => {
-		if (!isRoomHost) return;
+		if (!canModerate) return;
+		const occupant = seats[seatIndex];
+		if (occupant && !canModerateTarget(occupant.id)) {
+			showToast("You cannot mute this user");
+			return;
+		}
 		const currentlyMuted = mutedSeatIndices.includes(seatIndex);
 		try {
 			const nextMuted = await liveAndRoomService.muteRoomSeat(room.id, currentUser.id, seatIndex, !currentlyMuted);
 			setMutedSeatIndices(nextMuted);
+			syncFirestorePartyRoomState(room.id, isRoomHost, {
+				isModerator: isCurrentUserModerator,
+				mutedSeatIndices: nextMuted
+			});
 			showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
 		} catch {
 			const nextMuted = currentlyMuted ? mutedSeatIndices.filter((i) => i !== seatIndex) : [...mutedSeatIndices, seatIndex];
 			setMutedSeatIndices(nextMuted);
-			syncFirestorePartyRoomState(room.id, true, { mutedSeatIndices: nextMuted });
+			syncFirestorePartyRoomState(room.id, isRoomHost, {
+				isModerator: isCurrentUserModerator,
+				mutedSeatIndices: nextMuted
+			});
 			showToast(!currentlyMuted ? `Muted Seat #${seatIndex + 1}` : `Unmuted Seat #${seatIndex + 1}`);
 		}
 	};
@@ -136817,10 +137122,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setShowBlockMemberConfirm(false);
 	};
 	const handleRemoveFromSeat = async () => {
-		if (!isRoomHost || !selectedSeatMember || selectedSeatMember.index === null) return;
+		if (!canModerate || !selectedSeatMember || selectedSeatMember.index === null) return;
 		const idx = selectedSeatMember.index;
 		const member = selectedSeatMember.user;
-		if (member.id === currentUser.id) {
+		if (!canModerateTarget(member.id)) {
 			closeModerationModal();
 			return;
 		}
@@ -136842,10 +137147,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		showToast(`Removed ${member.name} from Seat #${idx + 1}`);
 	};
 	const handleKickUserWithDuration = async (durationType) => {
-		if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+		if (!canModerate || !selectedSeatMember || moderationBusy) return;
 		const member = selectedSeatMember.user;
 		const seatIdx = selectedSeatMember.index;
-		if (member.id === currentUser.id) {
+		if (!canModerateTarget(member.id)) {
 			closeModerationModal();
 			return;
 		}
@@ -136854,7 +137159,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const res = await kickUserFromRoom({
 				roomId: room.id,
 				roomTitle: room.title,
-				hostId: currentUser.id,
+				hostId: room.host.id,
 				targetUser: member,
 				durationType,
 				maxSeats
@@ -136884,17 +137189,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}
 	};
 	const handlePermanentBlockMember = async () => {
-		if (!isRoomHost || !selectedSeatMember || moderationBusy) return;
+		if (!canModerate || !selectedSeatMember || moderationBusy) return;
 		const member = selectedSeatMember.user;
 		const seatIdx = selectedSeatMember.index;
-		if (member.id === currentUser.id) {
+		if (!canModerateTarget(member.id)) {
 			closeModerationModal();
 			return;
 		}
 		setModerationBusy(true);
 		try {
 			await Promise.all([
-				onBlockUser ? Promise.resolve(onBlockUser(member)) : Promise.resolve(),
+				isRoomHost && onBlockUser ? Promise.resolve(onBlockUser(member)) : blockUser({
+					blockerId: room.host.id,
+					targetUser: member,
+					reason: `Blocked by Moderator ${currentUser.name}`
+				}),
 				vacateFirestoreSeat(room.id, member.id, seatIdx ?? void 0, maxSeats).catch(() => null),
 				cancelFirestoreSeatRequest(room.id, member.id).catch(() => null),
 				evictFirestoreRoomParticipant(room.id, member.id).catch(() => null)
@@ -136913,6 +137222,69 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		} finally {
 			setModerationBusy(false);
 		}
+	};
+	const handleToggleModeratorRole = async (target) => {
+		if (!isRoomHost || !target?.id || target.id === currentUser.id || moderationBusy) return;
+		const currentlyMod = moderatorIdsSet.has(target.id);
+		setModerationBusy(true);
+		try {
+			if (currentlyMod) {
+				const res = await removeHostModerator({
+					hostId: currentUser.id,
+					moderatorUserId: target.id
+				});
+				if (res.success) {
+					showToast(`Removed ${target.name} from Moderators`);
+					closeModerationModal();
+				} else showToast(res.error || "Could not remove moderator");
+			} else {
+				const res = await assignHostModerator({
+					hostId: currentUser.id,
+					hostName: currentUser.name,
+					targetUser: target
+				});
+				if (res.success) {
+					showToast(`${target.name} is now your Lifetime Moderator`);
+					closeModerationModal();
+				} else showToast(res.error || "Could not assign moderator");
+			}
+		} finally {
+			setModerationBusy(false);
+		}
+	};
+	const handleDeleteSingleComment = async (act) => {
+		if (!act?.id) return;
+		if (!(canModerate || act.userId === currentUser.id)) return;
+		setActivities((prev) => prev.filter((item) => item.id !== act.id));
+		if (replyTarget?.id === act.id) setReplyTarget(null);
+		if (act.type !== "join") await deleteFirestoreRoomMessage(room.id, act.id);
+		showToast("Comment deleted");
+	};
+	const handleClearAllComments = async () => {
+		if (!canModerate || isClearingChat) return;
+		setIsClearingChat(true);
+		try {
+			const ok = await clearFirestoreRoomMessages(room.id);
+			lastChatClearedAtRef.current = Date.now();
+			setActivities([]);
+			setReplyTarget(null);
+			setShowClearChatConfirmModal(false);
+			showToast(ok ? "All chat comments cleared" : "Chat cleared locally");
+		} finally {
+			setIsClearingChat(false);
+		}
+	};
+	const handleStartReply = (act) => {
+		if (!act?.name) return;
+		setReplyTarget({
+			id: act.id,
+			senderId: act.userId,
+			senderName: act.name,
+			text: act.text
+		});
+		setTimeout(() => {
+			chatInputRef.current?.focus();
+		}, 30);
 	};
 	const handleSendSeatInvite = async (targetUser) => {
 		if (showInviteToSeatModal === null) return;
@@ -136997,19 +137369,23 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	};
 	const handleSendMessage = async (e) => {
 		if (e) e.preventDefault();
-		const text = inputMessage.trim();
-		if (!text) return;
+		const rawText = inputMessage.trim();
+		if (!rawText) return;
 		if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
 			showToast("You are blocked from chatting in this room.");
 			return;
 		}
+		const activeReply = replyTarget;
+		const mentionTag = activeReply ? `@${activeReply.senderName}` : "";
+		const text = activeReply && !rawText.toLowerCase().startsWith(mentionTag.toLowerCase()) ? `${mentionTag} ${rawText}` : rawText;
 		setInputMessage("");
+		setReplyTarget(null);
 		setShowEmojiPicker(false);
 		let saved = null;
 		try {
 			const backendSaved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
 			saved = backendSaved;
-			sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id);
+			sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id, activeReply);
 		} catch (err) {
 			const errMsg = String(err?.message || err || "");
 			if (/block|403|forbidden/i.test(errMsg)) {
@@ -137017,7 +137393,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				return;
 			}
 			const fallbackId = `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-			saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId);
+			saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId, activeReply);
 		}
 		if (saved) {
 			const msgToAdd = saved;
@@ -137032,12 +137408,15 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				superVipLevel: typeof currentUser.superVipLevel === "number" ? currentUser.superVipLevel : 0,
 				isVIP: Boolean(currentUser.isVIP || (currentUser.vipLevel || 0) > 0),
 				isHost: msgToAdd.isHost,
-				type: "chat"
+				type: "chat",
+				...activeReply ? { replyTo: activeReply } : {},
+				fromFirestore: true
 			}]);
 			setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
 		} else {
 			showToast("Could not send message. Please check your connection.");
-			setInputMessage(text);
+			setInputMessage(rawText);
+			if (activeReply) setReplyTarget(activeReply);
 		}
 	};
 	const flushHeartBatch = () => {
@@ -137317,7 +137696,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							onClick: () => setShowSettingsSheet(true),
 							className: "relative w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-white/15 flex items-center justify-center text-white transition-all active:scale-95 shrink-0",
 							title: "Room Settings",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ellipsis, { className: "w-3.5 h-3.5" }), isRoomHost && seatRequests.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ellipsis, { className: "w-3.5 h-3.5" }), canModerate && seatRequests.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								className: "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FA26A0] text-[9px] font-black flex items-center justify-center",
 								children: seatRequests.length
 							})]
@@ -137405,6 +137784,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									tier: partyEntryNotice.superVipLevel ?? 0,
 									size: "xs"
 								}),
+								partyEntryNotice.userId && moderatorIdsSet.has(partyEntryNotice.userId) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-500 text-white text-[8.5px] font-black uppercase",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5" }), "MOD"]
+								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [partyEntryNotice.name, " joined the party room"] })
 							]
 						})
@@ -137457,7 +137840,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Tap to Enable Party Voice Audio" })]
 						})
 					}),
-					isRoomHost && seatRequests.length > 0 && (() => {
+					canModerate && seatRequests.length > 0 && (() => {
 						const latestReq = seatRequests[seatRequests.length - 1];
 						if (!latestReq?.user) return null;
 						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -137564,6 +137947,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							isLevelLocked: isCoHostSeatLevelLocked,
 							levelLockText: "Lv.5",
 							badgeText: isCoHostSeatLevelLocked ? "Lv.5 Lock" : "Seat 2",
+							isModerator: Boolean(!isCoHostSeatLevelLocked && seatOne && moderatorIdsSet.has(seatOne.id)),
 							label: isCoHostSeatLevelLocked ? "Unlocks Lv.5" : seatOne ? seatOne.name : "Join",
 							seatTheme,
 							onClick: () => handleSeatClick(1)
@@ -137583,15 +137967,28 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								isSpeaking,
 								isLocked: isSeatLocked,
 								compact: maxSeats === 16,
+								isModerator: Boolean(member && moderatorIdsSet.has(member.id)),
 								label: member ? member.name.split(" ")[0] : `No.${idx + 1}`,
 								seatTheme,
 								onClick: () => handleSeatClick(idx)
 							}, idx);
 						})
 					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "flex items-end justify-between gap-3 pt-2 pb-1 max-w-lg mx-auto w-full flex-1 min-h-[120px]",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex flex-col justify-end gap-1.5 pt-2 pb-1 max-w-lg mx-auto w-full flex-1 min-h-[125px]",
+						children: [canModerate && activities.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between px-1",
+							"data-no-doubletap": "true",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[9.5px] font-bold text-white/45",
+								children: "Swipe any comment right to reply"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								onClick: () => setShowClearChatConfirmModal(true),
+								className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/35 text-rose-200 text-[9.5px] font-extrabold active:scale-95 transition-all",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eraser, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Clear Chat" })]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex-1 space-y-1.5 max-h-44 overflow-y-auto no-scrollbar pr-1",
 							children: [activities.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "px-3 py-1.5 rounded-full bg-[#17092E]/70 border border-white/10 text-[11px] text-[#B9AECF] w-fit",
@@ -137607,6 +138004,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								const resolvedLevel = typeof act.level === "number" ? act.level : matchedSeatedUser?.level ?? matchedParticipant?.level ?? 0;
 								const resolvedVip = typeof act.vipLevel === "number" ? act.vipLevel : matchedSeatedUser?.vipLevel ?? matchedParticipant?.vipLevel ?? 0;
 								const resolvedSuperVip = typeof act.superVipLevel === "number" ? act.superVipLevel : matchedSeatedUser?.superVipLevel ?? matchedParticipant?.superVipLevel ?? 0;
+								const isActModerator = Boolean(act.userId && moderatorIdsSet.has(act.userId));
+								const canDeleteThisComment = canModerate || act.userId === currentUser.id;
+								const isBeingSwiped = swipingMsgId === act.id && swipeOffsetX > 4;
 								const handleTapActivityUser = () => {
 									if (!act.userId) return;
 									const targetProfile = matchedSeatedUser || {
@@ -137626,7 +138026,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 										coins: 0,
 										diamonds: 0
 									};
-									if (isRoomHost && act.userId !== currentUser.id) {
+									if (canModerateTarget(act.userId)) {
 										setShowKickDurationPicker(false);
 										setShowBlockMemberConfirm(false);
 										setSelectedSeatMember({
@@ -137635,140 +138035,261 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 										});
 									} else onSelectUser(targetProfile);
 								};
+								const renderTextWithMentions = (raw) => {
+									return raw.split(/(@[^\s@]+(?:\s[A-Za-z0-9_]+)?)/g).map((part, i) => part.startsWith("@") ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-cyan-300 font-extrabold",
+										children: part
+									}, i) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Fragment, { children: part }, i));
+								};
 								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									"data-no-doubletap": "true",
-									onClick: handleTapActivityUser,
-									className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${act.type === "join" ? "bg-[#210D40]/85 border-[#FA26A0]/35" : "bg-[#17092E]/85 border-purple-500/30"}`,
-									children: [act.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-										src: act.avatar,
-										alt: act.name,
-										className: "w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400 mt-0.5"
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5",
-										children: (act.name || "U").charAt(0).toUpperCase()
+									className: "relative flex items-center gap-1 max-w-full group",
+									onTouchStart: (e) => {
+										if (act.type === "join" || !e.touches[0]) return;
+										swipeTouchRef.current = {
+											id: act.id,
+											startX: e.touches[0].clientX,
+											startY: e.touches[0].clientY,
+											triggered: false
+										};
+									},
+									onTouchMove: (e) => {
+										const st = swipeTouchRef.current;
+										if (!st || st.id !== act.id || !e.touches[0]) return;
+										const dx = e.touches[0].clientX - st.startX;
+										if (Math.abs(e.touches[0].clientY - st.startY) > 32 && !st.triggered) {
+											swipeTouchRef.current = null;
+											setSwipingMsgId(null);
+											setSwipeOffsetX(0);
+											return;
+										}
+										if (dx > 8) {
+											setSwipingMsgId(act.id);
+											setSwipeOffsetX(Math.min(62, dx));
+											if (dx >= 42 && !st.triggered) {
+												st.triggered = true;
+												handleStartReply(act);
+											}
+										}
+									},
+									onTouchEnd: () => {
+										swipeTouchRef.current = null;
+										setSwipingMsgId(null);
+										setSwipeOffsetX(0);
+									},
+									onTouchCancel: () => {
+										swipeTouchRef.current = null;
+										setSwipingMsgId(null);
+										setSwipeOffsetX(0);
+									},
+									children: [isBeingSwiped && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-cyan-500/30 border border-cyan-300/60 flex items-center justify-center text-cyan-200 pointer-events-none",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3.5 h-3.5" })
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex flex-wrap items-center gap-1 text-[11px] leading-snug min-w-0",
+										style: isBeingSwiped ? {
+											transform: `translateX(${swipeOffsetX}px)`,
+											transition: "none"
+										} : {
+											transform: "translateX(0px)",
+											transition: "transform 180ms ease-out"
+										},
+										onClick: handleTapActivityUser,
+										className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${act.type === "join" ? "bg-[#210D40]/85 border-[#FA26A0]/35" : "bg-[#17092E]/88 border-purple-500/30"}`,
 										children: [
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-												level: resolvedLevel,
-												size: "xs",
-												className: "shrink-0"
+											act.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: act.avatar,
+												alt: act.name,
+												className: "w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-yellow-400 mt-0.5"
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-5 h-5 rounded-full bg-[#8B20FF] text-[9px] font-black flex items-center justify-center shrink-0 mt-0.5",
+												children: (act.name || "U").charAt(0).toUpperCase()
 											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
-												tier: resolvedVip,
-												size: "xs",
-												className: "shrink-0"
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex flex-col min-w-0",
+												children: [act.replyTo && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "mb-0.5 pl-2 border-l-2 border-cyan-400/80 text-[10px] text-cyan-200/85 truncate max-w-[220px]",
+													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+														className: "font-bold text-cyan-300",
+														children: ["↩ @", act.replyTo.senderName]
+													}), act.replyTo.text ? `: ${act.replyTo.text}` : ""]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "flex flex-wrap items-center gap-1 text-[11px] leading-snug min-w-0",
+													children: [
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+															level: resolvedLevel,
+															size: "xs",
+															className: "shrink-0"
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VipTierBadge, {
+															tier: resolvedVip,
+															size: "xs",
+															className: "shrink-0"
+														}),
+														resolvedSuperVip > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
+															tier: resolvedSuperVip,
+															size: "xs",
+															className: "shrink-0"
+														}),
+														act.isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "px-1.5 py-0.5 rounded bg-[#FFC84A] text-black text-[8px] font-black uppercase leading-none shrink-0",
+															children: "HOST"
+														}),
+														!act.isHost && isActModerator && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[8px] font-black uppercase leading-none shrink-0",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5" }), "MOD"]
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: "font-extrabold text-[#FFE043] shrink-0",
+															children: [act.name, act.type === "join" ? "" : ":"]
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: `font-medium break-words ${act.type === "join" ? "text-[#FFB3DE]" : "text-white/95"}`,
+															children: act.type === "join" ? act.text : renderTextWithMentions(act.text)
+														})
+													]
+												})]
 											}),
-											resolvedSuperVip > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SuperVipTierBadge, {
-												tier: resolvedSuperVip,
-												size: "xs",
-												className: "shrink-0"
-											}),
-											act.isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "px-1.5 py-0.5 rounded bg-[#FFC84A] text-black text-[8px] font-black uppercase leading-none shrink-0",
-												children: "HOST"
-											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "font-extrabold text-[#FFE043] shrink-0",
-												children: [act.name, act.type === "join" ? "" : ":"]
-											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: `font-medium break-words ${act.type === "join" ? "text-[#FFB3DE]" : "text-white/95"}`,
-												children: act.text
+											act.type !== "join" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-1 ml-1 shrink-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													type: "button",
+													onClick: (e) => {
+														e.stopPropagation();
+														handleStartReply(act);
+													},
+													title: `Reply to @${act.name}`,
+													className: "w-5 h-5 rounded-full bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center text-cyan-200/80 hover:text-cyan-200 transition-colors",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3 h-3" })
+												}), canDeleteThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+													type: "button",
+													onClick: (e) => {
+														e.stopPropagation();
+														handleDeleteSingleComment(act);
+													},
+													title: "Delete comment",
+													className: "w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-2.5 h-2.5" })
+												})]
 											})
 										]
 									})]
 								}, act.id);
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { ref: activityBottomRef })]
-						})
+						})]
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("footer", {
 				className: "relative z-30 px-3 safe-pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center justify-between gap-2 max-w-md mx-auto",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				children: [
+					replyTarget && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-cyan-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3.5 h-3.5 text-cyan-300 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "text-[10px] font-black text-cyan-300 block truncate",
+									children: ["Replying to @", replyTarget.senderName]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-white/70 block truncate",
+									children: replyTarget.text
+								})]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
-							onClick: handleOpenGiftModal,
-							className: "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-95 transition-all shrink-0",
-							title: "Open Gift Shop",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-xl sm:text-2xl",
-								children: "🎁"
-							})
-						}),
-						isCurrentlySeated && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							onClick: handleToggleMyMic,
-							className: `h-11 sm:h-12 px-3 rounded-full border flex items-center justify-center gap-1.5 text-xs font-black active:scale-95 transition-all shrink-0 shadow-lg ${isMicMuted || isHostMutedOnMySeat ? "bg-rose-600/90 border-rose-300/60 text-white shadow-rose-900/50" : "bg-emerald-500/90 border-emerald-200/70 text-[#051B14] shadow-emerald-900/50"}`,
-							title: isMicMuted || isHostMutedOnMySeat ? "Turn Mic ON" : "Turn Mic OFF",
-							children: isMicMuted || isHostMutedOnMySeat ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MicOff, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "hidden xs:inline",
-								children: "Off"
-							})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "hidden xs:inline",
-								children: "On"
-							})] })
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
-							onSubmit: handleSendMessage,
-							className: "flex-1 flex items-center bg-[#170B2E]/90 border border-purple-500/30 focus-within:border-[#FA26A0] rounded-full px-3.5 py-2.5 transition-colors backdrop-blur-md min-w-0",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: () => setShowEmojiPicker(!showEmojiPicker),
-									className: "text-[#FFE043] hover:text-white shrink-0 mr-2",
-									title: "Add Emoji",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smile, { className: "w-5 h-5" })
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-									type: "text",
-									placeholder: "Say Hi...",
-									value: inputMessage,
-									onChange: (e) => setInputMessage(e.target.value),
-									className: "w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
-								}),
-								inputMessage.trim() && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "submit",
-									className: "w-7 h-7 rounded-full bg-[#FA26A0] text-white flex items-center justify-center shrink-0 ml-1 shadow",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" })
+							onClick: () => setReplyTarget(null),
+							className: "w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0",
+							"aria-label": "Cancel reply",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center justify-between gap-2 max-w-md mx-auto",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: handleOpenGiftModal,
+								className: "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-95 transition-all shrink-0",
+								title: "Open Gift Shop",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xl sm:text-2xl",
+									children: "🎁"
 								})
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							onClick: handleTriggerHeart,
-							className: "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-90 transition-all shrink-0",
-							title: "Send Heart",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-xl sm:text-2xl",
-								children: "💖"
+							}),
+							isCurrentlySeated && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: handleToggleMyMic,
+								className: `h-11 sm:h-12 px-3 rounded-full border flex items-center justify-center gap-1.5 text-xs font-black active:scale-95 transition-all shrink-0 shadow-lg ${isMicMuted || isHostMutedOnMySeat ? "bg-rose-600/90 border-rose-300/60 text-white shadow-rose-900/50" : "bg-emerald-500/90 border-emerald-200/70 text-[#051B14] shadow-emerald-900/50"}`,
+								title: isMicMuted || isHostMutedOnMySeat ? "Turn Mic ON" : "Turn Mic OFF",
+								children: isMicMuted || isHostMutedOnMySeat ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MicOff, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "hidden xs:inline",
+									children: "Off"
+								})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "hidden xs:inline",
+									children: "On"
+								})] })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+								onSubmit: handleSendMessage,
+								className: "flex-1 flex items-center bg-[#170B2E]/90 border border-purple-500/30 focus-within:border-[#FA26A0] rounded-full px-3.5 py-2.5 transition-colors backdrop-blur-md min-w-0",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => setShowEmojiPicker(!showEmojiPicker),
+										className: "text-[#FFE043] hover:text-white shrink-0 mr-2",
+										title: "Add Emoji",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Smile, { className: "w-5 h-5" })
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										ref: chatInputRef,
+										type: "text",
+										placeholder: replyTarget ? `Reply to @${replyTarget.senderName}...` : "Say Hi...",
+										value: inputMessage,
+										onChange: (e) => setInputMessage(e.target.value),
+										className: "w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
+									}),
+									inputMessage.trim() && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "submit",
+										className: "w-7 h-7 rounded-full bg-[#FA26A0] text-white flex items-center justify-center shrink-0 ml-1 shadow",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" })
+									})
+								]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: handleTriggerHeart,
+								className: "w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#9D0208] via-[#FA26A0] to-[#FF007A] flex items-center justify-center text-white shadow-[0_0_22px_rgba(250,38,160,0.8)] border border-white/30 active:scale-90 transition-all shrink-0",
+								title: "Send Heart",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-xl sm:text-2xl",
+									children: "💖"
+								})
 							})
-						})
-					]
-				}), showEmojiPicker && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex items-center justify-center gap-3 mt-2 bg-[#1C0B35] p-2 rounded-2xl border border-white/15 w-fit animate-fade-in shadow-2xl mx-auto",
-					children: [
-						"❤️",
-						"👏",
-						"🔥",
-						"🎉",
-						"🎵",
-						"😍",
-						"🌹",
-						"👑"
-					].map((em) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						onClick: () => {
-							setInputMessage((prev) => prev + em);
-							setShowEmojiPicker(false);
-						},
-						className: "text-xl hover:scale-125 transition-transform p-0.5",
-						children: em
-					}, em))
-				})]
+						]
+					}),
+					showEmojiPicker && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "flex items-center justify-center gap-3 mt-2 bg-[#1C0B35] p-2 rounded-2xl border border-white/15 w-fit animate-fade-in shadow-2xl mx-auto",
+						children: [
+							"❤️",
+							"👏",
+							"🔥",
+							"🎉",
+							"🎵",
+							"😍",
+							"🌹",
+							"👑"
+						].map((em) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => {
+								setInputMessage((prev) => prev + em);
+								setShowEmojiPicker(false);
+							},
+							className: "text-xl hover:scale-125 transition-transform p-0.5",
+							children: em
+						}, em))
+					})
+				]
 			}),
 			showParticipantsModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				onClick: () => setShowParticipantsModal(false),
@@ -137814,10 +138335,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								diamonds: 0
 							};
 							const seatedIdx = seats.findIndex((s) => s?.id === p.userId);
+							const isParticipantMod = moderatorIdsSet.has(p.userId);
 							return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								onClick: () => {
 									setShowParticipantsModal(false);
-									if (isRoomHost && p.userId !== currentUser.id) {
+									if (canModerateTarget(p.userId)) {
 										setShowKickDurationPicker(false);
 										setShowBlockMemberConfirm(false);
 										setSelectedSeatMember({
@@ -137861,13 +138383,20 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-center gap-1.5 shrink-0",
-									children: [p.isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "px-2 py-0.5 rounded bg-[#FFC84A] text-black text-[9px] font-black",
-										children: "HOST"
-									}), isRoomHost && p.userId !== currentUser.id && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "px-2 py-1 rounded-lg bg-white/10 text-[10px] font-bold text-white/85",
-										children: "Manage"
-									})]
+									children: [
+										p.isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "px-2 py-0.5 rounded bg-[#FFC84A] text-black text-[9px] font-black",
+											children: "HOST"
+										}),
+										!p.isHost && isParticipantMod && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[9px] font-black uppercase",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5" }), "MOD"]
+										}),
+										canModerateTarget(p.userId) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "px-2 py-1 rounded-lg bg-white/10 text-[10px] font-bold text-white/85",
+											children: "Manage"
+										})
+									]
 								})]
 							}, p.userId);
 						})
@@ -137893,9 +138422,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							className: "w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-white",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
 						})]
-					}), isRoomHost ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "space-y-2",
+					}), canModerate ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-2 max-h-[68vh] overflow-y-auto no-scrollbar pr-0.5",
 						children: [
+							isCurrentUserModerator && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "px-3 py-2 rounded-2xl bg-cyan-500/15 border border-cyan-400/35 flex items-center gap-2 text-[11px] font-bold text-cyan-200",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-cyan-300 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Moderator Mode Active — Full Room & Seat Controls" })]
+							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setShowSettingsSheet(false);
@@ -137910,7 +138443,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									children: seatRequests.length
 								})]
 							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setShowSettingsSheet(false);
 									setShowBackgroundPicker(true);
@@ -137948,6 +138481,23 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-white/50" })]
 							}),
+							isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: () => {
+									setShowSettingsSheet(false);
+									setShowModeratorsListModal(true);
+								},
+								className: "w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-bold text-white",
+										children: "Lifetime Moderators"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-[10px] font-bold font-mono",
+									children: hostModerators.length
+								})]
+							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setShowSettingsSheet(false);
@@ -137965,7 +138515,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									children: hostRoomKicks.length
 								})]
 							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: () => {
+									setShowSettingsSheet(false);
+									setShowClearChatConfirmModal(true);
+								},
+								className: "w-full flex items-center justify-between p-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-400/25 transition-colors",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eraser, { className: "w-4 h-4 text-rose-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-bold text-rose-200",
+										children: "Clear Comment History"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-rose-300/60" })]
+							}),
+							isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "p-3 rounded-2xl bg-white/5 space-y-2",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -138062,18 +138626,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									" (Stay as Listener)"
 								]
 							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							isRoomHost ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: handleCleanLeaveParty,
 								className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Exit Room View (Keep Party Active)" })]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setShowSettingsSheet(false);
 									setShowCloseRoomConfirmModal(true);
 								},
 								className: "w-full py-2.5 rounded-xl bg-rose-600/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-600/30",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Permanently Close Room" })]
+							})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: handleCleanLeaveParty,
+								className: "w-full py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-center gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogOut, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Leave Party Room" })]
 							})
 						]
 					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -138451,7 +139018,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					]
 				})
 			}),
-			selectedSeatMember && isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			selectedSeatMember && canModerateTarget(selectedSeatMember.user.id) && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				"data-no-doubletap": "true",
 				onClick: closeModerationModal,
 				className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in",
@@ -138472,9 +139039,15 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex flex-col min-w-0",
 								children: [
-									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "text-sm font-black text-white truncate",
-										children: selectedSeatMember.user.name
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-sm font-black text-white truncate",
+											children: selectedSeatMember.user.name
+										}), moderatorIdsSet.has(selectedSeatMember.user.id) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gradient-to-r from-cyan-500 to-indigo-500 text-white text-[8.5px] font-black uppercase shrink-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5" }), "MOD"]
+										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex items-center gap-1 mt-0.5 flex-wrap",
@@ -138495,7 +139068,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 										className: "text-[10px] text-[#FA26A0] font-mono font-bold mt-0.5",
-										children: selectedSeatMember.index !== null ? `Seat #${selectedSeatMember.index + 1} • Host Controls` : "Room Audience • Host Controls"
+										children: selectedSeatMember.index !== null ? `Seat #${selectedSeatMember.index + 1} • ${isRoomHost ? "Host" : "Moderator"} Controls` : `Room Audience • ${isRoomHost ? "Host" : "Moderator"} Controls`
 									})
 								]
 							})]
@@ -138561,7 +139134,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								] })]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 								className: "text-[11px] text-rose-100/80 leading-relaxed",
-								children: "They will be permanently blocked from viewing your profile/ID, watching your videos, entering your party rooms or live streams, and interacting with you."
+								children: "They will be permanently blocked from entering this Host's party rooms or live streams and interacting in the room."
 							})]
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex gap-2",
@@ -138591,6 +139164,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								},
 								className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserCheck, { className: "w-4 h-4 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "View User Profile" })]
+							}),
+							isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								disabled: moderationBusy,
+								onClick: () => void handleToggleModeratorRole(selectedSeatMember.user),
+								className: `w-full py-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${moderatorIdsSet.has(selectedSeatMember.user.id) ? "bg-cyan-950/70 hover:bg-cyan-900/70 border-cyan-400/50 text-cyan-200" : "bg-gradient-to-r from-cyan-500/90 via-sky-500/90 to-indigo-500/90 hover:opacity-95 border-cyan-300/60 text-white shadow-lg shadow-cyan-500/20"}`,
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: moderatorIdsSet.has(selectedSeatMember.user.id) ? "Remove Moderator" : "Make Moderator (Lifetime)" })]
 							}),
 							selectedSeatMember.index !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -138635,7 +139215,120 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					})]
 				})
 			}),
-			showKickedUsersModal && isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			showModeratorsListModal && isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				"data-no-doubletap": "true",
+				onClick: () => setShowModeratorsListModal(false),
+				className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					onClick: (e) => e.stopPropagation(),
+					className: "w-full max-w-md bg-[#160A2B] border-t sm:border border-cyan-500/30 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center justify-between pb-3 border-b border-white/10 mb-3",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+							className: "text-sm font-black text-white flex items-center gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+								"Lifetime Moderators (",
+								hostModerators.length,
+								")"
+							] })]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[10px] text-cyan-200/75 mt-0.5",
+							children: "Active across all your broadcasts until removed here or in Settings"
+						})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setShowModeratorsListModal(false),
+							className: "w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "space-y-2 overflow-y-auto no-scrollbar py-1",
+						children: hostModerators.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+							className: "text-xs text-white/60 text-center py-8 leading-relaxed",
+							children: [
+								"No moderators assigned yet. Tap any user on a seat, comment, or audience list and tap",
+								" ",
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-cyan-300 font-bold",
+									children: "Make Moderator"
+								}),
+								"."
+							]
+						}) : hostModerators.map((mod) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#200E38] border border-white/10",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 min-w-0",
+								children: [mod.moderatorAvatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: mod.moderatorAvatar,
+									alt: mod.moderatorName,
+									className: "w-9 h-9 rounded-full object-cover ring-2 ring-cyan-400/70 shrink-0"
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-9 h-9 rounded-full bg-cyan-600/40 text-xs font-black flex items-center justify-center shrink-0",
+									children: (mod.moderatorName || "M").charAt(0).toUpperCase()
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-xs font-bold text-white truncate block",
+										children: mod.moderatorName
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] text-cyan-300 font-semibold block",
+										children: ["Moderator • Added ", new Date(mod.assignedAt || Date.now()).toLocaleDateString()]
+									})]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: async () => {
+									if ((await removeHostModerator({
+										hostId: currentUser.id,
+										moderatorUserId: mod.moderatorUserId
+									})).success) showToast(`Removed ${mod.moderatorName} from Moderators`);
+								},
+								className: "px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/40 text-rose-200 text-[10px] font-black shrink-0",
+								children: "Remove"
+							})]
+						}, mod.id))
+					})]
+				})
+			}),
+			showClearChatConfirmModal && canModerate && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				"data-no-doubletap": "true",
+				onClick: () => setShowClearChatConfirmModal(false),
+				className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					onClick: (e) => e.stopPropagation(),
+					className: "w-full max-w-sm bg-[#160A2B] border border-rose-500/40 rounded-3xl p-5 shadow-2xl space-y-4 text-center",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center mx-auto text-rose-300",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eraser, { className: "w-6 h-6" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+							className: "text-sm font-black text-white",
+							children: "Clear All Comment History?"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-white/70 leading-relaxed",
+							children: "This will permanently delete all room comments for everyone in this party room."
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex gap-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isClearingChat,
+								onClick: () => setShowClearChatConfirmModal(false),
+								className: "flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold",
+								children: "Cancel"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: isClearingChat,
+								onClick: () => void handleClearAllComments(),
+								className: "flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black disabled:opacity-50",
+								children: isClearingChat ? "Clearing..." : "Clear All"
+							})]
+						})
+					]
+				})
+			}),
+			showKickedUsersModal && canModerate && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				"data-no-doubletap": "true",
 				onClick: () => setShowKickedUsersModal(false),
 				className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-0 sm:p-4",
@@ -151043,7 +151736,7 @@ var PullToRefresh = ({ onRefresh, disabled = false, children }) => {
 	});
 };
 // src/components/screens/SettingsScreen.tsx
-var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser }) => {
+var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser, moderators = [], onRemoveModerator }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
 	const [darkMode, setDarkMode] = (0, import_react.useState)(true);
 	const [showOnlineStatus, setShowOnlineStatus] = (0, import_react.useState)(true);
@@ -151059,6 +151752,8 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 	const [isLinkingGoogle, setIsLinkingGoogle] = (0, import_react.useState)(false);
 	const [linkedProviders, setLinkedProviders] = (0, import_react.useState)(() => getLinkedAuthProviders());
 	const [isBlockedModalOpen, setIsBlockedModalOpen] = (0, import_react.useState)(false);
+	const [isModeratorsModalOpen, setIsModeratorsModalOpen] = (0, import_react.useState)(false);
+	const [removingModId, setRemovingModId] = (0, import_react.useState)(null);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const savedAccountsCount = getSavedDeviceAccounts().length;
 	(0, import_react.useEffect)(() => {
@@ -151536,6 +152231,26 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							onClick: () => setIsModeratorsModalOpen(true),
+							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-cyan-500/20 hover:border-cyan-400/40 transition-all cursor-pointer group",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-3",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-cyan-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-sm font-semibold text-white block",
+									children: "Moderation & Moderators"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-[#B9AECF]",
+									children: "Manage lifetime moderators for your Party Rooms"
+								})] })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-[11px] font-bold text-cyan-300",
+									children: moderators.length
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							onClick: () => setIsBlockedModalOpen(true),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -151551,6 +152266,112 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 									children: blockedUsers.length
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 							})]
+						}),
+						isModeratorsModalOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "w-full max-w-md rounded-3xl bg-[#140A24] border border-cyan-500/30 shadow-2xl overflow-hidden flex flex-col max-h-[82vh]",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "px-5 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-cyan-950/60 via-[#1A0D30] to-indigo-950/60",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-9 h-9 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center",
+												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-5 h-5 text-cyan-300" })
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+												className: "text-sm font-black text-white",
+												children: "My Room Moderators"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[11px] text-cyan-200/80",
+												children: "Active for life across all your broadcasts until removed"
+											})] })]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											onClick: () => setIsModeratorsModalOpen(false),
+											className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "p-4 overflow-y-auto flex-1 space-y-2.5",
+										children: moderators.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "py-10 px-4 text-center space-y-2",
+											children: [
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+													className: "w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-400/25 flex items-center justify-center",
+													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-6 h-6 text-cyan-300/70" })
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+													className: "text-sm font-bold text-white",
+													children: "No Moderators Assigned Yet"
+												}),
+												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+													className: "text-xs text-[#B9AECF] leading-relaxed",
+													children: [
+														"Open your Party Room, tap any user on a seat, comment, or audience list, and choose",
+														" ",
+														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+															className: "text-cyan-300 font-bold",
+															children: "Make Moderator"
+														}),
+														". They will keep Moderator powers across all your future rooms until you remove them here."
+													]
+												})
+											]
+										}) : moderators.map((mod) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center gap-3 min-w-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+													src: mod.moderatorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(mod.moderatorName || "M")}&background=0891b2&color=fff`,
+													alt: mod.moderatorName,
+													className: "w-11 h-11 rounded-full object-cover border-2 border-cyan-400/70 shrink-0"
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+													className: "min-w-0",
+													children: [
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+															className: "flex items-center gap-1.5 flex-wrap",
+															children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+																className: "text-xs font-black text-white truncate",
+																children: mod.moderatorName
+															}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+																className: "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 text-[8.5px] font-black uppercase text-white",
+																children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-2.5 h-2.5" }), "MOD"]
+															})]
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+															className: "text-[10px] text-[#B9AECF] truncate",
+															children: [mod.moderatorUsername ? `${mod.moderatorUsername} · ` : "", mod.moderatorDisplayId ? `ID: ${mod.moderatorDisplayId}` : "Lifetime Moderator"]
+														}),
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+															className: "text-[9.5px] text-white/45 mt-0.5",
+															children: ["Added ", new Date(mod.assignedAt || Date.now()).toLocaleDateString()]
+														})
+													]
+												})]
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												disabled: removingModId === mod.moderatorUserId,
+												onClick: async () => {
+													if (!onRemoveModerator) return;
+													setRemovingModId(mod.moderatorUserId);
+													try {
+														await onRemoveModerator(mod.moderatorUserId, mod.moderatorName);
+														showToast(`${mod.moderatorName} removed from Moderators.`);
+													} finally {
+														setRemovingModId(null);
+													}
+												},
+												className: "shrink-0 px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-rose-300 text-[11px] font-bold transition-all active:scale-95 disabled:opacity-50",
+												children: removingModId === mod.moderatorUserId ? "Removing..." : "Remove"
+											})]
+										}, mod.id))
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "px-4 py-3 border-t border-white/10 bg-white/[0.02] text-[10.5px] text-[#B9AECF] leading-relaxed",
+										children: "Moderators can control seats, accept requests, kick or block users (except the Host), and delete or clear chat history."
+									})
+								]
+							})
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)(BlockedUsersModal, {
 							isOpen: isBlockedModalOpen,
@@ -160936,12 +161757,14 @@ function App() {
 	const isBlockedByMe = (userId) => Boolean(userId && blockedUserIds.includes(userId));
 	const isBlockedByTarget = (userId) => Boolean(userId && blockedByUserIds.includes(userId));
 	const isBlockedRelationship = (userId) => isBlockedByMe(userId) || isBlockedByTarget(userId);
+	const [myModerators, setMyModerators] = (0, import_react.useState)([]);
 	(0, import_react.useEffect)(() => {
 		const uid = currentUser?.id;
 		if (!uid) {
 			setBlockedUsers([]);
 			setBlockedByUserIds([]);
 			setActiveRoomKicks([]);
+			setMyModerators([]);
 			return;
 		}
 		const unsubByMe = subscribeBlockedByMe(uid, (records) => {
@@ -160953,6 +161776,9 @@ function App() {
 		const unsubRoomKicks = subscribeMyActiveRoomKicks(uid, (kicks) => {
 			setActiveRoomKicks(kicks);
 		});
+		const unsubMyMods = subscribeHostModerators(uid, (mods) => {
+			setMyModerators(mods);
+		});
 		const unsubWsBlocks = liveAndRoomService.addEventListener((event, payload) => {
 			if (event === "user:blocked_by" && payload?.blockerId) setBlockedByUserIds((prev) => prev.includes(payload.blockerId) ? prev : [...prev, payload.blockerId]);
 			else if (event === "user:unblocked_by" && payload?.blockerId) setBlockedByUserIds((prev) => prev.filter((id) => id !== payload.blockerId));
@@ -160961,6 +161787,7 @@ function App() {
 			unsubByMe();
 			unsubBlockedMe();
 			unsubRoomKicks();
+			unsubMyMods();
 			unsubWsBlocks();
 		};
 	}, [currentUser?.id]);
@@ -161035,6 +161862,16 @@ function App() {
 		});
 		setBlockedUsers((prev) => prev.filter((item) => item.blockedUserId !== targetUserId));
 		showAppToast(`Unblocked ${targetName || "user"}.`);
+	};
+	const handleRemoveModerator = async (moderatorUserId, moderatorName) => {
+		if (!moderatorUserId || !currentUser?.id) return;
+		if ((await removeHostModerator({
+			hostId: currentUser.id,
+			moderatorUserId
+		})).success) {
+			setMyModerators((prev) => prev.filter((m) => m.moderatorUserId !== moderatorUserId));
+			showAppToast(`Removed ${moderatorName || "user"} from your Moderators.`);
+		}
 	};
 	const [isPKInviteModalOpen, setIsPKInviteModalOpen] = (0, import_react.useState)(false);
 	const [activePKSession, setActivePKSession] = (0, import_react.useState)(null);
@@ -162729,7 +163566,9 @@ function App() {
 								isAdmin: Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === "yaquoobe@gmail.com"),
 								onOpenAdminProgression: () => setIsAdminProgressionOpen(true),
 								blockedUsers,
-								onUnblockUser: handleUnblockUser
+								onUnblockUser: handleUnblockUser,
+								moderators: myModerators,
+								onRemoveModerator: handleRemoveModerator
 							})
 						]
 					})
