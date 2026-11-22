@@ -1,6 +1,10 @@
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { UserProfile } from '../types';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NotificationPreferences,
+  UserProfile,
+} from '../types';
 
 export const MAX_SAVED_ACCOUNTS = 5;
 
@@ -31,6 +35,7 @@ export interface SavedDeviceAccount {
 export interface PersistedUserSettings {
   userId: string;
   notificationsEnabled: boolean;
+  notificationPreferences: NotificationPreferences;
   darkMode: boolean;
   language: string;
   showOnlineStatus: boolean;
@@ -40,11 +45,29 @@ export interface PersistedUserSettings {
 
 export const DEFAULT_USER_SETTINGS: Omit<PersistedUserSettings, 'userId' | 'updatedAt'> = {
   notificationsEnabled: true,
+  notificationPreferences: { ...DEFAULT_NOTIFICATION_PREFERENCES },
   darkMode: true,
   language: 'English',
   showOnlineStatus: true,
   allowDirectMessages: 'everyone',
 };
+
+function normalizeNotificationPreferences(raw: any): NotificationPreferences {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    messages: src.messages !== false,
+    gifts: src.gifts !== false,
+    followers: src.followers !== false,
+    rooms: src.rooms !== false,
+    pk: src.pk !== false,
+    wallet: src.wallet !== false,
+    agency: src.agency !== false,
+    progression: src.progression !== false,
+    system: src.system !== false,
+    soundEnabled: src.soundEnabled !== false,
+    vibrateEnabled: src.vibrateEnabled !== false,
+  };
+}
 
 function readRawAccounts(): SavedDeviceAccount[] {
   if (typeof window === 'undefined') return [];
@@ -201,6 +224,7 @@ export async function loadUserSettingsFromFirestore(uid: string): Promise<Persis
       return {
         userId: uid,
         notificationsEnabled: data.notificationsEnabled !== false,
+        notificationPreferences: normalizeNotificationPreferences(data.notificationPreferences),
         darkMode: data.darkMode !== false,
         language: typeof data.language === 'string' ? data.language : 'English',
         showOnlineStatus: data.showOnlineStatus !== false,
@@ -227,6 +251,10 @@ export async function saveUserSettingsToFirestore(
   const payload: PersistedUserSettings = {
     ...current,
     ...partial,
+    notificationPreferences: normalizeNotificationPreferences({
+      ...current.notificationPreferences,
+      ...(partial.notificationPreferences || {}),
+    }),
     userId: uid,
     updatedAt: new Date().toISOString(),
   };
@@ -245,6 +273,7 @@ export function subscribeUserSettings(
         onUpdate({
           userId: uid,
           notificationsEnabled: data.notificationsEnabled !== false,
+          notificationPreferences: normalizeNotificationPreferences(data.notificationPreferences),
           darkMode: data.darkMode !== false,
           language: typeof data.language === 'string' ? data.language : 'English',
           showOnlineStatus: data.showOnlineStatus !== false,

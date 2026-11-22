@@ -1,13 +1,19 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { A as Shield, Dt as Globe, En as ArrowLeft, M as ShieldCheck, On as require_react, Tn as ArrowRightLeft, Yt as Copy, _n as Bell, a as Wallet, an as ChevronRight, cn as Check, d as UserX, dt as Lock, g as TriangleAlert, lt as Mail, mt as Link2, ot as MessageCircle, r as X, st as Megaphone, tt as Moon, ut as LogOut, v as Trash2, yt as Info, zt as ExternalLink } from "./vendor-icons-Ca04WHp3.js";
-import { Dt as getLinkedAuthProviders, Ft as subscribeUserSettings, Mt as loadUserSettingsFromFirestore, Nt as saveUserSettingsToFirestore, Ot as linkGoogleAccount, Pt as submitAccountDeletionRequest, jt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-BqmB7my3.js";
+import { An as require_react, Bt as ExternalLink, Dn as ArrowRightLeft, L as Send, N as ShieldCheck, On as ArrowLeft, Ot as Globe, Xt as Copy, _ as TriangleAlert, a as Wallet, bt as Info, ct as Megaphone, dt as LogOut, f as UserX, ft as Lock, ht as Link2, j as Shield, l as Vibrate, ln as Check, nt as Moon, on as ChevronRight, r as X, s as Volume2, st as MessageCircle, ut as Mail, vn as Bell, y as Trash2, yn as BellRing } from "./vendor-icons-Dlv_q2hi.js";
+import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-D66AMxEz.js";
+import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-DtBSjMV_.js";
 import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-D3T8Lfjf.js";
+import { i as require_jsx_runtime } from "./vendor-motion-CrMGE5cV.js";
 // src/components/screens/SettingsScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
 var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser, moderators = [], onRemoveModerator }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
+	const [notifPrefs, setNotifPrefs] = (0, import_react.useState)({ ...DEFAULT_NOTIFICATION_PREFERENCES });
+	const [pushPermission, setPushPermission] = (0, import_react.useState)("default");
+	const [showPushSettingsModal, setShowPushSettingsModal] = (0, import_react.useState)(false);
+	const [isUpdatingPush, setIsUpdatingPush] = (0, import_react.useState)(false);
+	const [isSendingTestPush, setIsSendingTestPush] = (0, import_react.useState)(false);
 	const [darkMode, setDarkMode] = (0, import_react.useState)(true);
 	const [showOnlineStatus, setShowOnlineStatus] = (0, import_react.useState)(true);
 	const [allowDirectMessages, setAllowDirectMessages] = (0, import_react.useState)("everyone");
@@ -27,10 +33,14 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const savedAccountsCount = getSavedDeviceAccounts().length;
 	(0, import_react.useEffect)(() => {
+		getPushPermissionState().then(setPushPermission);
+	}, []);
+	(0, import_react.useEffect)(() => {
 		const uid = auth.currentUser?.uid || currentUser.id;
 		if (!uid || uid === "user_current_01") return;
 		loadUserSettingsFromFirestore(uid).then((settings) => {
 			setNotifications(settings.notificationsEnabled);
+			setNotifPrefs(settings.notificationPreferences);
 			setDarkMode(settings.darkMode);
 			setLanguage(settings.language);
 			setShowOnlineStatus(settings.showOnlineStatus);
@@ -38,6 +48,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 		});
 		const unsub = subscribeUserSettings(uid, (settings) => {
 			setNotifications(settings.notificationsEnabled);
+			setNotifPrefs(settings.notificationPreferences);
 			setDarkMode(settings.darkMode);
 			setLanguage(settings.language);
 			setShowOnlineStatus(settings.showOnlineStatus);
@@ -96,6 +107,208 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 				toastMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[140] bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 max-w-[90vw] text-center",
 					children: toastMessage
+				}),
+				showPushSettingsModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "bg-[#160C25] border border-white/15 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+									className: "text-base font-extrabold text-white flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(BellRing, { className: "w-5 h-5 text-[#F328D5]" }), "Push Notifications"]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									onClick: () => setShowPushSettingsModal(false),
+									className: "w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF]/20 to-[#F328D5]/15 border border-[#F328D5]/30 space-y-2.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs font-black text-white",
+										children: "Device Push Status"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-[#C5B9DE]",
+										children: pushPermission === "granted" ? "Active — alerts delivered even when minimized" : pushPermission === "denied" ? "Blocked in browser/OS settings — enable in site/app settings" : "Tap Enable to receive real-time OS push notifications"
+									})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: `px-2 py-0.5 rounded-full text-[10px] font-black uppercase shrink-0 ${pushPermission === "granted" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/35" : pushPermission === "denied" ? "bg-rose-500/20 text-rose-300 border border-rose-400/35" : "bg-amber-500/20 text-amber-300 border border-amber-400/35"}`,
+										children: pushPermission === "granted" ? "Active" : pushPermission === "denied" ? "Blocked" : "Off"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										disabled: isUpdatingPush,
+										onClick: async () => {
+											setIsUpdatingPush(true);
+											try {
+												const res = await registerDeviceForPushNotifications({ requestPermission: true });
+												setPushPermission(res.permission);
+												if (res.permission === "granted") {
+													setNotifications(true);
+													persistSetting({ notificationsEnabled: true });
+													showToast("Device push notifications activated!");
+												} else if (res.permission === "denied") showToast("Permission blocked. Please allow Notifications in device/browser settings.");
+												else showToast("Notification permission dismissed.");
+											} finally {
+												setIsUpdatingPush(false);
+											}
+										},
+										className: "flex-1 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-black disabled:opacity-50",
+										children: isUpdatingPush ? "Activating..." : pushPermission === "granted" ? "Refresh Device Subscription" : "Enable Device Push"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										disabled: isSendingTestPush,
+										onClick: async () => {
+											setIsSendingTestPush(true);
+											try {
+												await sendSelfTestPushNotification();
+												showToast("Test push notification dispatched!");
+											} finally {
+												setIsSendingTestPush(false);
+											}
+										},
+										className: "px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isSendingTestPush ? "Sending..." : "Test" })]
+									})]
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-between p-3 rounded-2xl bg-white/[0.04] border border-white/10",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-extrabold text-white",
+									children: "All Push Notifications"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[10px] text-[#B9AECF]",
+									children: "Master switch for all real-time alerts"
+								})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => {
+										const next = !notifications;
+										setNotifications(next);
+										persistSetting({ notificationsEnabled: next });
+										if (!next) unregisterDevicePushNotifications();
+										else registerDeviceForPushNotifications({ requestPermission: true }).then((r) => setPushPermission(r.permission));
+										showToast(next ? "All push notifications enabled" : "Push notifications muted");
+									},
+									className: `w-11 h-6 rounded-full transition-colors relative p-0.5 ${notifications ? "bg-[#F328D5]" : "bg-[#211333]"}`,
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-5 h-5 rounded-full bg-white transition-transform ${notifications ? "translate-x-5" : "translate-x-0"}` })
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-[10px] font-black uppercase tracking-wider text-[#B9AECF] px-1",
+									children: "Alert Categories"
+								}), [
+									{
+										key: "messages",
+										label: "Direct Messages & Reactions",
+										desc: "Chats, voice notes, photos & invites"
+									},
+									{
+										key: "gifts",
+										label: "Gifts & Diamond Earnings",
+										desc: "Every virtual gift and Host Diamonds credited"
+									},
+									{
+										key: "followers",
+										label: "Followers, Likes & Comments",
+										desc: "New followers and reel interactions"
+									},
+									{
+										key: "rooms",
+										label: "Live Streams & Party Rooms",
+										desc: "Followed hosts going live & moderator updates"
+									},
+									{
+										key: "pk",
+										label: "PK Battle Challenges & Results",
+										desc: "Incoming PK invites, starts & winners"
+									},
+									{
+										key: "wallet",
+										label: "Wallet, Coins & Withdrawals",
+										desc: "Recharges, payout approvals & transfers"
+									},
+									{
+										key: "agency",
+										label: "Agency & Commissions",
+										desc: "Host contracts, slip orders & agency commissions"
+									},
+									{
+										key: "progression",
+										label: "Levels, VIP & Store Unlocks",
+										desc: "Level ups, VIP upgrades & store rewards"
+									},
+									{
+										key: "system",
+										label: "Official Announcements & Security",
+										desc: "Admin broadcasts & account alerts"
+									}
+								].map((item) => {
+									const enabled = notifPrefs[item.key];
+									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-xs font-bold text-white truncate",
+												children: item.label
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+												className: "text-[10px] text-[#B9AECF] truncate",
+												children: item.desc
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => {
+												const updated = {
+													...notifPrefs,
+													[item.key]: !enabled
+												};
+												setNotifPrefs(updated);
+												persistSetting({ notificationPreferences: updated });
+											},
+											className: `w-10 h-5.5 rounded-full transition-colors relative p-0.5 shrink-0 ${enabled && notifications ? "bg-[#8B20FF]" : "bg-[#211333]"}`,
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-4.5 h-4.5 rounded-full bg-white transition-transform ${enabled && notifications ? "translate-x-4.5" : "translate-x-0"}` })
+										})]
+									}, item.key);
+								})]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "grid grid-cols-2 gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => {
+										const updated = {
+											...notifPrefs,
+											soundEnabled: !notifPrefs.soundEnabled
+										};
+										setNotifPrefs(updated);
+										persistSetting({ notificationPreferences: updated });
+									},
+									className: `p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${notifPrefs.soundEnabled ? "bg-[#8B20FF]/20 border-[#8B20FF]/50 text-white" : "bg-white/[0.03] border-white/10 text-[#B9AECF]"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Sound: ", notifPrefs.soundEnabled ? "On" : "Off"] })]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => {
+										const updated = {
+											...notifPrefs,
+											vibrateEnabled: !notifPrefs.vibrateEnabled
+										};
+										setNotifPrefs(updated);
+										persistSetting({ notificationPreferences: updated });
+									},
+									className: `p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${notifPrefs.vibrateEnabled ? "bg-[#F328D5]/20 border-[#F328D5]/50 text-white" : "bg-white/[0.03] border-white/10 text-[#B9AECF]"}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Vibrate, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["Vibrate: ", notifPrefs.vibrateEnabled ? "On" : "Off"] })]
+								})]
+							})
+						]
+					})
 				}),
 				showLanguageModal && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm",
@@ -435,23 +648,24 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] border border-white/[0.08]",
+							onClick: () => setShowPushSettingsModal(true),
+							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-[#F328D5]/25 transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-5 h-5 text-[#F328D5]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-sm font-semibold text-white",
-									children: "Notifications"
+								className: "flex items-center gap-3 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-5 h-5 text-[#F328D5] shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-sm font-semibold text-white flex items-center gap-1.5",
+										children: ["Push Notifications", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: `text-[9px] px-1.5 py-0.5 rounded font-black uppercase ${notifications && pushPermission === "granted" ? "bg-emerald-500/20 text-emerald-300" : notifications ? "bg-amber-500/20 text-amber-300" : "bg-white/10 text-[#B9AECF]"}`,
+											children: !notifications ? "Muted" : pushPermission === "granted" ? "Active" : "Setup"
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[10px] text-[#B9AECF] block truncate",
+										children: "Chats, gifts, live rooms, PK battles, wallet, agency & test push"
+									})]
 								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => {
-									const next = !notifications;
-									setNotifications(next);
-									persistSetting({ notificationsEnabled: next });
-									showToast(next ? "Notifications enabled (saved)" : "Notifications paused (saved)");
-								},
-								className: `w-11 h-6 rounded-full transition-colors relative p-0.5 ${notifications ? "bg-[#F328D5]" : "bg-[#211333]"}`,
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: `w-5 h-5 rounded-full bg-white transition-transform ${notifications ? "translate-x-5" : "translate-x-0"}` })
-							})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF] group-hover:translate-x-0.5 transition-transform shrink-0" })]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							onClick: () => setShowLanguageModal(true),

@@ -253,21 +253,43 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // User Notifications subcollection
+      // User Notifications subcollection (Universal Push Notifications)
       match /notifications/{notificationId} {
         allow get: if (isOwner(uid) || isAdmin()) && isValidId(notificationId);
         allow list: if isOwner(uid) || isAdmin();
         allow create: if isSignedIn()
                       && isValidId(notificationId)
-                      && incoming().title is string && incoming().title.size() <= 120
-                      && incoming().message is string && incoming().message.size() <= 400
-                      && incoming().type in ['system', 'like', 'follow', 'gift']
-                      && incoming().isRead == false;
+                      && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 140
+                      && incoming().message is string && incoming().message.size() > 0 && incoming().message.size() <= 420
+                      && incoming().type in ['messages', 'gifts', 'followers', 'rooms', 'pk', 'wallet', 'agency', 'progression', 'system', 'like', 'follow', 'gift']
+                      && incoming().isRead == false
+                      && (!('avatar' in incoming()) || (incoming().avatar is string && incoming().avatar.size() <= 512))
+                      && (!('senderId' in incoming()) || (incoming().senderId is string && incoming().senderId.size() <= 128))
+                      && (!('senderName' in incoming()) || (incoming().senderName is string && incoming().senderName.size() <= 120))
+                      && (!('actionType' in incoming()) || (incoming().actionType is string && incoming().actionType.size() <= 48))
+                      && (!('targetId' in incoming()) || (incoming().targetId is string && incoming().targetId.size() <= 160))
+                      && (!('actionUrl' in incoming()) || (incoming().actionUrl is string && incoming().actionUrl.size() <= 240))
+                      && (!('priority' in incoming()) || incoming().priority in ['normal', 'high', 'urgent'])
+                      && (!('eventKey' in incoming()) || (incoming().eventKey is string && incoming().eventKey.size() <= 128));
         allow update: if (isOwner(uid) || isAdmin())
                       && isValidId(notificationId)
                       && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
                       && incoming().isRead is bool;
         allow delete: if (isOwner(uid) || isAdmin()) && isValidId(notificationId);
+      }
+
+      // Per-user device push subscriptions (Web Push VAPID & Native Android)
+      match /push_subscriptions/{subId} {
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(subId);
+        allow list: if isOwner(uid) || isAdmin();
+        allow create, update: if isOwner(uid)
+                              && isValidId(subId)
+                              && incoming().userId == uid
+                              && incoming().platform in ['web', 'android', 'ios']
+                              && incoming().endpoint is string
+                              && incoming().endpoint.size() > 0
+                              && incoming().endpoint.size() <= 1024;
+        allow delete: if (isOwner(uid) || isAdmin()) && isValidId(subId);
       }
 
       // Per-user financial subcollections (synchronized with root ledgers)
@@ -1388,6 +1410,7 @@ service cloud.firestore {
         && data.language is string && data.language.size() > 0 && data.language.size() <= 40
         && (!('showOnlineStatus' in data) || data.showOnlineStatus is bool)
         && (!('allowDirectMessages' in data) || data.allowDirectMessages in ['everyone', 'followers', 'nobody'])
+        && (!('notificationPreferences' in data) || data.notificationPreferences is map)
         && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
     }
 
@@ -1967,6 +1990,19 @@ service cloud.firestore {
                     && incoming().action is string && incoming().action.size() > 0 && incoming().action.size() <= 64
                     && incoming().reason is string && incoming().reason.size() > 0 && incoming().reason.size() <= 400;
       allow update, delete: if false;
+    }
+
+    // Global Admin Push Announcements (/push_announcements/{announcementId})
+    match /push_announcements/{announcementId} {
+      allow get: if isSignedIn() && isValidId(announcementId);
+      allow list: if isSignedIn() && resource.data.active == true;
+      allow create: if isAdmin()
+                    && isValidId(announcementId)
+                    && incoming().adminUid == request.auth.uid
+                    && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 140
+                    && incoming().message is string && incoming().message.size() > 0 && incoming().message.size() <= 500
+                    && incoming().active == true;
+      allow update, delete: if isAdmin() && isValidId(announcementId);
     }
   }
 }

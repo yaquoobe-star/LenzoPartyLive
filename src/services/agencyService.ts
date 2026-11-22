@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { UserProfile } from '../types';
+import { sendPushNotification } from './pushNotificationService';
 
 export type DualAgencyType = 'coin_seller' | 'host_agency';
 
@@ -464,6 +465,18 @@ export async function adminReviewAgencyApplication(params: {
         createdAgencyId: agencyId,
         reviewedAt: nowIso,
       });
+    });
+
+    void sendPushNotification({
+      targetUserId: application.applicantUid,
+      type: 'agency',
+      title: `🏢 Agency Approved: ${application.agencyName}`,
+      message: `Congratulations! Your ${application.agencyType === 'coin_seller' ? 'Coin Seller' : 'Host'} Agency is now LIVE and verified.`,
+      actionType: 'open_agency',
+      targetId: agencyId,
+      priority: 'high',
+      allowSelf: true,
+      eventKey: 'agency_approved',
     });
 
     return { success: true, agencyId };
@@ -975,6 +988,16 @@ export async function transferCoinsFromAgency(params: {
       tx.set(transferRef, transferRecord);
     });
 
+    void sendPushNotification({
+      targetUserId: params.recipient.uid,
+      type: 'wallet',
+      title: `🪙 +${coinAmount.toLocaleString()} Coins Received!`,
+      message: `Your wallet was credited by an official Coin Seller Agency.${params.note?.trim() ? ` Note: ${params.note.trim()}` : ''}`,
+      actionType: 'open_wallet',
+      priority: 'high',
+      eventKey: 'agency_coin_transfer',
+    });
+
     return { success: true, newAgencyBalance: updatedAgencyBalance };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Coin transfer failed. Please try again.' };
@@ -1072,6 +1095,21 @@ export async function sendHostJoinRequest(params: {
     };
 
     await setDoc(reqRef, record);
+
+    void sendPushNotification({
+      targetUserId: params.agency.ownerUid,
+      type: 'agency',
+      title: `🎤 New Host Join Request from ${record.hostName}`,
+      message: `${record.hostName} (${record.hostUsername}) requested to join ${params.agency.name}.`,
+      avatar: record.hostAvatar || undefined,
+      senderId: record.hostUid,
+      senderName: record.hostName,
+      actionType: 'open_agency',
+      targetId: reqRef.id,
+      priority: 'high',
+      eventKey: 'host_join_req',
+    });
+
     return { success: true, requestId: reqRef.id };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to send host join request.' };
@@ -1167,6 +1205,17 @@ export async function acceptHostRequestWithDeal(params: {
       }
     });
 
+    void sendPushNotification({
+      targetUserId: params.request.hostUid,
+      type: 'agency',
+      title: `🎉 Joined Host Agency: ${params.request.agencyName}`,
+      message: `Your host contract is active! Commission: ${pct}% · Target: ${targetCoins.toLocaleString()} Coins / ${targetHours}h.`,
+      actionType: 'open_agency',
+      targetId: params.request.agencyId,
+      priority: 'high',
+      eventKey: 'host_req_accepted',
+    });
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to accept host request.' };
@@ -1224,6 +1273,16 @@ export async function rejectOrRemoveHostRequest(params: {
           updatedAt: nowIso,
         });
       }
+    });
+
+    void sendPushNotification({
+      targetUserId: params.request.hostUid,
+      type: 'agency',
+      title: params.nextStatus === 'removed' ? '🏢 Removed from Host Agency' : '🏢 Host Agency Request Update',
+      message: `Your status with ${params.request.agencyName} was updated to ${params.nextStatus}.`,
+      actionType: 'open_agency',
+      targetId: params.request.agencyId,
+      eventKey: 'host_req_rejected',
     });
 
     return { success: true };
@@ -1335,6 +1394,21 @@ export async function submitCoinPurchaseSlipOrder(params: {
     };
 
     await setDoc(orderRef, record);
+
+    void sendPushNotification({
+      targetUserId: params.agency.ownerUid,
+      type: 'agency',
+      title: `🧾 New Coin Slip Order: ${coins.toLocaleString()} Coins`,
+      message: `${record.buyerName} submitted a ${record.paymentMethod} payment slip (${record.paidAmountText || 'pending verification'}).`,
+      avatar: record.buyerAvatar || undefined,
+      senderId: record.buyerUid,
+      senderName: record.buyerName,
+      actionType: 'open_agency',
+      targetId: orderRef.id,
+      priority: 'high',
+      eventKey: 'coin_slip_order',
+    });
+
     return { success: true, orderId: orderRef.id };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to submit payment slip order.' };
@@ -1518,6 +1592,17 @@ export async function confirmCoinOrderAndSendCoins(params: {
         sellerNote: (params.sellerNote || 'Payment slip verified & coins transferred!').trim().slice(0, 300),
         updatedAt: nowIso,
       });
+    });
+
+    void sendPushNotification({
+      targetUserId: params.order.buyerUid,
+      type: 'wallet',
+      title: `✅ +${coinAmount.toLocaleString()} Coins Delivered!`,
+      message: `${params.order.agencyName} confirmed your payment slip and credited ${coinAmount.toLocaleString()} Coins to your wallet!`,
+      actionType: 'open_wallet',
+      targetId: params.order.id,
+      priority: 'high',
+      eventKey: 'coin_order_confirmed',
     });
 
     return { success: true };

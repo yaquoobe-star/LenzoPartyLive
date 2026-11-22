@@ -1,5 +1,5 @@
 import { t as __commonJSMin } from "./rolldown-runtime-DQp2zzRu.js";
-import { On as require_react } from "./vendor-icons-Ca04WHp3.js";
+import { An as require_react } from "./vendor-icons-Dlv_q2hi.js";
 // node_modules/scheduler/cjs/scheduler.production.js
 /**
 * @license React

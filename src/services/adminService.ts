@@ -13,6 +13,7 @@ import { auth, db } from '../firebase';
 import { ALL_100_LEVELS } from '../utils/levelAndVipConfig';
 import { isAuthorizedAdminEmail } from '../utils/adminAuth';
 import { VerificationTier } from '../types';
+import { sendPushNotification } from './pushNotificationService';
 
 export interface AdminUserRecord {
   uid: string;
@@ -414,6 +415,17 @@ export async function adminAdjustUserCoins(params: {
       reason: params.reason?.trim() || 'Direct admin coin adjustment',
     });
 
+    void sendPushNotification({
+      targetUserId: targetUid,
+      type: 'wallet',
+      title: deltaApplied >= 0 ? `🪙 +${deltaApplied.toLocaleString()} Coins Added!` : '🪙 Wallet Balance Updated',
+      message: `Your Lenzo Coin balance is now ${nextBalance.toLocaleString()} Coins.${params.reason?.trim() ? ` (${params.reason.trim()})` : ''}`,
+      actionType: 'open_wallet',
+      priority: 'high',
+      allowSelf: true,
+      eventKey: 'admin_coins',
+    });
+
     return { success: true, newBalance: nextBalance };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to update user coins.' };
@@ -535,6 +547,18 @@ export async function adminEditUserProfileAndProgression(params: {
       reason: params.reason?.trim() || 'Admin profile/level/VIP edit',
     });
 
+    void sendPushNotification({
+      targetUserId: targetUid,
+      type: 'progression',
+      title: '👑 Profile & VIP Status Updated!',
+      message: `Updated to Level ${safeLevel}${safeVip > 0 ? ` · VIP ${safeVip}` : ''}${safeSuperVip > 0 ? ` · SVIP ${safeSuperVip}` : ''}${safeVerificationTier !== 'none' ? ` · Verified (${safeVerificationTier})` : ''}.`,
+      actionType: 'open_profile',
+      targetId: targetUid,
+      priority: 'high',
+      allowSelf: true,
+      eventKey: 'admin_prog',
+    });
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to save user changes.' };
@@ -583,6 +607,18 @@ export async function adminSetUserBlockStatus(params: {
       targetLabel: params.targetName || targetUid,
       summary: `${params.blocked ? 'Blocked' : 'Unblocked'} user ${params.targetName || targetUid}`,
       reason: cleanReason || (params.blocked ? 'Blocked by Admin' : 'Unblocked by Admin'),
+    });
+
+    void sendPushNotification({
+      targetUserId: targetUid,
+      type: 'system',
+      title: params.blocked ? '⚠️ Account Restricted' : '✅ Account Restored',
+      message: params.blocked
+        ? `Your account has been restricted by Administration. ${cleanReason}`
+        : 'Your account access has been fully restored by Administration.',
+      actionType: 'open_notifications',
+      priority: 'urgent',
+      eventKey: params.blocked ? 'acct_blocked' : 'acct_unblocked',
     });
 
     return { success: true };
@@ -640,6 +676,18 @@ export async function adminSetUserSuspension(params: {
       targetLabel: params.targetName || targetUid,
       summary: `${params.suspended ? `Suspended (${durationLabel})` : 'Unsuspended'} user ${params.targetName || targetUid}`,
       reason: cleanReason || durationLabel,
+    });
+
+    void sendPushNotification({
+      targetUserId: targetUid,
+      type: 'system',
+      title: params.suspended ? '⚠️ Account Suspended' : '✅ Suspension Lifted',
+      message: params.suspended
+        ? `Your account is suspended (${durationLabel}). ${cleanReason}`
+        : 'Your account suspension has been lifted. Welcome back!',
+      actionType: 'open_notifications',
+      priority: 'urgent',
+      eventKey: params.suspended ? 'acct_suspended' : 'acct_unsuspended',
     });
 
     return { success: true };
@@ -770,10 +818,12 @@ export async function adminSendSystemCoinsToAgency(params: {
     let nextBalance = 0;
     let agencyLabel = params.agencyId;
 
+    let agencyOwnerUid = '';
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(agencyRef);
       if (!snap.exists()) throw new Error('Agency not found.');
       const data = snap.data() as Record<string, any>;
+      agencyOwnerUid = String(data.ownerUid || '');
       agencyLabel = `${data.name || params.agencyId} (${data.agencyCode || ''})`.trim();
       const prevBalance = Math.max(0, Math.floor(Number(data.coinBalance || 0)));
       nextBalance = Math.max(0, prevBalance + delta);
@@ -792,6 +842,20 @@ export async function adminSendSystemCoinsToAgency(params: {
       summary: `${params.direction > 0 ? 'Sent' : 'Deducted'} ${absAmount.toLocaleString()} system-generated coins ${params.direction > 0 ? 'to' : 'from'} ${agencyLabel} -> Balance: ${nextBalance.toLocaleString()}`,
       reason: params.note?.trim() || 'System-generated agency coin grant',
     });
+
+    if (agencyOwnerUid) {
+      void sendPushNotification({
+        targetUserId: agencyOwnerUid,
+        type: 'agency',
+        title: params.direction > 0 ? `🏦 +${absAmount.toLocaleString()} System Coins Received!` : '🏦 Agency Coin Balance Adjusted',
+        message: `${agencyLabel} now has ${nextBalance.toLocaleString()} Coins available for transfers.`,
+        actionType: 'open_agency',
+        targetId: params.agencyId,
+        priority: 'high',
+        allowSelf: true,
+        eventKey: 'ag_sys_coins',
+      });
+    }
 
     return { success: true, newBalance: nextBalance };
   } catch (err: any) {

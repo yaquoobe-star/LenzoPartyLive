@@ -18,6 +18,7 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { isVerifiedAdminSession } from '../utils/adminAuth';
 import { apiUrl } from '../utils/apiConfig';
+import { notifyAdminsOfEvent, sendPushNotification } from './pushNotificationService';
 import {
   OFFICIAL_DEFAULT_COIN_PACKAGES,
   OFFICIAL_ECONOMY_DEFAULTS,
@@ -819,6 +820,23 @@ export async function processGiftTransaction(
       });
     });
 
+    // Notify gift recipient in real time with exact Host Diamonds credited (60% Host Share)
+    if (recipientUser.id && recipientUser.id !== senderUser.id) {
+      void sendPushNotification({
+        targetUserId: recipientUser.id,
+        type: 'gifts',
+        title: `🎁 ${senderUser.name} sent ${quantity}× ${gift.name}!`,
+        message: `You earned +${split.hostDiamondsAmount.toLocaleString()} Host Diamonds 💎 (worth PKR ${split.hostGrossPkrValue.toLocaleString()}).`,
+        avatar: senderUser.avatar || undefined,
+        senderId: senderUser.id,
+        senderName: senderUser.name,
+        actionType: 'open_wallet',
+        targetId: idempotencyKey,
+        priority: verifiedGrossCoins >= 10000 ? 'high' : 'normal',
+        eventKey: 'gift_received',
+      });
+    }
+
     return {
       success: true,
       netEarnings: split.hostDiamondsAmount,
@@ -1077,6 +1095,27 @@ export async function requestWithdrawal(
       tx.set(doc(db, 'users', userId, 'diamond_transactions', txId), txPayload);
     });
 
+    // Notify host confirmation & notify Admins of new withdrawal request
+    void sendPushNotification({
+      targetUserId: userId,
+      type: 'wallet',
+      title: '💎 Withdrawal Request Submitted',
+      message: `${diamondsReq.toLocaleString()} Diamonds reserved -> Net Payable PKR ${waterfall.netPayablePkr.toLocaleString()} (${paymentDetails.bankOrProviderName}).`,
+      actionType: 'open_wallet',
+      targetId: idempotencyKey,
+      allowSelf: true,
+      eventKey: 'wd_submitted',
+    });
+
+    void notifyAdminsOfEvent({
+      type: 'wallet',
+      title: `💸 New Withdrawal Request: PKR ${waterfall.netPayablePkr.toLocaleString()}`,
+      message: `${userName || 'Host'} requested ${diamondsReq.toLocaleString()} Diamonds via ${paymentDetails.bankOrProviderName}.`,
+      actionType: 'open_admin',
+      targetId: idempotencyKey,
+      priority: 'high',
+    });
+
     return { success: true, requestId: idempotencyKey, finalPayablePkr: waterfall.netPayablePkr };
   } catch (err: any) {
     return { success: false, requestId: '', finalPayablePkr: 0, error: err?.message || 'Withdrawal submission failed.' };
@@ -1322,6 +1361,47 @@ export async function adminUpdateWithdrawalStatus(
         createdAtMillis: nowMillis,
       });
     });
+
+    // Notify host in real time of withdrawal lifecycle update
+    const statusLabelMap: Record<WithdrawalStatus, string> = {
+      pending: 'Pending',
+      under_review: 'Under Review',
+      approved: 'Approved',
+      processing: 'Processing',
+      paid: 'Paid ✅',
+      rejected: 'Rejected (Diamonds Refunded)',
+      cancelled: 'Cancelled (Diamonds Refunded)',
+    };
+    const statusLabel = statusLabelMap[newStatus] || newStatus;
+    void sendPushNotification({
+      targetUserId: request.userId,
+      type: 'wallet',
+      title: `💸 Withdrawal ${statusLabel}`,
+      message:
+        newStatus === 'paid'
+          ? `PKR ${request.finalPayablePkr.toLocaleString()} has been paid out for ${request.coinsRequested.toLocaleString()} Diamonds.${paymentReference ? ` Ref: ${paymentReference}` : ''}`
+          : newStatus === 'rejected' || newStatus === 'cancelled'
+            ? `Your ${request.coinsRequested.toLocaleString()} Diamonds have been returned to your available balance.${adminRemarks ? ` Note: ${adminRemarks}` : ''}`
+            : `Your withdrawal of PKR ${request.finalPayablePkr.toLocaleString()} is now ${statusLabel}.${adminRemarks ? ` ${adminRemarks}` : ''}`,
+      actionType: 'open_wallet',
+      targetId: request.id,
+      priority: newStatus === 'paid' || newStatus === 'rejected' ? 'high' : 'normal',
+      eventKey: `wd_${newStatus}`,
+    });
+
+    // If paid and linked to a Host Agency with commission > 0, notify the Agency owner too
+    if (newStatus === 'paid' && request.agencyOwnerUid && (request.agencyCommissionPkr || 0) > 0) {
+      void sendPushNotification({
+        targetUserId: request.agencyOwnerUid,
+        type: 'agency',
+        title: `🏢 Agency Commission Earned: PKR ${Number(request.agencyCommissionPkr || 0).toLocaleString()}`,
+        message: `Commission accrued from ${request.userName}'s paid withdrawal (${request.coinsRequested.toLocaleString()} Diamonds).`,
+        actionType: 'open_agency',
+        targetId: request.agencyId || request.id,
+        priority: 'high',
+        eventKey: 'ag_comm_earned',
+      });
+    }
 
     return { success: true };
   } catch (err: any) {

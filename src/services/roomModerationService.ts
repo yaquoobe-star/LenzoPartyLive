@@ -8,6 +8,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { sendPushNotification } from './pushNotificationService';
 import { HostModeratorRecord, RoomKickDuration, RoomKickRecord, UserProfile } from '../types';
 import {
   cancelFirestoreSeatRequest,
@@ -435,6 +436,19 @@ export async function assignHostModerator(params: {
       (m) => m.moderatorUserId !== targetUser.id
     );
     writeLocalModerators(hostId, [record, ...cached]);
+
+    void sendPushNotification({
+      targetUserId: targetUser.id,
+      type: 'rooms',
+      title: '🛡️ You are now a Lifetime Moderator!',
+      message: `${hostName} appointed you as a Moderator across all their Party Rooms.`,
+      senderId: hostId,
+      senderName: hostName,
+      actionType: 'open_notifications',
+      priority: 'high',
+      eventKey: 'mod_assigned',
+    });
+
     return { success: true, record };
   } catch (err: any) {
     console.warn('[RoomModeration] assignHostModerator error:', err);
@@ -460,6 +474,17 @@ export async function removeHostModerator(params: {
       (m) => m.moderatorUserId !== moderatorUserId
     );
     writeLocalModerators(hostId, cached);
+
+    void sendPushNotification({
+      targetUserId: moderatorUserId,
+      type: 'rooms',
+      title: '🛡️ Room Moderator Role Updated',
+      message: 'Your lifetime moderator status for a host was removed.',
+      senderId: hostId,
+      actionType: 'open_notifications',
+      eventKey: 'mod_removed',
+    });
+
     return { success: true };
   } catch (err: any) {
     console.warn('[RoomModeration] removeHostModerator error:', err);

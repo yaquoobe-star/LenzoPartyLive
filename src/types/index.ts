@@ -507,13 +507,72 @@ export interface Transaction {
   status: 'completed' | 'pending';
 }
 
+export type NotificationCategory =
+  | 'messages'
+  | 'gifts'
+  | 'followers'
+  | 'rooms'
+  | 'pk'
+  | 'wallet'
+  | 'agency'
+  | 'progression'
+  | 'system';
+
+export type NotificationActionType =
+  | 'open_chat'
+  | 'open_live'
+  | 'open_room'
+  | 'open_wallet'
+  | 'open_agency'
+  | 'open_profile'
+  | 'open_reels'
+  | 'open_pk'
+  | 'open_store'
+  | 'open_admin'
+  | 'open_notifications';
+
+export interface NotificationPreferences {
+  messages: boolean;
+  gifts: boolean;
+  followers: boolean;
+  rooms: boolean;
+  pk: boolean;
+  wallet: boolean;
+  agency: boolean;
+  progression: boolean;
+  system: boolean;
+  soundEnabled: boolean;
+  vibrateEnabled: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  messages: true,
+  gifts: true,
+  followers: true,
+  rooms: true,
+  pk: true,
+  wallet: true,
+  agency: true,
+  progression: true,
+  system: true,
+  soundEnabled: true,
+  vibrateEnabled: true,
+};
+
 export interface NotificationItem {
   id: string;
-  type: 'all' | 'followers' | 'messages' | 'gifts' | 'rooms' | 'system';
+  type: 'all' | NotificationCategory | 'like' | 'follow' | 'gift';
   title: string;
   message: string;
   avatar?: string;
+  senderId?: string;
+  senderName?: string;
+  actionType?: NotificationActionType;
+  targetId?: string;
+  actionUrl?: string;
+  priority?: 'normal' | 'high' | 'urgent';
   timestamp: string;
+  createdAtMs?: number;
   isRead: boolean;
 }
 

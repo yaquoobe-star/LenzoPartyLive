@@ -21,6 +21,7 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { sendPushNotification } from './pushNotificationService';
 import { UserProfile, VideoComment, VideoItem } from '../types';
 import { sanitizeFirestoreUserCard, stripUndefinedDeep } from './firestoreService';
 import { deleteStorageFileByUrl, deleteStoragePath, MAX_REEL_VIDEO_BYTES } from './storageService';
@@ -387,8 +388,25 @@ export async function toggleReelLike(
         if (reelSnap.exists()) {
           tx.update(reelRef, { likesCount: nextCount });
         }
-        return { liked: true, likesCount: nextCount };
+        return { liked: true, likesCount: nextCount, ownerId: String(reelSnap.data()?.userId || '') };
       }
+    }).then((result: any) => {
+      if (result?.liked && result?.ownerId && result.ownerId !== userId) {
+        const actorName = auth.currentUser?.displayName || 'Someone';
+        void sendPushNotification({
+          targetUserId: result.ownerId,
+          type: 'followers',
+          title: `❤️ ${actorName} liked your video!`,
+          message: `Your reel now has ${Number(result.likesCount || 1).toLocaleString()} likes.`,
+          avatar: auth.currentUser?.photoURL || undefined,
+          senderId: userId,
+          senderName: actorName,
+          actionType: 'open_reels',
+          targetId: reel.id,
+          eventKey: 'reel_like',
+        });
+      }
+      return { liked: Boolean(result?.liked), likesCount: result?.likesCount };
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `reel_likes/${likeDocId}`);
@@ -479,9 +497,32 @@ export async function addReelComment(params: {
     });
 
     const targetCollection = params.sourceCollection === 'posts' ? 'posts' : 'reels';
-    await updateDoc(doc(db, targetCollection, params.reelId), {
+    const reelRef = doc(db, targetCollection, params.reelId);
+    await updateDoc(reelRef, {
       commentsCount: increment(1),
     }).catch(() => {});
+
+    // Notify reel creator in real time
+    getDoc(reelRef)
+      .then((snap) => {
+        const ownerId = String(snap.data()?.userId || '');
+        if (ownerId && ownerId !== currentUser.uid) {
+          const actorName = params.user.name || currentUser.displayName || 'Someone';
+          void sendPushNotification({
+            targetUserId: ownerId,
+            type: 'followers',
+            title: `💬 ${actorName} commented on your video`,
+            message: cleanText.slice(0, 140),
+            avatar: params.user.avatar || currentUser.photoURL || undefined,
+            senderId: currentUser.uid,
+            senderName: actorName,
+            actionType: 'open_reels',
+            targetId: params.reelId,
+            eventKey: 'reel_comment',
+          });
+        }
+      })
+      .catch(() => {});
 
     return docRef.id;
   } catch (err) {

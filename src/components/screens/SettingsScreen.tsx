@@ -23,8 +23,25 @@ import {
   MessageCircle,
   Megaphone,
   ExternalLink,
+  BellRing,
+  Volume2,
+  Vibrate,
+  Send,
 } from 'lucide-react';
-import { HostModeratorRecord, ScreenType, UserProfile } from '../../types';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  HostModeratorRecord,
+  NotificationPreferences,
+  ScreenType,
+  UserProfile,
+} from '../../types';
+import {
+  PushPermissionState,
+  getPushPermissionState,
+  registerDeviceForPushNotifications,
+  sendSelfTestPushNotification,
+  unregisterDevicePushNotifications,
+} from '../../services/pushNotificationService';
 import { BlockedUserRecord } from '../../services/blockService';
 import { BlockedUsersModal } from '../profile/BlockedUsersModal';
 import {
@@ -66,6 +83,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onRemoveModerator,
 }) => {
   const [notifications, setNotifications] = useState(true);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+  });
+  const [pushPermission, setPushPermission] = useState<PushPermissionState>('default');
+  const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
+  const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [isSendingTestPush, setIsSendingTestPush] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [allowDirectMessages, setAllowDirectMessages] = useState<'everyone' | 'followers' | 'nobody'>('everyone');
@@ -88,6 +112,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const savedAccountsCount = getSavedDeviceAccounts().length;
 
+  useEffect(() => {
+    void getPushPermissionState().then(setPushPermission);
+  }, []);
+
   // Hydrate and subscribe to Firestore user_settings/{uid}
   useEffect(() => {
     const uid = auth.currentUser?.uid || currentUser.id;
@@ -95,6 +123,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     loadUserSettingsFromFirestore(uid).then((settings) => {
       setNotifications(settings.notificationsEnabled);
+      setNotifPrefs(settings.notificationPreferences);
       setDarkMode(settings.darkMode);
       setLanguage(settings.language);
       setShowOnlineStatus(settings.showOnlineStatus);
@@ -103,6 +132,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
     const unsub = subscribeUserSettings(uid, (settings) => {
       setNotifications(settings.notificationsEnabled);
+      setNotifPrefs(settings.notificationPreferences);
       setDarkMode(settings.darkMode);
       setLanguage(settings.language);
       setShowOnlineStatus(settings.showOnlineStatus);
@@ -171,6 +201,221 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         {toastMessage && (
           <div className="fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[140] bg-[#8B20FF] text-white text-xs font-bold py-2 px-4 rounded-full shadow-lg shadow-[#8B20FF]/50 max-w-[90vw] text-center">
             {toastMessage}
+          </div>
+        )}
+
+        {/* Push Notifications Granular Control Modal */}
+        {showPushSettingsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-[#160C25] border border-white/15 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto no-scrollbar">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                  <BellRing className="w-5 h-5 text-[#F328D5]" />
+                  Push Notifications
+                </h3>
+                <button
+                  onClick={() => setShowPushSettingsModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Device Push Registration Card */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF]/20 to-[#F328D5]/15 border border-[#F328D5]/30 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-black text-white">Device Push Status</p>
+                    <p className="text-[11px] text-[#C5B9DE]">
+                      {pushPermission === 'granted'
+                        ? 'Active — alerts delivered even when minimized'
+                        : pushPermission === 'denied'
+                          ? 'Blocked in browser/OS settings — enable in site/app settings'
+                          : 'Tap Enable to receive real-time OS push notifications'}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase shrink-0 ${
+                      pushPermission === 'granted'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/35'
+                        : pushPermission === 'denied'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-400/35'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/35'
+                    }`}
+                  >
+                    {pushPermission === 'granted' ? 'Active' : pushPermission === 'denied' ? 'Blocked' : 'Off'}
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={isUpdatingPush}
+                    onClick={async () => {
+                      setIsUpdatingPush(true);
+                      try {
+                        const res = await registerDeviceForPushNotifications({ requestPermission: true });
+                        setPushPermission(res.permission);
+                        if (res.permission === 'granted') {
+                          setNotifications(true);
+                          persistSetting({ notificationsEnabled: true });
+                          showToast('Device push notifications activated!');
+                        } else if (res.permission === 'denied') {
+                          showToast('Permission blocked. Please allow Notifications in device/browser settings.');
+                        } else {
+                          showToast('Notification permission dismissed.');
+                        }
+                      } finally {
+                        setIsUpdatingPush(false);
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-xs font-black disabled:opacity-50"
+                  >
+                    {isUpdatingPush
+                      ? 'Activating...'
+                      : pushPermission === 'granted'
+                        ? 'Refresh Device Subscription'
+                        : 'Enable Device Push'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSendingTestPush}
+                    onClick={async () => {
+                      setIsSendingTestPush(true);
+                      try {
+                        await sendSelfTestPushNotification();
+                        showToast('Test push notification dispatched!');
+                      } finally {
+                        setIsSendingTestPush(false);
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isSendingTestPush ? 'Sending...' : 'Test'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Master Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.04] border border-white/10">
+                <div>
+                  <p className="text-xs font-extrabold text-white">All Push Notifications</p>
+                  <p className="text-[10px] text-[#B9AECF]">Master switch for all real-time alerts</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !notifications;
+                    setNotifications(next);
+                    persistSetting({ notificationsEnabled: next });
+                    if (!next) {
+                      void unregisterDevicePushNotifications();
+                    } else {
+                      void registerDeviceForPushNotifications({ requestPermission: true }).then((r) =>
+                        setPushPermission(r.permission)
+                      );
+                    }
+                    showToast(next ? 'All push notifications enabled' : 'Push notifications muted');
+                  }}
+                  className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
+                    notifications ? 'bg-[#F328D5]' : 'bg-[#211333]'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                      notifications ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Category Preferences */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#B9AECF] px-1">
+                  Alert Categories
+                </p>
+                {(
+                  [
+                    { key: 'messages', label: 'Direct Messages & Reactions', desc: 'Chats, voice notes, photos & invites' },
+                    { key: 'gifts', label: 'Gifts & Diamond Earnings', desc: 'Every virtual gift and Host Diamonds credited' },
+                    { key: 'followers', label: 'Followers, Likes & Comments', desc: 'New followers and reel interactions' },
+                    { key: 'rooms', label: 'Live Streams & Party Rooms', desc: 'Followed hosts going live & moderator updates' },
+                    { key: 'pk', label: 'PK Battle Challenges & Results', desc: 'Incoming PK invites, starts & winners' },
+                    { key: 'wallet', label: 'Wallet, Coins & Withdrawals', desc: 'Recharges, payout approvals & transfers' },
+                    { key: 'agency', label: 'Agency & Commissions', desc: 'Host contracts, slip orders & agency commissions' },
+                    { key: 'progression', label: 'Levels, VIP & Store Unlocks', desc: 'Level ups, VIP upgrades & store rewards' },
+                    { key: 'system', label: 'Official Announcements & Security', desc: 'Admin broadcasts & account alerts' },
+                  ] as const
+                ).map((item) => {
+                  const enabled = notifPrefs[item.key];
+                  return (
+                    <div
+                      key={item.key}
+                      className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{item.label}</p>
+                        <p className="text-[10px] text-[#B9AECF] truncate">{item.desc}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...notifPrefs, [item.key]: !enabled };
+                          setNotifPrefs(updated);
+                          persistSetting({ notificationPreferences: updated });
+                        }}
+                        className={`w-10 h-5.5 rounded-full transition-colors relative p-0.5 shrink-0 ${
+                          enabled && notifications ? 'bg-[#8B20FF]' : 'bg-[#211333]'
+                        }`}
+                      >
+                        <div
+                          className={`w-4.5 h-4.5 rounded-full bg-white transition-transform ${
+                            enabled && notifications ? 'translate-x-4.5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Sound & Vibration */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...notifPrefs, soundEnabled: !notifPrefs.soundEnabled };
+                    setNotifPrefs(updated);
+                    persistSetting({ notificationPreferences: updated });
+                  }}
+                  className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+                    notifPrefs.soundEnabled
+                      ? 'bg-[#8B20FF]/20 border-[#8B20FF]/50 text-white'
+                      : 'bg-white/[0.03] border-white/10 text-[#B9AECF]'
+                  }`}
+                >
+                  <Volume2 className="w-4 h-4" />
+                  <span>Sound: {notifPrefs.soundEnabled ? 'On' : 'Off'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...notifPrefs, vibrateEnabled: !notifPrefs.vibrateEnabled };
+                    setNotifPrefs(updated);
+                    persistSetting({ notificationPreferences: updated });
+                  }}
+                  className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
+                    notifPrefs.vibrateEnabled
+                      ? 'bg-[#F328D5]/20 border-[#F328D5]/50 text-white'
+                      : 'bg-white/[0.03] border-white/10 text-[#B9AECF]'
+                  }`}
+                >
+                  <Vibrate className="w-4 h-4" />
+                  <span>Vibrate: {notifPrefs.vibrateEnabled ? 'On' : 'Off'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -517,29 +762,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
           </div>
 
-          {/* Notifications Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] border border-white/[0.08]">
-            <div className="flex items-center gap-3">
-              <Bell className="w-5 h-5 text-[#F328D5]" />
-              <span className="text-sm font-semibold text-white">Notifications</span>
+          {/* Push Notifications Row (Opens Full Push Control Panel + Quick Toggle) */}
+          <div
+            onClick={() => setShowPushSettingsModal(true)}
+            className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-[#F328D5]/25 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <Bell className="w-5 h-5 text-[#F328D5] shrink-0" />
+              <div className="min-w-0">
+                <span className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  Push Notifications
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase ${
+                      notifications && pushPermission === 'granted'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : notifications
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-white/10 text-[#B9AECF]'
+                    }`}
+                  >
+                    {!notifications ? 'Muted' : pushPermission === 'granted' ? 'Active' : 'Setup'}
+                  </span>
+                </span>
+                <span className="text-[10px] text-[#B9AECF] block truncate">
+                  Chats, gifts, live rooms, PK battles, wallet, agency &amp; test push
+                </span>
+              </div>
             </div>
-            <button
-              onClick={() => {
-                const next = !notifications;
-                setNotifications(next);
-                persistSetting({ notificationsEnabled: next });
-                showToast(next ? 'Notifications enabled (saved)' : 'Notifications paused (saved)');
-              }}
-              className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
-                notifications ? 'bg-[#F328D5]' : 'bg-[#211333]'
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  notifications ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            <ChevronRight className="w-4 h-4 text-[#B9AECF] group-hover:translate-x-0.5 transition-transform shrink-0" />
           </div>
 
           {/* Language Selector */}

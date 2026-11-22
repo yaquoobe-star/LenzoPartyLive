@@ -12,7 +12,12 @@ import {
   VideoItem,
   BroadcasterRankingEntry,
   RoomKickRecord,
-  HostModeratorRecord
+  HostModeratorRecord,
+  NotificationItem,
+  NotificationCategory,
+  NotificationActionType,
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
 } from './types';
 import { 
   CURRENT_USER, 
@@ -43,6 +48,7 @@ import {
 import {
   SavedDeviceAccount,
   rememberAuthenticatedAccount,
+  subscribeUserSettings,
 } from './services/accountSwitcherService';
 import {
   REELS_PAGE_SIZE,
@@ -99,6 +105,20 @@ import { UserProfileModal } from './components/common/UserProfileModal';
 import { MicSelectionModal } from './components/common/MicSelectionModal';
 import { VideoUploadSourceModal } from './components/common/VideoUploadSourceModal';
 import { CameraRecorderModal } from './components/common/CameraRecorderModal';
+import { PushNotificationBanner } from './components/common/PushNotificationBanner';
+import {
+  PushNotificationPayload,
+  bindNotificationClickListener,
+  deliverOsDeviceNotification,
+  isCategoryEnabledForUser,
+  markAllNotificationsAsRead,
+  normalizeNotificationCategory,
+  notifyFollowersOfLiveOrRoom,
+  registerDeviceForPushNotifications,
+  sendPushNotification,
+  subscribeGlobalPushAnnouncements,
+  subscribeRealTimeNotifications,
+} from './services/pushNotificationService';
 
 // Screens
 import { SplashScreen } from './components/screens/SplashScreen';
@@ -247,6 +267,22 @@ export default function App() {
   const appToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const walletSettingsRef = useRef(DEFAULT_WALLET_SETTINGS);
 
+  // Universal Push Notifications State (Web Push VAPID + Android Local + WebSocket + Firestore)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [activePushBanner, setActivePushBanner] = useState<PushNotificationPayload | null>(null);
+  const notifSettingsRef = useRef<{
+    masterEnabled: boolean;
+    prefs: NotificationPreferences;
+  }>({
+    masterEnabled: true,
+    prefs: DEFAULT_NOTIFICATION_PREFERENCES,
+  });
+  const seenPushBannerIdsRef = useRef<Set<string>>(new Set());
+  const liveStreamsRef = useRef<LiveStream[]>([]);
+  const partyRoomsRef = useRef<PartyRoom[]>([]);
+  liveStreamsRef.current = liveStreams;
+  partyRoomsRef.current = partyRooms;
+
   const showAppToast = (msg: string) => {
     setAppToast(msg);
     if (appToastTimerRef.current) clearTimeout(appToastTimerRef.current);
@@ -309,6 +345,262 @@ export default function App() {
       unsubWsBlocks();
     };
   }, [currentUser?.id]);
+
+  // Universal Deep-Link Action Handler when user taps a Push Banner, Notification Center item, or OS Push
+  const handleNotificationDeepAction = useCallback(
+    (payload: {
+      actionType?: NotificationActionType;
+      targetId?: string;
+      senderId?: string;
+      type?: NotificationCategory;
+    }) => {
+      setIsNotificationsOpen(false);
+      setActivePushBanner(null);
+
+      const action = payload.actionType;
+      const targetId = payload.targetId || '';
+      const senderId = payload.senderId || '';
+
+      if (action === 'open_chat' || (!action && payload.type === 'messages')) {
+        setActiveLiveStream(null);
+        setActiveAudioRoom(null);
+        setCurrentScreen('messages');
+        if (senderId && senderId !== currentUser.id) {
+          profileService.getUserProfile(senderId).then((u) => {
+            if (u) setActiveChatUser(u);
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      if (action === 'open_live') {
+        const match = liveStreamsRef.current.find(
+          (s) => s.id === targetId || (senderId && s.host.id === senderId)
+        );
+        if (match) {
+          setActiveAudioRoom(null);
+          setActiveLiveStream(match);
+          setCurrentScreen('live_active');
+        } else {
+          setCurrentScreen('home');
+        }
+        return;
+      }
+
+      if (action === 'open_room') {
+        const match = partyRoomsRef.current.find(
+          (r) => r.id === targetId || (senderId && r.host.id === senderId)
+        );
+        if (match) {
+          setActiveLiveStream(null);
+          setActiveAudioRoom(match);
+          setCurrentScreen('audio_room');
+        } else {
+          setCurrentScreen('rooms');
+        }
+        return;
+      }
+
+      if (action === 'open_wallet' || (!action && payload.type === 'wallet')) {
+        setIsWalletOpen(true);
+        return;
+      }
+
+      if (action === 'open_store') {
+        setActiveLiveStream(null);
+        setActiveAudioRoom(null);
+        setCurrentScreen('store');
+        return;
+      }
+
+      if (action === 'open_reels') {
+        setActiveLiveStream(null);
+        setActiveAudioRoom(null);
+        setCurrentScreen('videos');
+        return;
+      }
+
+      if (action === 'open_agency') {
+        setActiveLiveStream(null);
+        setActiveAudioRoom(null);
+        setNavigatingProfileUser(null);
+        setCurrentScreen('profile');
+        return;
+      }
+
+      if (action === 'open_pk' || (!action && payload.type === 'pk')) {
+        setIsPKModalOpen(true);
+        return;
+      }
+
+      if (action === 'open_admin') {
+        if (isAuthorizedAdmin) {
+          setIsAdminProgressionOpen(true);
+        } else {
+          setIsNotificationsOpen(true);
+        }
+        return;
+      }
+
+      if (action === 'open_profile') {
+        const lookupId = targetId || senderId;
+        if (lookupId && lookupId !== currentUser.id) {
+          profileService.getUserProfile(lookupId).then((u) => {
+            if (u) {
+              setActiveLiveStream(null);
+              setActiveAudioRoom(null);
+              setNavigatingProfileUser(u);
+              setCurrentScreen('profile');
+            }
+          }).catch(() => {});
+        } else {
+          setActiveLiveStream(null);
+          setActiveAudioRoom(null);
+          setNavigatingProfileUser(null);
+          setCurrentScreen('profile');
+        }
+        return;
+      }
+
+      if (action === 'open_notifications') {
+        setIsNotificationsOpen(true);
+        return;
+      }
+
+      setIsNotificationsOpen(true);
+    },
+    [currentUser.id, isAuthorizedAdmin]
+  );
+
+  // Unified Incoming Push Presenter (deduplicates Firestore + WebSocket + Broadcast + triggers OS alert & banner)
+  const presentIncomingPush = useCallback((payload: PushNotificationPayload) => {
+    if (!payload?.id || !payload.title) return;
+    if (seenPushBannerIdsRef.current.has(payload.id)) return;
+    seenPushBannerIdsRef.current.add(payload.id);
+    if (seenPushBannerIdsRef.current.size > 200) {
+      const oldest = seenPushBannerIdsRef.current.values().next().value;
+      if (oldest) seenPushBannerIdsRef.current.delete(oldest);
+    }
+
+    const { masterEnabled, prefs } = notifSettingsRef.current;
+    if (!isCategoryEnabledForUser(payload.type, masterEnabled, prefs)) {
+      return;
+    }
+
+    setActivePushBanner(payload);
+    void deliverOsDeviceNotification(payload, prefs);
+  }, []);
+
+  // Real-Time Push Notification Subscriptions (Firestore + Settings + WebSocket + Global Broadcasts + Device Push)
+  useEffect(() => {
+    const uid = auth.currentUser?.uid || (currentUser?.id !== 'user_current_01' ? currentUser?.id : '');
+    if (!uid) {
+      setNotifications([]);
+      return;
+    }
+
+    // Keep user's push notification category preferences synced in real time
+    const unsubSettings = subscribeUserSettings(uid, (settings) => {
+      notifSettingsRef.current = {
+        masterEnabled: settings.notificationsEnabled !== false,
+        prefs: settings.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES,
+      };
+    });
+
+    // Silently register Web Push / Android channel if permission was already granted
+    void registerDeviceForPushNotifications({ requestPermission: false }).catch(() => {});
+
+    // 1. Live Firestore Notification Center subscription
+    const unsubNotifs = subscribeRealTimeNotifications(uid, (items, newlyAdded) => {
+      setNotifications(items);
+      if (newlyAdded.length > 0) {
+        const newest = newlyAdded[0];
+        presentIncomingPush({
+          id: newest.id,
+          type: normalizeNotificationCategory(newest.type),
+          title: newest.title,
+          message: newest.message,
+          avatar: newest.avatar,
+          senderId: newest.senderId,
+          senderName: newest.senderName,
+          actionType: newest.actionType,
+          targetId: newest.targetId,
+          actionUrl: newest.actionUrl,
+          priority: newest.priority || 'normal',
+          createdAtMs: newest.createdAtMs || Date.now(),
+        });
+      }
+    });
+
+    // 2. Live Admin Global Push Announcements (Firestore)
+    const unsubGlobal = subscribeGlobalPushAnnouncements((announcement) => {
+      presentIncomingPush(announcement);
+    });
+
+    // 3. Real-Time Backend WebSocket Push Events
+    const unsubWsPush = liveAndRoomService.addEventListener((event, payload) => {
+      if ((event === 'push:notification' || event === 'push:broadcast') && payload) {
+        presentIncomingPush({
+          id: String(payload.id || `ws_${Date.now()}`),
+          type: normalizeNotificationCategory(payload.type || payload.category || 'system'),
+          title: String(payload.title || 'Lenzo Party Live'),
+          message: String(payload.message || ''),
+          avatar: typeof payload.avatar === 'string' ? payload.avatar : undefined,
+          senderId: typeof payload.senderId === 'string' ? payload.senderId : undefined,
+          senderName: typeof payload.senderName === 'string' ? payload.senderName : undefined,
+          actionType: payload.actionType as NotificationActionType | undefined,
+          targetId: typeof payload.targetId === 'string' ? payload.targetId : undefined,
+          actionUrl: typeof payload.actionUrl === 'string' ? payload.actionUrl : undefined,
+          priority:
+            payload.priority === 'urgent' || payload.priority === 'high'
+              ? payload.priority
+              : 'normal',
+          createdAtMs: Number(payload.createdAtMs || Date.now()),
+        });
+      }
+    });
+
+    return () => {
+      unsubSettings();
+      unsubNotifs();
+      unsubGlobal();
+      unsubWsPush();
+    };
+  }, [currentUser?.id, presentIncomingPush]);
+
+  // Listen for OS Push Notification Taps (Service Worker postMessage + Native Android LocalNotifications + URL params)
+  useEffect(() => {
+    const unbind = bindNotificationClickListener((payload) => {
+      handleNotificationDeepAction(payload);
+    });
+
+    if (typeof window !== 'undefined' && window.location.search) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const pushAction = params.get('pushAction') as NotificationActionType | null;
+        if (pushAction) {
+          handleNotificationDeepAction({
+            actionType: pushAction,
+            targetId: params.get('targetId') || undefined,
+            senderId: params.get('senderId') || undefined,
+          });
+          params.delete('pushAction');
+          params.delete('targetId');
+          params.delete('senderId');
+          const cleanSearch = params.toString();
+          window.history.replaceState(
+            {},
+            '',
+            `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}`
+          );
+        }
+      } catch {
+        // ignore URL parse error
+      }
+    }
+
+    return () => unbind();
+  }, [handleNotificationDeepAction]);
 
   // Real-time ejection if the host of an active live stream or party room blocks the current user
   useEffect(() => {
@@ -1437,6 +1729,16 @@ export default function App() {
     setActiveLiveStream(finalStream);
     setCurrentScreen('live_active');
 
+    // Notify all followers that this host went LIVE
+    void notifyFollowersOfLiveOrRoom({
+      hostId: activeUid,
+      hostName: finalStream.host.name,
+      hostAvatar: finalStream.host.avatar,
+      mode: 'live',
+      targetId: finalStream.id,
+      sessionTitle: finalStream.title,
+    }).catch(() => {});
+
     liveAndRoomService
       .fetchTopBroadcasters()
       .then(({ broadcasters }) => setTopBroadcasters(broadcasters))
@@ -1544,6 +1846,16 @@ export default function App() {
     setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
     setActiveAudioRoom(finalRoom);
     setCurrentScreen('audio_room');
+
+    // Notify all followers that this host opened a Party Room
+    void notifyFollowersOfLiveOrRoom({
+      hostId: activeUid,
+      hostName: finalRoom.host.name,
+      hostAvatar: finalRoom.host.avatar,
+      mode: 'room',
+      targetId: finalRoom.id,
+      sessionTitle: finalRoom.title,
+    }).catch(() => {});
   };
 
   // Handlers for Mic Button & Plus Button workflows
@@ -1731,6 +2043,16 @@ export default function App() {
             unlockedSuperVipFrames: event.unlockedSuperVipFrames,
             newlyEarnedAchievements: event.newlyEarnedAchievements,
           });
+          void sendPushNotification({
+            targetUserId: currentUser.id,
+            type: 'progression',
+            title: `🏆 Level ${event.newLevel} Unlocked!`,
+            message: `Congratulations! You reached Level ${event.newLevel} on Lenzo Party Live!`,
+            actionType: 'open_profile',
+            priority: 'high',
+            allowSelf: true,
+            eventKey: `level_up_${event.newLevel}`,
+          }).catch(() => {});
         }
       } catch (levelErr) {
         console.warn('Level progression update error:', levelErr);
@@ -1852,6 +2174,21 @@ export default function App() {
         saveStoredUserProfile(next);
         return next;
       });
+      if (result.isFollowing && userId !== currentUser.id) {
+        void sendPushNotification({
+          targetUserId: userId,
+          type: 'followers',
+          title: '✨ New Follower!',
+          message: `${currentUser.name} started following you on Lenzo Party Live!`,
+          avatar: currentUser.avatar,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          actionType: 'open_profile',
+          targetId: currentUser.id,
+          priority: 'normal',
+          eventKey: 'new_follower',
+        }).catch(() => {});
+      }
     } catch (err) {
       console.warn('Toggle follow notice:', err);
     }
@@ -1885,8 +2222,9 @@ export default function App() {
     return !blockedByUserIds.includes(ownerId) && !blockedByUserIds.includes(v.creator?.id || '');
   });
 
-  // Derived unread count and top hosts (excluding users who blocked current user)
+  // Derived unread counts and top hosts (excluding users who blocked current user)
   const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  const unreadNotificationsCount = notifications.reduce((sum, n) => sum + (n.isRead ? 0 : 1), 0);
   const topHostsList = topBroadcasters
     .map((b) => b.user)
     .filter((u) => u.id === currentUser.id || !blockedByUserIds.includes(u.id));
@@ -2078,6 +2416,11 @@ export default function App() {
             {appToast}
           </div>
         )}
+        <PushNotificationBanner
+          notification={activePushBanner}
+          onDismiss={() => setActivePushBanner(null)}
+          onOpen={(notif) => handleNotificationDeepAction(notif)}
+        />
         </div>
       </PullToRefresh>
     );
@@ -2176,6 +2519,11 @@ export default function App() {
             {appToast}
           </div>
         )}
+        <PushNotificationBanner
+          notification={activePushBanner}
+          onDismiss={() => setActivePushBanner(null)}
+          onOpen={(notif) => handleNotificationDeepAction(notif)}
+        />
         </div>
       </PullToRefresh>
     );
@@ -2239,6 +2587,8 @@ export default function App() {
               onSendMessage={handleSendMessageToUser}
               isAdmin={isAuthorizedAdmin}
               onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
+              onOpenNotifications={() => setIsNotificationsOpen(true)}
+              unreadNotificationsCount={unreadNotificationsCount}
             />
           )}
 
@@ -2251,7 +2601,7 @@ export default function App() {
               onOpenSearch={() => setIsSearchOpen(true)}
               onOpenMicMenu={handleOpenMicMenu}
               onOpenNotifications={() => setIsNotificationsOpen(true)}
-              unreadNotificationsCount={0}
+              unreadNotificationsCount={unreadNotificationsCount}
             />
           )}
 
@@ -2341,6 +2691,16 @@ export default function App() {
                           unlockedSuperVipFrames: event.unlockedSuperVipFrames,
                           newlyEarnedAchievements: event.newlyEarnedAchievements,
                         });
+                        void sendPushNotification({
+                          targetUserId: currentUser.id,
+                          type: 'progression',
+                          title: `🏆 Level ${event.newLevel} Unlocked!`,
+                          message: `Congratulations! You reached Level ${event.newLevel} on Lenzo Party Live!`,
+                          actionType: 'open_profile',
+                          priority: 'high',
+                          allowSelf: true,
+                          eventKey: `level_up_${event.newLevel}`,
+                        }).catch(() => {});
                       }
                     })
                     .catch(() => {});
@@ -2682,7 +3042,16 @@ export default function App() {
       <NotificationsModal
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
-        onMarkAllRead={() => {}}
+        notifications={notifications}
+        onNotificationAction={handleNotificationDeepAction}
+        onMarkAllRead={() => {
+          const uid = auth.currentUser?.uid;
+          if (!uid) return;
+          const unreadIds = notifications.filter((n) => !n.isRead).map((n) => n.id);
+          if (unreadIds.length > 0) {
+            void markAllNotificationsAsRead(uid, unreadIds);
+          }
+        }}
       />
 
       {/* 8. User / Host Profile Detail Modal */}
@@ -2751,6 +3120,13 @@ export default function App() {
           {appToast}
         </div>
       )}
+
+      {/* Universal Heads-Up Push Notification Banner */}
+      <PushNotificationBanner
+        notification={activePushBanner}
+        onDismiss={() => setActivePushBanner(null)}
+        onOpen={(notif) => handleNotificationDeepAction(notif)}
+      />
     </div>
   );
 }

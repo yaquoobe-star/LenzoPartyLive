@@ -1178,6 +1178,58 @@
         "createdAtMillis": { "type": "number" }
       },
       "required": ["id", "adminUid", "adminEmail", "action", "targetId", "reason", "createdAtMillis"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "Universal per-user real-time push notification record across messages, gifts, followers, live rooms, PK, wallet, agency, progression, and system alerts",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 140 },
+        "message": { "type": "string", "maxLength": 420 },
+        "type": { "type": "string", "enum": ["messages", "gifts", "followers", "rooms", "pk", "wallet", "agency", "progression", "system", "like", "follow", "gift"] },
+        "avatar": { "type": "string", "maxLength": 512 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 120 },
+        "actionType": { "type": "string", "maxLength": 48 },
+        "targetId": { "type": "string", "maxLength": 160 },
+        "actionUrl": { "type": "string", "maxLength": 240 },
+        "priority": { "type": "string", "enum": ["normal", "high", "urgent"] },
+        "eventKey": { "type": "string", "maxLength": 128 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "type", "isRead"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "Per-user registered Web Push VAPID or native Android device notification endpoint",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["web", "android", "ios"] },
+        "endpoint": { "type": "string", "maxLength": 1024 },
+        "deviceLabel": { "type": "string", "maxLength": 160 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "platform", "endpoint"]
+    },
+    "PushAnnouncement": {
+      "title": "PushAnnouncement",
+      "description": "Global admin push broadcast announcement delivered to all users in real time",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "maxLength": 140 },
+        "message": { "type": "string", "maxLength": 500 },
+        "category": { "type": "string", "maxLength": 48 },
+        "priority": { "type": "string", "enum": ["normal", "high", "urgent"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "adminUid", "title", "message", "active"]
     }
   },
   "firestore": {
@@ -1428,6 +1480,18 @@
     "/banned_devices/{deviceId}": {
       "schema": "BannedDevice",
       "description": "Admin-managed registry of banned device identifiers enforced in real time across the app"
+    },
+    "/users/{uid}/notifications/{notificationId}": {
+      "schema": "UserNotification",
+      "description": "Real-time per-user notification center & push delivery log"
+    },
+    "/users/{uid}/push_subscriptions/{subId}": {
+      "schema": "PushSubscription",
+      "description": "Registered Web Push and native Android push endpoints per user"
+    },
+    "/push_announcements/{announcementId}": {
+      "schema": "PushAnnouncement",
+      "description": "Global administrator push announcements delivered to all active users"
     }
   }
 }

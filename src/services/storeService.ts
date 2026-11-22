@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { sendPushNotification } from './pushNotificationService';
 import { isVerifiedAdminSession } from '../utils/adminAuth';
 import {
   DEFAULT_STORE_CATEGORIES,
@@ -570,6 +571,17 @@ export async function purchaseStoreProduct(params: {
     } catch {
       // Firestore transaction already succeeded atomically
     }
+
+    void sendPushNotification({
+      targetUserId: userId,
+      type: 'progression',
+      title: `✨ Unlocked: ${product.name}`,
+      message: `${product.name} has been added to your inventory (${(finalBalanceBefore - finalBalance).toLocaleString()} Coins).`,
+      actionType: 'open_store',
+      targetId: product.id,
+      allowSelf: true,
+      eventKey: 'store_unlock',
+    });
 
     return {
       success: true,

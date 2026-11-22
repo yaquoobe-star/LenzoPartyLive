@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Receipt,
   Building2,
+  Bell,
 } from 'lucide-react';
 import {
   BroadcasterRankingEntry,
@@ -56,6 +57,8 @@ interface HomeScreenProps {
   onSendMessage?: (user: UserProfile) => void;
   isAdmin?: boolean;
   onOpenAdminPanel?: () => void;
+  onOpenNotifications?: () => void;
+  unreadNotificationsCount?: number;
 }
 
 interface OriginalTopHostItem {
@@ -99,6 +102,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onSendMessage,
   isAdmin = false,
   onOpenAdminPanel,
+  onOpenNotifications,
+  unreadNotificationsCount = 0,
 }) => {
   const [activeTab, setActiveTab] = useState<'foryou' | 'live' | 'following'>('foryou');
   const [streamCategoryTab, setStreamCategoryTab] = useState<'live_stream' | 'audio_party'>('live_stream');
@@ -325,16 +330,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {tab.label}
             </button>
           ))}
-          {isAdmin && onOpenAdminPanel && (
-            <button
-              type="button"
-              onClick={onOpenAdminPanel}
-              className="ml-auto px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Admin</span>
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {onOpenNotifications && (
+              <button
+                type="button"
+                onClick={onOpenNotifications}
+                aria-label="Open Notifications"
+                className="relative w-8 h-8 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all"
+              >
+                <Bell className="w-4 h-4 text-[#E6DDF7]" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#F328D5] text-white text-[9px] font-black flex items-center justify-center shadow-md shadow-pink-500/40 border border-[#090611]">
+                    {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+            )}
+            {isAdmin && onOpenAdminPanel && (
+              <button
+                type="button"
+                onClick={onOpenAdminPanel}
+                className="px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ===================================================================== */}

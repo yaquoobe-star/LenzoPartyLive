@@ -17,6 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { sendPushNotification } from './pushNotificationService';
 import { 
   UserProfile, 
   VideoItem, 
@@ -709,16 +710,19 @@ export async function sendFirestoreNotification(targetUserId: string, notificati
   type: 'system' | 'like' | 'follow' | 'gift';
   actionUrl?: string;
 }): Promise<void> {
-  const collPath = `users/${targetUserId}/notifications`;
-  try {
-    await addDoc(collection(db, collPath), {
-      ...notification,
-      isRead: false,
-      createdAt: serverTimestamp(),
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, collPath);
-  }
+  const mappedType =
+    notification.type === 'gift'
+      ? 'gifts'
+      : notification.type === 'follow' || notification.type === 'like'
+        ? 'followers'
+        : 'system';
+  await sendPushNotification({
+    targetUserId,
+    type: mappedType,
+    title: notification.title,
+    message: notification.message,
+    actionUrl: notification.actionUrl,
+  });
 }
 
 export function subscribeUserNotifications(
@@ -969,6 +973,30 @@ export async function sendChatMessage(
 
     await setDoc(chatRef, chatMeta, { merge: true });
 
+    // Dispatch real-time push notification to direct message recipient
+    if (message.recipientId && message.recipientId !== message.senderId) {
+      const senderLabel = message.senderName || 'Someone';
+      const isRoomInvite = message.type === 'room_invite';
+      const isCoinReq = message.type === 'coin_request';
+      void sendPushNotification({
+        targetUserId: message.recipientId,
+        type: isRoomInvite ? 'rooms' : isCoinReq ? 'wallet' : 'messages',
+        title: isRoomInvite
+          ? `🎉 ${senderLabel} invited you to a Room`
+          : isCoinReq
+            ? `🪙 Coin Request from ${senderLabel}`
+            : `💬 ${senderLabel}`,
+        message: String(chatMeta.lastMessage || 'Sent you a message').slice(0, 180),
+        avatar: message.senderAvatar || undefined,
+        senderId: message.senderId,
+        senderName: senderLabel,
+        actionType: 'open_chat',
+        targetId: message.senderId,
+        priority: isRoomInvite || isCoinReq ? 'high' : 'normal',
+        eventKey: 'dm_msg',
+      });
+    }
+
     return docRef.id;
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, collPath);
@@ -1049,6 +1077,21 @@ export async function reactToChatMessage(
     }
 
     await updateDoc(msgRef, { reactions });
+
+    const msgSenderId = String(snap.data()?.senderId || '');
+    if (msgSenderId && msgSenderId !== userId && existingIndex < 0) {
+      void sendPushNotification({
+        targetUserId: msgSenderId,
+        type: 'messages',
+        title: `${emoji} ${userName} reacted to your message`,
+        message: String(snap.data()?.text || 'New message reaction').slice(0, 120),
+        senderId: userId,
+        senderName: userName,
+        actionType: 'open_chat',
+        targetId: userId,
+        eventKey: 'dm_react',
+      });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, docPath);
   }

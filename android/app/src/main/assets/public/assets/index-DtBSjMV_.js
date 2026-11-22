@@ -1,13 +1,15 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DjQcF2Rp.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-CJVQM6-0.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-Bm1-bIDj.js","assets/CreateRoomScreen-B2h5Rhhc.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-BeYlz18P.js","assets/StoreScreen-BVeN_B2h.js","assets/StoreAssetPreview-COuMpOYd.js","assets/SettingsScreen-CaGx51zl.js","assets/UploadVideoScreen-BW-e1VmH.js","assets/WalletModal-C_rXZ2kE.js","assets/LevelAndVIPModal-DxC2cc2O.js","assets/AdminProgressionModal-oDM7Qxsw.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-B_GRrNM7.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Dlv_q2hi.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CrMGE5cV.js","assets/CreateRoomScreen-C1Qzk0-O.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-DbMopDUJ.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-BVhddR0L.js","assets/StoreAssetPreview-DElLd5GG.js","assets/pushNotificationService-D66AMxEz.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-B__UvS3R.js","assets/UploadVideoScreen-B4aTY0Lp.js","assets/WalletModal-B3Ww5M-D.js","assets/LevelAndVIPModal-BSlnJh3K.js","assets/AdminProgressionModal-CiP87Q4I.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { t as require_client } from "./vendor-react-BqgbvZ9S.js";
-import { $ as Paperclip, $t as CircleArrowDown, A as Shield, At as Flame, B as Reply, C as Star, Cn as ArrowLeft, Ct as Hexagon, D as SlidersHorizontal, Dt as Gift, E as Smartphone, Et as Globe, F as Settings, Ft as Eye, G as Plus, Gt as CornerUpLeft, H as RefreshCw, I as Send, It as EyeOff, J as Phone, Jt as Coins, K as Play, Kt as Copy, L as Search, Lt as ExternalLink, M as ShieldCheck, Mt as Film, N as ShieldAlert, Nt as FileText, Ot as Gem, P as Share2, Q as Pause, Qt as CircleCheck, R as Save, Rt as Eraser, Sn as ArrowRightLeft, St as History, T as Smile, Tn as require_react, Tt as Hash, U as Receipt, Ut as Crown, V as Repeat2, W as Radio, Wt as Crop, X as Pen, Xt as CircleX, Y as Percent, Yt as Clock, Z as PenLine, _ as TrendingUp, _n as BadgeCheck, _t as KeyRound, a as Wallet, an as Check, at as MessageSquare, b as Target, c as Video, cn as Camera, d as UserX, dn as Building2, dt as Lock, en as CircleAlert, et as Music, f as UserPlus, fn as Bookmark, ft as LockOpen, g as TriangleAlert, gn as Ban, h as Trophy, hn as BellOff, ht as LayoutGrid, i as WifiOff, in as ChevronDown, it as MicOff, j as ShieldOff, jt as Flag, k as ShoppingBag, l as Users, ln as CameraOff, lt as Mail, m as Upload, mn as Bell, n as Zap, nn as ChevronRight, o as VolumeX, on as CheckCheck, ot as MessageCircle, p as UserCheck, pn as BookmarkCheck, pt as LoaderCircle, q as Pin, qt as Compass, r as X, rn as ChevronLeft, rt as Mic, s as Volume2, sn as ChartColumn, t as ZoomIn, tn as ChevronUp, u as User, un as Calendar, ut as LogOut, v as Trash2, vn as Award, w as Sparkles, wt as Heart, x as Swords, xn as ArrowRight, xt as House, y as Timer, yn as AtSign, yt as Image$1, z as RotateCcw, zt as Ellipsis } from "./vendor-icons-CJVQM6-0.js";
+import { t as require_client } from "./vendor-react-DG4qo-ea.js";
+import { $ as Pause, $t as Clock, A as ShoppingBag, An as require_react, At as Gem, B as RotateCcw, Bt as ExternalLink, Cn as Award, Ct as House, D as Smartphone, Dn as ArrowRightLeft, Dt as Hash, E as Smile, En as ArrowRight, Et as Heart, F as Share2, Ft as FileText, G as Radio, H as Repeat2, Ht as Ellipsis, I as Settings, J as Pin, Jt as Crop, K as Plus, L as Send, M as ShieldOff, Mt as Flame, N as ShieldCheck, Nt as Flag, O as SlidersHorizontal, On as ArrowLeft, Ot as Globe, P as ShieldAlert, Pt as Film, Q as PenLine, Qt as Coins, R as Search, Rt as Eye, S as Swords, Sn as BadgeCheck, T as Sparkles, Tt as Hexagon, U as RefreshCw, V as Reply, Vt as Eraser, W as Receipt, X as Percent, Xt as Copy, Y as Phone, Yt as CornerUpLeft, Z as Pen, Zt as Compass, _ as TriangleAlert, _n as BookmarkCheck, a as Wallet, an as ChevronUp, at as MicOff, b as Timer, bn as BellOff, c as Video, cn as ChevronDown, d as User, dn as ChartColumn, dt as LogOut, en as CircleX, et as Paperclip, f as UserX, fn as Camera, ft as Lock, g as Trophy, gn as Bookmark, gt as LayoutGrid, h as Upload, hn as Building2, i as WifiOff, in as CircleAlert, it as Mic, j as Shield, kt as Gift, ln as Check, m as UserCheck, mn as Calendar, mt as LoaderCircle, n as Zap, nn as CircleCheck, o as VolumeX, on as ChevronRight, ot as MessageSquare, p as UserPlus, pn as CameraOff, pt as LockOpen, q as Play, qt as Crown, r as X, rn as CircleArrowDown, s as Volume2, sn as ChevronLeft, st as MessageCircle, t as ZoomIn, tt as Music, u as Users, un as CheckCheck, ut as Mail, v as TrendingUp, vn as Bell, w as Star, wn as AtSign, wt as History, x as Target, xn as Ban, xt as Image$1, y as Trash2, yn as BellRing, yt as KeyRound, z as Save, zt as EyeOff } from "./vendor-icons-Dlv_q2hi.js";
+import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-D66AMxEz.js";
 import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CPEwW-gN.js";
 import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
 import { B as linkWithPopup, C as updateDoc, D as collection, E as Timestamp, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as doc, P as GoogleAuthProvider, S as startAfter, T as writeBatch, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, _ as onSnapshot, b as runTransaction, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as enableNetwork, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as orderBy, w as where, x as setDoc, y as query, z as getRedirectResult } from "./vendor-firebase-pU_0pKhI.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
+import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-D6F5ZQ0I.js";
 import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
-import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-Bm1-bIDj.js";
+import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CrMGE5cV.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 // \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -1601,11 +1603,28 @@ var STORAGE_KEY_SAVED_ACCOUNTS = "lenzo_party_device_accounts_v1";
 var STORAGE_KEY_LAST_LOGIN_UID = "lenzo_party_last_login_uid_v1";
 var DEFAULT_USER_SETTINGS = {
 	notificationsEnabled: true,
+	notificationPreferences: { ...DEFAULT_NOTIFICATION_PREFERENCES },
 	darkMode: true,
 	language: "English",
 	showOnlineStatus: true,
 	allowDirectMessages: "everyone"
 };
+function normalizeNotificationPreferences(raw) {
+	const src = raw && typeof raw === "object" ? raw : {};
+	return {
+		messages: src.messages !== false,
+		gifts: src.gifts !== false,
+		followers: src.followers !== false,
+		rooms: src.rooms !== false,
+		pk: src.pk !== false,
+		wallet: src.wallet !== false,
+		agency: src.agency !== false,
+		progression: src.progression !== false,
+		system: src.system !== false,
+		soundEnabled: src.soundEnabled !== false,
+		vibrateEnabled: src.vibrateEnabled !== false
+	};
+}
 function readRawAccounts() {
 	if (typeof window === "undefined") return [];
 	try {
@@ -1726,6 +1745,7 @@ async function loadUserSettingsFromFirestore(uid) {
 			return {
 				userId: uid,
 				notificationsEnabled: data.notificationsEnabled !== false,
+				notificationPreferences: normalizeNotificationPreferences(data.notificationPreferences),
 				darkMode: data.darkMode !== false,
 				language: typeof data.language === "string" ? data.language : "English",
 				showOnlineStatus: data.showOnlineStatus !== false,
@@ -1741,9 +1761,14 @@ async function loadUserSettingsFromFirestore(uid) {
 }
 async function saveUserSettingsToFirestore(uid, partial) {
 	if (!auth.currentUser || auth.currentUser.uid !== uid) return;
+	const current = await loadUserSettingsFromFirestore(uid);
 	const payload = {
-		...await loadUserSettingsFromFirestore(uid),
+		...current,
 		...partial,
+		notificationPreferences: normalizeNotificationPreferences({
+			...current.notificationPreferences,
+			...partial.notificationPreferences || {}
+		}),
 		userId: uid,
 		updatedAt: (/* @__PURE__ */ new Date()).toISOString()
 	};
@@ -1756,6 +1781,7 @@ function subscribeUserSettings(uid, onUpdate) {
 			onUpdate({
 				userId: uid,
 				notificationsEnabled: data.notificationsEnabled !== false,
+				notificationPreferences: normalizeNotificationPreferences(data.notificationPreferences),
 				darkMode: data.darkMode !== false,
 				language: typeof data.language === "string" ? data.language : "English",
 				showOnlineStatus: data.showOnlineStatus !== false,
@@ -1780,58 +1806,6 @@ async function submitAccountDeletionRequest(reason) {
 		status: "pending",
 		requestedAt: (/* @__PURE__ */ new Date()).toISOString()
 	});
-}
-var AUTHORIZED_ADMIN_EMAIL_SET = /* @__PURE__ */ new Set([
-	"saifkhokhar657@gmail.com",
-	"lenzopartyofficial@gmail.com",
-	"malikyaqoobniaz@gmail.com"
-]);
-function isAuthorizedAdminEmail(email) {
-	if (!email || typeof email !== "string") return false;
-	return AUTHORIZED_ADMIN_EMAIL_SET.has(email.trim().toLowerCase());
-}
-/**
-* Strict check used before privileged writes requiring verified Firebase token claims.
-*/
-function isVerifiedAdminSession() {
-	const liveUser = auth.currentUser;
-	if (!liveUser) return false;
-	return isAuthorizedAdminEmail(liveUser.email) && liveUser.emailVerified === true;
-}
-var DEVICE_ID_STORAGE_KEY = "lenzo_device_id_v1";
-function generateSafeDeviceId() {
-	try {
-		if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return `dev_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
-	} catch {}
-	return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 10)}`.replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 48);
-}
-/**
-* Returns a persistent, Firestore-ID-safe device identifier stored on this device.
-* Matches `^[a-zA-Z0-9_\-]+$` (max 64 chars) so it can be used directly as `/banned_devices/{deviceId}`.
-*/
-function getOrCreateDeviceId() {
-	if (typeof window === "undefined") return "dev_server";
-	try {
-		const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
-		if (existing && /^[a-zA-Z0-9_\-]{8,64}$/.test(existing)) return existing;
-		const created = generateSafeDeviceId();
-		window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
-		return created;
-	} catch {
-		return generateSafeDeviceId();
-	}
-}
-/**
-* Returns a short, safe device/platform summary label (max 180 chars) for admin diagnostics.
-*/
-function getDeviceSummaryLabel() {
-	if (typeof navigator === "undefined") return "Unknown Device";
-	const ua = navigator.userAgent || "";
-	const isAndroid = /Android/i.test(ua);
-	const isIOS = /iPhone|iPad|iPod/i.test(ua);
-	const platform = typeof window !== "undefined" && Boolean(window.Capacitor?.isNativePlatform?.()) ? isAndroid ? "Android App" : isIOS ? "iOS App" : "Native App" : isAndroid ? "Android Web" : isIOS ? "iOS Web" : /Windows/i.test(ua) ? "Windows Web" : /Mac/i.test(ua) ? "macOS Web" : /Linux/i.test(ua) ? "Linux Web" : "Web Browser";
-	const model = ua.match(/Android\s[\d.]+;\s*([^;)]+)/i)?.[1]?.trim();
-	return (model ? `${platform} · ${model}` : platform).replace(/[<>]/g, "").slice(0, 180);
 }
 // src/services/authService.ts
 var NativeGoogleAuth = registerPlugin("NativeGoogleAuth");
@@ -2820,19 +2794,6 @@ async function syncFirestoreFollow(followerId, followingId, follow) {
 		handleFirestoreError(err, follow ? OperationType.CREATE : OperationType.DELETE, `follows/${followId}`);
 	}
 }
-function subscribeUserNotifications(userId, onUpdate) {
-	const collPath = `users/${userId}/notifications`;
-	const q = query(collection(db, collPath), orderBy("createdAt", "desc"), limit(40));
-	return onSnapshot(q, (snap) => {
-		onUpdate(snap.docs.map((d) => ({
-			id: d.id,
-			...d.data(),
-			time: "Just now"
-		})));
-	}, (err) => {
-		handleFirestoreError(err, OperationType.LIST, collPath);
-	});
-}
 /**
 * 6. REAL MESSAGING & WHATSAPP-STYLE FIRESTORE SERVICE
 */
@@ -2986,6 +2947,24 @@ async function sendChatMessage(chatId, message) {
 			};
 		}
 		await setDoc(chatRef, chatMeta, { merge: true });
+		if (message.recipientId && message.recipientId !== message.senderId) {
+			const senderLabel = message.senderName || "Someone";
+			const isRoomInvite = message.type === "room_invite";
+			const isCoinReq = message.type === "coin_request";
+			sendPushNotification({
+				targetUserId: message.recipientId,
+				type: isRoomInvite ? "rooms" : isCoinReq ? "wallet" : "messages",
+				title: isRoomInvite ? `🎉 ${senderLabel} invited you to a Room` : isCoinReq ? `🪙 Coin Request from ${senderLabel}` : `💬 ${senderLabel}`,
+				message: String(chatMeta.lastMessage || "Sent you a message").slice(0, 180),
+				avatar: message.senderAvatar || void 0,
+				senderId: message.senderId,
+				senderName: senderLabel,
+				actionType: "open_chat",
+				targetId: message.senderId,
+				priority: isRoomInvite || isCoinReq ? "high" : "normal",
+				eventKey: "dm_msg"
+			});
+		}
 		return docRef.id;
 	} catch (err) {
 		handleFirestoreError(err, OperationType.CREATE, collPath);
@@ -3043,6 +3022,18 @@ async function reactToChatMessage(chatId, messageId, emoji, userId, userName) {
 			userName
 		});
 		await updateDoc(msgRef, { reactions });
+		const msgSenderId = String(snap.data()?.senderId || "");
+		if (msgSenderId && msgSenderId !== userId && existingIndex < 0) sendPushNotification({
+			targetUserId: msgSenderId,
+			type: "messages",
+			title: `${emoji} ${userName} reacted to your message`,
+			message: String(snap.data()?.text || "New message reaction").slice(0, 120),
+			senderId: userId,
+			senderName: userName,
+			actionType: "open_chat",
+			targetId: userId,
+			eventKey: "dm_react"
+		});
 	} catch (err) {
 		handleFirestoreError(err, OperationType.UPDATE, docPath);
 	}
@@ -5038,9 +5029,30 @@ async function toggleReelLike(reel, userId) {
 				if (reelSnap.exists()) tx.update(reelRef, { likesCount: nextCount });
 				return {
 					liked: true,
-					likesCount: nextCount
+					likesCount: nextCount,
+					ownerId: String(reelSnap.data()?.userId || "")
 				};
 			}
+		}).then((result) => {
+			if (result?.liked && result?.ownerId && result.ownerId !== userId) {
+				const actorName = auth.currentUser?.displayName || "Someone";
+				sendPushNotification({
+					targetUserId: result.ownerId,
+					type: "followers",
+					title: `❤️ ${actorName} liked your video!`,
+					message: `Your reel now has ${Number(result.likesCount || 1).toLocaleString()} likes.`,
+					avatar: auth.currentUser?.photoURL || void 0,
+					senderId: userId,
+					senderName: actorName,
+					actionType: "open_reels",
+					targetId: reel.id,
+					eventKey: "reel_like"
+				});
+			}
+			return {
+				liked: Boolean(result?.liked),
+				likesCount: result?.likesCount
+			};
 		});
 	} catch (err) {
 		handleFirestoreError(err, OperationType.WRITE, `reel_likes/${likeDocId}`);
@@ -5102,7 +5114,26 @@ async function addReelComment(params) {
 			createdAt: serverTimestamp()
 		});
 		const targetCollection = params.sourceCollection === "posts" ? "posts" : "reels";
-		await updateDoc(doc(db, targetCollection, params.reelId), { commentsCount: increment(1) }).catch(() => {});
+		const reelRef = doc(db, targetCollection, params.reelId);
+		await updateDoc(reelRef, { commentsCount: increment(1) }).catch(() => {});
+		getDoc(reelRef).then((snap) => {
+			const ownerId = String(snap.data()?.userId || "");
+			if (ownerId && ownerId !== currentUser.uid) {
+				const actorName = params.user.name || currentUser.displayName || "Someone";
+				sendPushNotification({
+					targetUserId: ownerId,
+					type: "followers",
+					title: `💬 ${actorName} commented on your video`,
+					message: cleanText.slice(0, 140),
+					avatar: params.user.avatar || currentUser.photoURL || void 0,
+					senderId: currentUser.uid,
+					senderName: actorName,
+					actionType: "open_reels",
+					targetId: params.reelId,
+					eventKey: "reel_comment"
+				});
+			}
+		}).catch(() => {});
 		return docRef.id;
 	} catch (err) {
 		handleFirestoreError(err, OperationType.CREATE, "reel_comments");
@@ -5177,106 +5208,6 @@ async function submitContentReport(params) {
 		throw err;
 	}
 }
-// \0vite/preload-helper.js
-var scriptRel = "modulepreload";
-var assetsURL = function(dep) {
-	return "/" + dep;
-};
-var seen = {};
-var isCssPreloadUrl = function isCssPreloadUrl(url) {
-	return url.pathname.endsWith(".css");
-};
-var preloadOnce = function preloadOnce(seen, href, preload) {
-	if (href in seen) return seen[href];
-	const promise = preload();
-	if (!promise) {
-		seen[href] = void 0;
-		return;
-	}
-	const preloadPromise = promise.then(() => {
-		seen[href] = void 0;
-	}, (err) => {
-		seen[href] = void 0;
-		throw err;
-	});
-	seen[href] = preloadPromise;
-	return preloadPromise;
-};
-var __vitePreload = function preload(baseModule, deps, importerUrl) {
-	let promise = Promise.resolve();
-	if (deps && deps.length > 0) {
-		let preloadedHrefs;
-		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
-		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
-		function allSettled(promises) {
-			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
-				status: "fulfilled",
-				value
-			}), (reason) => ({
-				status: "rejected",
-				reason
-			}))));
-		}
-		function importMetaResolve(specifier) {
-			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
-			return new URL(
-				specifier,
-				/** #__KEEP__ */
-				import.meta.url
-			);
-		}
-		promise = allSettled(deps.map((depString) => {
-			depString = assetsURL(depString, importerUrl);
-			const dep = importMetaResolve(depString);
-			const isCss = isCssPreloadUrl(dep);
-			return preloadOnce(seen, dep.href, () => {
-				if (preloadedHrefs === void 0) {
-					preloadedHrefs = {
-						all: /* @__PURE__ */ new Set(),
-						styles: /* @__PURE__ */ new Set()
-					};
-					const links = document.getElementsByTagName("link");
-					for (let i = links.length - 1; i >= 0; i--) {
-						const link = links[i];
-						preloadedHrefs.all.add(link.href);
-						if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
-					}
-				}
-				if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
-				const link = document.createElement("link");
-				link.rel = isCss ? "stylesheet" : scriptRel;
-				if (!isCss) link.as = "script";
-				link.crossOrigin = "";
-				link.href = dep.href;
-				if (cspNonce) link.setAttribute("nonce", cspNonce);
-				document.head.appendChild(link);
-				if (isCss) return new Promise((res, rej) => {
-					const handleSettle = (e) => {
-						link.removeEventListener("load", handleSettle);
-						link.removeEventListener("error", handleSettle);
-						if (e.type === "error") rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`));
-						else res(e);
-					};
-					link.addEventListener("load", handleSettle);
-					link.addEventListener("error", handleSettle);
-				});
-			});
-		}).filter((p) => p !== void 0));
-	}
-	function handlePreloadError(err) {
-		const e = new Event("vite:preloadError", { cancelable: true });
-		e.payload = err;
-		window.dispatchEvent(e);
-		if (!e.defaultPrevented) throw err;
-	}
-	return promise.then((res) => {
-		for (const item of res || []) {
-			if (item.status !== "rejected") continue;
-			handlePreloadError(item.reason);
-		}
-		return baseModule().catch(handlePreloadError);
-	});
-};
 // node_modules/@capacitor/app/dist/esm/index.js
 var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-BaVdwiMr.js").then((m) => new m.AppWeb()), __vite__mapDeps([0,1])) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
@@ -6342,73 +6273,441 @@ var LiveAndRoomService = class {
 	}
 };
 var liveAndRoomService = new LiveAndRoomService();
-// src/services/walletService.ts
-var DEFAULT_WALLET_SETTINGS = {
-	commissionRatePercent: 40,
-	exchangeRatePkrPerCoin: 2,
-	minWithdrawalCoins: 2500,
-	maxWithdrawalCoins: 25e4,
-	withdrawalFeePercent: 2,
-	earningsToWalletConversionRate: 1
+// src/shared/financialEngine.ts
+/**
+* LENZO PARTY — PRODUCTION FINANCIAL ENGINE (SHARED SINGLE SOURCE OF TRUTH)
+*
+* Used identically by:
+*   - Backend API (`server.ts` — authoritative quote, validation & QA verification)
+*   - Client Firestore Services (`walletService.ts`, `financialService.ts`)
+*   - Admin Economy Settings & Financial Analytics (`AdminFinanceTab.tsx`)
+*   - User Wallet & Withdrawal UI (`WalletModal.tsx`)
+*
+* OFFICIAL FINAL RATES:
+*   - Coin Purchase Rate:      100,000 Coins    = PKR 3,000 (1 Coin = PKR 0.03)
+*   - Gifting Split:           40% App Beans    / 60% Host Diamonds (Sum = 100%)
+*   - Diamond Conversion:      100,000 gifted Coins -> 60,000 Host Diamonds + 40,000 App Beans
+*   - Diamond Withdrawal Rate: 100,000 Diamonds = PKR 2,600 (1 Diamond = PKR 0.026)
+*/
+var OFFICIAL_POLICY_VERSION = "v3_official_economy";
+var OFFICIAL_ECONOMY_DEFAULTS = {
+	configVersion: 3,
+	policyVersion: OFFICIAL_POLICY_VERSION,
+	coinPurchasePkrPer100k: 3e3,
+	coinPurchasePkrPerCoin: .03,
+	coinsPerPkr: 33.333333,
+	appSharePercent: 40,
+	hostSharePercent: 60,
+	diamondConversionRatio: 1,
+	diamondWithdrawalPkrPer100k: 2600,
+	diamondWithdrawalPkrPerDiamond: .026,
+	minWithdrawalDiamonds: 1e4,
+	maxWithdrawalDiamonds: 1e7,
+	agencyCommissionPercent: 0,
+	withdrawalProcessingFeePercent: 0,
+	bonusCoinsEnabled: true,
+	maxBonusCoinPercent: 25,
+	enabledPaymentMethods: [
+		"bank_transfer",
+		"easypaisa",
+		"jazzcash"
+	]
 };
-var DEFAULT_COIN_PACKAGES = [
-	{
-		id: "pack_1000",
-		coins: 1e3,
-		bonusCoins: 0,
-		pricePkr: 2e3,
-		displayPrice: "PKR 2,000",
-		badge: "STARTER",
-		enabled: true
-	},
-	{
-		id: "pack_5000",
-		coins: 5e3,
-		bonusCoins: 250,
-		pricePkr: 1e4,
-		displayPrice: "PKR 10,000",
-		isPopular: true,
-		badge: "+5% BONUS",
-		enabled: true
-	},
+var OFFICIAL_DEFAULT_COIN_PACKAGES = [
 	{
 		id: "pack_10000",
 		coins: 1e4,
-		bonusCoins: 1e3,
-		pricePkr: 2e4,
-		displayPrice: "PKR 20,000",
-		isPopular: true,
-		badge: "+10% BONUS",
-		enabled: true
-	},
-	{
-		id: "pack_25000",
-		coins: 25e3,
-		bonusCoins: 3500,
-		pricePkr: 5e4,
-		displayPrice: "PKR 50,000",
-		badge: "+14% BONUS",
+		bonusCoins: 0,
+		pricePkr: 300,
+		displayPrice: "PKR 300",
+		badge: "STARTER",
+		visibility: "public",
 		enabled: true
 	},
 	{
 		id: "pack_50000",
 		coins: 5e4,
-		bonusCoins: 1e4,
-		pricePkr: 1e5,
-		displayPrice: "PKR 100,000",
-		badge: "+20% BONUS",
+		bonusCoins: 0,
+		pricePkr: 1500,
+		displayPrice: "PKR 1,500",
+		badge: "POPULAR",
+		isPopular: true,
+		visibility: "public",
 		enabled: true
 	},
 	{
 		id: "pack_100000",
 		coins: 1e5,
-		bonusCoins: 25e3,
-		pricePkr: 2e5,
-		displayPrice: "PKR 200,000",
-		badge: "VIP ELITE",
+		bonusCoins: 0,
+		pricePkr: 3e3,
+		displayPrice: "PKR 3,000",
+		badge: "OFFICIAL 100K",
+		isPopular: true,
+		visibility: "public",
+		enabled: true
+	},
+	{
+		id: "pack_250000",
+		coins: 25e4,
+		bonusCoins: 5e3,
+		pricePkr: 7500,
+		displayPrice: "PKR 7,500",
+		badge: "+5K BONUS",
+		isPromotional: true,
+		promoLabel: "Tracked Bonus",
+		visibility: "public",
+		enabled: true
+	},
+	{
+		id: "pack_500000",
+		coins: 5e5,
+		bonusCoins: 15e3,
+		pricePkr: 15e3,
+		displayPrice: "PKR 15,000",
+		badge: "+15K BONUS",
+		isPromotional: true,
+		promoLabel: "Tracked Bonus",
+		visibility: "public",
+		enabled: true
+	},
+	{
+		id: "pack_1000000",
+		coins: 1e6,
+		bonusCoins: 5e4,
+		pricePkr: 3e4,
+		displayPrice: "PKR 30,000",
+		badge: "VIP 1M",
+		isPromotional: true,
+		promoLabel: "VIP Pack",
+		visibility: "public",
 		enabled: true
 	}
 ];
+function roundPkr(value) {
+	if (!Number.isFinite(value)) return 0;
+	return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+function getDayKey(date = /* @__PURE__ */ new Date()) {
+	return date.toISOString().slice(0, 10);
+}
+function getMonthKey(date = /* @__PURE__ */ new Date()) {
+	return date.toISOString().slice(0, 7);
+}
+function normalizeEconomyConfig(raw) {
+	const base = {
+		...OFFICIAL_ECONOMY_DEFAULTS,
+		...raw || {}
+	};
+	const coinPurchasePkrPer100k = Number.isFinite(Number(base.coinPurchasePkrPer100k)) && Number(base.coinPurchasePkrPer100k) > 0 ? Number(base.coinPurchasePkrPer100k) : OFFICIAL_ECONOMY_DEFAULTS.coinPurchasePkrPer100k;
+	const coinPurchasePkrPerCoin = Number((coinPurchasePkrPer100k / 1e5).toFixed(6));
+	const coinsPerPkr = Number((1e5 / coinPurchasePkrPer100k).toFixed(6));
+	const diamondWithdrawalPkrPer100k = Number.isFinite(Number(base.diamondWithdrawalPkrPer100k)) && Number(base.diamondWithdrawalPkrPer100k) > 0 ? Number(base.diamondWithdrawalPkrPer100k) : OFFICIAL_ECONOMY_DEFAULTS.diamondWithdrawalPkrPer100k;
+	const diamondWithdrawalPkrPerDiamond = Number((diamondWithdrawalPkrPer100k / 1e5).toFixed(6));
+	const appSharePercent = Number.isFinite(Number(base.appSharePercent)) ? Number(base.appSharePercent) : OFFICIAL_ECONOMY_DEFAULTS.appSharePercent;
+	const hostSharePercent = Number.isFinite(Number(base.hostSharePercent)) ? Number(base.hostSharePercent) : 100 - appSharePercent;
+	return {
+		...base,
+		configVersion: Math.max(3, Math.floor(Number(base.configVersion || 3))),
+		policyVersion: OFFICIAL_POLICY_VERSION,
+		coinPurchasePkrPer100k,
+		coinPurchasePkrPerCoin,
+		coinsPerPkr,
+		appSharePercent,
+		hostSharePercent,
+		diamondConversionRatio: Number.isFinite(Number(base.diamondConversionRatio)) && Number(base.diamondConversionRatio) > 0 ? Number(base.diamondConversionRatio) : 1,
+		diamondWithdrawalPkrPer100k,
+		diamondWithdrawalPkrPerDiamond,
+		minWithdrawalDiamonds: Math.max(100, Math.floor(Number(base.minWithdrawalDiamonds ?? 1e4))),
+		maxWithdrawalDiamonds: Math.max(1e3, Math.floor(Number(base.maxWithdrawalDiamonds ?? 1e7))),
+		agencyCommissionPercent: Math.min(50, Math.max(0, Number(base.agencyCommissionPercent ?? 0))),
+		withdrawalProcessingFeePercent: Math.min(50, Math.max(0, Number(base.withdrawalProcessingFeePercent ?? 0))),
+		bonusCoinsEnabled: base.bonusCoinsEnabled !== false,
+		maxBonusCoinPercent: Math.min(100, Math.max(0, Number(base.maxBonusCoinPercent ?? 25))),
+		enabledPaymentMethods: Array.isArray(base.enabledPaymentMethods) && base.enabledPaymentMethods.length > 0 ? base.enabledPaymentMethods : [
+			"bank_transfer",
+			"easypaisa",
+			"jazzcash"
+		]
+	};
+}
+function validateEconomySettings(input) {
+	const appShare = Number(input.appSharePercent);
+	const hostShare = Number(input.hostSharePercent);
+	if (!Number.isFinite(appShare) || !Number.isFinite(hostShare)) return {
+		valid: false,
+		error: "App Share % and Host Share % must be valid numbers."
+	};
+	if (appShare < 0 || appShare > 100 || hostShare < 0 || hostShare > 100) return {
+		valid: false,
+		error: "App Share % and Host Share % must each be between 0 and 100."
+	};
+	if (Math.round((appShare + hostShare) * 1e3) !== 1e5) return {
+		valid: false,
+		error: `App Share (${appShare}%) + Host Share (${hostShare}%) must equal exactly 100%.`
+	};
+	const purchaseRate100k = Number(input.coinPurchasePkrPer100k);
+	if (!Number.isFinite(purchaseRate100k) || purchaseRate100k <= 0) return {
+		valid: false,
+		error: "Coin Purchase Rate (PKR per 100,000 Coins) must be greater than 0."
+	};
+	const withdrawRate100k = Number(input.diamondWithdrawalPkrPer100k);
+	if (!Number.isFinite(withdrawRate100k) || withdrawRate100k <= 0) return {
+		valid: false,
+		error: "Diamond Withdrawal Rate (PKR per 100,000 Diamonds) must be greater than 0."
+	};
+	const convRatio = Number(input.diamondConversionRatio ?? 1);
+	if (!Number.isFinite(convRatio) || convRatio <= 0 || convRatio > 10) return {
+		valid: false,
+		error: "Diamond Conversion Ratio must be between 0.01 and 10."
+	};
+	const minW = Math.floor(Number(input.minWithdrawalDiamonds));
+	const maxW = Math.floor(Number(input.maxWithdrawalDiamonds));
+	if (!Number.isFinite(minW) || minW < 100) return {
+		valid: false,
+		error: "Minimum withdrawal must be at least 100 Diamonds."
+	};
+	if (!Number.isFinite(maxW) || maxW < minW) return {
+		valid: false,
+		error: "Maximum withdrawal must be greater than or equal to minimum withdrawal."
+	};
+	const agencyPct = Number(input.agencyCommissionPercent ?? 0);
+	if (!Number.isFinite(agencyPct) || agencyPct < 0 || agencyPct > 50) return {
+		valid: false,
+		error: "Agency Commission % must be between 0% and 50%."
+	};
+	const feePct = Number(input.withdrawalProcessingFeePercent ?? 0);
+	if (!Number.isFinite(feePct) || feePct < 0 || feePct > 50) return {
+		valid: false,
+		error: "Withdrawal Processing Fee % must be between 0% and 50%."
+	};
+	if (agencyPct + feePct >= 100) return {
+		valid: false,
+		error: "Combined Agency Commission and Processing Fee cannot reach 100%."
+	};
+	return {
+		valid: true,
+		normalized: normalizeEconomyConfig(input)
+	};
+}
+/**
+* Coin Purchase Calculator
+* Official Rate: 100,000 Coins = PKR 3,000 (1 Coin = PKR 0.03)
+*/
+function calculateCoinPurchasePricePkr(paidCoins, config = OFFICIAL_ECONOMY_DEFAULTS) {
+	const safeCoins = Math.max(0, Math.floor(Number(paidCoins || 0)));
+	const rate = config.coinPurchasePkrPer100k / 1e5;
+	return {
+		paidCoins: safeCoins,
+		pricePkr: roundPkr(safeCoins * rate),
+		ratePkrPerCoin: Number(rate.toFixed(6))
+	};
+}
+/**
+* Authoritative Gifting Revenue Split Calculator
+* Official Rule:
+*   - Sender spends:  100% Coins (e.g. 100,000 Coins)
+*   - App receives:   40% Beans/Revenue Ledger (40,000)
+*   - Host receives:  60% Diamonds (60,000 Diamonds -> PKR 1,560 gross withdrawal value)
+*   - App Share + Host Share ALWAYS equals 100%.
+*/
+function calculateGiftSplit(grossCoinsInput, config = OFFICIAL_ECONOMY_DEFAULTS) {
+	const grossCoins = Math.floor(Number(grossCoinsInput || 0));
+	if (!Number.isFinite(grossCoins) || grossCoins <= 0) throw new Error("Gift coin amount must be a positive integer.");
+	const appSharePercent = config.appSharePercent;
+	const hostSharePercent = config.hostSharePercent;
+	if (Math.round((appSharePercent + hostSharePercent) * 1e3) !== 1e5) throw new Error("Invalid financial configuration: App Share + Host Share must equal 100%.");
+	const appBeansAmount = Math.round(grossCoins * (appSharePercent / 100));
+	const hostShareCoins = grossCoins - appBeansAmount;
+	const convRatio = config.diamondConversionRatio || 1;
+	const hostDiamondsAmount = Math.round(hostShareCoins * convRatio);
+	const coinPkrRate = config.coinPurchasePkrPer100k / 1e5;
+	const diamondPkrRate = config.diamondWithdrawalPkrPer100k / 1e5;
+	return {
+		grossCoins,
+		appSharePercent,
+		hostSharePercent,
+		appBeansAmount,
+		hostShareCoins,
+		hostDiamondsAmount,
+		appRevenuePkrEstimate: roundPkr(appBeansAmount * coinPkrRate),
+		hostGrossPkrValue: roundPkr(hostDiamondsAmount * diamondPkrRate),
+		configVersion: config.configVersion
+	};
+}
+/**
+* Authoritative Diamond Withdrawal Waterfall Calculator
+* Official Formula:
+*   Gross Withdrawal = Diamonds × 0.026  (100,000 Diamonds = PKR 2,600)
+*   Agency Commission = Gross × (agencyCommissionPercent / 100)  [ONLY if host belongs to an active Host Agency]
+*   Processing Fee    = Gross × (withdrawalProcessingFeePercent / 100)
+*   Net Payable PKR   = Gross - Agency Commission - Processing Fee
+*
+* Guarantees:
+*   - Agency commission and processing fee are independently configured and NEVER deducted twice.
+*   - When configured fees are 0%, 100,000 Diamonds = PKR 2,600.00 net payable exact.
+*/
+function calculateWithdrawalWaterfall(diamondsRequestedInput, config = OFFICIAL_ECONOMY_DEFAULTS, options) {
+	const diamondsRequested = Math.floor(Number(diamondsRequestedInput || 0));
+	if (!Number.isFinite(diamondsRequested) || diamondsRequested <= 0) throw new Error("Withdrawal Diamonds amount must be a positive integer.");
+	const diamondRatePkr = config.diamondWithdrawalPkrPer100k / 1e5;
+	const grossAmountPkr = roundPkr(diamondsRequested * diamondRatePkr);
+	const rawAgencyPct = Boolean(options?.hostHasActiveAgency) ? options?.agencyCommissionOverridePercent !== void 0 && options?.agencyCommissionOverridePercent !== null ? Number(options.agencyCommissionOverridePercent) : Number(config.agencyCommissionPercent || 0) : 0;
+	const agencyCommissionPercent = Math.min(50, Math.max(0, Number.isFinite(rawAgencyPct) ? rawAgencyPct : 0));
+	const rawFeePct = Number(config.withdrawalProcessingFeePercent || 0);
+	const processingFeePercent = Math.min(50, Math.max(0, Number.isFinite(rawFeePct) ? rawFeePct : 0));
+	const agencyCommissionPkr = roundPkr(grossAmountPkr * (agencyCommissionPercent / 100));
+	const processingFeePkr = roundPkr(grossAmountPkr * (processingFeePercent / 100));
+	const totalDeductionsPkr = roundPkr(agencyCommissionPkr + processingFeePkr);
+	const netPayablePkr = Math.max(0, roundPkr(grossAmountPkr - totalDeductionsPkr));
+	return {
+		diamondsRequested,
+		diamondRatePkr: Number(diamondRatePkr.toFixed(6)),
+		grossAmountPkr,
+		agencyCommissionPercent,
+		agencyCommissionPkr,
+		processingFeePercent,
+		processingFeePkr,
+		totalDeductionsPkr,
+		netPayablePkr,
+		configVersion: config.configVersion
+	};
+}
+/**
+* Production QA Test Suite (Tests A, B, C, D, E)
+* Verifies exact math & guardrails required by the Lenzo Party Financial Specification.
+*/
+function runFinancialQaAssertions() {
+	const results = [];
+	const testA = calculateCoinPurchasePricePkr(1e5, OFFICIAL_ECONOMY_DEFAULTS);
+	results.push({
+		testId: "TEST_A",
+		name: "Coin Purchase Test (100,000 Coins = PKR 3,000)",
+		passed: testA.paidCoins === 1e5 && testA.pricePkr === 3e3 && testA.ratePkrPerCoin === .03,
+		expected: "100,000 Coins = PKR 3,000 (0.03/Coin)",
+		actual: `${testA.paidCoins.toLocaleString()} Coins = PKR ${testA.pricePkr.toLocaleString()} (${testA.ratePkrPerCoin}/Coin)`
+	});
+	const testB = calculateGiftSplit(1e5, OFFICIAL_ECONOMY_DEFAULTS);
+	results.push({
+		testId: "TEST_B",
+		name: "Gifting Split Test (100,000 Coins -> 40% App / 60% Host)",
+		passed: testB.grossCoins === 1e5 && testB.appBeansAmount === 4e4 && testB.hostDiamondsAmount === 6e4 && testB.hostGrossPkrValue === 1560 && testB.appBeansAmount + testB.hostDiamondsAmount === testB.grossCoins,
+		expected: "App=40,000 Beans, Host=60,000 Diamonds, Gross=PKR 1,560",
+		actual: `App=${testB.appBeansAmount.toLocaleString()} Beans, Host=${testB.hostDiamondsAmount.toLocaleString()} Diamonds, Gross=PKR ${testB.hostGrossPkrValue.toLocaleString()}`
+	});
+	const testB50k = calculateGiftSplit(5e4, OFFICIAL_ECONOMY_DEFAULTS);
+	results.push({
+		testId: "TEST_B_50K",
+		name: "Gifting Split 50k Example (50,000 Coins -> 20k App / 30k Host)",
+		passed: testB50k.appBeansAmount === 2e4 && testB50k.hostDiamondsAmount === 3e4,
+		expected: "App=20,000, Host=30,000 Diamonds",
+		actual: `App=${testB50k.appBeansAmount.toLocaleString()}, Host=${testB50k.hostDiamondsAmount.toLocaleString()} Diamonds`
+	});
+	const testC100k = calculateWithdrawalWaterfall(1e5, OFFICIAL_ECONOMY_DEFAULTS);
+	const testC200k = calculateWithdrawalWaterfall(2e5, OFFICIAL_ECONOMY_DEFAULTS);
+	const testC500k = calculateWithdrawalWaterfall(5e5, OFFICIAL_ECONOMY_DEFAULTS);
+	const testC1M = calculateWithdrawalWaterfall(1e6, OFFICIAL_ECONOMY_DEFAULTS);
+	results.push({
+		testId: "TEST_C",
+		name: "Withdrawal Test (100k=2,600 | 200k=5,200 | 500k=13,000 | 1M=26,000 PKR)",
+		passed: testC100k.grossAmountPkr === 2600 && testC100k.netPayablePkr === 2600 && testC200k.netPayablePkr === 5200 && testC500k.netPayablePkr === 13e3 && testC1M.netPayablePkr === 26e3,
+		expected: "PKR 2,600 / 5,200 / 13,000 / 26,000",
+		actual: `PKR ${testC100k.netPayablePkr} / ${testC200k.netPayablePkr} / ${testC500k.netPayablePkr} / ${testC1M.netPayablePkr}`
+	});
+	const testCWaterfall = calculateWithdrawalWaterfall(1e5, {
+		...OFFICIAL_ECONOMY_DEFAULTS,
+		agencyCommissionPercent: 10,
+		withdrawalProcessingFeePercent: 2
+	}, { hostHasActiveAgency: true });
+	results.push({
+		testId: "TEST_C_WATERFALL",
+		name: "Agency Commission (10%) + Fee (2%) No Double-Deduction",
+		passed: testCWaterfall.grossAmountPkr === 2600 && testCWaterfall.agencyCommissionPkr === 260 && testCWaterfall.processingFeePkr === 52 && testCWaterfall.netPayablePkr === 2288,
+		expected: "Gross=2,600, Agency=260, Fee=52, Net=2,288 PKR",
+		actual: `Gross=${testCWaterfall.grossAmountPkr}, Agency=${testCWaterfall.agencyCommissionPkr}, Fee=${testCWaterfall.processingFeePkr}, Net=${testCWaterfall.netPayablePkr} PKR`
+	});
+	const testD = calculateGiftSplit(1e6, OFFICIAL_ECONOMY_DEFAULTS);
+	results.push({
+		testId: "TEST_D",
+		name: "Large Transaction Test (1,000,000 Coins -> 400k App / 600k Diamonds / PKR 15,600)",
+		passed: testD.appBeansAmount === 4e5 && testD.hostDiamondsAmount === 6e5 && testD.hostGrossPkrValue === 15600,
+		expected: "App=400,000, Host=600,000 Diamonds, Gross=PKR 15,600",
+		actual: `App=${testD.appBeansAmount.toLocaleString()}, Host=${testD.hostDiamondsAmount.toLocaleString()} Diamonds, Gross=PKR ${testD.hostGrossPkrValue.toLocaleString()}`
+	});
+	const invalidSplit = validateEconomySettings({
+		...OFFICIAL_ECONOMY_DEFAULTS,
+		appSharePercent: 45,
+		hostSharePercent: 60
+	});
+	let negativeGiftRejected = false;
+	try {
+		calculateGiftSplit(-500, OFFICIAL_ECONOMY_DEFAULTS);
+	} catch {
+		negativeGiftRejected = true;
+	}
+	let zeroWithdrawRejected = false;
+	try {
+		calculateWithdrawalWaterfall(0, OFFICIAL_ECONOMY_DEFAULTS);
+	} catch {
+		zeroWithdrawRejected = true;
+	}
+	results.push({
+		testId: "TEST_E",
+		name: "Security Validation Guards (Invalid Split, Negative Gift, Zero Withdrawal)",
+		passed: !invalidSplit.valid && negativeGiftRejected && zeroWithdrawRejected,
+		expected: "All invalid financial inputs rejected",
+		actual: `invalidSplit=${!invalidSplit.valid}, negativeGiftRejected=${negativeGiftRejected}, zeroWithdrawRejected=${zeroWithdrawRejected}`
+	});
+	return {
+		allPassed: results.every((r) => r.passed),
+		results
+	};
+}
+// src/services/walletService.ts
+function economyToWalletSettings(cfg) {
+	return {
+		configVersion: cfg.configVersion,
+		commissionPolicyVersion: cfg.policyVersion,
+		coinPurchasePkrPer100k: cfg.coinPurchasePkrPer100k,
+		coinPurchasePkrPerCoin: cfg.coinPurchasePkrPerCoin,
+		commissionRatePercent: cfg.appSharePercent,
+		hostSharePercent: cfg.hostSharePercent,
+		diamondConversionRatio: cfg.diamondConversionRatio,
+		diamondWithdrawalPkrPer100k: cfg.diamondWithdrawalPkrPer100k,
+		exchangeRatePkrPerCoin: cfg.diamondWithdrawalPkrPerDiamond,
+		minWithdrawalCoins: cfg.minWithdrawalDiamonds,
+		maxWithdrawalCoins: cfg.maxWithdrawalDiamonds,
+		agencyCommissionPercent: cfg.agencyCommissionPercent,
+		withdrawalFeePercent: cfg.withdrawalProcessingFeePercent,
+		bonusCoinsEnabled: cfg.bonusCoinsEnabled,
+		maxBonusCoinPercent: cfg.maxBonusCoinPercent,
+		enabledPaymentMethods: cfg.enabledPaymentMethods,
+		earningsToWalletConversionRate: 1,
+		updatedAt: cfg.updatedAt,
+		updatedByEmail: cfg.updatedByEmail,
+		lastChangeReason: cfg.lastChangeReason
+	};
+}
+function walletSettingsToEconomyConfig(settings) {
+	if (!settings) return { ...OFFICIAL_ECONOMY_DEFAULTS };
+	if (settings.commissionPolicyVersion !== "v3_official_economy") return { ...OFFICIAL_ECONOMY_DEFAULTS };
+	return normalizeEconomyConfig({
+		configVersion: settings.configVersion ?? OFFICIAL_ECONOMY_DEFAULTS.configVersion,
+		coinPurchasePkrPer100k: settings.coinPurchasePkrPer100k ?? OFFICIAL_ECONOMY_DEFAULTS.coinPurchasePkrPer100k,
+		appSharePercent: settings.commissionRatePercent ?? OFFICIAL_ECONOMY_DEFAULTS.appSharePercent,
+		hostSharePercent: settings.hostSharePercent ?? 100 - (settings.commissionRatePercent ?? OFFICIAL_ECONOMY_DEFAULTS.appSharePercent),
+		diamondConversionRatio: settings.diamondConversionRatio ?? OFFICIAL_ECONOMY_DEFAULTS.diamondConversionRatio,
+		diamondWithdrawalPkrPer100k: settings.diamondWithdrawalPkrPer100k ?? OFFICIAL_ECONOMY_DEFAULTS.diamondWithdrawalPkrPer100k,
+		minWithdrawalDiamonds: settings.minWithdrawalCoins ?? OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds,
+		maxWithdrawalDiamonds: settings.maxWithdrawalCoins ?? OFFICIAL_ECONOMY_DEFAULTS.maxWithdrawalDiamonds,
+		agencyCommissionPercent: settings.agencyCommissionPercent ?? OFFICIAL_ECONOMY_DEFAULTS.agencyCommissionPercent,
+		withdrawalProcessingFeePercent: settings.withdrawalFeePercent ?? OFFICIAL_ECONOMY_DEFAULTS.withdrawalProcessingFeePercent,
+		bonusCoinsEnabled: settings.bonusCoinsEnabled ?? OFFICIAL_ECONOMY_DEFAULTS.bonusCoinsEnabled,
+		maxBonusCoinPercent: settings.maxBonusCoinPercent ?? OFFICIAL_ECONOMY_DEFAULTS.maxBonusCoinPercent,
+		enabledPaymentMethods: settings.enabledPaymentMethods ?? OFFICIAL_ECONOMY_DEFAULTS.enabledPaymentMethods
+	});
+}
+var DEFAULT_WALLET_SETTINGS = economyToWalletSettings(OFFICIAL_ECONOMY_DEFAULTS);
+var DEFAULT_COIN_PACKAGES = OFFICIAL_DEFAULT_COIN_PACKAGES.map((p) => ({ ...p }));
 var DEFAULT_PAYOUT_METHODS = [
 	{
 		id: "bank_transfer",
@@ -6416,7 +6715,7 @@ var DEFAULT_PAYOUT_METHODS = [
 		type: "bank_transfer",
 		enabled: true,
 		instructions: "Provide your Full Account Title, Bank Name, and Account Number / 24-digit IBAN",
-		minAmountCoins: 2500
+		minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds
 	},
 	{
 		id: "easypaisa",
@@ -6424,7 +6723,7 @@ var DEFAULT_PAYOUT_METHODS = [
 		type: "easypaisa",
 		enabled: true,
 		instructions: "Provide your registered EasyPaisa 11-digit mobile number and Account Title",
-		minAmountCoins: 2500
+		minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds
 	},
 	{
 		id: "jazzcash",
@@ -6432,7 +6731,7 @@ var DEFAULT_PAYOUT_METHODS = [
 		type: "jazzcash",
 		enabled: true,
 		instructions: "Provide your registered JazzCash 11-digit mobile number and Account Title",
-		minAmountCoins: 2500
+		minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds
 	}
 ];
 var LEGACY_PLACEHOLDER_AGENCY_IDS = /* @__PURE__ */ new Set([
@@ -6442,52 +6741,82 @@ var LEGACY_PLACEHOLDER_AGENCY_IDS = /* @__PURE__ */ new Set([
 	"agency_multan_fsd_star",
 	"agency_gulf_international"
 ]);
+var TERMINAL_WITHDRAWAL_STATUSES = /* @__PURE__ */ new Set([
+	"paid",
+	"rejected",
+	"cancelled"
+]);
+function generateIdempotencyId(prefix) {
+	const rand = Math.random().toString(36).slice(2, 10);
+	return `${prefix}_${Date.now()}_${rand}`.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+async function getBearerAuthHeaders() {
+	const headers = { "Content-Type": "application/json" };
+	try {
+		const token = await auth.currentUser?.getIdToken();
+		if (token) headers.Authorization = `Bearer ${token}`;
+	} catch {}
+	return headers;
+}
 /**
-* 1. SETTINGS & CONFIGURATION SERVICE
+* 1. SETTINGS & CONFIGURATION SERVICE (Synced with platform_financial_settings/global)
 */
 function subscribeWalletSettings(onUpdate) {
-	const docRef = doc(db, "wallet_settings", "global");
-	return onSnapshot(docRef, (snap) => {
-		if (snap.exists()) {
-			const raw = snap.data();
-			const needsPolicyUpgrade = raw.commissionPolicyVersion !== "v2_60_40" && raw.commissionRatePercent === 20;
-			const normalized = {
-				...DEFAULT_WALLET_SETTINGS,
-				...raw,
-				commissionRatePercent: needsPolicyUpgrade ? 40 : raw.commissionRatePercent ?? 40
-			};
-			if (needsPolicyUpgrade && isVerifiedAdminSession()) setDoc(docRef, {
-				commissionRatePercent: 40,
-				commissionPolicyVersion: "v2_60_40",
-				updatedAt: serverTimestamp()
-			}, { merge: true }).catch(() => {});
-			onUpdate(normalized);
-		} else {
-			if (isVerifiedAdminSession()) setDoc(docRef, {
-				...DEFAULT_WALLET_SETTINGS,
-				commissionPolicyVersion: "v2_60_40"
-			}, { merge: true }).catch((err) => console.warn("Failed to auto-seed wallet settings:", err));
+	const canonicalRef = doc(db, "platform_financial_settings", "global");
+	const legacyRef = doc(db, "wallet_settings", "global");
+	return onSnapshot(canonicalRef, (snap) => {
+		if (snap.exists()) onUpdate(economyToWalletSettings(normalizeEconomyConfig(snap.data())));
+		else {
+			if (isVerifiedAdminSession()) {
+				const seedCfg = {
+					...OFFICIAL_ECONOMY_DEFAULTS,
+					updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+					updatedByUid: auth.currentUser?.uid || "",
+					updatedByEmail: auth.currentUser?.email || "",
+					lastChangeReason: "Initial v3 official economy configuration sync"
+				};
+				setDoc(canonicalRef, seedCfg, { merge: true }).catch(() => {});
+				setDoc(legacyRef, {
+					...economyToWalletSettings(seedCfg),
+					updatedAt: serverTimestamp()
+				}, { merge: true }).catch(() => {});
+			}
 			onUpdate(DEFAULT_WALLET_SETTINGS);
 		}
 	}, (err) => {
-		console.warn("Wallet settings subscription notice:", err);
+		console.warn("Financial settings subscription notice:", err);
 		onUpdate(DEFAULT_WALLET_SETTINGS);
 	});
 }
 async function updateWalletSettings(settings) {
-	const docRef = doc(db, "wallet_settings", "global");
+	const canonicalRef = doc(db, "platform_financial_settings", "global");
+	const legacyRef = doc(db, "wallet_settings", "global");
 	try {
-		await setDoc(docRef, {
-			...settings,
-			commissionPolicyVersion: "v2_60_40",
+		const mergedEconomy = normalizeEconomyConfig({
+			coinPurchasePkrPer100k: settings.coinPurchasePkrPer100k,
+			appSharePercent: settings.commissionRatePercent,
+			hostSharePercent: settings.hostSharePercent ?? (settings.commissionRatePercent !== void 0 ? 100 - settings.commissionRatePercent : void 0),
+			diamondConversionRatio: settings.diamondConversionRatio,
+			diamondWithdrawalPkrPer100k: settings.diamondWithdrawalPkrPer100k ?? (settings.exchangeRatePkrPerCoin !== void 0 ? roundPkr(settings.exchangeRatePkrPerCoin * 1e5) : void 0),
+			minWithdrawalDiamonds: settings.minWithdrawalCoins,
+			maxWithdrawalDiamonds: settings.maxWithdrawalCoins,
+			agencyCommissionPercent: settings.agencyCommissionPercent,
+			withdrawalProcessingFeePercent: settings.withdrawalFeePercent,
+			updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+			updatedByUid: auth.currentUser?.uid || "",
+			updatedByEmail: auth.currentUser?.email || ""
+		});
+		await setDoc(canonicalRef, mergedEconomy, { merge: true });
+		await setDoc(legacyRef, {
+			...economyToWalletSettings(mergedEconomy),
 			updatedAt: serverTimestamp()
 		}, { merge: true });
 	} catch (err) {
-		handleFirestoreError(err, OperationType.UPDATE, "wallet_settings/global");
+		handleFirestoreError(err, OperationType.UPDATE, "platform_financial_settings/global");
 	}
 }
 /**
-* 2. COIN RECHARGE PACKAGES SERVICE
+* 2. COIN RECHARGE PACKAGES SERVICE (Aligned to 100,000 Coins = PKR 3,000)
 */
 function subscribeCoinPackages(onUpdate) {
 	const collRef = collection(db, "coin_packages");
@@ -6497,6 +6826,10 @@ function subscribeCoinPackages(onUpdate) {
 				id: d.id,
 				...d.data()
 			}));
+			if (pkgs.some((p) => p.id === "pack_1000" && p.coins === 1e3 && p.pricePkr === 2e3)) {
+				onUpdate(DEFAULT_COIN_PACKAGES);
+				return;
+			}
 			pkgs.sort((a, b) => a.coins - b.coins);
 			onUpdate(pkgs);
 		} else {
@@ -6577,7 +6910,7 @@ async function deleteCoinSellerAgency(agencyId) {
 	}
 }
 /**
-* 3. REAL USER WALLET (PURCHASED COINS) SERVICE
+* 3. REAL USER COIN WALLET (PURCHASED COINS + TRACKED BONUS COINS)
 */
 function subscribeUserWallet(userId, onUpdate) {
 	const docRef = doc(db, "wallets", userId);
@@ -6586,17 +6919,23 @@ function subscribeUserWallet(userId, onUpdate) {
 			const data = snap.data();
 			onUpdate({
 				userId,
-				walletPurchasedCoins: data.walletPurchasedCoins ?? 0,
-				totalCoinsPurchased: data.totalCoinsPurchased ?? 0,
-				totalCoinsSpent: data.totalCoinsSpent ?? 0,
-				updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : (/* @__PURE__ */ new Date()).toISOString()
+				walletPurchasedCoins: Number(data.walletPurchasedCoins ?? 0),
+				bonusCoinsBalance: Number(data.bonusCoinsBalance ?? 0),
+				totalCoinsPurchased: Number(data.totalCoinsPurchased ?? 0),
+				totalBonusCoinsReceived: Number(data.totalBonusCoinsReceived ?? 0),
+				totalCoinsSpent: Number(data.totalCoinsSpent ?? 0),
+				totalRefundedCoins: Number(data.totalRefundedCoins ?? 0),
+				updatedAt: data.updatedAt && typeof data.updatedAt.toDate === "function" ? data.updatedAt.toDate().toISOString() : typeof data.updatedAt === "string" ? data.updatedAt : (/* @__PURE__ */ new Date()).toISOString()
 			});
 		} else {
 			const initial = {
 				userId,
 				walletPurchasedCoins: 0,
+				bonusCoinsBalance: 0,
 				totalCoinsPurchased: 0,
+				totalBonusCoinsReceived: 0,
 				totalCoinsSpent: 0,
+				totalRefundedCoins: 0,
 				updatedAt: (/* @__PURE__ */ new Date()).toISOString()
 			};
 			setDoc(docRef, {
@@ -6610,23 +6949,33 @@ function subscribeUserWallet(userId, onUpdate) {
 	});
 }
 /**
-* 4. REAL USER EARNINGS (GIFTS RECEIVED) SERVICE
+* 4. REAL HOST DIAMOND EARNINGS WALLET (60% GIFT SHARE -> DIAMONDS ONLY)
 */
 function subscribeUserEarnings(userId, onUpdate) {
 	const docRef = doc(db, "earnings", userId);
 	return onSnapshot(docRef, (snap) => {
 		if (snap.exists()) {
 			const data = snap.data();
+			const todayKey = getDayKey();
+			const monthKey = getMonthKey();
+			const available = Number(data.availableEarningsCoins ?? 0);
+			const pending = Number(data.pendingWithdrawalCoins ?? 0);
+			const withdrawn = Number(data.totalWithdrawnCoins ?? 0);
 			onUpdate({
 				userId,
-				availableEarningsCoins: data.availableEarningsCoins ?? 0,
-				pendingWithdrawalCoins: data.pendingWithdrawalCoins ?? 0,
-				totalWithdrawnCoins: data.totalWithdrawnCoins ?? 0,
-				grossGiftCoinsReceived: data.grossGiftCoinsReceived ?? 0,
-				totalCommissionDeducted: data.totalCommissionDeducted ?? 0,
-				totalConvertedToWallet: data.totalConvertedToWallet ?? 0,
-				totalGiftsCount: data.totalGiftsCount ?? 0,
-				updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : (/* @__PURE__ */ new Date()).toISOString()
+				availableEarningsCoins: available,
+				pendingWithdrawalCoins: pending,
+				totalWithdrawnCoins: withdrawn,
+				totalEarnedDiamonds: Math.max(Number(data.totalEarnedDiamonds ?? 0), available + pending + withdrawn),
+				dailyEarnedDiamonds: data.lastEarnedDayKey === todayKey ? Number(data.dailyEarnedDiamonds ?? 0) : 0,
+				monthlyEarnedDiamonds: data.lastEarnedMonthKey === monthKey ? Number(data.monthlyEarnedDiamonds ?? 0) : 0,
+				lastEarnedDayKey: data.lastEarnedDayKey || todayKey,
+				lastEarnedMonthKey: data.lastEarnedMonthKey || monthKey,
+				grossGiftCoinsReceived: Number(data.grossGiftCoinsReceived ?? 0),
+				totalCommissionDeducted: Number(data.totalCommissionDeducted ?? 0),
+				totalConvertedToWallet: Number(data.totalConvertedToWallet ?? 0),
+				totalGiftsCount: Number(data.totalGiftsCount ?? 0),
+				updatedAt: data.updatedAt && typeof data.updatedAt.toDate === "function" ? data.updatedAt.toDate().toISOString() : typeof data.updatedAt === "string" ? data.updatedAt : (/* @__PURE__ */ new Date()).toISOString()
 			});
 		} else {
 			const initial = {
@@ -6634,6 +6983,11 @@ function subscribeUserEarnings(userId, onUpdate) {
 				availableEarningsCoins: 0,
 				pendingWithdrawalCoins: 0,
 				totalWithdrawnCoins: 0,
+				totalEarnedDiamonds: 0,
+				dailyEarnedDiamonds: 0,
+				monthlyEarnedDiamonds: 0,
+				lastEarnedDayKey: getDayKey(),
+				lastEarnedMonthKey: getMonthKey(),
 				grossGiftCoinsReceived: 0,
 				totalCommissionDeducted: 0,
 				totalConvertedToWallet: 0,
@@ -6651,373 +7005,697 @@ function subscribeUserEarnings(userId, onUpdate) {
 	});
 }
 /**
-* 6. ATOMIC GIFT SENDING & 40% APP / 60% HOST DIAMONDS SPLIT
-* - Deducts 100% of gift cost from sender's Gifting Wallet (Coins).
-* - Platform share: 40% (recorded in commission_transactions).
-* - Host share: 60% converted into Diamonds in recipient's Earnings Wallet & users/{uid}.diamonds.
-* - Records all transactions immutably.
+* 6. PRODUCTION AUTOMATIC GIFTING ENGINE
+*    - Authenticates sender & requests backend authoritative gift quote (`/api/finance/quote-gift`).
+*    - Enforces idempotency via `gift_transactions/{idempotencyKey}` inside Firestore `runTransaction`.
+*    - Deducts 100% Coins from Sender Coin Wallet (`wallets/{senderId}` & `users/{senderId}.coins`).
+*    - Credits 60% Host Share directly as Diamonds (`earnings/{receiverId}` & `users/{receiverId}.diamonds`).
+*      Host NEVER receives gifted Coins as earnings.
+*    - Credits 40% App Share as App Beans to `platform_revenue/global` AND immutable `platform_beans_ledger/{idempotencyKey}`.
+*    - Records immutable audit ledgers across root & user subcollections in real time.
 */
-async function processGiftTransaction(senderUser, recipientUser, gift, quantity = 1, settings = DEFAULT_WALLET_SETTINGS) {
+async function processGiftTransaction(senderUser, recipientUser, gift, quantity = 1, settings = DEFAULT_WALLET_SETTINGS, options) {
 	try {
-		const totalCost = Math.floor(gift.coins * quantity);
-		if (!Number.isFinite(totalCost) || totalCost <= 0) return {
+		const authUid = auth.currentUser?.uid;
+		if (!authUid || authUid !== senderUser.id) return {
 			success: false,
 			netEarnings: 0,
 			commission: 0,
-			error: "Invalid gift amount"
+			error: "Authentication required to send gifts."
 		};
+		const qty = Math.floor(Number(quantity || 1));
+		const unitCoins = Math.floor(Number(gift.coins || 0));
+		if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(unitCoins) || unitCoins <= 0) return {
+			success: false,
+			netEarnings: 0,
+			commission: 0,
+			error: "Invalid gift amount."
+		};
+		const idempotencyKey = options?.idempotencyKey || generateIdempotencyId(`gift_${senderUser.id.slice(0, 6)}`);
+		const economyCfg = walletSettingsToEconomyConfig(settings);
+		let split = calculateGiftSplit(unitCoins * qty, economyCfg);
+		let verifiedGrossCoins = unitCoins * qty;
+		try {
+			const headers = await getBearerAuthHeaders();
+			const resp = await fetch(apiUrl("/api/finance/quote-gift"), {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					receiverId: recipientUser.id,
+					giftId: gift.id,
+					giftName: gift.name,
+					quantity: qty,
+					customStoreGiftPriceCoins: unitCoins,
+					idempotencyKey
+				})
+			});
+			if (resp.status === 409) return {
+				success: false,
+				netEarnings: 0,
+				commission: 0,
+				error: "Duplicate gift transaction prevented."
+			};
+			if (resp.ok) {
+				const data = await resp.json();
+				if (data?.success && data?.quote) {
+					verifiedGrossCoins = Number(data.quote.grossCoins);
+					split = {
+						grossCoins: verifiedGrossCoins,
+						appSharePercent: Number(data.quote.appSharePercent),
+						hostSharePercent: Number(data.quote.hostSharePercent),
+						appBeansAmount: Number(data.quote.appBeansAmount),
+						hostShareCoins: Number(data.quote.hostShareCoins),
+						hostDiamondsAmount: Number(data.quote.hostDiamondsAmount),
+						appRevenuePkrEstimate: Number(data.quote.appRevenuePkrEstimate),
+						hostGrossPkrValue: Number(data.quote.hostGrossPkrValue),
+						configVersion: Number(data.quote.configVersion || economyCfg.configVersion)
+					};
+				}
+			}
+		} catch {}
+		const nowMillis = Date.now();
+		const nowIso = new Date(nowMillis).toISOString();
+		const nowDisplay = new Date(nowMillis).toLocaleString();
+		const todayKey = getDayKey(new Date(nowMillis));
+		const monthKey = getMonthKey(new Date(nowMillis));
+		const giftTxRef = doc(db, "gift_transactions", idempotencyKey);
 		const senderWalletRef = doc(db, "wallets", senderUser.id);
 		const recipientEarningsRef = doc(db, "earnings", recipientUser.id);
 		const senderUserRef = doc(db, "users", senderUser.id);
 		const recipientUserRef = doc(db, "users", recipientUser.id);
-		const commissionPercent = settings.commissionRatePercent || 40;
-		const hostSharePercent = Math.max(0, 100 - commissionPercent);
-		const commissionCoins = Math.round(totalCost * (commissionPercent / 100));
-		const netEarningsDiamonds = totalCost - commissionCoins;
+		const platformRevenueRef = doc(db, "platform_revenue", "global");
+		const beansLedgerRef = doc(db, "platform_beans_ledger", idempotencyKey);
 		await runTransaction(db, async (tx) => {
+			if ((await tx.get(giftTxRef)).exists()) throw new Error("This gift transaction was already processed.");
 			const senderSnap = await tx.get(senderWalletRef);
 			const senderUserSnap = await tx.get(senderUserRef);
 			const walletCoins = senderSnap.exists() ? Number(senderSnap.data().walletPurchasedCoins ?? 0) : 0;
 			const profileCoins = senderUserSnap.exists() ? Number(senderUserSnap.data().coins ?? 0) : 0;
 			const senderCoins = senderSnap.exists() && walletCoins > 0 ? walletCoins : Math.max(walletCoins, profileCoins);
-			if (senderCoins < totalCost) throw new Error(`Insufficient wallet balance. You have ${senderCoins.toLocaleString()} coins, but need ${totalCost.toLocaleString()} coins.`);
-			const newSenderCoins = senderCoins - totalCost;
-			const prevSpent = senderSnap.exists() ? senderSnap.data().totalCoinsSpent || 0 : 0;
+			if (senderCoins < verifiedGrossCoins) throw new Error(`Insufficient Coin Wallet balance. You have ${senderCoins.toLocaleString()} Coins, but need ${verifiedGrossCoins.toLocaleString()} Coins.`);
+			const recipientSnap = await tx.get(recipientEarningsRef);
+			const newSenderCoins = senderCoins - verifiedGrossCoins;
+			const prevSpent = senderSnap.exists() ? Number(senderSnap.data().totalCoinsSpent || 0) : 0;
 			tx.set(senderWalletRef, {
 				userId: senderUser.id,
 				walletPurchasedCoins: newSenderCoins,
-				totalCoinsSpent: prevSpent + totalCost,
+				totalCoinsSpent: prevSpent + verifiedGrossCoins,
 				updatedAt: serverTimestamp()
 			}, { merge: true });
 			tx.set(senderUserRef, { coins: newSenderCoins }, { merge: true });
-			const recipientSnap = await tx.get(recipientEarningsRef);
-			const currentDiamonds = recipientSnap.exists() ? recipientSnap.data().availableEarningsCoins || 0 : 0;
-			const prevGross = recipientSnap.exists() ? recipientSnap.data().grossGiftCoinsReceived || 0 : 0;
-			const prevCommission = recipientSnap.exists() ? recipientSnap.data().totalCommissionDeducted || 0 : 0;
-			const prevGiftCount = recipientSnap.exists() ? recipientSnap.data().totalGiftsCount || 0 : 0;
-			const newAvailableDiamonds = currentDiamonds + netEarningsDiamonds;
+			const currentDiamonds = recipientSnap.exists() ? Number(recipientSnap.data().availableEarningsCoins || 0) : 0;
+			const prevTotalEarned = recipientSnap.exists() ? Math.max(Number(recipientSnap.data().totalEarnedDiamonds || 0), currentDiamonds) : 0;
+			const prevDaily = recipientSnap.exists() && recipientSnap.data().lastEarnedDayKey === todayKey ? Number(recipientSnap.data().dailyEarnedDiamonds || 0) : 0;
+			const prevMonthly = recipientSnap.exists() && recipientSnap.data().lastEarnedMonthKey === monthKey ? Number(recipientSnap.data().monthlyEarnedDiamonds || 0) : 0;
+			const prevGross = recipientSnap.exists() ? Number(recipientSnap.data().grossGiftCoinsReceived || 0) : 0;
+			const prevCommission = recipientSnap.exists() ? Number(recipientSnap.data().totalCommissionDeducted || 0) : 0;
+			const prevGiftCount = recipientSnap.exists() ? Number(recipientSnap.data().totalGiftsCount || 0) : 0;
+			const newAvailableDiamonds = currentDiamonds + split.hostDiamondsAmount;
 			tx.set(recipientEarningsRef, {
 				userId: recipientUser.id,
 				availableEarningsCoins: newAvailableDiamonds,
-				grossGiftCoinsReceived: prevGross + totalCost,
-				totalCommissionDeducted: prevCommission + commissionCoins,
-				totalGiftsCount: prevGiftCount + quantity,
+				totalEarnedDiamonds: prevTotalEarned + split.hostDiamondsAmount,
+				dailyEarnedDiamonds: prevDaily + split.hostDiamondsAmount,
+				monthlyEarnedDiamonds: prevMonthly + split.hostDiamondsAmount,
+				lastEarnedDayKey: todayKey,
+				lastEarnedMonthKey: monthKey,
+				grossGiftCoinsReceived: prevGross + verifiedGrossCoins,
+				totalCommissionDeducted: prevCommission + split.appBeansAmount,
+				totalGiftsCount: prevGiftCount + qty,
 				updatedAt: serverTimestamp()
 			}, { merge: true });
 			tx.set(recipientUserRef, { diamonds: newAvailableDiamonds }, { merge: true });
-			const senderTxRef = doc(collection(db, "wallet_transactions"));
-			tx.set(senderTxRef, {
-				id: senderTxRef.id,
+			tx.set(platformRevenueRef, {
+				id: "global",
+				totalBeansEarned: increment(split.appBeansAmount),
+				totalGiftingCoinsProcessed: increment(verifiedGrossCoins),
+				totalHostDiamondsIssued: increment(split.hostDiamondsAmount),
+				totalGiftCount: increment(qty),
+				updatedAt: nowIso
+			}, { merge: true });
+			tx.set(beansLedgerRef, {
+				id: idempotencyKey,
+				idempotencyKey,
+				source: "gift_split",
+				senderId: senderUser.id,
+				senderName: senderUser.name || "User",
+				receiverId: recipientUser.id,
+				receiverName: recipientUser.name || "Host",
+				giftId: gift.id,
+				giftName: gift.name,
+				context: options?.context || "live_stream",
+				grossCoins: verifiedGrossCoins,
+				appSharePercent: split.appSharePercent,
+				hostSharePercent: split.hostSharePercent,
+				beansAmount: split.appBeansAmount,
+				hostDiamondsIssued: split.hostDiamondsAmount,
+				estimatedAppRevenuePkr: split.appRevenuePkrEstimate,
+				hostGrossPkr: split.hostGrossPkrValue,
+				configVersion: split.configVersion,
+				dayKey: todayKey,
+				monthKey,
+				createdAt: nowIso,
+				createdAtMillis: nowMillis
+			});
+			tx.set(giftTxRef, {
+				id: idempotencyKey,
+				idempotencyKey,
+				senderId: senderUser.id,
+				senderName: senderUser.name || "User",
+				receiverId: recipientUser.id,
+				receiverName: recipientUser.name || "Host",
+				giftId: gift.id,
+				giftName: gift.name,
+				giftIcon: gift.icon || "🎁",
+				quantity: qty,
+				unitPriceCoins: unitCoins,
+				coinAmount: verifiedGrossCoins,
+				appSharePercent: split.appSharePercent,
+				hostSharePercent: split.hostSharePercent,
+				appBeansAmount: split.appBeansAmount,
+				hostDiamondsAmount: split.hostDiamondsAmount,
+				hostGrossPkr: split.hostGrossPkrValue,
+				context: options?.context || "live_stream",
+				roomId: options?.roomId || "",
+				configVersion: split.configVersion,
+				status: "completed",
+				createdAt: nowIso,
+				createdAtMillis: nowMillis
+			});
+			const senderTxId = `${idempotencyKey}_coin`;
+			const senderTxPayload = {
+				id: senderTxId,
 				userId: senderUser.id,
 				category: "gift_sent",
 				balanceType: "wallet",
-				amount: -totalCost,
-				pkrAmount: Math.round(totalCost * settings.exchangeRatePkrPerCoin),
+				amount: -verifiedGrossCoins,
+				pkrAmount: roundPkr(verifiedGrossCoins * economyCfg.coinPurchasePkrPerCoin),
 				status: "completed",
-				description: `Sent ${quantity}x ${gift.name} ${gift.icon} to ${recipientUser.name}`,
-				timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-				timestampMillis: Date.now(),
-				referenceId: gift.id,
+				description: `Sent ${qty}x ${gift.name} ${gift.icon} to ${recipientUser.name}`,
+				timestamp: nowDisplay,
+				timestampMillis: nowMillis,
+				referenceId: idempotencyKey,
+				idempotencyKey,
+				configVersion: split.configVersion,
 				metadata: {
 					recipientId: recipientUser.id,
 					recipientName: recipientUser.name,
+					giftId: gift.id,
 					giftName: gift.name,
-					quantity
+					quantity: qty,
+					context: options?.context || "live_stream"
 				}
-			});
-			const recipientTxRef = doc(collection(db, "earnings_transactions"));
-			tx.set(recipientTxRef, {
-				id: recipientTxRef.id,
+			};
+			tx.set(doc(db, "wallet_transactions", senderTxId), senderTxPayload);
+			tx.set(doc(db, "users", senderUser.id, "coin_transactions", senderTxId), senderTxPayload);
+			const receiverTxId = `${idempotencyKey}_dia`;
+			const receiverTxPayload = {
+				id: receiverTxId,
 				userId: recipientUser.id,
 				category: "gift_received",
 				balanceType: "earnings",
-				amount: netEarningsDiamonds,
-				pkrAmount: Math.round(netEarningsDiamonds * settings.exchangeRatePkrPerCoin),
+				amount: split.hostDiamondsAmount,
+				pkrAmount: split.hostGrossPkrValue,
 				status: "completed",
-				description: `Received ${quantity}x ${gift.name} ${gift.icon} from ${senderUser.name} (+${netEarningsDiamonds.toLocaleString()} Diamonds • ${hostSharePercent}% host share)`,
-				timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-				timestampMillis: Date.now(),
-				referenceId: gift.id,
+				description: `Received ${qty}x ${gift.name} ${gift.icon} from ${senderUser.name} (+${split.hostDiamondsAmount.toLocaleString()} Diamonds • ${split.hostSharePercent}% Host Share)`,
+				timestamp: nowDisplay,
+				timestampMillis: nowMillis,
+				referenceId: idempotencyKey,
+				idempotencyKey,
+				configVersion: split.configVersion,
 				metadata: {
 					senderId: senderUser.id,
 					senderName: senderUser.name,
-					grossGiftCost: totalCost,
-					commissionCoins,
-					commissionPercent,
-					hostSharePercent
+					grossGiftCost: verifiedGrossCoins,
+					appBeansAmount: split.appBeansAmount,
+					appSharePercent: split.appSharePercent,
+					hostSharePercent: split.hostSharePercent,
+					hostGrossPkr: split.hostGrossPkrValue
 				}
-			});
-			const commissionTxRef = doc(collection(db, "commission_transactions"));
-			tx.set(commissionTxRef, {
-				id: commissionTxRef.id,
+			};
+			tx.set(doc(db, "earnings_transactions", receiverTxId), receiverTxPayload);
+			tx.set(doc(db, "users", recipientUser.id, "diamond_transactions", receiverTxId), receiverTxPayload);
+			const commTxId = `${idempotencyKey}_comm`;
+			tx.set(doc(db, "commission_transactions", commTxId), {
+				id: commTxId,
 				senderId: senderUser.id,
 				recipientId: recipientUser.id,
-				grossCost: totalCost,
-				commissionCoins,
-				netEarningsCoins: netEarningsDiamonds,
-				commissionPercent,
+				grossCost: verifiedGrossCoins,
+				commissionCoins: split.appBeansAmount,
+				netEarningsCoins: split.hostDiamondsAmount,
+				commissionPercent: split.appSharePercent,
+				configVersion: split.configVersion,
 				timestamp: serverTimestamp(),
-				timestampMillis: Date.now()
+				timestampMillis: nowMillis
 			});
+		});
+		if (recipientUser.id && recipientUser.id !== senderUser.id) sendPushNotification({
+			targetUserId: recipientUser.id,
+			type: "gifts",
+			title: `🎁 ${senderUser.name} sent ${quantity}× ${gift.name}!`,
+			message: `You earned +${split.hostDiamondsAmount.toLocaleString()} Host Diamonds 💎 (worth PKR ${split.hostGrossPkrValue.toLocaleString()}).`,
+			avatar: senderUser.avatar || void 0,
+			senderId: senderUser.id,
+			senderName: senderUser.name,
+			actionType: "open_wallet",
+			targetId: idempotencyKey,
+			priority: verifiedGrossCoins >= 1e4 ? "high" : "normal",
+			eventKey: "gift_received"
 		});
 		return {
 			success: true,
-			netEarnings: netEarningsDiamonds,
-			commission: commissionCoins
+			netEarnings: split.hostDiamondsAmount,
+			commission: split.appBeansAmount,
+			transactionId: idempotencyKey
 		};
 	} catch (err) {
 		return {
 			success: false,
 			netEarnings: 0,
 			commission: 0,
-			error: err?.message || "Gift transaction failed"
+			error: err?.message || "Gift transaction failed."
 		};
 	}
 }
 /**
-* 7. ATOMIC CONVERSION OF EARNINGS INTO WALLET COINS
-* - User enters eligible earnings coins.
-* - Deducts from availableEarningsCoins.
-* - Credits to walletPurchasedCoins.
-* - Converted coins can be used for gifting, but never counted as new earnings.
+* Helper: Look up whether host is actively linked to a Host Agency (for transparent Agency Commission waterfall)
 */
-async function convertEarningsToWallet(userId, coinsToConvert, settings = DEFAULT_WALLET_SETTINGS) {
+async function lookupActiveHostAgencyContract(hostUid) {
 	try {
-		if (coinsToConvert <= 0) return {
-			success: false,
-			walletCoinsReceived: 0,
-			error: "Please enter a valid amount to convert"
-		};
-		const conversionRate = settings.earningsToWalletConversionRate || 1;
-		const walletCoinsReceived = Math.round(coinsToConvert * conversionRate);
-		const earningsRef = doc(db, "earnings", userId);
-		const walletRef = doc(db, "wallets", userId);
-		const userRef = doc(db, "users", userId);
-		await runTransaction(db, async (tx) => {
-			const earningsSnap = await tx.get(earningsRef);
-			const availableEarnings = earningsSnap.exists() ? earningsSnap.data().availableEarningsCoins || 0 : 0;
-			if (availableEarnings < coinsToConvert) throw new Error(`Insufficient Diamonds. Available: ${availableEarnings.toLocaleString()} Diamonds.`);
-			const walletSnap = await tx.get(walletRef);
-			const currentWalletCoins = walletSnap.exists() ? walletSnap.data().walletPurchasedCoins || 0 : 0;
-			const prevConverted = earningsSnap.exists() ? earningsSnap.data().totalConvertedToWallet || 0 : 0;
-			const newAvailableEarnings = availableEarnings - coinsToConvert;
-			tx.set(earningsRef, {
-				availableEarningsCoins: newAvailableEarnings,
-				totalConvertedToWallet: prevConverted + coinsToConvert,
-				updatedAt: serverTimestamp()
-			}, { merge: true });
-			const newWalletCoins = currentWalletCoins + walletCoinsReceived;
-			tx.set(walletRef, {
-				userId,
-				walletPurchasedCoins: newWalletCoins,
-				updatedAt: serverTimestamp()
-			}, { merge: true });
-			tx.set(userRef, {
-				coins: newWalletCoins,
-				diamonds: newAvailableEarnings
-			}, { merge: true });
-			const earningsTx = doc(collection(db, "earnings_transactions"));
-			tx.set(earningsTx, {
-				id: earningsTx.id,
-				userId,
-				category: "earnings_conversion",
-				balanceType: "earnings",
-				amount: -coinsToConvert,
-				status: "completed",
-				description: `Exchanged ${coinsToConvert.toLocaleString()} Diamonds to ${walletCoinsReceived.toLocaleString()} Gifting Wallet Coins`,
-				timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-				timestampMillis: Date.now()
-			});
-			const walletTx = doc(collection(db, "wallet_transactions"));
-			tx.set(walletTx, {
-				id: walletTx.id,
-				userId,
-				category: "earnings_conversion",
-				balanceType: "wallet",
-				amount: walletCoinsReceived,
-				status: "completed",
-				description: `Received ${walletCoinsReceived.toLocaleString()} Gifting Coins exchanged from Earnings Diamonds`,
-				timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-				timestampMillis: Date.now()
-			});
-		});
+		const q = query(collection(db, "agency_host_requests"), where("hostUid", "==", hostUid), where("status", "==", "accepted"), limit(1));
+		const snap = await getDocs(q);
+		if (snap.empty) return null;
+		const data = snap.docs[0].data();
+		const agencyId = String(data.agencyId || "");
+		if (!agencyId) return null;
+		let overridePct = typeof data.dealCommissionPercent === "number" && Number.isFinite(data.dealCommissionPercent) ? data.dealCommissionPercent : null;
+		try {
+			const finSnap = await getDoc(doc(db, "agency_financial_records", agencyId));
+			if (finSnap.exists() && typeof finSnap.data().commissionPercentOverride === "number") overridePct = Number(finSnap.data().commissionPercentOverride);
+		} catch {}
 		return {
-			success: true,
-			walletCoinsReceived
+			agencyId,
+			agencyName: String(data.agencyName || "Host Agency"),
+			agencyOwnerUid: String(data.agencyOwnerUid || ""),
+			dealCommissionPercent: overridePct
 		};
-	} catch (err) {
-		return {
-			success: false,
-			walletCoinsReceived: 0,
-			error: err?.message || "Exchange failed"
-		};
+	} catch {
+		return null;
 	}
 }
 /**
-* 8. ATOMIC DIAMOND WITHDRAWAL REQUEST (Bank Transfer, EasyPaisa, JazzCash)
-* - Deducts requested Diamonds from Earnings Wallet (availableEarningsCoins).
-* - Moves them into pendingWithdrawalCoins.
-* - Creates a withdrawal_requests document with status: 'pending'.
+* 8. PRODUCTION ATOMIC DIAMOND WITHDRAWAL REQUEST
+*    Official Rate: 100,000 Diamonds = PKR 2,600 (1 Diamond = PKR 0.026)
+*    - Verifies identity, min/max limits, and available Diamond balance.
+*    - Applies independently configured Agency Commission (ONLY if host has active agency) and Processing Fee (never deducted twice).
+*    - Reserves Diamonds atomically into `pendingWithdrawalCoins`.
+*    - Writes `withdrawal_requests/{reqId}` + `users/{uid}/withdrawals/{reqId}` + `earnings_transactions` + `users/{uid}/diamond_transactions`.
 */
 async function requestWithdrawal(userId, userName, coinsRequested, paymentMethod, paymentDetails, settings = DEFAULT_WALLET_SETTINGS) {
 	try {
-		if (coinsRequested < settings.minWithdrawalCoins) return {
+		const authUid = auth.currentUser?.uid;
+		if (!authUid || authUid !== userId) return {
 			success: false,
 			requestId: "",
 			finalPayablePkr: 0,
-			error: `Minimum withdrawal limit is ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})`
+			error: "Authentication required to submit withdrawal."
 		};
-		if (coinsRequested > settings.maxWithdrawalCoins) return {
+		const diamondsReq = Math.floor(Number(coinsRequested || 0));
+		const economyCfg = walletSettingsToEconomyConfig(settings);
+		if (diamondsReq < economyCfg.minWithdrawalDiamonds) {
+			const minPkr = roundPkr(economyCfg.minWithdrawalDiamonds * economyCfg.diamondWithdrawalPkrPerDiamond);
+			return {
+				success: false,
+				requestId: "",
+				finalPayablePkr: 0,
+				error: `Minimum withdrawal limit is ${economyCfg.minWithdrawalDiamonds.toLocaleString()} Diamonds (PKR ${minPkr.toLocaleString()}).`
+			};
+		}
+		if (diamondsReq > economyCfg.maxWithdrawalDiamonds) return {
 			success: false,
 			requestId: "",
 			finalPayablePkr: 0,
-			error: `Maximum withdrawal limit is ${settings.maxWithdrawalCoins.toLocaleString()} Diamonds per transaction`
+			error: `Maximum withdrawal limit is ${economyCfg.maxWithdrawalDiamonds.toLocaleString()} Diamonds per transaction.`
 		};
-		const exchangeRate = settings.exchangeRatePkrPerCoin || 2;
-		const grossPkr = Math.round(coinsRequested * exchangeRate);
-		const feePkr = Math.round(grossPkr * ((settings.withdrawalFeePercent || 2) / 100));
-		const finalPayablePkr = grossPkr - feePkr;
+		const activeAgency = await lookupActiveHostAgencyContract(userId);
+		const idempotencyKey = generateIdempotencyId(`wd_${userId.slice(0, 6)}`);
+		let waterfall = calculateWithdrawalWaterfall(diamondsReq, economyCfg, {
+			hostHasActiveAgency: Boolean(activeAgency),
+			agencyCommissionOverridePercent: activeAgency?.dealCommissionPercent ?? null
+		});
+		try {
+			const headers = await getBearerAuthHeaders();
+			const resp = await fetch(apiUrl("/api/finance/quote-withdrawal"), {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					diamondsRequested: diamondsReq,
+					hostHasActiveAgency: Boolean(activeAgency),
+					agencyCommissionOverridePercent: activeAgency?.dealCommissionPercent ?? null,
+					idempotencyKey
+				})
+			});
+			if (resp.ok) {
+				const data = await resp.json();
+				if (data?.success && data?.quote) waterfall = {
+					diamondsRequested: Number(data.quote.diamondsRequested),
+					diamondRatePkr: Number(data.quote.diamondRatePkr),
+					grossAmountPkr: Number(data.quote.grossAmountPkr),
+					agencyCommissionPercent: Number(data.quote.agencyCommissionPercent),
+					agencyCommissionPkr: Number(data.quote.agencyCommissionPkr),
+					processingFeePercent: Number(data.quote.processingFeePercent),
+					processingFeePkr: Number(data.quote.processingFeePkr),
+					totalDeductionsPkr: Number(data.quote.totalDeductionsPkr),
+					netPayablePkr: Number(data.quote.netPayablePkr),
+					configVersion: Number(data.quote.configVersion || economyCfg.configVersion)
+				};
+			}
+		} catch {}
+		const nowMillis = Date.now();
+		const nowDisplay = new Date(nowMillis).toLocaleString();
 		const earningsRef = doc(db, "earnings", userId);
 		const userRef = doc(db, "users", userId);
-		let createdReqId = "";
+		const reqDocRef = doc(db, "withdrawal_requests", idempotencyKey);
+		const userWithdrawRef = doc(db, "users", userId, "withdrawals", idempotencyKey);
 		await runTransaction(db, async (tx) => {
 			const earningsSnap = await tx.get(earningsRef);
-			const available = earningsSnap.exists() ? earningsSnap.data().availableEarningsCoins || 0 : 0;
-			const pending = earningsSnap.exists() ? earningsSnap.data().pendingWithdrawalCoins || 0 : 0;
-			if (available < coinsRequested) throw new Error(`Insufficient available Diamonds. Available: ${available.toLocaleString()} Diamonds.`);
-			const newAvailable = available - coinsRequested;
-			const newPending = pending + coinsRequested;
+			const userSnap = await tx.get(userRef);
+			const available = earningsSnap.exists() ? Number(earningsSnap.data().availableEarningsCoins || 0) : 0;
+			const pending = earningsSnap.exists() ? Number(earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
+			if (available < diamondsReq) throw new Error(`Insufficient available Diamonds. Available: ${available.toLocaleString()} Diamonds.`);
+			const newAvailable = available - diamondsReq;
+			const newPending = pending + diamondsReq;
 			tx.set(earningsRef, {
+				userId,
 				availableEarningsCoins: newAvailable,
 				pendingWithdrawalCoins: newPending,
 				updatedAt: serverTimestamp()
 			}, { merge: true });
 			tx.set(userRef, { diamonds: newAvailable }, { merge: true });
-			const reqDocRef = doc(collection(db, "withdrawal_requests"));
-			createdReqId = reqDocRef.id;
+			const userDisplayId = userSnap.exists() ? String(userSnap.data().displayId || "") : "";
 			const reqData = {
-				id: reqDocRef.id,
+				id: idempotencyKey,
 				userId,
 				userName,
 				userEmail: auth.currentUser?.email || "",
-				coinsRequested,
-				exchangeRatePkr: exchangeRate,
-				grossAmountPkr: grossPkr,
-				feeAmountPkr: feePkr,
-				finalPayablePkr,
+				userDisplayId,
+				coinsRequested: diamondsReq,
+				exchangeRatePkr: waterfall.diamondRatePkr,
+				grossAmountPkr: waterfall.grossAmountPkr,
+				agencyCommissionPercent: waterfall.agencyCommissionPercent,
+				agencyCommissionPkr: waterfall.agencyCommissionPkr,
+				processingFeePercent: waterfall.processingFeePercent,
+				feeAmountPkr: waterfall.processingFeePkr,
+				finalPayablePkr: waterfall.netPayablePkr,
+				...activeAgency ? {
+					agencyId: activeAgency.agencyId,
+					agencyName: activeAgency.agencyName,
+					agencyOwnerUid: activeAgency.agencyOwnerUid
+				} : {},
 				paymentMethod,
 				paymentDetails,
 				status: "pending",
-				requestedAt: (/* @__PURE__ */ new Date()).toLocaleString(),
-				requestedAtMillis: Date.now(),
-				updatedAt: (/* @__PURE__ */ new Date()).toLocaleString()
+				idempotencyKey,
+				configVersion: waterfall.configVersion,
+				requestedAt: nowDisplay,
+				requestedAtMillis: nowMillis,
+				updatedAt: nowDisplay
 			};
 			tx.set(reqDocRef, reqData);
-			const txDocRef = doc(collection(db, "earnings_transactions"));
-			tx.set(txDocRef, {
-				id: txDocRef.id,
+			tx.set(userWithdrawRef, reqData);
+			const txId = `${idempotencyKey}_req`;
+			const txPayload = {
+				id: txId,
 				userId,
 				category: "withdrawal_request",
 				balanceType: "earnings",
-				amount: -coinsRequested,
-				pkrAmount: finalPayablePkr,
+				amount: -diamondsReq,
+				pkrAmount: waterfall.netPayablePkr,
 				status: "pending",
-				description: `Diamond withdrawal #${reqDocRef.id.slice(-6).toUpperCase()} for ${coinsRequested.toLocaleString()} Diamonds (PKR ${finalPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName})`,
-				timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-				timestampMillis: Date.now(),
-				referenceId: reqDocRef.id
-			});
+				description: `Withdrawal #${idempotencyKey.slice(-6).toUpperCase()}: ${diamondsReq.toLocaleString()} Diamonds -> Net PKR ${waterfall.netPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName}`,
+				timestamp: nowDisplay,
+				timestampMillis: nowMillis,
+				referenceId: idempotencyKey,
+				idempotencyKey,
+				configVersion: waterfall.configVersion
+			};
+			tx.set(doc(db, "earnings_transactions", txId), txPayload);
+			tx.set(doc(db, "users", userId, "diamond_transactions", txId), txPayload);
+		});
+		sendPushNotification({
+			targetUserId: userId,
+			type: "wallet",
+			title: "💎 Withdrawal Request Submitted",
+			message: `${diamondsReq.toLocaleString()} Diamonds reserved -> Net Payable PKR ${waterfall.netPayablePkr.toLocaleString()} (${paymentDetails.bankOrProviderName}).`,
+			actionType: "open_wallet",
+			targetId: idempotencyKey,
+			allowSelf: true,
+			eventKey: "wd_submitted"
+		});
+		notifyAdminsOfEvent({
+			type: "wallet",
+			title: `💸 New Withdrawal Request: PKR ${waterfall.netPayablePkr.toLocaleString()}`,
+			message: `${userName || "Host"} requested ${diamondsReq.toLocaleString()} Diamonds via ${paymentDetails.bankOrProviderName}.`,
+			actionType: "open_admin",
+			targetId: idempotencyKey,
+			priority: "high"
 		});
 		return {
 			success: true,
-			requestId: createdReqId,
-			finalPayablePkr
+			requestId: idempotencyKey,
+			finalPayablePkr: waterfall.netPayablePkr
 		};
 	} catch (err) {
 		return {
 			success: false,
 			requestId: "",
 			finalPayablePkr: 0,
-			error: err?.message || "Withdrawal submission failed"
+			error: err?.message || "Withdrawal submission failed."
 		};
 	}
 }
 /**
-* 9. ADMIN WITHDRAWAL STATUS MANAGEMENT
-* - If Approved/Processing/Paid: moves pending to totalWithdrawn.
-* - If Rejected/Cancelled: atomically returns reserved coins to availableEarningsCoins!
+* 9. PRODUCTION ADMIN WITHDRAWAL LIFECYCLE MANAGEMENT
+*    Supports all 7 statuses: pending | under_review | approved | processing | paid | rejected | cancelled.
+*    - Enforces strict terminal-state lock inside `runTransaction` so a withdrawal can NEVER be paid twice or double-refunded!
+*    - Records `agency_commissions` + `agency_financial_records` on `paid` if linked to a Host Agency.
+*    - Updates `platform_revenue/global` payout totals & writes immutable `financial_audit_logs`.
 */
 async function adminUpdateWithdrawalStatus(request, newStatus, adminRemarks = "", paymentReference = "") {
 	try {
+		if (!isVerifiedAdminSession()) return {
+			success: false,
+			error: "Unauthorized: Admin verification required."
+		};
+		const adminUid = auth.currentUser?.uid || "";
+		const adminEmail = auth.currentUser?.email || "";
+		const nowMillis = Date.now();
+		const nowIso = new Date(nowMillis).toISOString();
+		const nowDisplay = new Date(nowMillis).toLocaleString();
 		const reqRef = doc(db, "withdrawal_requests", request.id);
+		const userWithdrawRef = doc(db, "users", request.userId, "withdrawals", request.id);
 		const earningsRef = doc(db, "earnings", request.userId);
 		const userRef = doc(db, "users", request.userId);
+		const platformRevenueRef = doc(db, "platform_revenue", "global");
 		await runTransaction(db, async (tx) => {
+			const liveReqSnap = await tx.get(reqRef);
+			if (!liveReqSnap.exists()) throw new Error("Withdrawal request no longer exists.");
+			const liveReq = liveReqSnap.data();
+			if (TERMINAL_WITHDRAWAL_STATUSES.has(liveReq.status)) throw new Error(`Withdrawal #${request.id.slice(-6).toUpperCase()} is already finalized as "${liveReq.status.toUpperCase()}" and cannot be processed twice.`);
+			if (liveReq.status === newStatus) throw new Error(`Withdrawal is already in "${newStatus}" status.`);
 			const earningsSnap = await tx.get(earningsRef);
-			const pending = earningsSnap.exists() ? earningsSnap.data().pendingWithdrawalCoins || 0 : 0;
-			const available = earningsSnap.exists() ? earningsSnap.data().availableEarningsCoins || 0 : 0;
-			const totalWithdrawn = earningsSnap.exists() ? earningsSnap.data().totalWithdrawnCoins || 0 : 0;
+			const pending = earningsSnap.exists() ? Number(earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
+			const available = earningsSnap.exists() ? Number(earningsSnap.data().availableEarningsCoins || 0) : 0;
+			const totalWithdrawn = earningsSnap.exists() ? Number(earningsSnap.data().totalWithdrawnCoins || 0) : 0;
+			const userWithdrawSnap = await tx.get(userWithdrawRef);
+			let agencyFinSnap = null;
+			const agencyFinRef = liveReq.agencyId ? doc(db, "agency_financial_records", liveReq.agencyId) : null;
+			if (newStatus === "paid" && agencyFinRef) agencyFinSnap = await tx.get(agencyFinRef);
+			const resolvedRef = paymentReference.trim() || liveReq.paymentReference || `LP-PAY-${nowMillis.toString().slice(-8)}`;
 			if (newStatus === "paid") {
-				const newPending = Math.max(0, pending - request.coinsRequested);
-				const newTotalWithdrawn = totalWithdrawn + request.coinsRequested;
+				const newPending = Math.max(0, pending - liveReq.coinsRequested);
+				const newTotalWithdrawn = totalWithdrawn + liveReq.coinsRequested;
 				tx.set(earningsRef, {
+					userId: liveReq.userId,
 					pendingWithdrawalCoins: newPending,
 					totalWithdrawnCoins: newTotalWithdrawn,
 					updatedAt: serverTimestamp()
 				}, { merge: true });
-				tx.update(reqRef, {
+				const reqPatch = {
 					status: "paid",
-					adminRemarks: adminRemarks || "Payout completed successfully.",
-					paymentReference: paymentReference || `IBFT-${Date.now().toString().slice(-8)}`,
-					updatedAt: (/* @__PURE__ */ new Date()).toLocaleString()
-				});
+					adminRemarks: adminRemarks.trim() || "Payout completed successfully.",
+					paymentReference: resolvedRef,
+					paidAt: nowIso,
+					processedByAdmin: adminEmail,
+					updatedAt: nowDisplay
+				};
+				tx.update(reqRef, reqPatch);
+				if (userWithdrawSnap.exists()) tx.update(userWithdrawRef, reqPatch);
+				const agencyCommPkr = Number(liveReq.agencyCommissionPkr || 0);
+				tx.set(platformRevenueRef, {
+					id: "global",
+					totalWithdrawalsPaidPkr: increment(Number(liveReq.finalPayablePkr || 0)),
+					totalDiamondsWithdrawn: increment(Number(liveReq.coinsRequested || 0)),
+					totalAgencyCommissionPkr: increment(agencyCommPkr),
+					updatedAt: nowIso
+				}, { merge: true });
+				const payTxId = `${liveReq.id}_paid`;
+				const payTxPayload = {
+					id: payTxId,
+					userId: liveReq.userId,
+					category: "withdrawal_payment",
+					balanceType: "earnings",
+					amount: 0,
+					pkrAmount: liveReq.finalPayablePkr,
+					status: "completed",
+					description: `Payout PAID #${liveReq.id.slice(-6).toUpperCase()} — PKR ${liveReq.finalPayablePkr.toLocaleString()} (Ref: ${resolvedRef})`,
+					timestamp: nowDisplay,
+					timestampMillis: nowMillis,
+					referenceId: liveReq.id
+				};
+				tx.set(doc(db, "earnings_transactions", payTxId), payTxPayload);
+				tx.set(doc(db, "users", liveReq.userId, "diamond_transactions", payTxId), payTxPayload);
+				if (liveReq.agencyId && liveReq.agencyOwnerUid && agencyCommPkr > 0) {
+					const commId = `agcomm_${liveReq.id}`;
+					tx.set(doc(db, "agency_commissions", commId), {
+						id: commId,
+						agencyId: liveReq.agencyId,
+						agencyName: liveReq.agencyName || "Host Agency",
+						agencyOwnerUid: liveReq.agencyOwnerUid,
+						hostUid: liveReq.userId,
+						hostName: liveReq.userName,
+						withdrawalId: liveReq.id,
+						diamondsWithdrawn: liveReq.coinsRequested,
+						hostGrossPkr: liveReq.grossAmountPkr,
+						commissionPercent: Number(liveReq.agencyCommissionPercent || 0),
+						commissionPkr: agencyCommPkr,
+						status: "accrued",
+						createdAt: nowIso,
+						createdAtMillis: nowMillis
+					});
+					if (agencyFinRef) {
+						const prevEarned = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalCommissionEarnedPkr || 0) : 0;
+						const prevPendingComm = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().pendingCommissionPkr || 0) : 0;
+						const prevHostWdPkr = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalHostWithdrawalsPkr || 0) : 0;
+						const prevHostDia = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalHostDiamondsEarned || 0) : 0;
+						tx.set(agencyFinRef, {
+							id: liveReq.agencyId,
+							agencyId: liveReq.agencyId,
+							agencyName: liveReq.agencyName || "Host Agency",
+							agencyOwnerUid: liveReq.agencyOwnerUid,
+							totalHostDiamondsEarned: prevHostDia + liveReq.coinsRequested,
+							totalHostWithdrawalsPkr: roundPkr(prevHostWdPkr + liveReq.grossAmountPkr),
+							totalCommissionEarnedPkr: roundPkr(prevEarned + agencyCommPkr),
+							pendingCommissionPkr: roundPkr(prevPendingComm + agencyCommPkr),
+							updatedAt: nowIso
+						}, { merge: true });
+					}
+				}
 			} else if (newStatus === "rejected" || newStatus === "cancelled") {
-				const newPending = Math.max(0, pending - request.coinsRequested);
-				const newAvailable = available + request.coinsRequested;
+				const newPending = Math.max(0, pending - liveReq.coinsRequested);
+				const newAvailable = available + liveReq.coinsRequested;
 				tx.set(earningsRef, {
+					userId: liveReq.userId,
 					pendingWithdrawalCoins: newPending,
 					availableEarningsCoins: newAvailable,
 					updatedAt: serverTimestamp()
 				}, { merge: true });
 				tx.set(userRef, { diamonds: newAvailable }, { merge: true });
-				tx.update(reqRef, {
+				const reqPatch = {
 					status: newStatus,
-					adminRemarks: adminRemarks || "Request rejected. Diamonds returned to your Earnings Wallet.",
-					updatedAt: (/* @__PURE__ */ new Date()).toLocaleString()
-				});
-				const refundTx = doc(collection(db, "earnings_transactions"));
-				tx.set(refundTx, {
-					id: refundTx.id,
-					userId: request.userId,
+					adminRemarks: adminRemarks.trim() || `Request ${newStatus}. Diamonds returned to your Earnings Wallet.`,
+					processedByAdmin: adminEmail,
+					updatedAt: nowDisplay
+				};
+				tx.update(reqRef, reqPatch);
+				if (userWithdrawSnap.exists()) tx.update(userWithdrawRef, reqPatch);
+				const refundTxId = `${liveReq.id}_refund`;
+				const refundPayload = {
+					id: refundTxId,
+					userId: liveReq.userId,
 					category: "withdrawal_refund",
 					balanceType: "earnings",
-					amount: request.coinsRequested,
-					pkrAmount: request.finalPayablePkr,
+					amount: liveReq.coinsRequested,
+					pkrAmount: liveReq.finalPayablePkr,
 					status: "completed",
-					description: `Withdrawal #${request.id.slice(-6).toUpperCase()} rejected: ${adminRemarks || "Diamonds restored to Earnings Wallet."}`,
-					timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-					timestampMillis: Date.now(),
-					referenceId: request.id
-				});
-			} else tx.update(reqRef, {
-				status: newStatus,
-				adminRemarks,
-				updatedAt: (/* @__PURE__ */ new Date()).toLocaleString()
+					description: `Withdrawal #${liveReq.id.slice(-6).toUpperCase()} ${newStatus}: +${liveReq.coinsRequested.toLocaleString()} Diamonds restored`,
+					timestamp: nowDisplay,
+					timestampMillis: nowMillis,
+					referenceId: liveReq.id
+				};
+				tx.set(doc(db, "earnings_transactions", refundTxId), refundPayload);
+				tx.set(doc(db, "users", liveReq.userId, "diamond_transactions", refundTxId), refundPayload);
+			} else {
+				const reqPatch = {
+					status: newStatus,
+					adminRemarks: adminRemarks.trim() || liveReq.adminRemarks || "",
+					paymentReference: paymentReference.trim() || liveReq.paymentReference || "",
+					processedByAdmin: adminEmail,
+					updatedAt: nowDisplay
+				};
+				tx.update(reqRef, reqPatch);
+				if (userWithdrawSnap.exists()) tx.update(userWithdrawRef, reqPatch);
+			}
+			const auditId = generateIdempotencyId("faudit_wd");
+			tx.set(doc(db, "financial_audit_logs", auditId), {
+				id: auditId,
+				adminUid,
+				adminEmail,
+				action: "withdrawal_status_change",
+				targetId: liveReq.id,
+				targetLabel: `${liveReq.userName} (${liveReq.coinsRequested.toLocaleString()} 💎 -> PKR ${liveReq.finalPayablePkr.toLocaleString()})`,
+				previousValue: { status: liveReq.status },
+				newValue: {
+					status: newStatus,
+					paymentReference: resolvedRef
+				},
+				reason: adminRemarks.trim() || `Updated withdrawal status to ${newStatus}`,
+				createdAt: nowIso,
+				createdAtMillis: nowMillis
 			});
+		});
+		const statusLabel = {
+			pending: "Pending",
+			under_review: "Under Review",
+			approved: "Approved",
+			processing: "Processing",
+			paid: "Paid ✅",
+			rejected: "Rejected (Diamonds Refunded)",
+			cancelled: "Cancelled (Diamonds Refunded)"
+		}[newStatus] || newStatus;
+		sendPushNotification({
+			targetUserId: request.userId,
+			type: "wallet",
+			title: `💸 Withdrawal ${statusLabel}`,
+			message: newStatus === "paid" ? `PKR ${request.finalPayablePkr.toLocaleString()} has been paid out for ${request.coinsRequested.toLocaleString()} Diamonds.${paymentReference ? ` Ref: ${paymentReference}` : ""}` : newStatus === "rejected" || newStatus === "cancelled" ? `Your ${request.coinsRequested.toLocaleString()} Diamonds have been returned to your available balance.${adminRemarks ? ` Note: ${adminRemarks}` : ""}` : `Your withdrawal of PKR ${request.finalPayablePkr.toLocaleString()} is now ${statusLabel}.${adminRemarks ? ` ${adminRemarks}` : ""}`,
+			actionType: "open_wallet",
+			targetId: request.id,
+			priority: newStatus === "paid" || newStatus === "rejected" ? "high" : "normal",
+			eventKey: `wd_${newStatus}`
+		});
+		if (newStatus === "paid" && request.agencyOwnerUid && (request.agencyCommissionPkr || 0) > 0) sendPushNotification({
+			targetUserId: request.agencyOwnerUid,
+			type: "agency",
+			title: `🏢 Agency Commission Earned: PKR ${Number(request.agencyCommissionPkr || 0).toLocaleString()}`,
+			message: `Commission accrued from ${request.userName}'s paid withdrawal (${request.coinsRequested.toLocaleString()} Diamonds).`,
+			actionType: "open_agency",
+			targetId: request.agencyId || request.id,
+			priority: "high",
+			eventKey: "ag_comm_earned"
 		});
 		return { success: true };
 	} catch (err) {
 		return {
 			success: false,
-			error: err?.message || "Failed to update withdrawal status"
+			error: err?.message || "Failed to update withdrawal status."
 		};
 	}
 }
 /**
-* 10. REAL-TIME TRANSACTIONS LISTENER
+* 10. REAL-TIME TRANSACTIONS & USER WITHDRAWALS LISTENERS
 */
 function subscribeTransactions(userId, balanceType, onUpdate) {
-	const q = query(collection(db, balanceType === "wallet" ? "wallet_transactions" : "earnings_transactions"), where("userId", "==", userId), orderBy("timestampMillis", "desc"), limit(50));
+	const q = query(collection(db, balanceType === "wallet" ? "wallet_transactions" : "earnings_transactions"), where("userId", "==", userId), orderBy("timestampMillis", "desc"), limit(100));
 	return onSnapshot(q, (snap) => {
 		onUpdate(snap.docs.map((d) => ({
 			id: d.id,
@@ -7027,11 +7705,22 @@ function subscribeTransactions(userId, balanceType, onUpdate) {
 		console.warn(`Transactions (${balanceType}) listener notice:`, err);
 	});
 }
+function subscribeUserWithdrawalRequests(userId, onUpdate) {
+	const q = query(collection(db, "withdrawal_requests"), where("userId", "==", userId), orderBy("requestedAtMillis", "desc"), limit(50));
+	return onSnapshot(q, (snap) => {
+		onUpdate(snap.docs.map((d) => ({
+			id: d.id,
+			...d.data()
+		})));
+	}, (err) => {
+		console.warn("User withdrawal requests listener notice:", err);
+	});
+}
 /**
 * 11. ADMIN ALL WITHDRAWAL REQUESTS LISTENER
 */
 function subscribeAllWithdrawalRequests(onUpdate) {
-	const q = query(collection(db, "withdrawal_requests"), orderBy("requestedAtMillis", "desc"), limit(100));
+	const q = query(collection(db, "withdrawal_requests"), orderBy("requestedAtMillis", "desc"), limit(200));
 	return onSnapshot(q, (snap) => {
 		onUpdate(snap.docs.map((d) => ({
 			id: d.id,
@@ -7042,17 +7731,25 @@ function subscribeAllWithdrawalRequests(onUpdate) {
 	});
 }
 /**
-* 12. ADMIN BALANCE ADJUSTMENT WITH AUDIT TRAIL
+* 12. ADMIN BALANCE ADJUSTMENT WITH IMMUTABLE AUDIT TRAIL
 */
 async function adminAdjustBalance(targetUserId, balanceType, coinDelta, reason, adminEmail) {
 	try {
+		if (!isVerifiedAdminSession()) return {
+			success: false,
+			error: "Unauthorized: Verified admin required."
+		};
+		const adminUid = auth.currentUser?.uid || "";
+		const nowMillis = Date.now();
+		const nowIso = new Date(nowMillis).toISOString();
+		const nowDisplay = new Date(nowMillis).toLocaleString();
 		const docRef = doc(db, balanceType === "wallet" ? "wallets" : "earnings", targetUserId);
 		const userRef = doc(db, "users", targetUserId);
 		await runTransaction(db, async (tx) => {
 			const snap = await tx.get(docRef);
 			if (balanceType === "wallet") {
-				const current = snap.exists() ? snap.data().walletPurchasedCoins || 0 : 0;
-				const prevPurchased = snap.exists() ? snap.data().totalCoinsPurchased || 0 : 0;
+				const current = snap.exists() ? Number(snap.data().walletPurchasedCoins || 0) : 0;
+				const prevPurchased = snap.exists() ? Number(snap.data().totalCoinsPurchased || 0) : 0;
 				const next = Math.max(0, current + coinDelta);
 				tx.set(docRef, {
 					userId: targetUserId,
@@ -7061,20 +7758,36 @@ async function adminAdjustBalance(targetUserId, balanceType, coinDelta, reason, 
 					updatedAt: serverTimestamp()
 				}, { merge: true });
 				tx.set(userRef, { coins: next }, { merge: true });
-				const txRef = doc(collection(db, "wallet_transactions"));
-				tx.set(txRef, {
-					id: txRef.id,
+				const txId = generateIdempotencyId("adj_coin");
+				const payload = {
+					id: txId,
 					userId: targetUserId,
 					category: "admin_adjustment",
 					balanceType: "wallet",
 					amount: coinDelta,
 					status: "completed",
 					description: `Admin Adjustment (${adminEmail}): ${reason}`,
-					timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-					timestampMillis: Date.now()
+					timestamp: nowDisplay,
+					timestampMillis: nowMillis
+				};
+				tx.set(doc(db, "wallet_transactions", txId), payload);
+				tx.set(doc(db, "users", targetUserId, "coin_transactions", txId), payload);
+				const auditId = generateIdempotencyId("faudit_adj");
+				tx.set(doc(db, "financial_audit_logs", auditId), {
+					id: auditId,
+					adminUid,
+					adminEmail,
+					action: "balance_adjustment",
+					targetId: targetUserId,
+					targetLabel: `Coin Wallet (${coinDelta >= 0 ? "+" : ""}${coinDelta.toLocaleString()} Coins)`,
+					previousValue: { walletPurchasedCoins: current },
+					newValue: { walletPurchasedCoins: next },
+					reason: reason || "Admin manual adjustment",
+					createdAt: nowIso,
+					createdAtMillis: nowMillis
 				});
 			} else {
-				const current = snap.exists() ? snap.data().availableEarningsCoins || 0 : 0;
+				const current = snap.exists() ? Number(snap.data().availableEarningsCoins || 0) : 0;
 				const next = Math.max(0, current + coinDelta);
 				tx.set(docRef, {
 					userId: targetUserId,
@@ -7082,17 +7795,33 @@ async function adminAdjustBalance(targetUserId, balanceType, coinDelta, reason, 
 					updatedAt: serverTimestamp()
 				}, { merge: true });
 				tx.set(userRef, { diamonds: next }, { merge: true });
-				const txRef = doc(collection(db, "earnings_transactions"));
-				tx.set(txRef, {
-					id: txRef.id,
+				const txId = generateIdempotencyId("adj_dia");
+				const payload = {
+					id: txId,
 					userId: targetUserId,
 					category: "admin_adjustment",
 					balanceType: "earnings",
 					amount: coinDelta,
 					status: "completed",
 					description: `Admin Adjustment (${adminEmail}): ${reason}`,
-					timestamp: (/* @__PURE__ */ new Date()).toLocaleString(),
-					timestampMillis: Date.now()
+					timestamp: nowDisplay,
+					timestampMillis: nowMillis
+				};
+				tx.set(doc(db, "earnings_transactions", txId), payload);
+				tx.set(doc(db, "users", targetUserId, "diamond_transactions", txId), payload);
+				const auditId = generateIdempotencyId("faudit_adj");
+				tx.set(doc(db, "financial_audit_logs", auditId), {
+					id: auditId,
+					adminUid,
+					adminEmail,
+					action: "balance_adjustment",
+					targetId: targetUserId,
+					targetLabel: `Diamond Earnings (${coinDelta >= 0 ? "+" : ""}${coinDelta.toLocaleString()} 💎)`,
+					previousValue: { availableEarningsCoins: current },
+					newValue: { availableEarningsCoins: next },
+					reason: reason || "Admin manual adjustment",
+					createdAt: nowIso,
+					createdAtMillis: nowMillis
 				});
 			}
 		});
@@ -8402,6 +9131,17 @@ async function assignHostModerator(params) {
 			assignedAt: record.assignedAt
 		});
 		writeLocalModerators(hostId, [record, ...readLocalModerators(hostId).filter((m) => m.moderatorUserId !== targetUser.id)]);
+		sendPushNotification({
+			targetUserId: targetUser.id,
+			type: "rooms",
+			title: "🛡️ You are now a Lifetime Moderator!",
+			message: `${hostName} appointed you as a Moderator across all their Party Rooms.`,
+			senderId: hostId,
+			senderName: hostName,
+			actionType: "open_notifications",
+			priority: "high",
+			eventKey: "mod_assigned"
+		});
 		return {
 			success: true,
 			record
@@ -8427,6 +9167,15 @@ async function removeHostModerator(params) {
 	try {
 		await deleteDoc(doc(db, "host_moderators", modId));
 		writeLocalModerators(hostId, readLocalModerators(hostId).filter((m) => m.moderatorUserId !== moderatorUserId));
+		sendPushNotification({
+			targetUserId: moderatorUserId,
+			type: "rooms",
+			title: "🛡️ Room Moderator Role Updated",
+			message: "Your lifetime moderator status for a host was removed.",
+			senderId: hostId,
+			actionType: "open_notifications",
+			eventKey: "mod_removed"
+		});
 		return { success: true };
 	} catch (err) {
 		console.warn("[RoomModeration] removeHostModerator error:", err);
@@ -8746,6 +9495,16 @@ async function adminAdjustUserCoins(params) {
 			summary: `${params.mode === "add" ? "Added" : params.mode === "deduct" ? "Deducted" : "Set"} coins (${deltaApplied >= 0 ? "+" : ""}${deltaApplied.toLocaleString()}) -> New balance: ${nextBalance.toLocaleString()} coins for ${targetName}`,
 			reason: params.reason?.trim() || "Direct admin coin adjustment"
 		});
+		sendPushNotification({
+			targetUserId: targetUid,
+			type: "wallet",
+			title: deltaApplied >= 0 ? `🪙 +${deltaApplied.toLocaleString()} Coins Added!` : "🪙 Wallet Balance Updated",
+			message: `Your Lenzo Coin balance is now ${nextBalance.toLocaleString()} Coins.${params.reason?.trim() ? ` (${params.reason.trim()})` : ""}`,
+			actionType: "open_wallet",
+			priority: "high",
+			allowSelf: true,
+			eventKey: "admin_coins"
+		});
 		return {
 			success: true,
 			newBalance: nextBalance
@@ -8843,6 +9602,17 @@ async function adminEditUserProfileAndProgression(params) {
 			summary: `Updated ${cleanName} (${cleanUsername}): Lv.${safeLevel}, VIP ${safeVip}, SVIP ${safeSuperVip}, Tick: ${safeVerificationTier}`,
 			reason: params.reason?.trim() || "Admin profile/level/VIP edit"
 		});
+		sendPushNotification({
+			targetUserId: targetUid,
+			type: "progression",
+			title: "👑 Profile & VIP Status Updated!",
+			message: `Updated to Level ${safeLevel}${safeVip > 0 ? ` · VIP ${safeVip}` : ""}${safeSuperVip > 0 ? ` · SVIP ${safeSuperVip}` : ""}${safeVerificationTier !== "none" ? ` · Verified (${safeVerificationTier})` : ""}.`,
+			actionType: "open_profile",
+			targetId: targetUid,
+			priority: "high",
+			allowSelf: true,
+			eventKey: "admin_prog"
+		});
 		return { success: true };
 	} catch (err) {
 		return {
@@ -8887,6 +9657,15 @@ async function adminSetUserBlockStatus(params) {
 			targetLabel: params.targetName || targetUid,
 			summary: `${params.blocked ? "Blocked" : "Unblocked"} user ${params.targetName || targetUid}`,
 			reason: cleanReason || (params.blocked ? "Blocked by Admin" : "Unblocked by Admin")
+		});
+		sendPushNotification({
+			targetUserId: targetUid,
+			type: "system",
+			title: params.blocked ? "⚠️ Account Restricted" : "✅ Account Restored",
+			message: params.blocked ? `Your account has been restricted by Administration. ${cleanReason}` : "Your account access has been fully restored by Administration.",
+			actionType: "open_notifications",
+			priority: "urgent",
+			eventKey: params.blocked ? "acct_blocked" : "acct_unblocked"
 		});
 		return { success: true };
 	} catch (err) {
@@ -8933,6 +9712,15 @@ async function adminSetUserSuspension(params) {
 			targetLabel: params.targetName || targetUid,
 			summary: `${params.suspended ? `Suspended (${durationLabel})` : "Unsuspended"} user ${params.targetName || targetUid}`,
 			reason: cleanReason || durationLabel
+		});
+		sendPushNotification({
+			targetUserId: targetUid,
+			type: "system",
+			title: params.suspended ? "⚠️ Account Suspended" : "✅ Suspension Lifted",
+			message: params.suspended ? `Your account is suspended (${durationLabel}). ${cleanReason}` : "Your account suspension has been lifted. Welcome back!",
+			actionType: "open_notifications",
+			priority: "urgent",
+			eventKey: params.suspended ? "acct_suspended" : "acct_unsuspended"
 		});
 		return { success: true };
 	} catch (err) {
@@ -9041,10 +9829,12 @@ async function adminSendSystemCoinsToAgency(params) {
 		const agencyRef = doc(db, "agencies", params.agencyId);
 		let nextBalance = 0;
 		let agencyLabel = params.agencyId;
+		let agencyOwnerUid = "";
 		await runTransaction(db, async (tx) => {
 			const snap = await tx.get(agencyRef);
 			if (!snap.exists()) throw new Error("Agency not found.");
 			const data = snap.data();
+			agencyOwnerUid = String(data.ownerUid || "");
 			agencyLabel = `${data.name || params.agencyId} (${data.agencyCode || ""})`.trim();
 			const prevBalance = Math.max(0, Math.floor(Number(data.coinBalance || 0)));
 			nextBalance = Math.max(0, prevBalance + delta);
@@ -9061,6 +9851,17 @@ async function adminSendSystemCoinsToAgency(params) {
 			targetLabel: agencyLabel,
 			summary: `${params.direction > 0 ? "Sent" : "Deducted"} ${absAmount.toLocaleString()} system-generated coins ${params.direction > 0 ? "to" : "from"} ${agencyLabel} -> Balance: ${nextBalance.toLocaleString()}`,
 			reason: params.note?.trim() || "System-generated agency coin grant"
+		});
+		if (agencyOwnerUid) sendPushNotification({
+			targetUserId: agencyOwnerUid,
+			type: "agency",
+			title: params.direction > 0 ? `🏦 +${absAmount.toLocaleString()} System Coins Received!` : "🏦 Agency Coin Balance Adjusted",
+			message: `${agencyLabel} now has ${nextBalance.toLocaleString()} Coins available for transfers.`,
+			actionType: "open_agency",
+			targetId: params.agencyId,
+			priority: "high",
+			allowSelf: true,
+			eventKey: "ag_sys_coins"
 		});
 		return {
 			success: true,
@@ -11596,6 +12397,130 @@ var CameraRecorderModal = ({ isOpen, onClose, onRecordingComplete }) => {
 		})]
 	});
 };
+// src/components/common/PushNotificationBanner.tsx
+function getCategoryStyle(type) {
+	switch (type) {
+		case "messages": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-4 h-4 text-cyan-300" }),
+			ring: "border-cyan-400/45 shadow-cyan-500/20",
+			pill: "bg-cyan-500/20 text-cyan-200",
+			label: "Message"
+		};
+		case "gifts": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-4 h-4 text-amber-300" }),
+			ring: "border-amber-400/55 shadow-amber-500/25",
+			pill: "bg-amber-500/20 text-amber-200",
+			label: "Gift"
+		};
+		case "followers": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4 text-pink-300" }),
+			ring: "border-pink-400/45 shadow-pink-500/20",
+			pill: "bg-pink-500/20 text-pink-200",
+			label: "Social"
+		};
+		case "rooms": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-4 h-4 text-fuchsia-300" }),
+			ring: "border-fuchsia-400/50 shadow-fuchsia-500/25",
+			pill: "bg-fuchsia-500/20 text-fuchsia-200",
+			label: "Live & Room"
+		};
+		case "pk": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Swords, { className: "w-4 h-4 text-rose-300" }),
+			ring: "border-rose-400/60 shadow-rose-500/30",
+			pill: "bg-rose-500/20 text-rose-200",
+			label: "PK Battle"
+		};
+		case "wallet": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-4 h-4 text-emerald-300" }),
+			ring: "border-emerald-400/50 shadow-emerald-500/25",
+			pill: "bg-emerald-500/20 text-emerald-200",
+			label: "Wallet"
+		};
+		case "agency": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Building2, { className: "w-4 h-4 text-indigo-300" }),
+			ring: "border-indigo-400/50 shadow-indigo-500/25",
+			pill: "bg-indigo-500/20 text-indigo-200",
+			label: "Agency"
+		};
+		case "progression": return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4 text-yellow-300" }),
+			ring: "border-yellow-400/55 shadow-yellow-500/25",
+			pill: "bg-yellow-500/20 text-yellow-200",
+			label: "VIP & Level"
+		};
+		default: return {
+			icon: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4 text-purple-300" }),
+			ring: "border-[#8B20FF]/55 shadow-[#8B20FF]/25",
+			pill: "bg-[#8B20FF]/25 text-purple-200",
+			label: "Lenzo Alert"
+		};
+	}
+}
+var PushNotificationBanner = ({ notification, onDismiss, onOpen }) => {
+	(0, import_react.useEffect)(() => {
+		if (!notification) return;
+		const duration = notification.priority === "urgent" ? 8e3 : 5200;
+		const timer = window.setTimeout(onDismiss, duration);
+		return () => window.clearTimeout(timer);
+	}, [notification, onDismiss]);
+	if (!notification) return null;
+	const style = getCategoryStyle(notification.type);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "fixed safe-top-offset-16 left-1/2 -translate-x-1/2 z-[180] w-[calc(100vw-24px)] max-w-md pointer-events-auto animate-fade-in select-none",
+		role: "status",
+		"aria-live": "polite",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick: () => {
+				onOpen(notification);
+				onDismiss();
+			},
+			className: `flex items-start gap-3 p-3.5 rounded-2xl bg-[#160C25]/95 backdrop-blur-xl border ${style.ring} shadow-2xl cursor-pointer active:scale-[0.98] transition-all`,
+			children: [
+				notification.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: notification.avatar,
+					alt: notification.senderName || "Lenzo Party",
+					className: "w-11 h-11 rounded-xl object-cover border border-white/15 shrink-0"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "w-11 h-11 rounded-xl bg-[#211333] border border-white/10 flex items-center justify-center shrink-0",
+					children: style.icon
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex-1 min-w-0",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 mb-0.5",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: `px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide ${style.pill}`,
+								children: style.label
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[10px] text-[#B9AECF] font-mono",
+								children: "now"
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs font-extrabold text-white truncate",
+							children: notification.title
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[11px] text-[#C5B9DE] leading-snug line-clamp-2 mt-0.5",
+							children: notification.message
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: (e) => {
+						e.stopPropagation();
+						onDismiss();
+					},
+					"aria-label": "Dismiss notification",
+					className: "w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+				})
+			]
+		})
+	});
+};
 // src/components/screens/SplashScreen.tsx
 var SplashScreen = ({ onComplete }) => {
 	const [progress, setProgress] = (0, import_react.useState)(15);
@@ -13312,6 +14237,17 @@ async function adminReviewAgencyApplication(params) {
 				reviewedAt: nowIso
 			});
 		});
+		sendPushNotification({
+			targetUserId: application.applicantUid,
+			type: "agency",
+			title: `🏢 Agency Approved: ${application.agencyName}`,
+			message: `Congratulations! Your ${application.agencyType === "coin_seller" ? "Coin Seller" : "Host"} Agency is now LIVE and verified.`,
+			actionType: "open_agency",
+			targetId: agencyId,
+			priority: "high",
+			allowSelf: true,
+			eventKey: "agency_approved"
+		});
 		return {
 			success: true,
 			agencyId
@@ -13656,6 +14592,15 @@ async function transferCoinsFromAgency(params) {
 			};
 			tx.set(transferRef, transferRecord);
 		});
+		sendPushNotification({
+			targetUserId: params.recipient.uid,
+			type: "wallet",
+			title: `🪙 +${coinAmount.toLocaleString()} Coins Received!`,
+			message: `Your wallet was credited by an official Coin Seller Agency.${params.note?.trim() ? ` Note: ${params.note.trim()}` : ""}`,
+			actionType: "open_wallet",
+			priority: "high",
+			eventKey: "agency_coin_transfer"
+		});
 		return {
 			success: true,
 			newAgencyBalance: updatedAgencyBalance
@@ -13726,6 +14671,19 @@ async function sendHostJoinRequest(params) {
 			updatedAt: nowIso
 		};
 		await setDoc(reqRef, record);
+		sendPushNotification({
+			targetUserId: params.agency.ownerUid,
+			type: "agency",
+			title: `🎤 New Host Join Request from ${record.hostName}`,
+			message: `${record.hostName} (${record.hostUsername}) requested to join ${params.agency.name}.`,
+			avatar: record.hostAvatar || void 0,
+			senderId: record.hostUid,
+			senderName: record.hostName,
+			actionType: "open_agency",
+			targetId: reqRef.id,
+			priority: "high",
+			eventKey: "host_join_req"
+		});
 		return {
 			success: true,
 			requestId: reqRef.id
@@ -13793,6 +14751,16 @@ async function acceptHostRequestWithDeal(params) {
 				});
 			}
 		});
+		sendPushNotification({
+			targetUserId: params.request.hostUid,
+			type: "agency",
+			title: `🎉 Joined Host Agency: ${params.request.agencyName}`,
+			message: `Your host contract is active! Commission: ${pct}% · Target: ${targetCoins.toLocaleString()} Coins / ${targetHours}h.`,
+			actionType: "open_agency",
+			targetId: params.request.agencyId,
+			priority: "high",
+			eventKey: "host_req_accepted"
+		});
 		return { success: true };
 	} catch (err) {
 		return {
@@ -13841,6 +14809,15 @@ async function rejectOrRemoveHostRequest(params) {
 					updatedAt: nowIso
 				});
 			}
+		});
+		sendPushNotification({
+			targetUserId: params.request.hostUid,
+			type: "agency",
+			title: params.nextStatus === "removed" ? "🏢 Removed from Host Agency" : "🏢 Host Agency Request Update",
+			message: `Your status with ${params.request.agencyName} was updated to ${params.nextStatus}.`,
+			actionType: "open_agency",
+			targetId: params.request.agencyId,
+			eventKey: "host_req_rejected"
 		});
 		return { success: true };
 	} catch (err) {
@@ -13910,6 +14887,19 @@ async function submitCoinPurchaseSlipOrder(params) {
 			updatedAt: nowIso
 		};
 		await setDoc(orderRef, record);
+		sendPushNotification({
+			targetUserId: params.agency.ownerUid,
+			type: "agency",
+			title: `🧾 New Coin Slip Order: ${coins.toLocaleString()} Coins`,
+			message: `${record.buyerName} submitted a ${record.paymentMethod} payment slip (${record.paidAmountText || "pending verification"}).`,
+			avatar: record.buyerAvatar || void 0,
+			senderId: record.buyerUid,
+			senderName: record.buyerName,
+			actionType: "open_agency",
+			targetId: orderRef.id,
+			priority: "high",
+			eventKey: "coin_slip_order"
+		});
 		return {
 			success: true,
 			orderId: orderRef.id
@@ -14047,6 +15037,16 @@ async function confirmCoinOrderAndSendCoins(params) {
 				sellerNote: (params.sellerNote || "Payment slip verified & coins transferred!").trim().slice(0, 300),
 				updatedAt: nowIso
 			});
+		});
+		sendPushNotification({
+			targetUserId: params.order.buyerUid,
+			type: "wallet",
+			title: `✅ +${coinAmount.toLocaleString()} Coins Delivered!`,
+			message: `${params.order.agencyName} confirmed your payment slip and credited ${coinAmount.toLocaleString()} Coins to your wallet!`,
+			actionType: "open_wallet",
+			targetId: params.order.id,
+			priority: "high",
+			eventKey: "coin_order_confirmed"
 		});
 		return { success: true };
 	} catch (err) {
@@ -14670,7 +15670,7 @@ function formatCompactScore(num) {
 	if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
 	return String(Math.max(0, Math.round(num)));
 }
-var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], onSelectLive, onSelectRoom, onSelectUser, onNavigate, onToggleFollow, onSendMessage, isAdmin = false, onOpenAdminPanel }) => {
+var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], onSelectLive, onSelectRoom, onSelectUser, onNavigate, onToggleFollow, onSendMessage, isAdmin = false, onOpenAdminPanel, onOpenNotifications, unreadNotificationsCount = 0 }) => {
 	const [activeTab, setActiveTab] = (0, import_react.useState)("foryou");
 	const [streamCategoryTab, setStreamCategoryTab] = (0, import_react.useState)("live_stream");
 	const [coinSellerAgencies, setCoinSellerAgencies] = (0, import_react.useState)([]);
@@ -14869,11 +15869,23 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 						onClick: tab.action,
 						className: `px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${tab.isActive ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/25" : "bg-[#160C25] text-[#B9AECF] hover:text-white border border-white/5"}`,
 						children: tab.label
-					}, tab.id)), isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						type: "button",
-						onClick: onOpenAdminPanel,
-						className: "ml-auto px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
+					}, tab.id)), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "ml-auto flex items-center gap-2 shrink-0",
+						children: [onOpenNotifications && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: onOpenNotifications,
+							"aria-label": "Open Notifications",
+							className: "relative w-8 h-8 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4 text-[#E6DDF7]" }), unreadNotificationsCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#F328D5] text-white text-[9px] font-black flex items-center justify-center shadow-md shadow-pink-500/40 border border-[#090611]",
+								children: unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount
+							})]
+						}), isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: onOpenAdminPanel,
+							className: "px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
+						})]
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
@@ -37888,115 +38900,232 @@ var SearchModal = ({ isOpen, onClose, liveStreams, partyRooms, users, onSelectLi
 	});
 };
 // src/components/screens/NotificationsModal.tsx
-var NotificationsModal = ({ isOpen, onClose, onMarkAllRead }) => {
+var CATEGORIES = [
+	{
+		id: "all",
+		label: "All"
+	},
+	{
+		id: "messages",
+		label: "Messages"
+	},
+	{
+		id: "gifts",
+		label: "Gifts"
+	},
+	{
+		id: "followers",
+		label: "Followers"
+	},
+	{
+		id: "rooms",
+		label: "Live & Rooms"
+	},
+	{
+		id: "pk",
+		label: "PK"
+	},
+	{
+		id: "wallet",
+		label: "Wallet"
+	},
+	{
+		id: "agency",
+		label: "Agency"
+	},
+	{
+		id: "progression",
+		label: "VIP"
+	},
+	{
+		id: "system",
+		label: "System"
+	}
+];
+var NotificationsModal = ({ isOpen, onClose, onMarkAllRead, notifications: externalNotifications, onNotificationAction }) => {
 	const [activeTab, setActiveTab] = (0, import_react.useState)("all");
-	const [notifications, setNotifications] = (0, import_react.useState)([]);
+	const [internalNotifications, setInternalNotifications] = (0, import_react.useState)([]);
+	const [permissionState, setPermissionState] = (0, import_react.useState)("default");
+	const [enablingPush, setEnablingPush] = (0, import_react.useState)(false);
+	const notifications = externalNotifications ?? internalNotifications;
 	(0, import_react.useEffect)(() => {
 		if (!isOpen) return;
+		getPushPermissionState().then(setPermissionState);
+		if (externalNotifications) return;
 		const uid = auth.currentUser?.uid;
 		if (!uid) {
-			setNotifications([]);
+			setInternalNotifications([]);
 			return;
 		}
-		const unsubscribe = subscribeUserNotifications(uid, (items) => {
-			setNotifications(items);
+		const unsubscribe = subscribeRealTimeNotifications(uid, (items) => {
+			setInternalNotifications(items);
 		});
 		return () => unsubscribe();
-	}, [isOpen]);
+	}, [isOpen, externalNotifications]);
 	if (!isOpen) return null;
-	const categories = [
-		{
-			id: "all",
-			label: "All"
-		},
-		{
-			id: "followers",
-			label: "Followers"
-		},
-		{
-			id: "gifts",
-			label: "Gifts"
-		},
-		{
-			id: "rooms",
-			label: "Rooms"
-		},
-		{
-			id: "system",
-			label: "System"
+	const unreadCount = notifications.filter((n) => !n.isRead).length;
+	const filteredNotifs = notifications.filter((n) => {
+		if (activeTab === "all") return true;
+		return normalizeNotificationCategory(n.type) === activeTab;
+	});
+	const handleEnablePush = async () => {
+		setEnablingPush(true);
+		try {
+			const res = await registerDeviceForPushNotifications({ requestPermission: true });
+			setPermissionState(res.permission);
+		} finally {
+			setEnablingPush(false);
 		}
-	];
-	const filteredNotifs = notifications.filter((n) => activeTab === "all" || n.type === activeTab);
-	const handleMarkItemRead = async (id) => {
-		setNotifications((prev) => prev.map((n) => n.id === id ? {
-			...n,
-			isRead: true
-		} : n));
+	};
+	const handleOpenItem = async (item) => {
 		const uid = auth.currentUser?.uid;
-		if (uid) try {
-			await updateDoc(doc(db, `users/${uid}/notifications`, id), { isRead: true });
-		} catch {}
+		if (!item.isRead && uid) {
+			if (!externalNotifications) setInternalNotifications((prev) => prev.map((n) => n.id === item.id ? {
+				...n,
+				isRead: true
+			} : n));
+			markNotificationAsRead(uid, item.id);
+		}
+		if (onNotificationAction && item.actionType && item.actionType !== "open_notifications") {
+			onClose();
+			onNotificationAction({
+				actionType: item.actionType,
+				targetId: item.targetId,
+				senderId: item.senderId,
+				type: normalizeNotificationCategory(item.type)
+			});
+		}
 	};
 	const handleMarkAll = async () => {
-		const unread = notifications.filter((n) => !n.isRead);
-		setNotifications((prev) => prev.map((n) => ({
+		const unreadIds = notifications.filter((n) => !n.isRead).map((n) => n.id);
+		if (!externalNotifications) setInternalNotifications((prev) => prev.map((n) => ({
 			...n,
 			isRead: true
 		})));
 		const uid = auth.currentUser?.uid;
-		if (uid) for (const n of unread) updateDoc(doc(db, `users/${uid}/notifications`, n.id), { isRead: true }).catch(() => {});
+		if (uid && unreadIds.length > 0) markAllNotificationsAsRead(uid, unreadIds);
 		onMarkAllRead();
 	};
-	const getIcon = (type) => {
-		switch (type) {
+	const handleDeleteItem = async (e, id) => {
+		e.stopPropagation();
+		const uid = auth.currentUser?.uid;
+		if (!externalNotifications) setInternalNotifications((prev) => prev.filter((n) => n.id !== id));
+		if (uid) deleteSingleNotification(uid, id);
+	};
+	const handleClearAll = async () => {
+		const uid = auth.currentUser?.uid;
+		const allIds = notifications.map((n) => n.id);
+		if (!externalNotifications) setInternalNotifications([]);
+		if (uid && allIds.length > 0) clearAllNotifications(uid, allIds);
+		onMarkAllRead();
+	};
+	const getIcon = (rawType) => {
+		switch (normalizeNotificationCategory(rawType)) {
+			case "messages": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-4 h-4 text-cyan-400" });
 			case "followers": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4 text-[#F328D5]" });
 			case "gifts": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Gift, { className: "w-4 h-4 text-[#FFC84A]" });
 			case "rooms": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-4 h-4 text-[#8B20FF]" });
+			case "pk": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Swords, { className: "w-4 h-4 text-rose-400" });
+			case "wallet": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Wallet, { className: "w-4 h-4 text-emerald-400" });
+			case "agency": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Building2, { className: "w-4 h-4 text-indigo-400" });
+			case "progression": return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-4 h-4 text-amber-300" });
 			default: return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4 text-[#06B6D4]" });
 		}
 	};
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick: onClose,
 		className: "fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "w-full max-w-md bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]",
+			className: "w-full max-w-md bg-[#160C25] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[86vh]",
 			onClick: (e) => e.stopPropagation(),
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "p-4 border-b border-white/[0.08] flex items-center justify-between",
+					className: "p-4 border-b border-white/[0.08] flex items-center justify-between gap-2",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-5 h-5 text-[#F328D5]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-							className: "text-base font-bold text-white font-display",
-							children: "Notifications"
-						})]
+						className: "flex items-center gap-2 min-w-0",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-5 h-5 text-[#F328D5] shrink-0" }),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+								className: "text-base font-bold text-white font-display truncate",
+								children: "Notifications"
+							}),
+							unreadCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-2 py-0.5 rounded-full bg-gradient-to-r from-[#F328D5] to-[#8B20FF] text-[10px] font-black text-white",
+								children: unreadCount
+							})
+						]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center gap-2",
-						children: [notifications.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							onClick: handleMarkAll,
-							className: "text-[11px] text-[#B9AECF] hover:text-white flex items-center gap-1 font-semibold transition-colors",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CheckCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Mark all read" })]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: onClose,
-							className: "w-8 h-8 rounded-full bg-[#211333] hover:bg-[#2e1a47] flex items-center justify-center text-white transition-colors",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+						className: "flex items-center gap-2 shrink-0",
+						children: [
+							unreadCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								onClick: handleMarkAll,
+								className: "text-[11px] text-[#B9AECF] hover:text-white flex items-center gap-1 font-semibold transition-colors",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CheckCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Read all" })]
+							}),
+							notifications.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: handleClearAll,
+								title: "Clear all notifications",
+								className: "p-1.5 rounded-full bg-[#211333] hover:bg-rose-500/20 text-[#B9AECF] hover:text-rose-300 transition-colors",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3.5 h-3.5" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: onClose,
+								className: "w-8 h-8 rounded-full bg-[#211333] hover:bg-[#2e1a47] flex items-center justify-center text-white transition-colors",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							})
+						]
+					})]
+				}),
+				permissionState === "default" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mx-3 mt-3 p-3 rounded-2xl bg-gradient-to-r from-[#8B20FF]/20 via-[#F328D5]/15 to-[#06B6D4]/15 border border-[#F328D5]/35 flex items-center justify-between gap-3",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5 min-w-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "w-8 h-8 rounded-xl bg-[#F328D5]/25 text-[#F328D5] flex items-center justify-center shrink-0",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BellRing, { className: "w-4 h-4" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs font-extrabold text-white truncate",
+								children: "Turn On Push Alerts"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[10px] text-[#C5B9DE] leading-tight",
+								children: "Get instant alerts for chats, gifts, live hosts, PK & payouts"
+							})]
 						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						disabled: enablingPush,
+						onClick: () => void handleEnablePush(),
+						className: "px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-black shrink-0 shadow-md active:scale-95 disabled:opacity-50",
+						children: enablingPush ? "Enabling..." : "Enable"
 					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "flex items-center gap-2 p-3 border-b border-white/[0.06] overflow-x-auto no-scrollbar",
-					children: categories.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						onClick: () => setActiveTab(c.id),
-						className: `px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${activeTab === c.id ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow" : "bg-[#211333] text-[#B9AECF] hover:text-white"}`,
-						children: c.label
-					}, c.id))
+					className: "flex items-center gap-1.5 p-3 border-b border-white/[0.06] overflow-x-auto no-scrollbar",
+					children: CATEGORIES.map((c) => {
+						const catUnread = c.id === "all" ? unreadCount : notifications.filter((n) => !n.isRead && normalizeNotificationCategory(n.type) === c.id).length;
+						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							onClick: () => setActiveTab(c.id),
+							className: `px-3 py-1.5 rounded-full text-[11px] font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${activeTab === c.id ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow" : "bg-[#211333] text-[#B9AECF] hover:text-white"}`,
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: c.label }), catUnread > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-1.5 py-0.2 rounded-full bg-black/35 text-[9px] font-black",
+								children: catUnread
+							})]
+						}, c.id);
+					})
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "p-4 overflow-y-auto no-scrollbar flex-1 space-y-2.5",
+					className: "p-3.5 overflow-y-auto no-scrollbar flex-1 space-y-2.5",
 					children: [filteredNotifs.map((n) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						onClick: () => handleMarkItemRead(n.id),
-						className: `p-3 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer border ${n.isRead ? "bg-[#1b102e] border-white/5 opacity-80" : "bg-[#211333] border-[#8B20FF]/30"}`,
+						onClick: () => void handleOpenItem(n),
+						className: `p-3 rounded-2xl flex items-start gap-3 transition-colors cursor-pointer border group ${n.isRead ? "bg-[#1b102e] border-white/5 opacity-80 hover:opacity-100" : "bg-[#211333] border-[#8B20FF]/40 shadow-sm"}`,
 						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							n.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+								src: n.avatar,
+								alt: n.senderName || "User",
+								className: "w-10 h-10 rounded-xl object-cover border border-white/15 shrink-0"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: "w-10 h-10 rounded-xl bg-[#160C25] border border-white/10 flex items-center justify-center shrink-0",
 								children: getIcon(n.type)
 							}),
@@ -38012,15 +39141,37 @@ var NotificationsModal = ({ isOpen, onClose, onMarkAllRead }) => {
 										children: n.timestamp
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-									className: "text-xs text-[#B9AECF] leading-snug",
+									className: "text-xs text-[#C5B9DE] leading-snug break-words",
 									children: n.message
 								})]
 							}),
-							!n.isRead && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 rounded-full bg-[#F328D5] mt-1 shrink-0 animate-pulse" })
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex flex-col items-end gap-1.5 shrink-0",
+								children: [!n.isRead && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 rounded-full bg-[#F328D5] animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: (e) => void handleDeleteItem(e, n.id),
+									title: "Delete notification",
+									className: "opacity-60 hover:opacity-100 p-1 rounded-lg hover:bg-rose-500/20 text-[#B9AECF] hover:text-rose-300 transition-colors",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3 h-3" })
+								})]
+							})
 						]
 					}, n.id)), filteredNotifs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "py-12 text-center flex flex-col items-center gap-2 text-xs text-[#B9AECF]",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-8 h-8 text-[#B9AECF]/30" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "No notifications yet." })]
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-5 h-5 text-[#F328D5]/60" })
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "font-semibold text-white/80",
+								children: "All caught up!"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[11px] text-[#B9AECF]/80",
+								children: "Real-time alerts for chats, gifts, live hosts, PK, wallet & agency will appear here."
+							})
+						]
 					})]
 				})
 			]
@@ -38225,15 +39376,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DjQcF2Rp.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-B2h5Rhhc.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BeYlz18P.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-BVeN_B2h.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,4,5,13,7,6,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CaGx51zl.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,4,5,6,7,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BW-e1VmH.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-C_rXZ2kE.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,4,5,6,7,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DxC2cc2O.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,4,5,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-oDM7Qxsw.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,4,5,6,7,8,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-B_GRrNM7.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C1Qzk0-O.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DbMopDUJ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-BVhddR0L.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-B__UvS3R.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B4aTY0Lp.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-B3Ww5M-D.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BSlnJh3K.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-CiP87Q4I.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -38293,6 +39444,17 @@ function App() {
 	const [appToast, setAppToast] = (0, import_react.useState)(null);
 	const appToastTimerRef = (0, import_react.useRef)(null);
 	const walletSettingsRef = (0, import_react.useRef)(DEFAULT_WALLET_SETTINGS);
+	const [notifications, setNotifications] = (0, import_react.useState)([]);
+	const [activePushBanner, setActivePushBanner] = (0, import_react.useState)(null);
+	const notifSettingsRef = (0, import_react.useRef)({
+		masterEnabled: true,
+		prefs: DEFAULT_NOTIFICATION_PREFERENCES
+	});
+	const seenPushBannerIdsRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	const liveStreamsRef = (0, import_react.useRef)([]);
+	const partyRoomsRef = (0, import_react.useRef)([]);
+	liveStreamsRef.current = liveStreams;
+	partyRoomsRef.current = partyRooms;
 	const showAppToast = (msg) => {
 		setAppToast(msg);
 		if (appToastTimerRef.current) clearTimeout(appToastTimerRef.current);
@@ -38339,6 +39501,189 @@ function App() {
 			unsubWsBlocks();
 		};
 	}, [currentUser?.id]);
+	const handleNotificationDeepAction = (0, import_react.useCallback)((payload) => {
+		setIsNotificationsOpen(false);
+		setActivePushBanner(null);
+		const action = payload.actionType;
+		const targetId = payload.targetId || "";
+		const senderId = payload.senderId || "";
+		if (action === "open_chat" || !action && payload.type === "messages") {
+			setActiveLiveStream(null);
+			setActiveAudioRoom(null);
+			setCurrentScreen("messages");
+			if (senderId && senderId !== currentUser.id) profileService.getUserProfile(senderId).then((u) => {
+				if (u) setActiveChatUser(u);
+			}).catch(() => {});
+			return;
+		}
+		if (action === "open_live") {
+			const match = liveStreamsRef.current.find((s) => s.id === targetId || senderId && s.host.id === senderId);
+			if (match) {
+				setActiveAudioRoom(null);
+				setActiveLiveStream(match);
+				setCurrentScreen("live_active");
+			} else setCurrentScreen("home");
+			return;
+		}
+		if (action === "open_room") {
+			const match = partyRoomsRef.current.find((r) => r.id === targetId || senderId && r.host.id === senderId);
+			if (match) {
+				setActiveLiveStream(null);
+				setActiveAudioRoom(match);
+				setCurrentScreen("audio_room");
+			} else setCurrentScreen("rooms");
+			return;
+		}
+		if (action === "open_wallet" || !action && payload.type === "wallet") {
+			setIsWalletOpen(true);
+			return;
+		}
+		if (action === "open_store") {
+			setActiveLiveStream(null);
+			setActiveAudioRoom(null);
+			setCurrentScreen("store");
+			return;
+		}
+		if (action === "open_reels") {
+			setActiveLiveStream(null);
+			setActiveAudioRoom(null);
+			setCurrentScreen("videos");
+			return;
+		}
+		if (action === "open_agency") {
+			setActiveLiveStream(null);
+			setActiveAudioRoom(null);
+			setNavigatingProfileUser(null);
+			setCurrentScreen("profile");
+			return;
+		}
+		if (action === "open_pk" || !action && payload.type === "pk") {
+			setIsPKModalOpen(true);
+			return;
+		}
+		if (action === "open_admin") {
+			if (isAuthorizedAdmin) setIsAdminProgressionOpen(true);
+			else setIsNotificationsOpen(true);
+			return;
+		}
+		if (action === "open_profile") {
+			const lookupId = targetId || senderId;
+			if (lookupId && lookupId !== currentUser.id) profileService.getUserProfile(lookupId).then((u) => {
+				if (u) {
+					setActiveLiveStream(null);
+					setActiveAudioRoom(null);
+					setNavigatingProfileUser(u);
+					setCurrentScreen("profile");
+				}
+			}).catch(() => {});
+			else {
+				setActiveLiveStream(null);
+				setActiveAudioRoom(null);
+				setNavigatingProfileUser(null);
+				setCurrentScreen("profile");
+			}
+			return;
+		}
+		if (action === "open_notifications") {
+			setIsNotificationsOpen(true);
+			return;
+		}
+		setIsNotificationsOpen(true);
+	}, [currentUser.id, isAuthorizedAdmin]);
+	const presentIncomingPush = (0, import_react.useCallback)((payload) => {
+		if (!payload?.id || !payload.title) return;
+		if (seenPushBannerIdsRef.current.has(payload.id)) return;
+		seenPushBannerIdsRef.current.add(payload.id);
+		if (seenPushBannerIdsRef.current.size > 200) {
+			const oldest = seenPushBannerIdsRef.current.values().next().value;
+			if (oldest) seenPushBannerIdsRef.current.delete(oldest);
+		}
+		const { masterEnabled, prefs } = notifSettingsRef.current;
+		if (!isCategoryEnabledForUser(payload.type, masterEnabled, prefs)) return;
+		setActivePushBanner(payload);
+		deliverOsDeviceNotification(payload, prefs);
+	}, []);
+	(0, import_react.useEffect)(() => {
+		const uid = auth.currentUser?.uid || (currentUser?.id !== "user_current_01" ? currentUser?.id : "");
+		if (!uid) {
+			setNotifications([]);
+			return;
+		}
+		const unsubSettings = subscribeUserSettings(uid, (settings) => {
+			notifSettingsRef.current = {
+				masterEnabled: settings.notificationsEnabled !== false,
+				prefs: settings.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES
+			};
+		});
+		registerDeviceForPushNotifications({ requestPermission: false }).catch(() => {});
+		const unsubNotifs = subscribeRealTimeNotifications(uid, (items, newlyAdded) => {
+			setNotifications(items);
+			if (newlyAdded.length > 0) {
+				const newest = newlyAdded[0];
+				presentIncomingPush({
+					id: newest.id,
+					type: normalizeNotificationCategory(newest.type),
+					title: newest.title,
+					message: newest.message,
+					avatar: newest.avatar,
+					senderId: newest.senderId,
+					senderName: newest.senderName,
+					actionType: newest.actionType,
+					targetId: newest.targetId,
+					actionUrl: newest.actionUrl,
+					priority: newest.priority || "normal",
+					createdAtMs: newest.createdAtMs || Date.now()
+				});
+			}
+		});
+		const unsubGlobal = subscribeGlobalPushAnnouncements((announcement) => {
+			presentIncomingPush(announcement);
+		});
+		const unsubWsPush = liveAndRoomService.addEventListener((event, payload) => {
+			if ((event === "push:notification" || event === "push:broadcast") && payload) presentIncomingPush({
+				id: String(payload.id || `ws_${Date.now()}`),
+				type: normalizeNotificationCategory(payload.type || payload.category || "system"),
+				title: String(payload.title || "Lenzo Party Live"),
+				message: String(payload.message || ""),
+				avatar: typeof payload.avatar === "string" ? payload.avatar : void 0,
+				senderId: typeof payload.senderId === "string" ? payload.senderId : void 0,
+				senderName: typeof payload.senderName === "string" ? payload.senderName : void 0,
+				actionType: payload.actionType,
+				targetId: typeof payload.targetId === "string" ? payload.targetId : void 0,
+				actionUrl: typeof payload.actionUrl === "string" ? payload.actionUrl : void 0,
+				priority: payload.priority === "urgent" || payload.priority === "high" ? payload.priority : "normal",
+				createdAtMs: Number(payload.createdAtMs || Date.now())
+			});
+		});
+		return () => {
+			unsubSettings();
+			unsubNotifs();
+			unsubGlobal();
+			unsubWsPush();
+		};
+	}, [currentUser?.id, presentIncomingPush]);
+	(0, import_react.useEffect)(() => {
+		const unbind = bindNotificationClickListener((payload) => {
+			handleNotificationDeepAction(payload);
+		});
+		if (typeof window !== "undefined" && window.location.search) try {
+			const params = new URLSearchParams(window.location.search);
+			const pushAction = params.get("pushAction");
+			if (pushAction) {
+				handleNotificationDeepAction({
+					actionType: pushAction,
+					targetId: params.get("targetId") || void 0,
+					senderId: params.get("senderId") || void 0
+				});
+				params.delete("pushAction");
+				params.delete("targetId");
+				params.delete("senderId");
+				const cleanSearch = params.toString();
+				window.history.replaceState({}, "", `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ""}`);
+			}
+		} catch {}
+		return () => unbind();
+	}, [handleNotificationDeepAction]);
 	(0, import_react.useEffect)(() => {
 		if (activeLiveStream && activeLiveStream.host.id !== currentUser.id && blockedByUserIds.includes(activeLiveStream.host.id)) {
 			setActiveLiveStream(null);
@@ -39303,6 +40648,14 @@ function App() {
 		});
 		setActiveLiveStream(finalStream);
 		setCurrentScreen("live_active");
+		notifyFollowersOfLiveOrRoom({
+			hostId: activeUid,
+			hostName: finalStream.host.name,
+			hostAvatar: finalStream.host.avatar,
+			mode: "live",
+			targetId: finalStream.id,
+			sessionTitle: finalStream.title
+		}).catch(() => {});
 		liveAndRoomService.fetchTopBroadcasters().then(({ broadcasters }) => setTopBroadcasters(broadcasters)).catch(() => {});
 	};
 	const handleEndLive = async (streamId) => {
@@ -39381,6 +40734,14 @@ function App() {
 		setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
 		setActiveAudioRoom(finalRoom);
 		setCurrentScreen("audio_room");
+		notifyFollowersOfLiveOrRoom({
+			hostId: activeUid,
+			hostName: finalRoom.host.name,
+			hostAvatar: finalRoom.host.avatar,
+			mode: "room",
+			targetId: finalRoom.id,
+			sessionTitle: finalRoom.title
+		}).catch(() => {});
 	};
 	const handleCameraRecordingComplete = (blob, url) => {
 		setStagedVideoData({
@@ -39542,6 +40903,16 @@ function App() {
 						unlockedSuperVipFrames: event.unlockedSuperVipFrames,
 						newlyEarnedAchievements: event.newlyEarnedAchievements
 					});
+					sendPushNotification({
+						targetUserId: currentUser.id,
+						type: "progression",
+						title: `🏆 Level ${event.newLevel} Unlocked!`,
+						message: `Congratulations! You reached Level ${event.newLevel} on Lenzo Party Live!`,
+						actionType: "open_profile",
+						priority: "high",
+						allowSelf: true,
+						eventKey: `level_up_${event.newLevel}`
+					}).catch(() => {});
 				}
 			} catch (levelErr) {
 				console.warn("Level progression update error:", levelErr);
@@ -39634,6 +41005,19 @@ function App() {
 				saveStoredUserProfile(next);
 				return next;
 			});
+			if (result.isFollowing && userId !== currentUser.id) sendPushNotification({
+				targetUserId: userId,
+				type: "followers",
+				title: "✨ New Follower!",
+				message: `${currentUser.name} started following you on Lenzo Party Live!`,
+				avatar: currentUser.avatar,
+				senderId: currentUser.id,
+				senderName: currentUser.name,
+				actionType: "open_profile",
+				targetId: currentUser.id,
+				priority: "normal",
+				eventKey: "new_follower"
+			}).catch(() => {});
 		} catch (err) {
 			console.warn("Toggle follow notice:", err);
 		}
@@ -39655,6 +41039,7 @@ function App() {
 		return !blockedByUserIds.includes(ownerId) && !blockedByUserIds.includes(v.creator?.id || "");
 	});
 	const unreadMessagesCount = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+	const unreadNotificationsCount = notifications.reduce((sum, n) => sum + (n.isRead ? 0 : 1), 0);
 	const topHostsList = topBroadcasters.map((b) => b.user).filter((u) => u.id === currentUser.id || !blockedByUserIds.includes(u.id));
 	if (currentScreen === "splash") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SplashScreen, { onComplete: handleSplashComplete });
 	if (currentScreen === "auth") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AuthScreen, {
@@ -39826,6 +41211,11 @@ function App() {
 				appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
 					children: appToast
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PushNotificationBanner, {
+					notification: activePushBanner,
+					onDismiss: () => setActivePushBanner(null),
+					onOpen: (notif) => handleNotificationDeepAction(notif)
 				})
 			]
 		})
@@ -39919,6 +41309,11 @@ function App() {
 				appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
 					children: appToast
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PushNotificationBanner, {
+					notification: activePushBanner,
+					onDismiss: () => setActivePushBanner(null),
+					onOpen: (notif) => handleNotificationDeepAction(notif)
 				})
 			]
 		})
@@ -39983,7 +41378,9 @@ function App() {
 								onToggleFollow: handleToggleFollow,
 								onSendMessage: handleSendMessageToUser,
 								isAdmin: isAuthorizedAdmin,
-								onOpenAdminPanel: () => setIsAdminProgressionOpen(true)
+								onOpenAdminPanel: () => setIsAdminProgressionOpen(true),
+								onOpenNotifications: () => setIsNotificationsOpen(true),
+								unreadNotificationsCount
 							}),
 							(currentScreen === "party" || currentScreen === "rooms") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RoomsScreen, {
 								partyRooms: visiblePartyRooms,
@@ -39993,7 +41390,7 @@ function App() {
 								onOpenSearch: () => setIsSearchOpen(true),
 								onOpenMicMenu: handleOpenMicMenu,
 								onOpenNotifications: () => setIsNotificationsOpen(true),
-								unreadNotificationsCount: 0
+								unreadNotificationsCount
 							}),
 							currentScreen === "create_live" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Suspense, {
 								fallback: null,
@@ -40074,6 +41471,16 @@ function App() {
 													unlockedSuperVipFrames: event.unlockedSuperVipFrames,
 													newlyEarnedAchievements: event.newlyEarnedAchievements
 												});
+												sendPushNotification({
+													targetUserId: currentUser.id,
+													type: "progression",
+													title: `🏆 Level ${event.newLevel} Unlocked!`,
+													message: `Congratulations! You reached Level ${event.newLevel} on Lenzo Party Live!`,
+													actionType: "open_profile",
+													priority: "high",
+													allowSelf: true,
+													eventKey: `level_up_${event.newLevel}`
+												}).catch(() => {});
 											}
 										}).catch(() => {});
 									}
@@ -40365,7 +41772,14 @@ function App() {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(NotificationsModal, {
 				isOpen: isNotificationsOpen,
 				onClose: () => setIsNotificationsOpen(false),
-				onMarkAllRead: () => {}
+				notifications,
+				onNotificationAction: handleNotificationDeepAction,
+				onMarkAllRead: () => {
+					const uid = auth.currentUser?.uid;
+					if (!uid) return;
+					const unreadIds = notifications.filter((n) => !n.isRead).map((n) => n.id);
+					if (unreadIds.length > 0) markAllNotificationsAsRead(uid, unreadIds);
+				}
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
 				user: viewingProfileUser,
@@ -40422,6 +41836,11 @@ function App() {
 			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
 				children: appToast
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PushNotificationBanner, {
+				notification: activePushBanner,
+				onDismiss: () => setActivePushBanner(null),
+				onOpen: (notif) => handleNotificationDeepAction(notif)
 			})
 		]
 	});
@@ -40429,4 +41848,4 @@ function App() {
 // src/main.tsx
 androidBridge.initViewportMetrics();
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
-export { liveAndRoomService as $, adminUnbanDevice as A, evaluateAchievementBadges as At, adminUpdateWithdrawalStatus as B, VipTierBadge as C, ACHIEVEMENT_BADGE_DEFINITIONS as Ct, adminSendSystemCoinsToAgency as D, LEVEL_TIER_CONFIGS as Dt, adminEditUserProfileAndProgression as E, LEVELS_51_TO_100_EXACT_TOTAL as Et, calculateLevelProgression as F, subscribeAllWithdrawalRequests as G, deleteCoinSellerAgency as H, DEFAULT_COIN_PACKAGES as I, subscribeTransactions as J, subscribeCoinPackages as K, DEFAULT_PAYOUT_METHODS as L, subscribeAllUsersForAdmin as M, getLevelDefinition as Mt, subscribeBannedDevicesForAdmin as N, adminSetUserBlockStatus as O, SUPER_VIP_TIER_DEFINITIONS as Ot, VIP_FRAME_DEFINITIONS as P, updateWalletSettings as Q, DEFAULT_WALLET_SETTINGS as R, SuperVipTierBadge as S, subscribeUserSettings as St, adminBanDevice as T, LEVELS_1_TO_50_EXACT_TOTAL as Tt, requestWithdrawal as U, convertEarningsToWallet as V, saveCoinSellerAgency as W, subscribeUserWallet as X, subscribeUserEarnings as Y, subscribeWalletSettings as Z, subscribeAllAgenciesForAdmin as _, isVerifiedAdminSession as _t, subscribeUserLevelProgression as a, setStagedLiveStream as at, LevelEmblemBadge as b, saveUserSettingsToFirestore as bt, PARTY_BACKGROUND_PRESETS as c, generateReelId as ct, VerifiedTick as d, uploadReelVideoAndThumbnail as dt, acquireRealDeviceCamera as et, resolveVerificationStatus as f, uploadUserImage as ft, subscribeActiveAgencies as g, isAuthorizedAdminEmail as gt, buildWhatsAppUrl as h, linkGoogleAccount as ht, fetchAuthoritativeProgression as i, openNativeAppSettings as it, subscribeAdminAuditLogs as j, formatCoinsCompact as jt, adminSetUserSuspension as k, TOTAL_PROGRESSION_COINS_EXACT as kt, resolvePartyBackgroundImageUrl as l, uploadMediaDataUrlWithProgress as lt, adminSetAgencyStatus as m, getLinkedAuthProviders as mt, equipAchievementBadges as n, createAudioAnalyser as nt, AchievementBadgeEmblem as o, stopMediaStream as ot, adminReviewAgencyApplication as p, profileService as pt, subscribeCoinSellerAgencies as q, equipActiveFrame as r, isNativeAndroidApp as rt, DEFAULT_PARTY_BACKGROUND_ID as s, createReelDocument as st, BlockedUsersModal as t, acquireRealMicrophone as tt, resolvePartyRoomBackground as u, uploadPartyBackgroundImage as ut, subscribeAllAgencyApplications as v, getSavedDeviceAccounts as vt, adminAdjustUserCoins as w, ALL_100_LEVELS as wt, AvatarWithFrame as x, submitAccountDeletionRequest as xt, LevelBadge as y, loadUserSettingsFromFirestore as yt, adminAdjustBalance as z };
+export { updateWalletSettings as $, adminUnbanDevice as A, loadUserSettingsFromFirestore as At, adminUpdateWithdrawalStatus as B, TOTAL_PROGRESSION_COINS_EXACT as Bt, VipTierBadge as C, uploadPartyBackgroundImage as Ct, adminSendSystemCoinsToAgency as D, getLinkedAuthProviders as Dt, adminEditUserProfileAndProgression as E, profileService as Et, calculateLevelProgression as F, ALL_100_LEVELS as Ft, subscribeAllWithdrawalRequests as G, lookupActiveHostAgencyContract as H, formatCoinsCompact as Ht, DEFAULT_COIN_PACKAGES as I, LEVELS_1_TO_50_EXACT_TOTAL as It, subscribeTransactions as J, subscribeCoinPackages as K, DEFAULT_PAYOUT_METHODS as L, LEVELS_51_TO_100_EXACT_TOTAL as Lt, subscribeAllUsersForAdmin as M, submitAccountDeletionRequest as Mt, subscribeBannedDevicesForAdmin as N, subscribeUserSettings as Nt, adminSetUserBlockStatus as O, linkGoogleAccount as Ot, VIP_FRAME_DEFINITIONS as P, ACHIEVEMENT_BADGE_DEFINITIONS as Pt, subscribeWalletSettings as Q, DEFAULT_WALLET_SETTINGS as R, LEVEL_TIER_CONFIGS as Rt, SuperVipTierBadge as S, uploadMediaDataUrlWithProgress as St, adminBanDevice as T, uploadUserImage as Tt, requestWithdrawal as U, getLevelDefinition as Ut, deleteCoinSellerAgency as V, evaluateAchievementBadges as Vt, saveCoinSellerAgency as W, subscribeUserWallet as X, subscribeUserEarnings as Y, subscribeUserWithdrawalRequests as Z, subscribeAllAgenciesForAdmin as _, openNativeAppSettings as _t, subscribeUserLevelProgression as a, calculateWithdrawalWaterfall as at, LevelEmblemBadge as b, createReelDocument as bt, PARTY_BACKGROUND_PRESETS as c, normalizeEconomyConfig as ct, VerifiedTick as d, validateEconomySettings as dt, walletSettingsToEconomyConfig as et, resolveVerificationStatus as f, liveAndRoomService as ft, subscribeActiveAgencies as g, isNativeAndroidApp as gt, buildWhatsAppUrl as h, createAudioAnalyser as ht, fetchAuthoritativeProgression as i, calculateGiftSplit as it, subscribeAdminAuditLogs as j, saveUserSettingsToFirestore as jt, adminSetUserSuspension as k, getSavedDeviceAccounts as kt, resolvePartyBackgroundImageUrl as l, roundPkr as lt, adminSetAgencyStatus as m, acquireRealMicrophone as mt, equipAchievementBadges as n, OFFICIAL_ECONOMY_DEFAULTS as nt, AchievementBadgeEmblem as o, getDayKey as ot, adminReviewAgencyApplication as p, acquireRealDeviceCamera as pt, subscribeCoinSellerAgencies as q, equipActiveFrame as r, calculateCoinPurchasePricePkr as rt, DEFAULT_PARTY_BACKGROUND_ID as s, getMonthKey as st, BlockedUsersModal as t, OFFICIAL_DEFAULT_COIN_PACKAGES as tt, resolvePartyRoomBackground as u, runFinancialQaAssertions as ut, subscribeAllAgencyApplications as v, setStagedLiveStream as vt, adminAdjustUserCoins as w, uploadReelVideoAndThumbnail as wt, AvatarWithFrame as x, generateReelId as xt, LevelBadge as y, stopMediaStream as yt, adminAdjustBalance as z, SUPER_VIP_TIER_DEFINITIONS as zt };

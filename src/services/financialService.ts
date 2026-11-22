@@ -16,6 +16,7 @@ import {
 import { db, auth } from '../firebase';
 import { isVerifiedAdminSession } from '../utils/adminAuth';
 import { apiUrl } from '../utils/apiConfig';
+import { sendPushNotification } from './pushNotificationService';
 import {
   OFFICIAL_DEFAULT_COIN_PACKAGES,
   OFFICIAL_ECONOMY_DEFAULTS,
@@ -631,6 +632,18 @@ export async function adminCreditVerifiedCoinPurchase(params: {
       });
     });
 
+    void sendPushNotification({
+      targetUserId: params.targetUid.trim(),
+      type: 'wallet',
+      title: `🪙 +${(paidCoins + bonusCoins).toLocaleString()} Coins Credited!`,
+      message: `Your verified purchase of ${paidCoins.toLocaleString()} Coins${bonusCoins > 0 ? ` + ${bonusCoins.toLocaleString()} Bonus Coins` : ''} (PKR ${priceInfo.pricePkr.toLocaleString()}) is now in your wallet.`,
+      actionType: 'open_wallet',
+      targetId: purchaseId,
+      priority: 'high',
+      allowSelf: true,
+      eventKey: 'coin_purchase',
+    });
+
     return { success: true, purchaseId };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to verify and credit coin purchase.' };
@@ -748,6 +761,20 @@ export async function adminMarkAgencyCommissionPaid(
         createdAtMillis: nowMillis,
       });
     });
+
+    if (commission.agencyOwnerUid) {
+      void sendPushNotification({
+        targetUserId: commission.agencyOwnerUid,
+        type: 'agency',
+        title: `💵 Agency Commission Paid: PKR ${commission.commissionPkr.toLocaleString()}`,
+        message: `Commission for ${commission.agencyName} has been settled.${paymentReference ? ` Ref: ${paymentReference}` : ''}`,
+        actionType: 'open_agency',
+        targetId: commission.id,
+        priority: 'high',
+        allowSelf: true,
+        eventKey: 'ag_comm_paid',
+      });
+    }
 
     return { success: true };
   } catch (err: any) {

@@ -1,9 +1,11 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { $t as CircleX, A as Shield, C as Star, E as Smartphone, Ft as FileSpreadsheet, G as Plus, Gt as Database, H as RefreshCw, It as FileClock, J as Phone, Kt as Crown, L as Search, Lt as Eye, M as ShieldCheck, N as ShieldAlert, O as SlidersVertical, On as require_react, Qt as Clock, R as Save, Rt as EyeOff, Ut as Download, Wt as DollarSign, Z as PenLine, Zt as Coins, _ as TrendingUp, _t as Landmark, a as Wallet, cn as Check, en as CirclePause, ft as LockOpen, g as TriangleAlert, gt as Layers, k as ShoppingBag, kt as Gem, l as Users, m as Upload, mn as Building2, nt as Minus, ot as MessageCircle, r as X, rn as CircleAlert, tn as CircleCheck, un as ChartColumn, v as Trash2, w as Sparkles, xt as IdCard, yn as Ban } from "./vendor-icons-Ca04WHp3.js";
+import { $t as Clock, A as ShoppingBag, An as require_react, At as Gem, D as Smartphone, Gt as DollarSign, It as FileSpreadsheet, K as Plus, Kt as Database, L as Send, Lt as FileClock, N as ShieldCheck, P as ShieldAlert, Q as PenLine, Qt as Coins, R as Search, Rt as Eye, St as IdCard, T as Sparkles, U as RefreshCw, Wt as Download, Y as Phone, _ as TriangleAlert, _t as Layers, a as Wallet, ct as Megaphone, dn as ChartColumn, en as CircleX, h as Upload, hn as Building2, in as CircleAlert, j as Shield, k as SlidersVertical, ln as Check, nn as CircleCheck, pt as LockOpen, qt as Crown, r as X, rt as Minus, st as MessageCircle, tn as CirclePause, u as Users, v as TrendingUp, vt as Landmark, w as Star, xn as Ban, y as Trash2, z as Save, zt as EyeOff } from "./vendor-icons-Dlv_q2hi.js";
 import { i as db, r as auth } from "./firebase-zc-_OxQs.js";
-import { A as adminUnbanDevice, At as isVerifiedAdminSession, B as adminUpdateWithdrawalStatus, C as VipTierBadge, D as adminSendSystemCoinsToAgency, E as adminEditUserProfileAndProgression, G as subscribeAllWithdrawalRequests, K as subscribeCoinPackages, Lt as ALL_100_LEVELS, M as subscribeAllUsersForAdmin, N as subscribeBannedDevicesForAdmin, O as adminSetUserBlockStatus, S as SuperVipTierBadge, St as uploadMediaDataUrlWithProgress, T as adminBanDevice, _ as subscribeAllAgenciesForAdmin, at as calculateWithdrawalWaterfall, b as LevelEmblemBadge, ct as normalizeEconomyConfig, d as VerifiedTick, dt as validateEconomySettings, h as buildWhatsAppUrl, it as calculateGiftSplit, j as subscribeAdminAuditLogs, k as adminSetUserSuspension, kt as isAuthorizedAdminEmail, lt as roundPkr, m as adminSetAgencyStatus, nt as OFFICIAL_ECONOMY_DEFAULTS, ot as getDayKey, p as adminReviewAgencyApplication, rt as calculateCoinPurchasePricePkr, st as getMonthKey, tt as OFFICIAL_DEFAULT_COIN_PACKAGES, ut as runFinancialQaAssertions, v as subscribeAllAgencyApplications, w as adminAdjustUserCoins, wt as uploadReelVideoAndThumbnail, y as LevelBadge } from "./index-BqmB7my3.js";
-import { i as require_jsx_runtime } from "./vendor-motion-D3T8Lfjf.js";
-import { f as STORE_ANIMATION_PRESET_OPTIONS, i as adminSeedDefaultStoreCatalog, n as adminDeleteStoreProduct, r as adminSaveStoreProduct, s as subscribeStoreProducts, t as StoreAssetPreview, u as DEFAULT_STORE_CATEGORIES } from "./StoreAssetPreview-Cp5d0sm4.js";
+import { i as isVerifiedAdminSession, r as isAuthorizedAdminEmail } from "./adminAuth-D6F5ZQ0I.js";
+import { A as adminUnbanDevice, B as adminUpdateWithdrawalStatus, C as VipTierBadge, D as adminSendSystemCoinsToAgency, E as adminEditUserProfileAndProgression, Ft as ALL_100_LEVELS, G as subscribeAllWithdrawalRequests, K as subscribeCoinPackages, M as subscribeAllUsersForAdmin, N as subscribeBannedDevicesForAdmin, O as adminSetUserBlockStatus, S as SuperVipTierBadge, St as uploadMediaDataUrlWithProgress, T as adminBanDevice, _ as subscribeAllAgenciesForAdmin, at as calculateWithdrawalWaterfall, b as LevelEmblemBadge, ct as normalizeEconomyConfig, d as VerifiedTick, dt as validateEconomySettings, h as buildWhatsAppUrl, it as calculateGiftSplit, j as subscribeAdminAuditLogs, k as adminSetUserSuspension, lt as roundPkr, m as adminSetAgencyStatus, nt as OFFICIAL_ECONOMY_DEFAULTS, ot as getDayKey, p as adminReviewAgencyApplication, rt as calculateCoinPurchasePricePkr, st as getMonthKey, tt as OFFICIAL_DEFAULT_COIN_PACKAGES, ut as runFinancialQaAssertions, v as subscribeAllAgencyApplications, w as adminAdjustUserCoins, wt as uploadReelVideoAndThumbnail, y as LevelBadge } from "./index-DtBSjMV_.js";
+import { m as sendPushNotification, p as sendAdminGlobalPushBroadcast } from "./pushNotificationService-D66AMxEz.js";
+import { i as require_jsx_runtime } from "./vendor-motion-CrMGE5cV.js";
+import { f as STORE_ANIMATION_PRESET_OPTIONS, i as adminSeedDefaultStoreCatalog, n as adminDeleteStoreProduct, r as adminSaveStoreProduct, s as subscribeStoreProducts, t as StoreAssetPreview, u as DEFAULT_STORE_CATEGORIES } from "./StoreAssetPreview-DElLd5GG.js";
 import { D as collection, N as serverTimestamp, O as doc, _ as onSnapshot, b as runTransaction, f as deleteDoc, g as limit, h as getDocs, j as increment, p as getDoc, v as orderBy, x as setDoc, y as query } from "./vendor-firebase-pU_0pKhI.js";
 import { r as apiUrl } from "./apiConfig-CPEwW-gN.js";
 // src/components/screens/AdminUsersControlTab.tsx
@@ -2465,6 +2467,17 @@ async function adminCreditVerifiedCoinPurchase(params) {
 				createdAtMillis: nowMillis
 			});
 		});
+		sendPushNotification({
+			targetUserId: params.targetUid.trim(),
+			type: "wallet",
+			title: `🪙 +${(paidCoins + bonusCoins).toLocaleString()} Coins Credited!`,
+			message: `Your verified purchase of ${paidCoins.toLocaleString()} Coins${bonusCoins > 0 ? ` + ${bonusCoins.toLocaleString()} Bonus Coins` : ""} (PKR ${priceInfo.pricePkr.toLocaleString()}) is now in your wallet.`,
+			actionType: "open_wallet",
+			targetId: purchaseId,
+			priority: "high",
+			allowSelf: true,
+			eventKey: "coin_purchase"
+		});
 		return {
 			success: true,
 			purchaseId
@@ -2571,6 +2584,17 @@ async function adminMarkAgencyCommissionPaid(commission, paymentReference) {
 				createdAt: nowIso,
 				createdAtMillis: nowMillis
 			});
+		});
+		if (commission.agencyOwnerUid) sendPushNotification({
+			targetUserId: commission.agencyOwnerUid,
+			type: "agency",
+			title: `💵 Agency Commission Paid: PKR ${commission.commissionPkr.toLocaleString()}`,
+			message: `Commission for ${commission.agencyName} has been settled.${paymentReference ? ` Ref: ${paymentReference}` : ""}`,
+			actionType: "open_agency",
+			targetId: commission.id,
+			priority: "high",
+			allowSelf: true,
+			eventKey: "ag_comm_paid"
 		});
 		return { success: true };
 	} catch (err) {
@@ -4646,6 +4670,13 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 	const [error, setError] = (0, import_react.useState)(null);
 	const [statusMsg, setStatusMsg] = (0, import_react.useState)(null);
 	const [auditLogs, setAuditLogs] = (0, import_react.useState)([]);
+	const [pushMode, setPushMode] = (0, import_react.useState)("global");
+	const [pushTargetUid, setPushTargetUid] = (0, import_react.useState)("");
+	const [pushTitle, setPushTitle] = (0, import_react.useState)("");
+	const [pushMessage, setPushMessage] = (0, import_react.useState)("");
+	const [pushCategory, setPushCategory] = (0, import_react.useState)("system");
+	const [pushPriority, setPushPriority] = (0, import_react.useState)("high");
+	const [sendingPush, setSendingPush] = (0, import_react.useState)(false);
 	const activeEmail = (auth.currentUser?.email || currentUserEmail || "").trim().toLowerCase();
 	const isAuthorized = isAuthorizedAdminEmail(activeEmail);
 	const isEmailVerified = auth.currentUser ? auth.currentUser.emailVerified === true : false;
@@ -4666,6 +4697,51 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 	const reportError = (msg) => {
 		setError(msg);
 		setTimeout(() => setError(null), 5e3);
+	};
+	const handleDispatchAdminPush = async (e) => {
+		e.preventDefault();
+		const cleanTitle = pushTitle.trim();
+		const cleanMessage = pushMessage.trim();
+		if (!cleanTitle || !cleanMessage) {
+			reportError("Please enter both a push notification title and message.");
+			return;
+		}
+		if (pushMode === "single" && !pushTargetUid.trim()) {
+			reportError("Please enter the target User UID for a direct push notification.");
+			return;
+		}
+		setSendingPush(true);
+		try {
+			if (pushMode === "global") {
+				const result = await sendAdminGlobalPushBroadcast({
+					title: cleanTitle,
+					message: cleanMessage,
+					category: pushCategory,
+					priority: pushPriority
+				});
+				notify(`Global push sent! (${result.webPushSent} OS Web Push, ${result.activeWebSocketClients} live sockets, Firestore announcement published)`);
+			} else {
+				await sendPushNotification({
+					targetUserId: pushTargetUid.trim(),
+					type: pushCategory,
+					title: cleanTitle,
+					message: cleanMessage,
+					senderName: "Lenzo Party Official",
+					actionType: "open_notifications",
+					priority: pushPriority,
+					allowSelf: true,
+					eventKey: "admin_direct_push"
+				});
+				notify(`Direct push notification sent to UID ${pushTargetUid.trim()}!`);
+			}
+			setPushTitle("");
+			setPushMessage("");
+			if (pushMode === "single") setPushTargetUid("");
+		} catch (err) {
+			reportError(err?.message || "Failed to send push notification.");
+		} finally {
+			setSendingPush(false);
+		}
 	};
 	const tabs = [
 		{
@@ -4692,6 +4768,11 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 			id: "store",
 			label: "Store",
 			icon: ShoppingBag
+		},
+		{
+			id: "push",
+			label: "Push Broadcast",
+			icon: Megaphone
 		},
 		{
 			id: "levels",
@@ -4804,6 +4885,164 @@ var AdminProgressionModal = ({ isOpen, onClose, currentUserEmail }) => {
 						activeTab === "store" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AdminStoreTab, {
 							onNotify: notify,
 							onError: reportError
+						}),
+						activeTab === "push" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "space-y-4",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "p-4 rounded-2xl bg-gradient-to-br from-[#23113E] via-[#180B2E] to-[#120722] border border-[#FFC84A]/25 space-y-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Megaphone, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+										className: "text-sm font-black text-white",
+										children: "Real-Time Push Notification Broadcast"
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-[#C5B9DE]",
+									children: "Send instant OS Web Push, Android alerts, real-time WebSocket banners, and Firestore Notification Center alerts to all users or a specific user UID."
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+								onSubmit: handleDispatchAdminPush,
+								className: "p-4 sm:p-5 rounded-2xl bg-[#160B2B] border border-white/10 space-y-4",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "grid grid-cols-2 gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => setPushMode("global"),
+											className: `py-2.5 px-3 rounded-xl text-xs font-extrabold border transition-all ${pushMode === "global" ? "bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] border-transparent" : "bg-white/[0.04] text-[#C5B9DE] border-white/10 hover:text-white"}`,
+											children: "Global Broadcast (All Users)"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => setPushMode("single"),
+											className: `py-2.5 px-3 rounded-xl text-xs font-extrabold border transition-all ${pushMode === "single" ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white border-transparent" : "bg-white/[0.04] text-[#C5B9DE] border-white/10 hover:text-white"}`,
+											children: "Direct User Push (UID)"
+										})]
+									}),
+									pushMode === "single" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+											className: "text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]",
+											children: "Target User UID"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "text",
+											value: pushTargetUid,
+											onChange: (e) => setPushTargetUid(e.target.value),
+											placeholder: "Paste exact Firebase User UID...",
+											className: "w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs font-mono text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A]"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "grid grid-cols-1 sm:grid-cols-2 gap-3",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "space-y-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+												className: "text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]",
+												children: "Category"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+												value: pushCategory,
+												onChange: (e) => setPushCategory(e.target.value),
+												className: "w-full px-3.5 py-2.5 rounded-xl bg-[#0F071E] border border-white/15 text-xs font-semibold text-white focus:outline-none focus:border-[#FFC84A]",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "system",
+														children: "System / Announcement"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "rooms",
+														children: "Live & Party Rooms"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "gifts",
+														children: "Gifts & Events"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "wallet",
+														children: "Wallet & Withdrawals"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "agency",
+														children: "Agency Updates"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "pk",
+														children: "PK Battles"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "progression",
+														children: "VIP & Levels"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "messages",
+														children: "Direct Messages"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "followers",
+														children: "Social & Followers"
+													})
+												]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "space-y-1.5",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+												className: "text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]",
+												children: "Priority"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+												value: pushPriority,
+												onChange: (e) => setPushPriority(e.target.value),
+												className: "w-full px-3.5 py-2.5 rounded-xl bg-[#0F071E] border border-white/15 text-xs font-semibold text-white focus:outline-none focus:border-[#FFC84A]",
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "normal",
+														children: "Normal"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "high",
+														children: "High (Sound + Heads-Up)"
+													}),
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+														value: "urgent",
+														children: "Urgent (Extended Alert + Vibration)"
+													})
+												]
+											})]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+											className: "text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]",
+											children: "Notification Title"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "text",
+											maxLength: 140,
+											value: pushTitle,
+											onChange: (e) => setPushTitle(e.target.value),
+											placeholder: "e.g., Lenzo Party Mega PK Event Starts Now!",
+											className: "w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A]"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "space-y-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+											className: "text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]",
+											children: "Notification Message"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("textarea", {
+											rows: 3,
+											maxLength: 420,
+											value: pushMessage,
+											onChange: (e) => setPushMessage(e.target.value),
+											placeholder: "Write the alert message that will appear on users' devices...",
+											className: "w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A] resize-none"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "submit",
+										disabled: sendingPush,
+										className: "w-full py-3 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] hover:brightness-105 disabled:opacity-50 text-[#090611] text-xs font-black flex items-center justify-center gap-2 shadow-lg transition-all",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-4 h-4" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: sendingPush ? "Dispatching Push Notification..." : pushMode === "global" ? "Send Global Push to All Users" : "Send Direct Push Notification" })]
+									})
+								]
+							})]
 						}),
 						activeTab === "levels" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 							className: "overflow-x-auto rounded-2xl border border-white/10",

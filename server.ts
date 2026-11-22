@@ -5,8 +5,10 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { WebSocketServer, WebSocket } from 'ws';
 import agoraTokenPkg from 'agora-token';
+import type WebPushType from 'web-push';
 import {
   ALL_100_LEVELS,
   ACHIEVEMENT_BADGE_DEFINITIONS,
@@ -42,6 +44,8 @@ import {
 } from './src/shared/financialEngine';
 
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
+const _require = createRequire(import.meta.url);
+const webpush = _require('web-push') as typeof WebPushType;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1179,6 +1183,22 @@ setInterval(() => {
           host2Score: session.host2.score,
           serverTime: now
         });
+
+        const winnerName =
+          session.winnerId === session.host1.user.id
+            ? session.host1.user.name
+            : session.winnerId === session.host2.user.id
+              ? session.host2.user.name
+              : 'Draw';
+        void dispatchServerPushToUsers([session.host1.user.id, session.host2.user.id], {
+          id: `pk_end_${matchId}`,
+          type: 'pk',
+          title: session.winnerId === 'draw' ? '⚔️ PK Battle Ended in a Draw!' : `🏆 PK Winner: ${winnerName}`,
+          message: `Final Score: ${session.host1.user.name} (${session.host1.score}) vs ${session.host2.user.name} (${session.host2.score})`,
+          actionType: 'open_pk',
+          targetId: matchId,
+          priority: 'high',
+        }).catch(() => {});
       }
     }
   }
@@ -1931,6 +1951,18 @@ app.post('/api/pk/invite', (req: Request, res: Response) => {
 
   // Real-time notification to challenged host and broadcast
   broadcastToUser(toHost.id, 'pk:invite_received', invitation);
+  void dispatchServerPushToUsers([toHost.id], {
+    id: `pk_inv_${inviteId}`,
+    type: 'pk',
+    title: '⚔️ Incoming PK Battle Challenge!',
+    message: `${fromHost.name || 'A live host'} challenged you to a 5-minute PK Battle!`,
+    avatar: fromHost.avatar || '',
+    senderId: fromHost.id,
+    senderName: fromHost.name || '',
+    actionType: 'open_pk',
+    targetId: inviteId,
+    priority: 'urgent',
+  }).catch(() => {});
   broadcastAll('pk:invite_announced', {
     fromHostName: fromHost.name,
     toHostName: toHost.name,
@@ -2012,6 +2044,18 @@ app.post('/api/pk/respond', (req: Request, res: Response) => {
   broadcastToUser(invitation.fromHost.id, 'pk:match_started', { session: newSession, matchId });
   broadcastToUser(invitation.toHost.id, 'pk:match_started', { session: newSession, matchId });
   broadcastAll('pk:match_started', { session: newSession, matchId });
+  void dispatchServerPushToUsers([invitation.fromHost.id], {
+    id: `pk_start_${matchId}`,
+    type: 'pk',
+    title: '🔥 PK Battle Accepted!',
+    message: `${invitation.toHost.name || 'Your opponent'} accepted your PK challenge — battle is LIVE!`,
+    avatar: invitation.toHost.avatar || '',
+    senderId: invitation.toHost.id,
+    senderName: invitation.toHost.name || '',
+    actionType: 'open_pk',
+    targetId: matchId,
+    priority: 'high',
+  }).catch(() => {});
 
   res.json({ success: true, session: newSession });
 });
@@ -7153,6 +7197,397 @@ app.post('/api/finance/admin/qa-suite', (req: AuthenticatedRequest, res: Respons
     success: report.allPassed,
     ...report,
     executedAt: new Date().toISOString(),
+  });
+});
+
+// ============================================================================
+// UNIVERSAL PUSH NOTIFICATIONS ENGINE (Web Push VAPID + Real-Time WebSocket)
+// ============================================================================
+interface StoredPushSubscription {
+  id: string;
+  userId: string;
+  platform: 'web' | 'android' | 'ios';
+  deviceLabel: string;
+  endpoint: string;
+  keys?: {
+    p256dh: string;
+    auth: string;
+  };
+  updatedAt: string;
+}
+
+interface ServerPushPayload {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  avatar?: string;
+  senderId?: string;
+  senderName?: string;
+  actionType?: string;
+  targetId?: string;
+  actionUrl?: string;
+  priority?: 'normal' | 'high' | 'urgent';
+  timestamp?: number;
+}
+
+const PUSH_DATA_DIR = path.join(__dirname, 'data');
+const PUSH_VAPID_FILE = path.join(PUSH_DATA_DIR, 'push_vapid_keys.json');
+const PUSH_SUBS_FILE = path.join(PUSH_DATA_DIR, 'push_subscriptions.json');
+
+let pushVapidPublicKey = (process.env.VAPID_PUBLIC_KEY || '').trim();
+let pushVapidPrivateKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
+const pushVapidSubject = (process.env.VAPID_SUBJECT || 'mailto:lenzopartyofficial@gmail.com').trim();
+const pushSubscriptionsByUser = new Map<string, StoredPushSubscription[]>();
+
+function initWebPushEngine() {
+  try {
+    if (!fs.existsSync(PUSH_DATA_DIR)) {
+      fs.mkdirSync(PUSH_DATA_DIR, { recursive: true });
+    }
+    if (!pushVapidPublicKey || !pushVapidPrivateKey) {
+      if (fs.existsSync(PUSH_VAPID_FILE)) {
+        const parsed = JSON.parse(fs.readFileSync(PUSH_VAPID_FILE, 'utf-8'));
+        if (parsed?.publicKey && parsed?.privateKey) {
+          pushVapidPublicKey = String(parsed.publicKey);
+          pushVapidPrivateKey = String(parsed.privateKey);
+        }
+      }
+      if (!pushVapidPublicKey || !pushVapidPrivateKey) {
+        const generated = webpush.generateVAPIDKeys();
+        pushVapidPublicKey = generated.publicKey;
+        pushVapidPrivateKey = generated.privateKey;
+        fs.writeFileSync(
+          PUSH_VAPID_FILE,
+          JSON.stringify(
+            {
+              publicKey: pushVapidPublicKey,
+              privateKey: pushVapidPrivateKey,
+              createdAt: new Date().toISOString(),
+            },
+            null,
+            2
+          )
+        );
+      }
+    }
+    webpush.setVapidDetails(pushVapidSubject, pushVapidPublicKey, pushVapidPrivateKey);
+
+    if (fs.existsSync(PUSH_SUBS_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(PUSH_SUBS_FILE, 'utf-8'));
+      if (raw && typeof raw === 'object') {
+        for (const [uid, list] of Object.entries(raw)) {
+          if (Array.isArray(list)) {
+            pushSubscriptionsByUser.set(uid, list as StoredPushSubscription[]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Push] Initialization notice:', err);
+  }
+}
+
+function persistPushSubscriptionsToDisk() {
+  try {
+    if (!fs.existsSync(PUSH_DATA_DIR)) {
+      fs.mkdirSync(PUSH_DATA_DIR, { recursive: true });
+    }
+    const obj: Record<string, StoredPushSubscription[]> = {};
+    for (const [uid, list] of pushSubscriptionsByUser.entries()) {
+      if (list.length > 0) obj[uid] = list;
+    }
+    fs.writeFileSync(PUSH_SUBS_FILE, JSON.stringify(obj, null, 2));
+  } catch (err) {
+    console.warn('[Push] Persist subscriptions notice:', err);
+  }
+}
+
+initWebPushEngine();
+
+async function deliverWebPushToSubscription(
+  uid: string,
+  sub: StoredPushSubscription,
+  payloadJson: string
+): Promise<boolean> {
+  if (!sub.keys?.p256dh || !sub.keys?.auth || !sub.endpoint.startsWith('http')) {
+    return false;
+  }
+  try {
+    await webpush.sendNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: sub.keys,
+      },
+      payloadJson,
+      { TTL: 86400 }
+    );
+    return true;
+  } catch (err: any) {
+    const statusCode = Number(err?.statusCode || 0);
+    if (statusCode === 404 || statusCode === 410) {
+      const current = pushSubscriptionsByUser.get(uid) || [];
+      const next = current.filter((item) => item.endpoint !== sub.endpoint);
+      if (next.length > 0) {
+        pushSubscriptionsByUser.set(uid, next);
+      } else {
+        pushSubscriptionsByUser.delete(uid);
+      }
+      persistPushSubscriptionsToDisk();
+    }
+    return false;
+  }
+}
+
+async function dispatchServerPushToUsers(
+  targetUserIds: string[],
+  notification: ServerPushPayload
+): Promise<{ wsDelivered: number; webPushSent: number }> {
+  const uniqueTargets = Array.from(
+    new Set(targetUserIds.map((id) => String(id || '').trim()).filter((id) => id.length > 0))
+  ).slice(0, 500);
+
+  const normalized: ServerPushPayload = {
+    id: String(notification.id || `push_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`).slice(0, 128),
+    type: String(notification.type || 'system').slice(0, 32),
+    title: String(notification.title || 'Lenzo Party Live').slice(0, 140),
+    message: String(notification.message || '').slice(0, 420),
+    avatar: notification.avatar ? String(notification.avatar).slice(0, 512) : undefined,
+    senderId: notification.senderId ? String(notification.senderId).slice(0, 128) : undefined,
+    senderName: notification.senderName ? String(notification.senderName).slice(0, 120) : undefined,
+    actionType: notification.actionType ? String(notification.actionType).slice(0, 48) : 'open_notifications',
+    targetId: notification.targetId ? String(notification.targetId).slice(0, 160) : '',
+    actionUrl: notification.actionUrl ? String(notification.actionUrl).slice(0, 240) : '/',
+    priority:
+      notification.priority === 'urgent' || notification.priority === 'high'
+        ? notification.priority
+        : 'normal',
+    timestamp: Date.now(),
+  };
+
+  const webPushBody = JSON.stringify({
+    ...normalized,
+    body: normalized.message,
+    icon: normalized.avatar || '/app-icon.png',
+    tag: `lenzo-${normalized.type}-${normalized.id}`,
+  });
+
+  let wsDelivered = 0;
+  let webPushSent = 0;
+  const webPushPromises: Promise<void>[] = [];
+
+  for (const uid of uniqueTargets) {
+    broadcastToUser(uid, 'push:notification', normalized);
+    wsDelivered += 1;
+
+    const subs = pushSubscriptionsByUser.get(uid) || [];
+    for (const sub of subs) {
+      webPushPromises.push(
+        deliverWebPushToSubscription(uid, sub, webPushBody).then((ok) => {
+          if (ok) webPushSent += 1;
+        })
+      );
+    }
+  }
+
+  if (webPushPromises.length > 0) {
+    await Promise.allSettled(webPushPromises);
+  }
+
+  return { wsDelivered, webPushSent };
+}
+
+app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
+  return res.json({
+    success: Boolean(pushVapidPublicKey),
+    publicKey: pushVapidPublicKey,
+  });
+});
+
+app.get('/api/push/status', (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const subs = pushSubscriptionsByUser.get(req.firebaseUser.uid) || [];
+  return res.json({
+    success: true,
+    vapidReady: Boolean(pushVapidPublicKey),
+    deviceCount: subs.length,
+    devices: subs.map((s) => ({
+      id: s.id,
+      platform: s.platform,
+      deviceLabel: s.deviceLabel,
+      updatedAt: s.updatedAt,
+    })),
+  });
+});
+
+app.post('/api/push/subscribe', (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required to subscribe to push notifications.' });
+  }
+  const sub = req.body?.subscription || {};
+  const endpoint = String(sub.endpoint || req.body?.endpoint || '').trim();
+  const p256dh = String(sub.keys?.p256dh || '').trim();
+  const authKey = String(sub.keys?.auth || '').trim();
+  const platformRaw = String(req.body?.platform || 'web').trim().toLowerCase();
+  const platform: 'web' | 'android' | 'ios' =
+    platformRaw === 'android' || platformRaw === 'ios' ? platformRaw : 'web';
+  const deviceLabel = String(req.body?.deviceLabel || `${platform.toUpperCase()} Device`).slice(0, 120);
+
+  if (!endpoint || endpoint.length > 1024) {
+    return res.status(400).json({ error: 'Valid push subscription endpoint is required.' });
+  }
+
+  const subId = crypto.createHash('sha256').update(endpoint).digest('hex').slice(0, 24);
+  const record: StoredPushSubscription = {
+    id: subId,
+    userId: uid,
+    platform,
+    deviceLabel,
+    endpoint,
+    ...(p256dh && authKey ? { keys: { p256dh, auth: authKey } } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const existing = (pushSubscriptionsByUser.get(uid) || []).filter((item) => item.endpoint !== endpoint);
+  existing.unshift(record);
+  pushSubscriptionsByUser.set(uid, existing.slice(0, 10));
+  persistPushSubscriptionsToDisk();
+
+  return res.json({
+    success: true,
+    subscriptionId: subId,
+    deviceCount: pushSubscriptionsByUser.get(uid)?.length || 1,
+  });
+});
+
+app.post('/api/push/unsubscribe', (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const endpoint = String(req.body?.endpoint || '').trim();
+  if (!endpoint) {
+    pushSubscriptionsByUser.delete(uid);
+  } else {
+    const remaining = (pushSubscriptionsByUser.get(uid) || []).filter((item) => item.endpoint !== endpoint);
+    if (remaining.length > 0) {
+      pushSubscriptionsByUser.set(uid, remaining);
+    } else {
+      pushSubscriptionsByUser.delete(uid);
+    }
+  }
+  persistPushSubscriptionsToDisk();
+  return res.json({ success: true });
+});
+
+app.post('/api/push/send', async (req: AuthenticatedRequest, res: Response) => {
+  const senderUid = req.firebaseUser?.uid;
+  if (!senderUid) {
+    return res.status(401).json({ error: 'Authentication required to dispatch push notifications.' });
+  }
+  const rawTargets = Array.isArray(req.body?.targetUserIds)
+    ? req.body.targetUserIds
+    : req.body?.targetUserId
+      ? [req.body.targetUserId]
+      : [];
+  const title = String(req.body?.title || '').trim();
+  const message = String(req.body?.message || '').trim();
+  if (rawTargets.length === 0 || !title || !message) {
+    return res.status(400).json({ error: 'targetUserIds, title, and message are required.' });
+  }
+
+  const result = await dispatchServerPushToUsers(rawTargets.map(String), {
+    id: String(req.body?.id || `push_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`),
+    type: String(req.body?.type || 'system'),
+    title,
+    message,
+    avatar: typeof req.body?.avatar === 'string' ? req.body.avatar : undefined,
+    senderId: senderUid,
+    senderName: typeof req.body?.senderName === 'string' ? req.body.senderName : undefined,
+    actionType: typeof req.body?.actionType === 'string' ? req.body.actionType : 'open_notifications',
+    targetId: typeof req.body?.targetId === 'string' ? req.body.targetId : '',
+    actionUrl: typeof req.body?.actionUrl === 'string' ? req.body.actionUrl : '/',
+    priority:
+      req.body?.priority === 'urgent' || req.body?.priority === 'high' ? req.body.priority : 'normal',
+  });
+
+  return res.json({ success: true, ...result });
+});
+
+app.post('/api/push/test', async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.firebaseUser?.uid;
+  if (!uid) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const result = await dispatchServerPushToUsers([uid], {
+    id: `test_${Date.now()}`,
+    type: 'system',
+    title: '🔔 Lenzo Party Push Notifications Active!',
+    message: 'Real-time push alerts are live on your device for messages, gifts, rooms, PK battles, wallet, and agency updates.',
+    actionType: 'open_notifications',
+    priority: 'high',
+  });
+  return res.json({ success: true, ...result });
+});
+
+app.post('/api/push/broadcast', async (req: AuthenticatedRequest, res: Response) => {
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Forbidden: Only authorized Super Admins can send global push broadcasts.' });
+  }
+  const title = String(req.body?.title || '').trim().slice(0, 140);
+  const message = String(req.body?.message || '').trim().slice(0, 500);
+  const category = String(req.body?.category || 'system').trim().slice(0, 32);
+  const priority =
+    req.body?.priority === 'urgent' || req.body?.priority === 'high' ? req.body.priority : 'high';
+  if (!title || !message) {
+    return res.status(400).json({ error: 'Title and message are required for a global push broadcast.' });
+  }
+
+  const payload: ServerPushPayload = {
+    id: String(req.body?.id || `bcast_${Date.now()}`),
+    type: category,
+    title,
+    message,
+    senderId: req.firebaseUser?.uid,
+    senderName: 'Lenzo Party Official',
+    actionType: 'open_notifications',
+    priority,
+    timestamp: Date.now(),
+  };
+
+  broadcastAll('push:broadcast', payload);
+
+  const webPushBody = JSON.stringify({
+    ...payload,
+    body: payload.message,
+    icon: '/app-icon.png',
+    tag: `lenzo-broadcast-${payload.id}`,
+  });
+
+  let webPushSent = 0;
+  const tasks: Promise<void>[] = [];
+  for (const [uid, subs] of pushSubscriptionsByUser.entries()) {
+    for (const sub of subs) {
+      tasks.push(
+        deliverWebPushToSubscription(uid, sub, webPushBody).then((ok) => {
+          if (ok) webPushSent += 1;
+        })
+      );
+    }
+  }
+  if (tasks.length > 0) {
+    await Promise.allSettled(tasks);
+  }
+
+  return res.json({
+    success: true,
+    broadcastId: payload.id,
+    subscribedUsersCount: pushSubscriptionsByUser.size,
+    webPushSent,
+    activeWebSocketClients: pkWss.clients.size,
   });
 });
 

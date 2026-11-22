@@ -6,6 +6,8 @@ import {
   DollarSign,
   FileClock,
   Layers,
+  Megaphone,
+  Send,
   Shield,
   ShoppingBag,
   Smartphone,
@@ -19,6 +21,11 @@ import {
   AdminAuditLogRecord,
   subscribeAdminAuditLogs,
 } from '../../services/adminService';
+import {
+  sendAdminGlobalPushBroadcast,
+  sendPushNotification,
+} from '../../services/pushNotificationService';
+import { NotificationCategory } from '../../types';
 import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { SuperVipTierBadge, VipTierBadge } from '../common/AvatarWithFrame';
@@ -34,7 +41,7 @@ interface AdminProgressionModalProps {
   currentUserEmail?: string;
 }
 
-type AdminTab = 'finance' | 'users' | 'agencies' | 'devices' | 'store' | 'levels' | 'audit';
+type AdminTab = 'finance' | 'users' | 'agencies' | 'devices' | 'store' | 'push' | 'levels' | 'audit';
 
 export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   isOpen,
@@ -45,6 +52,15 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLogRecord[]>([]);
+
+  // Admin Push Broadcast State
+  const [pushMode, setPushMode] = useState<'global' | 'single'>('global');
+  const [pushTargetUid, setPushTargetUid] = useState('');
+  const [pushTitle, setPushTitle] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushCategory, setPushCategory] = useState<NotificationCategory>('system');
+  const [pushPriority, setPushPriority] = useState<'normal' | 'high' | 'urgent'>('high');
+  const [sendingPush, setSendingPush] = useState(false);
 
   const activeEmail = (auth.currentUser?.email || currentUserEmail || '').trim().toLowerCase();
   const isAuthorized = isAuthorizedAdminEmail(activeEmail);
@@ -75,12 +91,62 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
     setTimeout(() => setError(null), 5000);
   };
 
+  const handleDispatchAdminPush = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanTitle = pushTitle.trim();
+    const cleanMessage = pushMessage.trim();
+    if (!cleanTitle || !cleanMessage) {
+      reportError('Please enter both a push notification title and message.');
+      return;
+    }
+    if (pushMode === 'single' && !pushTargetUid.trim()) {
+      reportError('Please enter the target User UID for a direct push notification.');
+      return;
+    }
+
+    setSendingPush(true);
+    try {
+      if (pushMode === 'global') {
+        const result = await sendAdminGlobalPushBroadcast({
+          title: cleanTitle,
+          message: cleanMessage,
+          category: pushCategory,
+          priority: pushPriority,
+        });
+        notify(
+          `Global push sent! (${result.webPushSent} OS Web Push, ${result.activeWebSocketClients} live sockets, Firestore announcement published)`
+        );
+      } else {
+        await sendPushNotification({
+          targetUserId: pushTargetUid.trim(),
+          type: pushCategory,
+          title: cleanTitle,
+          message: cleanMessage,
+          senderName: 'Lenzo Party Official',
+          actionType: 'open_notifications',
+          priority: pushPriority,
+          allowSelf: true,
+          eventKey: 'admin_direct_push',
+        });
+        notify(`Direct push notification sent to UID ${pushTargetUid.trim()}!`);
+      }
+      setPushTitle('');
+      setPushMessage('');
+      if (pushMode === 'single') setPushTargetUid('');
+    } catch (err: any) {
+      reportError(err?.message || 'Failed to send push notification.');
+    } finally {
+      setSendingPush(false);
+    }
+  };
+
   const tabs: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { id: 'finance', label: 'Financial Management', icon: DollarSign },
     { id: 'users', label: 'Users Control', icon: Users },
     { id: 'agencies', label: 'Agencies & Coins', icon: Building2 },
     { id: 'devices', label: 'Device Bans', icon: Smartphone },
     { id: 'store', label: 'Store', icon: ShoppingBag },
+    { id: 'push', label: 'Push Broadcast', icon: Megaphone },
     { id: 'levels', label: 'Levels 0–100', icon: Layers },
     { id: 'audit', label: `Audit (${auditLogs.length})`, icon: FileClock },
   ];
@@ -200,6 +266,150 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
 
               {activeTab === 'store' && (
                 <AdminStoreTab onNotify={notify} onError={reportError} />
+              )}
+
+              {activeTab === 'push' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-[#23113E] via-[#180B2E] to-[#120722] border border-[#FFC84A]/25 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Megaphone className="w-4 h-4 text-[#FFC84A]" />
+                      <h3 className="text-sm font-black text-white">
+                        Real-Time Push Notification Broadcast
+                      </h3>
+                    </div>
+                    <p className="text-xs text-[#C5B9DE]">
+                      Send instant OS Web Push, Android alerts, real-time WebSocket banners, and Firestore Notification Center alerts to all users or a specific user UID.
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={handleDispatchAdminPush}
+                    className="p-4 sm:p-5 rounded-2xl bg-[#160B2B] border border-white/10 space-y-4"
+                  >
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPushMode('global')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition-all ${
+                          pushMode === 'global'
+                            ? 'bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] border-transparent'
+                            : 'bg-white/[0.04] text-[#C5B9DE] border-white/10 hover:text-white'
+                        }`}
+                      >
+                        Global Broadcast (All Users)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPushMode('single')}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition-all ${
+                          pushMode === 'single'
+                            ? 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white border-transparent'
+                            : 'bg-white/[0.04] text-[#C5B9DE] border-white/10 hover:text-white'
+                        }`}
+                      >
+                        Direct User Push (UID)
+                      </button>
+                    </div>
+
+                    {pushMode === 'single' && (
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]">
+                          Target User UID
+                        </label>
+                        <input
+                          type="text"
+                          value={pushTargetUid}
+                          onChange={(e) => setPushTargetUid(e.target.value)}
+                          placeholder="Paste exact Firebase User UID..."
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs font-mono text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A]"
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]">
+                          Category
+                        </label>
+                        <select
+                          value={pushCategory}
+                          onChange={(e) => setPushCategory(e.target.value as NotificationCategory)}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#0F071E] border border-white/15 text-xs font-semibold text-white focus:outline-none focus:border-[#FFC84A]"
+                        >
+                          <option value="system">System / Announcement</option>
+                          <option value="rooms">Live & Party Rooms</option>
+                          <option value="gifts">Gifts & Events</option>
+                          <option value="wallet">Wallet & Withdrawals</option>
+                          <option value="agency">Agency Updates</option>
+                          <option value="pk">PK Battles</option>
+                          <option value="progression">VIP & Levels</option>
+                          <option value="messages">Direct Messages</option>
+                          <option value="followers">Social & Followers</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]">
+                          Priority
+                        </label>
+                        <select
+                          value={pushPriority}
+                          onChange={(e) =>
+                            setPushPriority(e.target.value as 'normal' | 'high' | 'urgent')
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#0F071E] border border-white/15 text-xs font-semibold text-white focus:outline-none focus:border-[#FFC84A]"
+                        >
+                          <option value="normal">Normal</option>
+                          <option value="high">High (Sound + Heads-Up)</option>
+                          <option value="urgent">Urgent (Extended Alert + Vibration)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]">
+                        Notification Title
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={140}
+                        value={pushTitle}
+                        onChange={(e) => setPushTitle(e.target.value)}
+                        placeholder="e.g., Lenzo Party Mega PK Event Starts Now!"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A]"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-[#C5B9DE]">
+                        Notification Message
+                      </label>
+                      <textarea
+                        rows={3}
+                        maxLength={420}
+                        value={pushMessage}
+                        onChange={(e) => setPushMessage(e.target.value)}
+                        placeholder="Write the alert message that will appear on users' devices..."
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/15 text-xs text-white placeholder:text-[#7E709B] focus:outline-none focus:border-[#FFC84A] resize-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={sendingPush}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] hover:brightness-105 disabled:opacity-50 text-[#090611] text-xs font-black flex items-center justify-center gap-2 shadow-lg transition-all"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>
+                        {sendingPush
+                          ? 'Dispatching Push Notification...'
+                          : pushMode === 'global'
+                            ? 'Send Global Push to All Users'
+                            : 'Send Direct Push Notification'}
+                      </span>
+                    </button>
+                  </form>
+                </div>
               )}
 
               {activeTab === 'levels' && (
