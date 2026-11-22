@@ -1,8 +1,8 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { A as Shield, Gt as Copy, M as ShieldCheck, Sn as ArrowLeft, Tt as Globe, _t as Info, a as Wallet, d as UserX, g as TriangleAlert, in as Check, lt as LogOut, pn as Bell, pt as Link2, r as X, tn as ChevronRight, tt as Moon, ut as Lock, v as Trash2, wn as require_react, xn as ArrowRightLeft } from "./vendor-icons-CKZC98wp.js";
-import { St as subscribeUserSettings, bt as saveUserSettingsToFirestore, ht as linkGoogleAccount, mt as getLinkedAuthProviders, t as BlockedUsersModal, vt as getSavedDeviceAccounts, xt as submitAccountDeletionRequest, yt as loadUserSettingsFromFirestore } from "./index-C_n6rme9.js";
+import { A as Shield, Dt as Globe, En as ArrowLeft, M as ShieldCheck, On as require_react, Tn as ArrowRightLeft, Yt as Copy, _n as Bell, a as Wallet, an as ChevronRight, cn as Check, d as UserX, dt as Lock, g as TriangleAlert, lt as Mail, mt as Link2, ot as MessageCircle, r as X, st as Megaphone, tt as Moon, ut as LogOut, v as Trash2, yt as Info, zt as ExternalLink } from "./vendor-icons-Ca04WHp3.js";
+import { Dt as getLinkedAuthProviders, Ft as subscribeUserSettings, Mt as loadUserSettingsFromFirestore, Nt as saveUserSettingsToFirestore, Ot as linkGoogleAccount, Pt as submitAccountDeletionRequest, jt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-BqmB7my3.js";
 import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
+import { i as require_jsx_runtime } from "./vendor-motion-D3T8Lfjf.js";
 // src/components/screens/SettingsScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -651,6 +651,119 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 								if (onUnblockUser) await onUnblockUser(uid, uname);
 								showToast(`${uname} has been unblocked.`);
 							}
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "pt-2 space-y-2",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "px-1 flex items-center justify-between",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[11px] font-black uppercase tracking-wider text-[#B9AECF]",
+										children: "Official Support & Community"
+									})
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-2 p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-sky-400/20 hover:border-sky-400/40 transition-all",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+										href: "mailto:lenzopartyofficial@gmail.com?subject=Lenzo%20Party%20Live%20Official%20Support",
+										className: "flex items-center gap-3 min-w-0 flex-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 flex items-center justify-center shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-sm font-bold text-white block",
+												children: "Official Support Email"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-mono text-sky-300 block truncate",
+												children: "lenzopartyofficial@gmail.com"
+											})]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5 shrink-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => {
+												navigator.clipboard?.writeText("lenzopartyofficial@gmail.com").catch(() => {});
+												showToast("Official Support Email copied!");
+											},
+											title: "Copy Support Email",
+											className: "p-2 rounded-xl bg-white/[0.07] hover:bg-white/15 text-[#C5B9DE] hover:text-white transition-colors",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3.5 h-3.5" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+											href: "mailto:lenzopartyofficial@gmail.com?subject=Lenzo%20Party%20Live%20Official%20Support",
+											className: "px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/35 text-sky-200 text-[11px] font-bold flex items-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Email" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })]
+										})]
+									})]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between gap-2 p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-emerald-400/25 hover:border-emerald-400/45 transition-all",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+										href: "https://wa.me/97470769910?text=Hello%20Lenzo%20Party%20Official%20Support",
+										target: "_blank",
+										rel: "noopener noreferrer",
+										className: "flex items-center gap-3 min-w-0 flex-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 flex items-center justify-center shrink-0",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageCircle, { className: "w-4 h-4" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-sm font-bold text-white block",
+												children: "Official WhatsApp Support"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-mono text-emerald-300 block truncate",
+												children: "0097470769910"
+											})]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5 shrink-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => {
+												navigator.clipboard?.writeText("0097470769910").catch(() => {});
+												showToast("Official WhatsApp number copied!");
+											},
+											title: "Copy WhatsApp Number",
+											className: "p-2 rounded-xl bg-white/[0.07] hover:bg-white/15 text-[#C5B9DE] hover:text-white transition-colors",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "w-3.5 h-3.5" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+											href: "https://wa.me/97470769910?text=Hello%20Lenzo%20Party%20Official%20Support",
+											target: "_blank",
+											rel: "noopener noreferrer",
+											className: "px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051810] text-[11px] font-black flex items-center gap-1",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Chat" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })]
+										})]
+									})]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+									href: "https://whatsapp.com/channel/0029Vb8oDxx3mFY75AcHGd3n",
+									target: "_blank",
+									rel: "noopener noreferrer",
+									className: "flex items-center justify-between gap-2 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#160C25] to-teal-500/10 hover:opacity-95 border border-emerald-400/35 transition-all group",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-3 min-w-0 flex-1",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-[#051810] flex items-center justify-center shrink-0 shadow-sm",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Megaphone, { className: "w-4 h-4" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-sm font-black text-white block",
+												children: "Join Official WhatsApp Channel"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[11px] text-[#C5B9DE] block truncate",
+												children: "Official updates, events & announcements"
+											})]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-black flex items-center gap-1 shrink-0 group-hover:bg-emerald-500 group-hover:text-[#051810] transition-colors",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Join" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-3 h-3" })]
+									})]
+								})
+							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							onClick: () => showToast(`Lenzo Party Live v1.0.2 (Build 3 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),

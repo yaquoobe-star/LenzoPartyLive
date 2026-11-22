@@ -4,8 +4,6 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  addDoc,
-  updateDoc,
   deleteDoc,
   query,
   where,
@@ -14,10 +12,24 @@ import {
   onSnapshot,
   serverTimestamp,
   runTransaction,
+  increment,
   Timestamp,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { isVerifiedAdminSession } from '../utils/adminAuth';
+import { apiUrl } from '../utils/apiConfig';
+import {
+  OFFICIAL_DEFAULT_COIN_PACKAGES,
+  OFFICIAL_ECONOMY_DEFAULTS,
+  OFFICIAL_POLICY_VERSION,
+  PlatformEconomyConfig,
+  calculateGiftSplit,
+  calculateWithdrawalWaterfall,
+  getDayKey,
+  getMonthKey,
+  normalizeEconomyConfig,
+  roundPkr,
+} from '../shared/financialEngine';
 import {
   UserWalletData,
   UserEarningsData,
@@ -25,81 +37,74 @@ import {
   WalletRechargePackage,
   FinancialTransaction,
   WithdrawalRequest,
+  WithdrawalStatus,
   PayoutMethodConfig,
   CoinSellerAgency,
   UserProfile,
   GiftItem,
 } from '../types';
 
-// Default Global Wallet Settings (60% Host Diamonds / 40% App Share)
-export const DEFAULT_WALLET_SETTINGS: WalletSettings = {
-  commissionRatePercent: 40, // 40% platform share, 60% host share converted to Diamonds
-  exchangeRatePkrPerCoin: 2.0, // 1 Diamond = 2 PKR
-  minWithdrawalCoins: 2500, // min 2,500 Diamonds (= 5,000 PKR)
-  maxWithdrawalCoins: 250000, // max 250,000 Diamonds (= 500,000 PKR)
-  withdrawalFeePercent: 2.0, // 2% processing fee
-  earningsToWalletConversionRate: 1.0, // 1 Diamond = 1 Gifting Wallet Coin
-};
+function economyToWalletSettings(cfg: PlatformEconomyConfig): WalletSettings {
+  return {
+    configVersion: cfg.configVersion,
+    commissionPolicyVersion: cfg.policyVersion,
+    coinPurchasePkrPer100k: cfg.coinPurchasePkrPer100k,
+    coinPurchasePkrPerCoin: cfg.coinPurchasePkrPerCoin,
+    commissionRatePercent: cfg.appSharePercent,
+    hostSharePercent: cfg.hostSharePercent,
+    diamondConversionRatio: cfg.diamondConversionRatio,
+    diamondWithdrawalPkrPer100k: cfg.diamondWithdrawalPkrPer100k,
+    exchangeRatePkrPerCoin: cfg.diamondWithdrawalPkrPerDiamond,
+    minWithdrawalCoins: cfg.minWithdrawalDiamonds,
+    maxWithdrawalCoins: cfg.maxWithdrawalDiamonds,
+    agencyCommissionPercent: cfg.agencyCommissionPercent,
+    withdrawalFeePercent: cfg.withdrawalProcessingFeePercent,
+    bonusCoinsEnabled: cfg.bonusCoinsEnabled,
+    maxBonusCoinPercent: cfg.maxBonusCoinPercent,
+    enabledPaymentMethods: cfg.enabledPaymentMethods,
+    earningsToWalletConversionRate: 1.0,
+    updatedAt: cfg.updatedAt,
+    updatedByEmail: cfg.updatedByEmail,
+    lastChangeReason: cfg.lastChangeReason,
+  };
+}
 
-// Default Coin Recharge Packages
-export const DEFAULT_COIN_PACKAGES: WalletRechargePackage[] = [
-  {
-    id: 'pack_1000',
-    coins: 1000,
-    bonusCoins: 0,
-    pricePkr: 2000,
-    displayPrice: 'PKR 2,000',
-    badge: 'STARTER',
-    enabled: true,
-  },
-  {
-    id: 'pack_5000',
-    coins: 5000,
-    bonusCoins: 250,
-    pricePkr: 10000,
-    displayPrice: 'PKR 10,000',
-    isPopular: true,
-    badge: '+5% BONUS',
-    enabled: true,
-  },
-  {
-    id: 'pack_10000',
-    coins: 10000,
-    bonusCoins: 1000,
-    pricePkr: 20000,
-    displayPrice: 'PKR 20,000',
-    isPopular: true,
-    badge: '+10% BONUS',
-    enabled: true,
-  },
-  {
-    id: 'pack_25000',
-    coins: 25000,
-    bonusCoins: 3500,
-    pricePkr: 50000,
-    displayPrice: 'PKR 50,000',
-    badge: '+14% BONUS',
-    enabled: true,
-  },
-  {
-    id: 'pack_50000',
-    coins: 50000,
-    bonusCoins: 10000,
-    pricePkr: 100000,
-    displayPrice: 'PKR 100,000',
-    badge: '+20% BONUS',
-    enabled: true,
-  },
-  {
-    id: 'pack_100000',
-    coins: 100000,
-    bonusCoins: 25000,
-    pricePkr: 200000,
-    displayPrice: 'PKR 200,000',
-    badge: 'VIP ELITE',
-    enabled: true,
-  },
-];
+export function walletSettingsToEconomyConfig(settings?: Partial<WalletSettings> | null): PlatformEconomyConfig {
+  if (!settings) return { ...OFFICIAL_ECONOMY_DEFAULTS };
+  const isLegacyV2 = settings.commissionPolicyVersion !== OFFICIAL_POLICY_VERSION;
+  if (isLegacyV2) {
+    return { ...OFFICIAL_ECONOMY_DEFAULTS };
+  }
+  return normalizeEconomyConfig({
+    configVersion: settings.configVersion ?? OFFICIAL_ECONOMY_DEFAULTS.configVersion,
+    coinPurchasePkrPer100k:
+      settings.coinPurchasePkrPer100k ?? OFFICIAL_ECONOMY_DEFAULTS.coinPurchasePkrPer100k,
+    appSharePercent: settings.commissionRatePercent ?? OFFICIAL_ECONOMY_DEFAULTS.appSharePercent,
+    hostSharePercent:
+      settings.hostSharePercent ?? (100 - (settings.commissionRatePercent ?? OFFICIAL_ECONOMY_DEFAULTS.appSharePercent)),
+    diamondConversionRatio: settings.diamondConversionRatio ?? OFFICIAL_ECONOMY_DEFAULTS.diamondConversionRatio,
+    diamondWithdrawalPkrPer100k:
+      settings.diamondWithdrawalPkrPer100k ?? OFFICIAL_ECONOMY_DEFAULTS.diamondWithdrawalPkrPer100k,
+    minWithdrawalDiamonds: settings.minWithdrawalCoins ?? OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds,
+    maxWithdrawalDiamonds: settings.maxWithdrawalCoins ?? OFFICIAL_ECONOMY_DEFAULTS.maxWithdrawalDiamonds,
+    agencyCommissionPercent:
+      settings.agencyCommissionPercent ?? OFFICIAL_ECONOMY_DEFAULTS.agencyCommissionPercent,
+    withdrawalProcessingFeePercent:
+      settings.withdrawalFeePercent ?? OFFICIAL_ECONOMY_DEFAULTS.withdrawalProcessingFeePercent,
+    bonusCoinsEnabled: settings.bonusCoinsEnabled ?? OFFICIAL_ECONOMY_DEFAULTS.bonusCoinsEnabled,
+    maxBonusCoinPercent: settings.maxBonusCoinPercent ?? OFFICIAL_ECONOMY_DEFAULTS.maxBonusCoinPercent,
+    enabledPaymentMethods: settings.enabledPaymentMethods ?? OFFICIAL_ECONOMY_DEFAULTS.enabledPaymentMethods,
+  });
+}
+
+// Official Final Global Wallet Settings:
+// 100,000 Coins = PKR 3,000 | 40% App Beans / 60% Host Diamonds | 100,000 Diamonds = PKR 2,600
+export const DEFAULT_WALLET_SETTINGS: WalletSettings = economyToWalletSettings(OFFICIAL_ECONOMY_DEFAULTS);
+
+// Official Default Coin Recharge Packages strictly aligned to 100,000 Coins = PKR 3,000
+export const DEFAULT_COIN_PACKAGES: WalletRechargePackage[] = OFFICIAL_DEFAULT_COIN_PACKAGES.map((p) => ({
+  ...p,
+}));
 
 // Default Payout Methods (Bank Transfer, EasyPaisa, JazzCash)
 export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
@@ -109,7 +114,7 @@ export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
     type: 'bank_transfer',
     enabled: true,
     instructions: 'Provide your Full Account Title, Bank Name, and Account Number / 24-digit IBAN',
-    minAmountCoins: 2500,
+    minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds,
   },
   {
     id: 'easypaisa',
@@ -117,7 +122,7 @@ export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
     type: 'easypaisa',
     enabled: true,
     instructions: 'Provide your registered EasyPaisa 11-digit mobile number and Account Title',
-    minAmountCoins: 2500,
+    minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds,
   },
   {
     id: 'jazzcash',
@@ -125,14 +130,13 @@ export const DEFAULT_PAYOUT_METHODS: PayoutMethodConfig[] = [
     type: 'jazzcash',
     enabled: true,
     instructions: 'Provide your registered JazzCash 11-digit mobile number and Account Title',
-    minAmountCoins: 2500,
+    minAmountCoins: OFFICIAL_ECONOMY_DEFAULTS.minWithdrawalDiamonds,
   },
 ];
 
 // Strictly real Firestore agencies only — NO fake/mock placeholder agencies
 export const DEFAULT_COIN_SELLER_AGENCIES: CoinSellerAgency[] = [];
 
-// Legacy placeholder IDs that must never be displayed even if previously seeded
 const LEGACY_PLACEHOLDER_AGENCY_IDS = new Set([
   'agency_lenzo_hq_lhr',
   'agency_karachi_gold',
@@ -141,68 +145,102 @@ const LEGACY_PLACEHOLDER_AGENCY_IDS = new Set([
   'agency_gulf_international',
 ]);
 
-// Admin session check imported from ../utils/adminAuth
+const TERMINAL_WITHDRAWAL_STATUSES = new Set<WithdrawalStatus>(['paid', 'rejected', 'cancelled']);
+
+function generateIdempotencyId(prefix: string): string {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now()}_${rand}`.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+async function getBearerAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {
+    // non-fatal
+  }
+  return headers;
+}
 
 /**
- * 1. SETTINGS & CONFIGURATION SERVICE
+ * 1. SETTINGS & CONFIGURATION SERVICE (Synced with platform_financial_settings/global)
  */
 export function subscribeWalletSettings(onUpdate: (settings: WalletSettings) => void) {
-  const docRef = doc(db, 'wallet_settings', 'global');
+  const canonicalRef = doc(db, 'platform_financial_settings', 'global');
+  const legacyRef = doc(db, 'wallet_settings', 'global');
+
   return onSnapshot(
-    docRef,
+    canonicalRef,
     (snap) => {
       if (snap.exists()) {
-        const raw = snap.data() as WalletSettings & { commissionPolicyVersion?: string };
-        // Upgrade legacy 20% default automatically to the 40% App / 60% Host Diamonds policy
-        const needsPolicyUpgrade = raw.commissionPolicyVersion !== 'v2_60_40' && raw.commissionRatePercent === 20;
-        const normalized: WalletSettings = {
-          ...DEFAULT_WALLET_SETTINGS,
-          ...raw,
-          commissionRatePercent: needsPolicyUpgrade ? 40 : (raw.commissionRatePercent ?? 40),
-        };
-        if (needsPolicyUpgrade && isVerifiedAdminSession()) {
+        const cfg = normalizeEconomyConfig(snap.data() as Partial<PlatformEconomyConfig>);
+        onUpdate(economyToWalletSettings(cfg));
+      } else {
+        // Auto-bootstrap v3 official economy settings when an authorized Admin connects (never touches user balances!)
+        if (isVerifiedAdminSession()) {
+          const seedCfg: PlatformEconomyConfig = {
+            ...OFFICIAL_ECONOMY_DEFAULTS,
+            updatedAt: new Date().toISOString(),
+            updatedByUid: auth.currentUser?.uid || '',
+            updatedByEmail: auth.currentUser?.email || '',
+            lastChangeReason: 'Initial v3 official economy configuration sync',
+          };
+          setDoc(canonicalRef, seedCfg, { merge: true }).catch(() => {});
           setDoc(
-            docRef,
-            { commissionRatePercent: 40, commissionPolicyVersion: 'v2_60_40', updatedAt: serverTimestamp() },
+            legacyRef,
+            { ...economyToWalletSettings(seedCfg), updatedAt: serverTimestamp() },
             { merge: true }
           ).catch(() => {});
-        }
-        onUpdate(normalized);
-      } else {
-        if (isVerifiedAdminSession()) {
-          setDoc(
-            docRef,
-            { ...DEFAULT_WALLET_SETTINGS, commissionPolicyVersion: 'v2_60_40' },
-            { merge: true }
-          ).catch((err) =>
-            console.warn('Failed to auto-seed wallet settings:', err)
-          );
         }
         onUpdate(DEFAULT_WALLET_SETTINGS);
       }
     },
     (err) => {
-      console.warn('Wallet settings subscription notice:', err);
+      console.warn('Financial settings subscription notice:', err);
       onUpdate(DEFAULT_WALLET_SETTINGS);
     }
   );
 }
 
 export async function updateWalletSettings(settings: Partial<WalletSettings>): Promise<void> {
-  const docRef = doc(db, 'wallet_settings', 'global');
+  const canonicalRef = doc(db, 'platform_financial_settings', 'global');
+  const legacyRef = doc(db, 'wallet_settings', 'global');
   try {
+    const mergedEconomy = normalizeEconomyConfig({
+      coinPurchasePkrPer100k: settings.coinPurchasePkrPer100k,
+      appSharePercent: settings.commissionRatePercent,
+      hostSharePercent:
+        settings.hostSharePercent ??
+        (settings.commissionRatePercent !== undefined ? 100 - settings.commissionRatePercent : undefined),
+      diamondConversionRatio: settings.diamondConversionRatio,
+      diamondWithdrawalPkrPer100k:
+        settings.diamondWithdrawalPkrPer100k ??
+        (settings.exchangeRatePkrPerCoin !== undefined
+          ? roundPkr(settings.exchangeRatePkrPerCoin * 100000)
+          : undefined),
+      minWithdrawalDiamonds: settings.minWithdrawalCoins,
+      maxWithdrawalDiamonds: settings.maxWithdrawalCoins,
+      agencyCommissionPercent: settings.agencyCommissionPercent,
+      withdrawalProcessingFeePercent: settings.withdrawalFeePercent,
+      updatedAt: new Date().toISOString(),
+      updatedByUid: auth.currentUser?.uid || '',
+      updatedByEmail: auth.currentUser?.email || '',
+    });
+
+    await setDoc(canonicalRef, mergedEconomy, { merge: true });
     await setDoc(
-      docRef,
-      { ...settings, commissionPolicyVersion: 'v2_60_40', updatedAt: serverTimestamp() },
+      legacyRef,
+      { ...economyToWalletSettings(mergedEconomy), updatedAt: serverTimestamp() },
       { merge: true }
     );
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, 'wallet_settings/global');
+    handleFirestoreError(err, OperationType.UPDATE, 'platform_financial_settings/global');
   }
 }
 
 /**
- * 2. COIN RECHARGE PACKAGES SERVICE
+ * 2. COIN RECHARGE PACKAGES SERVICE (Aligned to 100,000 Coins = PKR 3,000)
  */
 export function subscribeCoinPackages(onUpdate: (packages: WalletRechargePackage[]) => void) {
   const collRef = collection(db, 'coin_packages');
@@ -211,6 +249,14 @@ export function subscribeCoinPackages(onUpdate: (packages: WalletRechargePackage
     (snap) => {
       if (!snap.empty) {
         const pkgs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as WalletRechargePackage));
+        // Detect if collection still only contains pre-v3 legacy packages (e.g., 1,000 coins = PKR 2,000)
+        const hasLegacyPriceBug = pkgs.some(
+          (p) => p.id === 'pack_1000' && p.coins === 1000 && p.pricePkr === 2000
+        );
+        if (hasLegacyPriceBug) {
+          onUpdate(DEFAULT_COIN_PACKAGES);
+          return;
+        }
         pkgs.sort((a, b) => a.coins - b.coins);
         onUpdate(pkgs);
       } else {
@@ -231,7 +277,15 @@ export function subscribeCoinPackages(onUpdate: (packages: WalletRechargePackage
 export async function saveCoinPackage(pkg: WalletRechargePackage): Promise<void> {
   const docRef = doc(db, 'coin_packages', pkg.id);
   try {
-    await setDoc(docRef, pkg, { merge: true });
+    await setDoc(
+      docRef,
+      {
+        ...pkg,
+        displayPrice: pkg.displayPrice || `PKR ${Number(pkg.pricePkr || 0).toLocaleString()}`,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, `coin_packages/${pkg.id}`);
   }
@@ -310,7 +364,7 @@ export async function deleteCoinSellerAgency(agencyId: string): Promise<{ succes
 }
 
 /**
- * 3. REAL USER WALLET (PURCHASED COINS) SERVICE
+ * 3. REAL USER COIN WALLET (PURCHASED COINS + TRACKED BONUS COINS)
  */
 export function subscribeUserWallet(
   userId: string,
@@ -324,17 +378,28 @@ export function subscribeUserWallet(
         const data = snap.data();
         onUpdate({
           userId,
-          walletPurchasedCoins: data.walletPurchasedCoins ?? 0,
-          totalCoinsPurchased: data.totalCoinsPurchased ?? 0,
-          totalCoinsSpent: data.totalCoinsSpent ?? 0,
-          updatedAt: data.updatedAt ? (data.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+          walletPurchasedCoins: Number(data.walletPurchasedCoins ?? 0),
+          bonusCoinsBalance: Number(data.bonusCoinsBalance ?? 0),
+          totalCoinsPurchased: Number(data.totalCoinsPurchased ?? 0),
+          totalBonusCoinsReceived: Number(data.totalBonusCoinsReceived ?? 0),
+          totalCoinsSpent: Number(data.totalCoinsSpent ?? 0),
+          totalRefundedCoins: Number(data.totalRefundedCoins ?? 0),
+          updatedAt:
+            data.updatedAt && typeof (data.updatedAt as Timestamp).toDate === 'function'
+              ? (data.updatedAt as Timestamp).toDate().toISOString()
+              : typeof data.updatedAt === 'string'
+                ? data.updatedAt
+                : new Date().toISOString(),
         });
       } else {
         const initial: UserWalletData = {
           userId,
           walletPurchasedCoins: 0,
+          bonusCoinsBalance: 0,
           totalCoinsPurchased: 0,
+          totalBonusCoinsReceived: 0,
           totalCoinsSpent: 0,
+          totalRefundedCoins: 0,
           updatedAt: new Date().toISOString(),
         };
         setDoc(docRef, { ...initial, updatedAt: serverTimestamp() }, { merge: true }).catch(console.warn);
@@ -348,7 +413,7 @@ export function subscribeUserWallet(
 }
 
 /**
- * 4. REAL USER EARNINGS (GIFTS RECEIVED) SERVICE
+ * 4. REAL HOST DIAMOND EARNINGS WALLET (60% GIFT SHARE -> DIAMONDS ONLY)
  */
 export function subscribeUserEarnings(
   userId: string,
@@ -360,16 +425,37 @@ export function subscribeUserEarnings(
     (snap) => {
       if (snap.exists()) {
         const data = snap.data();
+        const todayKey = getDayKey();
+        const monthKey = getMonthKey();
+        const available = Number(data.availableEarningsCoins ?? 0);
+        const pending = Number(data.pendingWithdrawalCoins ?? 0);
+        const withdrawn = Number(data.totalWithdrawnCoins ?? 0);
+        const computedTotalEarned = Math.max(
+          Number(data.totalEarnedDiamonds ?? 0),
+          available + pending + withdrawn
+        );
         onUpdate({
           userId,
-          availableEarningsCoins: data.availableEarningsCoins ?? 0,
-          pendingWithdrawalCoins: data.pendingWithdrawalCoins ?? 0,
-          totalWithdrawnCoins: data.totalWithdrawnCoins ?? 0,
-          grossGiftCoinsReceived: data.grossGiftCoinsReceived ?? 0,
-          totalCommissionDeducted: data.totalCommissionDeducted ?? 0,
-          totalConvertedToWallet: data.totalConvertedToWallet ?? 0,
-          totalGiftsCount: data.totalGiftsCount ?? 0,
-          updatedAt: data.updatedAt ? (data.updatedAt as Timestamp).toDate().toISOString() : new Date().toISOString(),
+          availableEarningsCoins: available,
+          pendingWithdrawalCoins: pending,
+          totalWithdrawnCoins: withdrawn,
+          totalEarnedDiamonds: computedTotalEarned,
+          dailyEarnedDiamonds:
+            data.lastEarnedDayKey === todayKey ? Number(data.dailyEarnedDiamonds ?? 0) : 0,
+          monthlyEarnedDiamonds:
+            data.lastEarnedMonthKey === monthKey ? Number(data.monthlyEarnedDiamonds ?? 0) : 0,
+          lastEarnedDayKey: data.lastEarnedDayKey || todayKey,
+          lastEarnedMonthKey: data.lastEarnedMonthKey || monthKey,
+          grossGiftCoinsReceived: Number(data.grossGiftCoinsReceived ?? 0),
+          totalCommissionDeducted: Number(data.totalCommissionDeducted ?? 0),
+          totalConvertedToWallet: Number(data.totalConvertedToWallet ?? 0),
+          totalGiftsCount: Number(data.totalGiftsCount ?? 0),
+          updatedAt:
+            data.updatedAt && typeof (data.updatedAt as Timestamp).toDate === 'function'
+              ? (data.updatedAt as Timestamp).toDate().toISOString()
+              : typeof data.updatedAt === 'string'
+                ? data.updatedAt
+                : new Date().toISOString(),
         });
       } else {
         const initial: UserEarningsData = {
@@ -377,6 +463,11 @@ export function subscribeUserEarnings(
           availableEarningsCoins: 0,
           pendingWithdrawalCoins: 0,
           totalWithdrawnCoins: 0,
+          totalEarnedDiamonds: 0,
+          dailyEarnedDiamonds: 0,
+          monthlyEarnedDiamonds: 0,
+          lastEarnedDayKey: getDayKey(),
+          lastEarnedMonthKey: getMonthKey(),
           grossGiftCoinsReceived: 0,
           totalCommissionDeducted: 0,
           totalConvertedToWallet: 0,
@@ -394,10 +485,8 @@ export function subscribeUserEarnings(
 }
 
 /**
- * 5. ONLINE COIN RECHARGE — LOCKED (COMING SOON)
- * Direct unpaid client-side coin top-ups are disabled.
- * Users must purchase coins via Official Offline Coin Seller Agencies until
- * verified online payment gateway integration is live.
+ * 5. ONLINE COIN RECHARGE — LOCKED UNTIL VERIFIED PAYMENT GATEWAY
+ * Only verified Admin / Coin Seller Agency payments can credit Coins.
  */
 export async function purchaseCoins(
   _userId: string,
@@ -407,281 +496,415 @@ export async function purchaseCoins(
   return {
     success: false,
     newBalance: 0,
-    error: 'Online purchasing is coming soon. Please contact an Official Offline Coin Seller Agency.',
+    error: 'Online payment gateway is coming soon. Please purchase verified Coins via Official Offline Coin Seller Agencies.',
   };
 }
 
 /**
- * 6. ATOMIC GIFT SENDING & 40% APP / 60% HOST DIAMONDS SPLIT
- * - Deducts 100% of gift cost from sender's Gifting Wallet (Coins).
- * - Platform share: 40% (recorded in commission_transactions).
- * - Host share: 60% converted into Diamonds in recipient's Earnings Wallet & users/{uid}.diamonds.
- * - Records all transactions immutably.
+ * 6. PRODUCTION AUTOMATIC GIFTING ENGINE
+ *    - Authenticates sender & requests backend authoritative gift quote (`/api/finance/quote-gift`).
+ *    - Enforces idempotency via `gift_transactions/{idempotencyKey}` inside Firestore `runTransaction`.
+ *    - Deducts 100% Coins from Sender Coin Wallet (`wallets/{senderId}` & `users/{senderId}.coins`).
+ *    - Credits 60% Host Share directly as Diamonds (`earnings/{receiverId}` & `users/{receiverId}.diamonds`).
+ *      Host NEVER receives gifted Coins as earnings.
+ *    - Credits 40% App Share as App Beans to `platform_revenue/global` AND immutable `platform_beans_ledger/{idempotencyKey}`.
+ *    - Records immutable audit ledgers across root & user subcollections in real time.
  */
 export async function processGiftTransaction(
   senderUser: UserProfile,
   recipientUser: UserProfile,
   gift: GiftItem,
   quantity: number = 1,
-  settings: WalletSettings = DEFAULT_WALLET_SETTINGS
-): Promise<{ success: boolean; netEarnings: number; commission: number; error?: string }> {
+  settings: WalletSettings = DEFAULT_WALLET_SETTINGS,
+  options?: {
+    context?: 'live_stream' | 'party_room' | 'pk_battle' | 'private_room' | 'direct';
+    roomId?: string;
+    idempotencyKey?: string;
+  }
+): Promise<{
+  success: boolean;
+  netEarnings: number;
+  commission: number;
+  transactionId?: string;
+  error?: string;
+}> {
   try {
-    const totalCost = Math.floor(gift.coins * quantity);
-    if (!Number.isFinite(totalCost) || totalCost <= 0) {
-      return { success: false, netEarnings: 0, commission: 0, error: 'Invalid gift amount' };
+    const authUid = auth.currentUser?.uid;
+    if (!authUid || authUid !== senderUser.id) {
+      return { success: false, netEarnings: 0, commission: 0, error: 'Authentication required to send gifts.' };
+    }
+    const qty = Math.floor(Number(quantity || 1));
+    const unitCoins = Math.floor(Number(gift.coins || 0));
+    if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(unitCoins) || unitCoins <= 0) {
+      return { success: false, netEarnings: 0, commission: 0, error: 'Invalid gift amount.' };
     }
 
+    const idempotencyKey = options?.idempotencyKey || generateIdempotencyId(`gift_${senderUser.id.slice(0, 6)}`);
+    const economyCfg = walletSettingsToEconomyConfig(settings);
+
+    // Authoritative server-side gift quote & split calculation (falls back to identical shared engine only if backend unreachable)
+    let split = calculateGiftSplit(unitCoins * qty, economyCfg);
+    let verifiedGrossCoins = unitCoins * qty;
+
+    try {
+      const headers = await getBearerAuthHeaders();
+      const resp = await fetch(apiUrl('/api/finance/quote-gift'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          receiverId: recipientUser.id,
+          giftId: gift.id,
+          giftName: gift.name,
+          quantity: qty,
+          customStoreGiftPriceCoins: unitCoins,
+          idempotencyKey,
+        }),
+      });
+      if (resp.status === 409) {
+        return {
+          success: false,
+          netEarnings: 0,
+          commission: 0,
+          error: 'Duplicate gift transaction prevented.',
+        };
+      }
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.success && data?.quote) {
+          verifiedGrossCoins = Number(data.quote.grossCoins);
+          split = {
+            grossCoins: verifiedGrossCoins,
+            appSharePercent: Number(data.quote.appSharePercent),
+            hostSharePercent: Number(data.quote.hostSharePercent),
+            appBeansAmount: Number(data.quote.appBeansAmount),
+            hostShareCoins: Number(data.quote.hostShareCoins),
+            hostDiamondsAmount: Number(data.quote.hostDiamondsAmount),
+            appRevenuePkrEstimate: Number(data.quote.appRevenuePkrEstimate),
+            hostGrossPkrValue: Number(data.quote.hostGrossPkrValue),
+            configVersion: Number(data.quote.configVersion || economyCfg.configVersion),
+          };
+        }
+      }
+    } catch {
+      // Offline / static hosting fallback uses identical deterministic shared financialEngine
+    }
+
+    const nowMillis = Date.now();
+    const nowIso = new Date(nowMillis).toISOString();
+    const nowDisplay = new Date(nowMillis).toLocaleString();
+    const todayKey = getDayKey(new Date(nowMillis));
+    const monthKey = getMonthKey(new Date(nowMillis));
+
+    const giftTxRef = doc(db, 'gift_transactions', idempotencyKey);
     const senderWalletRef = doc(db, 'wallets', senderUser.id);
     const recipientEarningsRef = doc(db, 'earnings', recipientUser.id);
     const senderUserRef = doc(db, 'users', senderUser.id);
     const recipientUserRef = doc(db, 'users', recipientUser.id);
-
-    // 40% App share / 60% Host Diamonds share
-    const commissionPercent = settings.commissionRatePercent || 40;
-    const hostSharePercent = Math.max(0, 100 - commissionPercent);
-    const commissionCoins = Math.round(totalCost * (commissionPercent / 100));
-    const netEarningsDiamonds = totalCost - commissionCoins;
+    const platformRevenueRef = doc(db, 'platform_revenue', 'global');
+    const beansLedgerRef = doc(db, 'platform_beans_ledger', idempotencyKey);
 
     await runTransaction(db, async (tx) => {
-      // 1. Check sender's real Gifting Wallet coin balance
+      // 1. Idempotency check: reject duplicate transaction replay
+      const existingGiftSnap = await tx.get(giftTxRef);
+      if (existingGiftSnap.exists()) {
+        throw new Error('This gift transaction was already processed.');
+      }
+
+      // 2. Verify sender available Coin Wallet balance
       const senderSnap = await tx.get(senderWalletRef);
       const senderUserSnap = await tx.get(senderUserRef);
       const walletCoins = senderSnap.exists() ? Number(senderSnap.data().walletPurchasedCoins ?? 0) : 0;
       const profileCoins = senderUserSnap.exists() ? Number(senderUserSnap.data().coins ?? 0) : 0;
       const senderCoins = senderSnap.exists() && walletCoins > 0 ? walletCoins : Math.max(walletCoins, profileCoins);
 
-      if (senderCoins < totalCost) {
-        throw new Error(`Insufficient wallet balance. You have ${senderCoins.toLocaleString()} coins, but need ${totalCost.toLocaleString()} coins.`);
+      if (senderCoins < verifiedGrossCoins) {
+        throw new Error(
+          `Insufficient Coin Wallet balance. You have ${senderCoins.toLocaleString()} Coins, but need ${verifiedGrossCoins.toLocaleString()} Coins.`
+        );
       }
 
-      // 2. Deduct 100% from sender's Buying/Gifting Wallet (Coins)
-      const newSenderCoins = senderCoins - totalCost;
-      const prevSpent = senderSnap.exists() ? (senderSnap.data().totalCoinsSpent || 0) : 0;
+      const recipientSnap = await tx.get(recipientEarningsRef);
+
+      // 3. Deduct 100% Coins from sender's Coin Wallet
+      const newSenderCoins = senderCoins - verifiedGrossCoins;
+      const prevSpent = senderSnap.exists() ? Number(senderSnap.data().totalCoinsSpent || 0) : 0;
 
       tx.set(
         senderWalletRef,
         {
           userId: senderUser.id,
           walletPurchasedCoins: newSenderCoins,
-          totalCoinsSpent: prevSpent + totalCost,
+          totalCoinsSpent: prevSpent + verifiedGrossCoins,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
+      tx.set(senderUserRef, { coins: newSenderCoins }, { merge: true });
 
-      tx.set(
-        senderUserRef,
-        {
-          coins: newSenderCoins,
-        },
-        { merge: true }
-      );
+      // 4. Credit 60% Host Share directly as Diamonds to receiver's Diamond Earnings Wallet (NEVER Coins!)
+      const currentDiamonds = recipientSnap.exists() ? Number(recipientSnap.data().availableEarningsCoins || 0) : 0;
+      const prevTotalEarned = recipientSnap.exists()
+        ? Math.max(Number(recipientSnap.data().totalEarnedDiamonds || 0), currentDiamonds)
+        : 0;
+      const prevDaily =
+        recipientSnap.exists() && recipientSnap.data().lastEarnedDayKey === todayKey
+          ? Number(recipientSnap.data().dailyEarnedDiamonds || 0)
+          : 0;
+      const prevMonthly =
+        recipientSnap.exists() && recipientSnap.data().lastEarnedMonthKey === monthKey
+          ? Number(recipientSnap.data().monthlyEarnedDiamonds || 0)
+          : 0;
+      const prevGross = recipientSnap.exists() ? Number(recipientSnap.data().grossGiftCoinsReceived || 0) : 0;
+      const prevCommission = recipientSnap.exists() ? Number(recipientSnap.data().totalCommissionDeducted || 0) : 0;
+      const prevGiftCount = recipientSnap.exists() ? Number(recipientSnap.data().totalGiftsCount || 0) : 0;
 
-      // 3. Credit 60% host share as Diamonds in recipient's Earnings Wallet
-      const recipientSnap = await tx.get(recipientEarningsRef);
-      const currentDiamonds = recipientSnap.exists() ? (recipientSnap.data().availableEarningsCoins || 0) : 0;
-      const prevGross = recipientSnap.exists() ? (recipientSnap.data().grossGiftCoinsReceived || 0) : 0;
-      const prevCommission = recipientSnap.exists() ? (recipientSnap.data().totalCommissionDeducted || 0) : 0;
-      const prevGiftCount = recipientSnap.exists() ? (recipientSnap.data().totalGiftsCount || 0) : 0;
-
-      const newAvailableDiamonds = currentDiamonds + netEarningsDiamonds;
+      const newAvailableDiamonds = currentDiamonds + split.hostDiamondsAmount;
 
       tx.set(
         recipientEarningsRef,
         {
           userId: recipientUser.id,
           availableEarningsCoins: newAvailableDiamonds,
-          grossGiftCoinsReceived: prevGross + totalCost,
-          totalCommissionDeducted: prevCommission + commissionCoins,
-          totalGiftsCount: prevGiftCount + quantity,
+          totalEarnedDiamonds: prevTotalEarned + split.hostDiamondsAmount,
+          dailyEarnedDiamonds: prevDaily + split.hostDiamondsAmount,
+          monthlyEarnedDiamonds: prevMonthly + split.hostDiamondsAmount,
+          lastEarnedDayKey: todayKey,
+          lastEarnedMonthKey: monthKey,
+          grossGiftCoinsReceived: prevGross + verifiedGrossCoins,
+          totalCommissionDeducted: prevCommission + split.appBeansAmount,
+          totalGiftsCount: prevGiftCount + qty,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
+      tx.set(recipientUserRef, { diamonds: newAvailableDiamonds }, { merge: true });
 
-      // Recipient's users/{uid}.diamonds mirrors Earnings Wallet Diamonds
+      // 5. Credit 40% App Share to App Beans / Revenue Wallet (atomic upward-only increment; private to Admin)
       tx.set(
-        recipientUserRef,
+        platformRevenueRef,
         {
-          diamonds: newAvailableDiamonds,
+          id: 'global',
+          totalBeansEarned: increment(split.appBeansAmount),
+          totalGiftingCoinsProcessed: increment(verifiedGrossCoins),
+          totalHostDiamondsIssued: increment(split.hostDiamondsAmount),
+          totalGiftCount: increment(qty),
+          updatedAt: nowIso,
         },
         { merge: true }
       );
 
-      // 4. Create Transaction for Sender in wallet_transactions (Coins)
-      const senderTxRef = doc(collection(db, 'wallet_transactions'));
-      tx.set(senderTxRef, {
-        id: senderTxRef.id,
+      // 6. Immutable App Beans Revenue Ledger Entry
+      tx.set(beansLedgerRef, {
+        id: idempotencyKey,
+        idempotencyKey,
+        source: 'gift_split',
+        senderId: senderUser.id,
+        senderName: senderUser.name || 'User',
+        receiverId: recipientUser.id,
+        receiverName: recipientUser.name || 'Host',
+        giftId: gift.id,
+        giftName: gift.name,
+        context: options?.context || 'live_stream',
+        grossCoins: verifiedGrossCoins,
+        appSharePercent: split.appSharePercent,
+        hostSharePercent: split.hostSharePercent,
+        beansAmount: split.appBeansAmount,
+        hostDiamondsIssued: split.hostDiamondsAmount,
+        estimatedAppRevenuePkr: split.appRevenuePkrEstimate,
+        hostGrossPkr: split.hostGrossPkrValue,
+        configVersion: split.configVersion,
+        dayKey: todayKey,
+        monthKey,
+        createdAt: nowIso,
+        createdAtMillis: nowMillis,
+      });
+
+      // 7. Immutable Master Gift Transaction Record
+      tx.set(giftTxRef, {
+        id: idempotencyKey,
+        idempotencyKey,
+        senderId: senderUser.id,
+        senderName: senderUser.name || 'User',
+        receiverId: recipientUser.id,
+        receiverName: recipientUser.name || 'Host',
+        giftId: gift.id,
+        giftName: gift.name,
+        giftIcon: gift.icon || '🎁',
+        quantity: qty,
+        unitPriceCoins: unitCoins,
+        coinAmount: verifiedGrossCoins,
+        appSharePercent: split.appSharePercent,
+        hostSharePercent: split.hostSharePercent,
+        appBeansAmount: split.appBeansAmount,
+        hostDiamondsAmount: split.hostDiamondsAmount,
+        hostGrossPkr: split.hostGrossPkrValue,
+        context: options?.context || 'live_stream',
+        roomId: options?.roomId || '',
+        configVersion: split.configVersion,
+        status: 'completed',
+        createdAt: nowIso,
+        createdAtMillis: nowMillis,
+      });
+
+      // 8. Sender Coin Wallet Transaction (root + per-user subcollection)
+      const senderTxId = `${idempotencyKey}_coin`;
+      const senderTxPayload = {
+        id: senderTxId,
         userId: senderUser.id,
         category: 'gift_sent',
         balanceType: 'wallet',
-        amount: -totalCost,
-        pkrAmount: Math.round(totalCost * settings.exchangeRatePkrPerCoin),
+        amount: -verifiedGrossCoins,
+        pkrAmount: roundPkr(verifiedGrossCoins * economyCfg.coinPurchasePkrPerCoin),
         status: 'completed',
-        description: `Sent ${quantity}x ${gift.name} ${gift.icon} to ${recipientUser.name}`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-        referenceId: gift.id,
+        description: `Sent ${qty}x ${gift.name} ${gift.icon} to ${recipientUser.name}`,
+        timestamp: nowDisplay,
+        timestampMillis: nowMillis,
+        referenceId: idempotencyKey,
+        idempotencyKey,
+        configVersion: split.configVersion,
         metadata: {
           recipientId: recipientUser.id,
           recipientName: recipientUser.name,
+          giftId: gift.id,
           giftName: gift.name,
-          quantity,
+          quantity: qty,
+          context: options?.context || 'live_stream',
         },
-      });
+      };
+      tx.set(doc(db, 'wallet_transactions', senderTxId), senderTxPayload);
+      tx.set(doc(db, 'users', senderUser.id, 'coin_transactions', senderTxId), senderTxPayload);
 
-      // 5. Create Transaction for Recipient in earnings_transactions (Diamonds)
-      const recipientTxRef = doc(collection(db, 'earnings_transactions'));
-      tx.set(recipientTxRef, {
-        id: recipientTxRef.id,
+      // 9. Receiver Host Diamond Earnings Transaction (root + per-user subcollection)
+      const receiverTxId = `${idempotencyKey}_dia`;
+      const receiverTxPayload = {
+        id: receiverTxId,
         userId: recipientUser.id,
         category: 'gift_received',
         balanceType: 'earnings',
-        amount: netEarningsDiamonds,
-        pkrAmount: Math.round(netEarningsDiamonds * settings.exchangeRatePkrPerCoin),
+        amount: split.hostDiamondsAmount,
+        pkrAmount: split.hostGrossPkrValue,
         status: 'completed',
-        description: `Received ${quantity}x ${gift.name} ${gift.icon} from ${senderUser.name} (+${netEarningsDiamonds.toLocaleString()} Diamonds • ${hostSharePercent}% host share)`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-        referenceId: gift.id,
+        description: `Received ${qty}x ${gift.name} ${gift.icon} from ${senderUser.name} (+${split.hostDiamondsAmount.toLocaleString()} Diamonds • ${split.hostSharePercent}% Host Share)`,
+        timestamp: nowDisplay,
+        timestampMillis: nowMillis,
+        referenceId: idempotencyKey,
+        idempotencyKey,
+        configVersion: split.configVersion,
         metadata: {
           senderId: senderUser.id,
           senderName: senderUser.name,
-          grossGiftCost: totalCost,
-          commissionCoins,
-          commissionPercent,
-          hostSharePercent,
+          grossGiftCost: verifiedGrossCoins,
+          appBeansAmount: split.appBeansAmount,
+          appSharePercent: split.appSharePercent,
+          hostSharePercent: split.hostSharePercent,
+          hostGrossPkr: split.hostGrossPkrValue,
         },
-      });
+      };
+      tx.set(doc(db, 'earnings_transactions', receiverTxId), receiverTxPayload);
+      tx.set(doc(db, 'users', recipientUser.id, 'diamond_transactions', receiverTxId), receiverTxPayload);
 
-      // 6. Record Platform Commission Transaction (40% App Share)
-      const commissionTxRef = doc(collection(db, 'commission_transactions'));
-      tx.set(commissionTxRef, {
-        id: commissionTxRef.id,
+      // 10. Legacy commission_transactions audit mirror
+      const commTxId = `${idempotencyKey}_comm`;
+      tx.set(doc(db, 'commission_transactions', commTxId), {
+        id: commTxId,
         senderId: senderUser.id,
         recipientId: recipientUser.id,
-        grossCost: totalCost,
-        commissionCoins,
-        netEarningsCoins: netEarningsDiamonds,
-        commissionPercent,
+        grossCost: verifiedGrossCoins,
+        commissionCoins: split.appBeansAmount,
+        netEarningsCoins: split.hostDiamondsAmount,
+        commissionPercent: split.appSharePercent,
+        configVersion: split.configVersion,
         timestamp: serverTimestamp(),
-        timestampMillis: Date.now(),
+        timestampMillis: nowMillis,
       });
     });
 
     return {
       success: true,
-      netEarnings: netEarningsDiamonds,
-      commission: commissionCoins,
+      netEarnings: split.hostDiamondsAmount,
+      commission: split.appBeansAmount,
+      transactionId: idempotencyKey,
     };
   } catch (err: any) {
-    return { success: false, netEarnings: 0, commission: 0, error: err?.message || 'Gift transaction failed' };
+    return {
+      success: false,
+      netEarnings: 0,
+      commission: 0,
+      error: err?.message || 'Gift transaction failed.',
+    };
   }
 }
 
 /**
- * 7. ATOMIC CONVERSION OF EARNINGS INTO WALLET COINS
- * - User enters eligible earnings coins.
- * - Deducts from availableEarningsCoins.
- * - Credits to walletPurchasedCoins.
- * - Converted coins can be used for gifting, but never counted as new earnings.
+ * 7. DIAMONDS CANNOT BE USED TO PURCHASE GIFTS (Policy Section 2B)
+ * Kept as a safe explicit guard so no code path can convert Host Diamonds into gifting Coins.
  */
 export async function convertEarningsToWallet(
-  userId: string,
-  coinsToConvert: number,
-  settings: WalletSettings = DEFAULT_WALLET_SETTINGS
+  _userId: string,
+  _coinsToConvert: number,
+  _settings: WalletSettings = DEFAULT_WALLET_SETTINGS
 ): Promise<{ success: boolean; walletCoinsReceived: number; error?: string }> {
+  return {
+    success: false,
+    walletCoinsReceived: 0,
+    error: 'Host Diamonds are strictly for earnings withdrawal (100,000 Diamonds = PKR 2,600) and cannot be used to purchase gifts.',
+  };
+}
+
+/**
+ * Helper: Look up whether host is actively linked to a Host Agency (for transparent Agency Commission waterfall)
+ */
+export async function lookupActiveHostAgencyContract(hostUid: string): Promise<{
+  agencyId: string;
+  agencyName: string;
+  agencyOwnerUid: string;
+  dealCommissionPercent: number | null;
+} | null> {
   try {
-    if (coinsToConvert <= 0) {
-      return { success: false, walletCoinsReceived: 0, error: 'Please enter a valid amount to convert' };
+    const q = query(
+      collection(db, 'agency_host_requests'),
+      where('hostUid', '==', hostUid),
+      where('status', '==', 'accepted'),
+      limit(1)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    const agencyId = String(data.agencyId || '');
+    if (!agencyId) return null;
+
+    // Check if Admin configured an agency-specific commission override
+    let overridePct: number | null =
+      typeof data.dealCommissionPercent === 'number' && Number.isFinite(data.dealCommissionPercent)
+        ? data.dealCommissionPercent
+        : null;
+    try {
+      const finSnap = await getDoc(doc(db, 'agency_financial_records', agencyId));
+      if (finSnap.exists() && typeof finSnap.data().commissionPercentOverride === 'number') {
+        overridePct = Number(finSnap.data().commissionPercentOverride);
+      }
+    } catch {
+      // non-fatal
     }
 
-    const conversionRate = settings.earningsToWalletConversionRate || 1.0;
-    const walletCoinsReceived = Math.round(coinsToConvert * conversionRate);
-
-    const earningsRef = doc(db, 'earnings', userId);
-    const walletRef = doc(db, 'wallets', userId);
-    const userRef = doc(db, 'users', userId);
-
-    await runTransaction(db, async (tx) => {
-      const earningsSnap = await tx.get(earningsRef);
-      const availableEarnings = earningsSnap.exists() ? (earningsSnap.data().availableEarningsCoins || 0) : 0;
-
-      if (availableEarnings < coinsToConvert) {
-        throw new Error(`Insufficient Diamonds. Available: ${availableEarnings.toLocaleString()} Diamonds.`);
-      }
-
-      const walletSnap = await tx.get(walletRef);
-      const currentWalletCoins = walletSnap.exists() ? (walletSnap.data().walletPurchasedCoins || 0) : 0;
-      const prevConverted = earningsSnap.exists() ? (earningsSnap.data().totalConvertedToWallet || 0) : 0;
-
-      // Deduct Diamonds from Earnings Wallet
-      const newAvailableEarnings = availableEarnings - coinsToConvert;
-      tx.set(
-        earningsRef,
-        {
-          availableEarningsCoins: newAvailableEarnings,
-          totalConvertedToWallet: prevConverted + coinsToConvert,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Credit Coins to Buying/Gifting Wallet
-      const newWalletCoins = currentWalletCoins + walletCoinsReceived;
-      tx.set(
-        walletRef,
-        {
-          userId,
-          walletPurchasedCoins: newWalletCoins,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Sync user profile coins + diamonds
-      tx.set(userRef, { coins: newWalletCoins, diamonds: newAvailableEarnings }, { merge: true });
-
-      // Transaction in Earnings Wallet (Diamonds)
-      const earningsTx = doc(collection(db, 'earnings_transactions'));
-      tx.set(earningsTx, {
-        id: earningsTx.id,
-        userId,
-        category: 'earnings_conversion',
-        balanceType: 'earnings',
-        amount: -coinsToConvert,
-        status: 'completed',
-        description: `Exchanged ${coinsToConvert.toLocaleString()} Diamonds to ${walletCoinsReceived.toLocaleString()} Gifting Wallet Coins`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-      });
-
-      // Transaction in Buying/Gifting Wallet (Coins)
-      const walletTx = doc(collection(db, 'wallet_transactions'));
-      tx.set(walletTx, {
-        id: walletTx.id,
-        userId,
-        category: 'earnings_conversion',
-        balanceType: 'wallet',
-        amount: walletCoinsReceived,
-        status: 'completed',
-        description: `Received ${walletCoinsReceived.toLocaleString()} Gifting Coins exchanged from Earnings Diamonds`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-      });
-    });
-
-    return { success: true, walletCoinsReceived };
-  } catch (err: any) {
-    return { success: false, walletCoinsReceived: 0, error: err?.message || 'Exchange failed' };
+    return {
+      agencyId,
+      agencyName: String(data.agencyName || 'Host Agency'),
+      agencyOwnerUid: String(data.agencyOwnerUid || ''),
+      dealCommissionPercent: overridePct,
+    };
+  } catch {
+    return null;
   }
 }
 
 /**
- * 8. ATOMIC DIAMOND WITHDRAWAL REQUEST (Bank Transfer, EasyPaisa, JazzCash)
- * - Deducts requested Diamonds from Earnings Wallet (availableEarningsCoins).
- * - Moves them into pendingWithdrawalCoins.
- * - Creates a withdrawal_requests document with status: 'pending'.
+ * 8. PRODUCTION ATOMIC DIAMOND WITHDRAWAL REQUEST
+ *    Official Rate: 100,000 Diamonds = PKR 2,600 (1 Diamond = PKR 0.026)
+ *    - Verifies identity, min/max limits, and available Diamond balance.
+ *    - Applies independently configured Agency Commission (ONLY if host has active agency) and Processing Fee (never deducted twice).
+ *    - Reserves Diamonds atomically into `pendingWithdrawalCoins`.
+ *    - Writes `withdrawal_requests/{reqId}` + `users/{uid}/withdrawals/{reqId}` + `earnings_transactions` + `users/{uid}/diamond_transactions`.
  */
 export async function requestWithdrawal(
   userId: string,
@@ -699,124 +922,237 @@ export async function requestWithdrawal(
   settings: WalletSettings = DEFAULT_WALLET_SETTINGS
 ): Promise<{ success: boolean; requestId: string; finalPayablePkr: number; error?: string }> {
   try {
-    if (coinsRequested < settings.minWithdrawalCoins) {
-      return { success: false, requestId: '', finalPayablePkr: 0, error: `Minimum withdrawal limit is ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})` };
-    }
-    if (coinsRequested > settings.maxWithdrawalCoins) {
-      return { success: false, requestId: '', finalPayablePkr: 0, error: `Maximum withdrawal limit is ${settings.maxWithdrawalCoins.toLocaleString()} Diamonds per transaction` };
+    const authUid = auth.currentUser?.uid;
+    if (!authUid || authUid !== userId) {
+      return { success: false, requestId: '', finalPayablePkr: 0, error: 'Authentication required to submit withdrawal.' };
     }
 
-    const exchangeRate = settings.exchangeRatePkrPerCoin || 2.0;
-    const grossPkr = Math.round(coinsRequested * exchangeRate);
-    const feePkr = Math.round(grossPkr * ((settings.withdrawalFeePercent || 2.0) / 100));
-    const finalPayablePkr = grossPkr - feePkr;
+    const diamondsReq = Math.floor(Number(coinsRequested || 0));
+    const economyCfg = walletSettingsToEconomyConfig(settings);
 
+    if (diamondsReq < economyCfg.minWithdrawalDiamonds) {
+      const minPkr = roundPkr(economyCfg.minWithdrawalDiamonds * economyCfg.diamondWithdrawalPkrPerDiamond);
+      return {
+        success: false,
+        requestId: '',
+        finalPayablePkr: 0,
+        error: `Minimum withdrawal limit is ${economyCfg.minWithdrawalDiamonds.toLocaleString()} Diamonds (PKR ${minPkr.toLocaleString()}).`,
+      };
+    }
+    if (diamondsReq > economyCfg.maxWithdrawalDiamonds) {
+      return {
+        success: false,
+        requestId: '',
+        finalPayablePkr: 0,
+        error: `Maximum withdrawal limit is ${economyCfg.maxWithdrawalDiamonds.toLocaleString()} Diamonds per transaction.`,
+      };
+    }
+
+    const activeAgency = await lookupActiveHostAgencyContract(userId);
+    const idempotencyKey = generateIdempotencyId(`wd_${userId.slice(0, 6)}`);
+
+    let waterfall = calculateWithdrawalWaterfall(diamondsReq, economyCfg, {
+      hostHasActiveAgency: Boolean(activeAgency),
+      agencyCommissionOverridePercent: activeAgency?.dealCommissionPercent ?? null,
+    });
+
+    // Authoritative server-side withdrawal calculation
+    try {
+      const headers = await getBearerAuthHeaders();
+      const resp = await fetch(apiUrl('/api/finance/quote-withdrawal'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          diamondsRequested: diamondsReq,
+          hostHasActiveAgency: Boolean(activeAgency),
+          agencyCommissionOverridePercent: activeAgency?.dealCommissionPercent ?? null,
+          idempotencyKey,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.success && data?.quote) {
+          waterfall = {
+            diamondsRequested: Number(data.quote.diamondsRequested),
+            diamondRatePkr: Number(data.quote.diamondRatePkr),
+            grossAmountPkr: Number(data.quote.grossAmountPkr),
+            agencyCommissionPercent: Number(data.quote.agencyCommissionPercent),
+            agencyCommissionPkr: Number(data.quote.agencyCommissionPkr),
+            processingFeePercent: Number(data.quote.processingFeePercent),
+            processingFeePkr: Number(data.quote.processingFeePkr),
+            totalDeductionsPkr: Number(data.quote.totalDeductionsPkr),
+            netPayablePkr: Number(data.quote.netPayablePkr),
+            configVersion: Number(data.quote.configVersion || economyCfg.configVersion),
+          };
+        }
+      }
+    } catch {
+      // Fallback to identical shared engine
+    }
+
+    const nowMillis = Date.now();
+    const nowDisplay = new Date(nowMillis).toLocaleString();
     const earningsRef = doc(db, 'earnings', userId);
     const userRef = doc(db, 'users', userId);
-    let createdReqId = '';
+    const reqDocRef = doc(db, 'withdrawal_requests', idempotencyKey);
+    const userWithdrawRef = doc(db, 'users', userId, 'withdrawals', idempotencyKey);
 
     await runTransaction(db, async (tx) => {
       const earningsSnap = await tx.get(earningsRef);
-      const available = earningsSnap.exists() ? (earningsSnap.data().availableEarningsCoins || 0) : 0;
-      const pending = earningsSnap.exists() ? (earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
+      const userSnap = await tx.get(userRef);
+      const available = earningsSnap.exists() ? Number(earningsSnap.data().availableEarningsCoins || 0) : 0;
+      const pending = earningsSnap.exists() ? Number(earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
 
-      if (available < coinsRequested) {
+      if (available < diamondsReq) {
         throw new Error(`Insufficient available Diamonds. Available: ${available.toLocaleString()} Diamonds.`);
       }
 
-      // Deduct from available, add to pending
-      const newAvailable = available - coinsRequested;
-      const newPending = pending + coinsRequested;
+      const newAvailable = available - diamondsReq;
+      const newPending = pending + diamondsReq;
 
       tx.set(
         earningsRef,
         {
+          userId,
           availableEarningsCoins: newAvailable,
           pendingWithdrawalCoins: newPending,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
-
       tx.set(userRef, { diamonds: newAvailable }, { merge: true });
 
-      // Create withdrawal request doc
-      const reqDocRef = doc(collection(db, 'withdrawal_requests'));
-      createdReqId = reqDocRef.id;
-
+      const userDisplayId = userSnap.exists() ? String(userSnap.data().displayId || '') : '';
       const reqData: WithdrawalRequest = {
-        id: reqDocRef.id,
+        id: idempotencyKey,
         userId,
         userName,
         userEmail: auth.currentUser?.email || '',
-        coinsRequested,
-        exchangeRatePkr: exchangeRate,
-        grossAmountPkr: grossPkr,
-        feeAmountPkr: feePkr,
-        finalPayablePkr,
+        userDisplayId,
+        coinsRequested: diamondsReq,
+        exchangeRatePkr: waterfall.diamondRatePkr,
+        grossAmountPkr: waterfall.grossAmountPkr,
+        agencyCommissionPercent: waterfall.agencyCommissionPercent,
+        agencyCommissionPkr: waterfall.agencyCommissionPkr,
+        processingFeePercent: waterfall.processingFeePercent,
+        feeAmountPkr: waterfall.processingFeePkr,
+        finalPayablePkr: waterfall.netPayablePkr,
+        ...(activeAgency
+          ? {
+              agencyId: activeAgency.agencyId,
+              agencyName: activeAgency.agencyName,
+              agencyOwnerUid: activeAgency.agencyOwnerUid,
+            }
+          : {}),
         paymentMethod,
         paymentDetails,
         status: 'pending',
-        requestedAt: new Date().toLocaleString(),
-        requestedAtMillis: Date.now(),
-        updatedAt: new Date().toLocaleString(),
+        idempotencyKey,
+        configVersion: waterfall.configVersion,
+        requestedAt: nowDisplay,
+        requestedAtMillis: nowMillis,
+        updatedAt: nowDisplay,
       };
 
       tx.set(reqDocRef, reqData);
+      tx.set(userWithdrawRef, reqData);
 
-      // Record in earnings_transactions
-      const txDocRef = doc(collection(db, 'earnings_transactions'));
-      tx.set(txDocRef, {
-        id: txDocRef.id,
+      const txId = `${idempotencyKey}_req`;
+      const txPayload = {
+        id: txId,
         userId,
         category: 'withdrawal_request',
         balanceType: 'earnings',
-        amount: -coinsRequested,
-        pkrAmount: finalPayablePkr,
+        amount: -diamondsReq,
+        pkrAmount: waterfall.netPayablePkr,
         status: 'pending',
-        description: `Diamond withdrawal #${reqDocRef.id.slice(-6).toUpperCase()} for ${coinsRequested.toLocaleString()} Diamonds (PKR ${finalPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName})`,
-        timestamp: new Date().toLocaleString(),
-        timestampMillis: Date.now(),
-        referenceId: reqDocRef.id,
-      });
+        description: `Withdrawal #${idempotencyKey.slice(-6).toUpperCase()}: ${diamondsReq.toLocaleString()} Diamonds -> Net PKR ${waterfall.netPayablePkr.toLocaleString()} via ${paymentDetails.bankOrProviderName}`,
+        timestamp: nowDisplay,
+        timestampMillis: nowMillis,
+        referenceId: idempotencyKey,
+        idempotencyKey,
+        configVersion: waterfall.configVersion,
+      };
+      tx.set(doc(db, 'earnings_transactions', txId), txPayload);
+      tx.set(doc(db, 'users', userId, 'diamond_transactions', txId), txPayload);
     });
 
-    return { success: true, requestId: createdReqId, finalPayablePkr };
+    return { success: true, requestId: idempotencyKey, finalPayablePkr: waterfall.netPayablePkr };
   } catch (err: any) {
-    return { success: false, requestId: '', finalPayablePkr: 0, error: err?.message || 'Withdrawal submission failed' };
+    return { success: false, requestId: '', finalPayablePkr: 0, error: err?.message || 'Withdrawal submission failed.' };
   }
 }
 
 /**
- * 9. ADMIN WITHDRAWAL STATUS MANAGEMENT
- * - If Approved/Processing/Paid: moves pending to totalWithdrawn.
- * - If Rejected/Cancelled: atomically returns reserved coins to availableEarningsCoins!
+ * 9. PRODUCTION ADMIN WITHDRAWAL LIFECYCLE MANAGEMENT
+ *    Supports all 7 statuses: pending | under_review | approved | processing | paid | rejected | cancelled.
+ *    - Enforces strict terminal-state lock inside `runTransaction` so a withdrawal can NEVER be paid twice or double-refunded!
+ *    - Records `agency_commissions` + `agency_financial_records` on `paid` if linked to a Host Agency.
+ *    - Updates `platform_revenue/global` payout totals & writes immutable `financial_audit_logs`.
  */
 export async function adminUpdateWithdrawalStatus(
   request: WithdrawalRequest,
-  newStatus: 'approved' | 'processing' | 'paid' | 'rejected' | 'cancelled',
+  newStatus: WithdrawalStatus,
   adminRemarks: string = '',
   paymentReference: string = ''
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!isVerifiedAdminSession()) {
+      return { success: false, error: 'Unauthorized: Admin verification required.' };
+    }
+
+    const adminUid = auth.currentUser?.uid || '';
+    const adminEmail = auth.currentUser?.email || '';
+    const nowMillis = Date.now();
+    const nowIso = new Date(nowMillis).toISOString();
+    const nowDisplay = new Date(nowMillis).toLocaleString();
+
     const reqRef = doc(db, 'withdrawal_requests', request.id);
+    const userWithdrawRef = doc(db, 'users', request.userId, 'withdrawals', request.id);
     const earningsRef = doc(db, 'earnings', request.userId);
     const userRef = doc(db, 'users', request.userId);
+    const platformRevenueRef = doc(db, 'platform_revenue', 'global');
 
     await runTransaction(db, async (tx) => {
+      const liveReqSnap = await tx.get(reqRef);
+      if (!liveReqSnap.exists()) {
+        throw new Error('Withdrawal request no longer exists.');
+      }
+      const liveReq = liveReqSnap.data() as WithdrawalRequest;
+
+      // Double-payout & double-refund prevention
+      if (TERMINAL_WITHDRAWAL_STATUSES.has(liveReq.status)) {
+        throw new Error(
+          `Withdrawal #${request.id.slice(-6).toUpperCase()} is already finalized as "${liveReq.status.toUpperCase()}" and cannot be processed twice.`
+        );
+      }
+      if (liveReq.status === newStatus) {
+        throw new Error(`Withdrawal is already in "${newStatus}" status.`);
+      }
+
       const earningsSnap = await tx.get(earningsRef);
-      const pending = earningsSnap.exists() ? (earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
-      const available = earningsSnap.exists() ? (earningsSnap.data().availableEarningsCoins || 0) : 0;
-      const totalWithdrawn = earningsSnap.exists() ? (earningsSnap.data().totalWithdrawnCoins || 0) : 0;
+      const pending = earningsSnap.exists() ? Number(earningsSnap.data().pendingWithdrawalCoins || 0) : 0;
+      const available = earningsSnap.exists() ? Number(earningsSnap.data().availableEarningsCoins || 0) : 0;
+      const totalWithdrawn = earningsSnap.exists() ? Number(earningsSnap.data().totalWithdrawnCoins || 0) : 0;
+
+      const userWithdrawSnap = await tx.get(userWithdrawRef);
+
+      let agencyFinSnap: any = null;
+      const agencyFinRef = liveReq.agencyId ? doc(db, 'agency_financial_records', liveReq.agencyId) : null;
+      if (newStatus === 'paid' && agencyFinRef) {
+        agencyFinSnap = await tx.get(agencyFinRef);
+      }
+
+      const resolvedRef = paymentReference.trim() || liveReq.paymentReference || `LP-PAY-${nowMillis.toString().slice(-8)}`;
 
       if (newStatus === 'paid') {
-        // Permanently deduct from pending and add to totalWithdrawn
-        const newPending = Math.max(0, pending - request.coinsRequested);
-        const newTotalWithdrawn = totalWithdrawn + request.coinsRequested;
+        const newPending = Math.max(0, pending - liveReq.coinsRequested);
+        const newTotalWithdrawn = totalWithdrawn + liveReq.coinsRequested;
 
         tx.set(
           earningsRef,
           {
+            userId: liveReq.userId,
             pendingWithdrawalCoins: newPending,
             totalWithdrawnCoins: newTotalWithdrawn,
             updatedAt: serverTimestamp(),
@@ -824,68 +1160,177 @@ export async function adminUpdateWithdrawalStatus(
           { merge: true }
         );
 
-        tx.update(reqRef, {
-          status: 'paid',
-          adminRemarks: adminRemarks || 'Payout completed successfully.',
-          paymentReference: paymentReference || `IBFT-${Date.now().toString().slice(-8)}`,
-          updatedAt: new Date().toLocaleString(),
-        });
+        const reqPatch = {
+          status: 'paid' as WithdrawalStatus,
+          adminRemarks: adminRemarks.trim() || 'Payout completed successfully.',
+          paymentReference: resolvedRef,
+          paidAt: nowIso,
+          processedByAdmin: adminEmail,
+          updatedAt: nowDisplay,
+        };
+        tx.update(reqRef, reqPatch);
+        if (userWithdrawSnap.exists()) {
+          tx.update(userWithdrawRef, reqPatch);
+        }
+
+        // Track platform payout totals
+        const agencyCommPkr = Number(liveReq.agencyCommissionPkr || 0);
+        tx.set(
+          platformRevenueRef,
+          {
+            id: 'global',
+            totalWithdrawalsPaidPkr: increment(Number(liveReq.finalPayablePkr || 0)),
+            totalDiamondsWithdrawn: increment(Number(liveReq.coinsRequested || 0)),
+            totalAgencyCommissionPkr: increment(agencyCommPkr),
+            updatedAt: nowIso,
+          },
+          { merge: true }
+        );
+
+        // Payment completion transaction record
+        const payTxId = `${liveReq.id}_paid`;
+        const payTxPayload = {
+          id: payTxId,
+          userId: liveReq.userId,
+          category: 'withdrawal_payment',
+          balanceType: 'earnings',
+          amount: 0,
+          pkrAmount: liveReq.finalPayablePkr,
+          status: 'completed',
+          description: `Payout PAID #${liveReq.id.slice(-6).toUpperCase()} — PKR ${liveReq.finalPayablePkr.toLocaleString()} (Ref: ${resolvedRef})`,
+          timestamp: nowDisplay,
+          timestampMillis: nowMillis,
+          referenceId: liveReq.id,
+        };
+        tx.set(doc(db, 'earnings_transactions', payTxId), payTxPayload);
+        tx.set(doc(db, 'users', liveReq.userId, 'diamond_transactions', payTxId), payTxPayload);
+
+        // Agency Commission accounting record (ONLY if host has active agency & commission > 0)
+        if (liveReq.agencyId && liveReq.agencyOwnerUid && agencyCommPkr > 0) {
+          const commId = `agcomm_${liveReq.id}`;
+          tx.set(doc(db, 'agency_commissions', commId), {
+            id: commId,
+            agencyId: liveReq.agencyId,
+            agencyName: liveReq.agencyName || 'Host Agency',
+            agencyOwnerUid: liveReq.agencyOwnerUid,
+            hostUid: liveReq.userId,
+            hostName: liveReq.userName,
+            withdrawalId: liveReq.id,
+            diamondsWithdrawn: liveReq.coinsRequested,
+            hostGrossPkr: liveReq.grossAmountPkr,
+            commissionPercent: Number(liveReq.agencyCommissionPercent || 0),
+            commissionPkr: agencyCommPkr,
+            status: 'accrued',
+            createdAt: nowIso,
+            createdAtMillis: nowMillis,
+          });
+
+          if (agencyFinRef) {
+            const prevEarned = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalCommissionEarnedPkr || 0) : 0;
+            const prevPendingComm = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().pendingCommissionPkr || 0) : 0;
+            const prevHostWdPkr = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalHostWithdrawalsPkr || 0) : 0;
+            const prevHostDia = agencyFinSnap?.exists() ? Number(agencyFinSnap.data().totalHostDiamondsEarned || 0) : 0;
+            tx.set(
+              agencyFinRef,
+              {
+                id: liveReq.agencyId,
+                agencyId: liveReq.agencyId,
+                agencyName: liveReq.agencyName || 'Host Agency',
+                agencyOwnerUid: liveReq.agencyOwnerUid,
+                totalHostDiamondsEarned: prevHostDia + liveReq.coinsRequested,
+                totalHostWithdrawalsPkr: roundPkr(prevHostWdPkr + liveReq.grossAmountPkr),
+                totalCommissionEarnedPkr: roundPkr(prevEarned + agencyCommPkr),
+                pendingCommissionPkr: roundPkr(prevPendingComm + agencyCommPkr),
+                updatedAt: nowIso,
+              },
+              { merge: true }
+            );
+          }
+        }
       } else if (newStatus === 'rejected' || newStatus === 'cancelled') {
-        // RETURN FUNDS TO AVAILABLE EARNINGS
-        const newPending = Math.max(0, pending - request.coinsRequested);
-        const newAvailable = available + request.coinsRequested;
+        // Atomically return reserved Diamonds to Host's available Diamond Earnings Wallet
+        const newPending = Math.max(0, pending - liveReq.coinsRequested);
+        const newAvailable = available + liveReq.coinsRequested;
 
         tx.set(
           earningsRef,
           {
+            userId: liveReq.userId,
             pendingWithdrawalCoins: newPending,
             availableEarningsCoins: newAvailable,
             updatedAt: serverTimestamp(),
           },
           { merge: true }
         );
-
         tx.set(userRef, { diamonds: newAvailable }, { merge: true });
 
-        tx.update(reqRef, {
+        const reqPatch = {
           status: newStatus,
-          adminRemarks: adminRemarks || 'Request rejected. Diamonds returned to your Earnings Wallet.',
-          updatedAt: new Date().toLocaleString(),
-        });
+          adminRemarks: adminRemarks.trim() || `Request ${newStatus}. Diamonds returned to your Earnings Wallet.`,
+          processedByAdmin: adminEmail,
+          updatedAt: nowDisplay,
+        };
+        tx.update(reqRef, reqPatch);
+        if (userWithdrawSnap.exists()) {
+          tx.update(userWithdrawRef, reqPatch);
+        }
 
-        // Add refund audit transaction
-        const refundTx = doc(collection(db, 'earnings_transactions'));
-        tx.set(refundTx, {
-          id: refundTx.id,
-          userId: request.userId,
+        const refundTxId = `${liveReq.id}_refund`;
+        const refundPayload = {
+          id: refundTxId,
+          userId: liveReq.userId,
           category: 'withdrawal_refund',
           balanceType: 'earnings',
-          amount: request.coinsRequested,
-          pkrAmount: request.finalPayablePkr,
+          amount: liveReq.coinsRequested,
+          pkrAmount: liveReq.finalPayablePkr,
           status: 'completed',
-          description: `Withdrawal #${request.id.slice(-6).toUpperCase()} rejected: ${adminRemarks || 'Diamonds restored to Earnings Wallet.'}`,
-          timestamp: new Date().toLocaleString(),
-          timestampMillis: Date.now(),
-          referenceId: request.id,
-        });
+          description: `Withdrawal #${liveReq.id.slice(-6).toUpperCase()} ${newStatus}: +${liveReq.coinsRequested.toLocaleString()} Diamonds restored`,
+          timestamp: nowDisplay,
+          timestampMillis: nowMillis,
+          referenceId: liveReq.id,
+        };
+        tx.set(doc(db, 'earnings_transactions', refundTxId), refundPayload);
+        tx.set(doc(db, 'users', liveReq.userId, 'diamond_transactions', refundTxId), refundPayload);
       } else {
-        // 'approved' or 'processing'
-        tx.update(reqRef, {
+        // 'pending' | 'under_review' | 'approved' | 'processing'
+        const reqPatch = {
           status: newStatus,
-          adminRemarks,
-          updatedAt: new Date().toLocaleString(),
-        });
+          adminRemarks: adminRemarks.trim() || liveReq.adminRemarks || '',
+          paymentReference: paymentReference.trim() || liveReq.paymentReference || '',
+          processedByAdmin: adminEmail,
+          updatedAt: nowDisplay,
+        };
+        tx.update(reqRef, reqPatch);
+        if (userWithdrawSnap.exists()) {
+          tx.update(userWithdrawRef, reqPatch);
+        }
       }
+
+      // Immutable Financial Audit Log
+      const auditId = generateIdempotencyId('faudit_wd');
+      tx.set(doc(db, 'financial_audit_logs', auditId), {
+        id: auditId,
+        adminUid,
+        adminEmail,
+        action: 'withdrawal_status_change',
+        targetId: liveReq.id,
+        targetLabel: `${liveReq.userName} (${liveReq.coinsRequested.toLocaleString()} 💎 -> PKR ${liveReq.finalPayablePkr.toLocaleString()})`,
+        previousValue: { status: liveReq.status },
+        newValue: { status: newStatus, paymentReference: resolvedRef },
+        reason: adminRemarks.trim() || `Updated withdrawal status to ${newStatus}`,
+        createdAt: nowIso,
+        createdAtMillis: nowMillis,
+      });
     });
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Failed to update withdrawal status' };
+    return { success: false, error: err?.message || 'Failed to update withdrawal status.' };
   }
 }
 
 /**
- * 10. REAL-TIME TRANSACTIONS LISTENER
+ * 10. REAL-TIME TRANSACTIONS & USER WITHDRAWALS LISTENERS
  */
 export function subscribeTransactions(
   userId: string,
@@ -897,7 +1342,7 @@ export function subscribeTransactions(
     collection(db, collName),
     where('userId', '==', userId),
     orderBy('timestampMillis', 'desc'),
-    limit(50)
+    limit(100)
   );
 
   return onSnapshot(
@@ -912,13 +1357,35 @@ export function subscribeTransactions(
   );
 }
 
+export function subscribeUserWithdrawalRequests(
+  userId: string,
+  onUpdate: (requests: WithdrawalRequest[]) => void
+) {
+  const q = query(
+    collection(db, 'withdrawal_requests'),
+    where('userId', '==', userId),
+    orderBy('requestedAtMillis', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as WithdrawalRequest));
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('User withdrawal requests listener notice:', err);
+    }
+  );
+}
+
 /**
  * 11. ADMIN ALL WITHDRAWAL REQUESTS LISTENER
  */
 export function subscribeAllWithdrawalRequests(
   onUpdate: (requests: WithdrawalRequest[]) => void
 ) {
-  const q = query(collection(db, 'withdrawal_requests'), orderBy('requestedAtMillis', 'desc'), limit(100));
+  const q = query(collection(db, 'withdrawal_requests'), orderBy('requestedAtMillis', 'desc'), limit(200));
   return onSnapshot(
     q,
     (snap) => {
@@ -932,7 +1399,7 @@ export function subscribeAllWithdrawalRequests(
 }
 
 /**
- * 12. ADMIN BALANCE ADJUSTMENT WITH AUDIT TRAIL
+ * 12. ADMIN BALANCE ADJUSTMENT WITH IMMUTABLE AUDIT TRAIL
  */
 export async function adminAdjustBalance(
   targetUserId: string,
@@ -942,14 +1409,21 @@ export async function adminAdjustBalance(
   adminEmail: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!isVerifiedAdminSession()) {
+      return { success: false, error: 'Unauthorized: Verified admin required.' };
+    }
+    const adminUid = auth.currentUser?.uid || '';
+    const nowMillis = Date.now();
+    const nowIso = new Date(nowMillis).toISOString();
+    const nowDisplay = new Date(nowMillis).toLocaleString();
     const docRef = doc(db, balanceType === 'wallet' ? 'wallets' : 'earnings', targetUserId);
     const userRef = doc(db, 'users', targetUserId);
 
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(docRef);
       if (balanceType === 'wallet') {
-        const current = snap.exists() ? (snap.data().walletPurchasedCoins || 0) : 0;
-        const prevPurchased = snap.exists() ? (snap.data().totalCoinsPurchased || 0) : 0;
+        const current = snap.exists() ? Number(snap.data().walletPurchasedCoins || 0) : 0;
+        const prevPurchased = snap.exists() ? Number(snap.data().totalCoinsPurchased || 0) : 0;
         const next = Math.max(0, current + coinDelta);
         tx.set(
           docRef,
@@ -963,35 +1437,73 @@ export async function adminAdjustBalance(
         );
         tx.set(userRef, { coins: next }, { merge: true });
 
-        const txRef = doc(collection(db, 'wallet_transactions'));
-        tx.set(txRef, {
-          id: txRef.id,
+        const txId = generateIdempotencyId('adj_coin');
+        const payload = {
+          id: txId,
           userId: targetUserId,
           category: 'admin_adjustment',
           balanceType: 'wallet',
           amount: coinDelta,
           status: 'completed',
           description: `Admin Adjustment (${adminEmail}): ${reason}`,
-          timestamp: new Date().toLocaleString(),
-          timestampMillis: Date.now(),
+          timestamp: nowDisplay,
+          timestampMillis: nowMillis,
+        };
+        tx.set(doc(db, 'wallet_transactions', txId), payload);
+        tx.set(doc(db, 'users', targetUserId, 'coin_transactions', txId), payload);
+
+        const auditId = generateIdempotencyId('faudit_adj');
+        tx.set(doc(db, 'financial_audit_logs', auditId), {
+          id: auditId,
+          adminUid,
+          adminEmail,
+          action: 'balance_adjustment',
+          targetId: targetUserId,
+          targetLabel: `Coin Wallet (${coinDelta >= 0 ? '+' : ''}${coinDelta.toLocaleString()} Coins)`,
+          previousValue: { walletPurchasedCoins: current },
+          newValue: { walletPurchasedCoins: next },
+          reason: reason || 'Admin manual adjustment',
+          createdAt: nowIso,
+          createdAtMillis: nowMillis,
         });
       } else {
-        const current = snap.exists() ? (snap.data().availableEarningsCoins || 0) : 0;
+        const current = snap.exists() ? Number(snap.data().availableEarningsCoins || 0) : 0;
         const next = Math.max(0, current + coinDelta);
-        tx.set(docRef, { userId: targetUserId, availableEarningsCoins: next, updatedAt: serverTimestamp() }, { merge: true });
+        tx.set(
+          docRef,
+          { userId: targetUserId, availableEarningsCoins: next, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
         tx.set(userRef, { diamonds: next }, { merge: true });
 
-        const txRef = doc(collection(db, 'earnings_transactions'));
-        tx.set(txRef, {
-          id: txRef.id,
+        const txId = generateIdempotencyId('adj_dia');
+        const payload = {
+          id: txId,
           userId: targetUserId,
           category: 'admin_adjustment',
           balanceType: 'earnings',
           amount: coinDelta,
           status: 'completed',
           description: `Admin Adjustment (${adminEmail}): ${reason}`,
-          timestamp: new Date().toLocaleString(),
-          timestampMillis: Date.now(),
+          timestamp: nowDisplay,
+          timestampMillis: nowMillis,
+        };
+        tx.set(doc(db, 'earnings_transactions', txId), payload);
+        tx.set(doc(db, 'users', targetUserId, 'diamond_transactions', txId), payload);
+
+        const auditId = generateIdempotencyId('faudit_adj');
+        tx.set(doc(db, 'financial_audit_logs', auditId), {
+          id: auditId,
+          adminUid,
+          adminEmail,
+          action: 'balance_adjustment',
+          targetId: targetUserId,
+          targetLabel: `Diamond Earnings (${coinDelta >= 0 ? '+' : ''}${coinDelta.toLocaleString()} 💎)`,
+          previousValue: { availableEarningsCoins: current },
+          newValue: { availableEarningsCoins: next },
+          reason: reason || 'Admin manual adjustment',
+          createdAt: nowIso,
+          createdAtMillis: nowMillis,
         });
       }
     });

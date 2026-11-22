@@ -29,6 +29,17 @@ import {
   getSuperVipTierDefinition,
   getVipTierDefinition,
 } from './src/shared/progressionEngine';
+import {
+  OFFICIAL_ECONOMY_DEFAULTS,
+  OFFICIAL_GIFT_CATALOG,
+  PlatformEconomyConfig,
+  calculateCoinPurchasePricePkr,
+  calculateGiftSplit,
+  calculateWithdrawalWaterfall,
+  normalizeEconomyConfig,
+  runFinancialQaAssertions,
+  validateEconomySettings,
+} from './src/shared/financialEngine';
 
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
 
@@ -331,6 +342,7 @@ function formatCompactCount(num: number): string {
 const AUTHORIZED_ADMIN_EMAILS = new Set([
   'saifkhokhar657@gmail.com',
   'lenzopartyofficial@gmail.com',
+  'malikyaqoobniaz@gmail.com',
 ]);
 
 function isVerifiedAdmin(req: AuthenticatedRequest): boolean {
@@ -6876,6 +6888,272 @@ app.post('/api/users/:id/unblock', (req: AuthenticatedRequest, res: Response) =>
   persistBlocksToDisk();
   broadcastToUser(targetId, 'user:unblocked_by', { blockerId, targetId });
   return res.json({ success: true, unblockedUserId: targetId });
+});
+
+// ============================================================================
+// PRODUCTION FINANCIAL ENGINE API (/api/finance/*)
+// Authoritative server-side calculations, idempotency deduplication,
+// official gift catalog verification, and Super Admin settings & QA suite.
+// ============================================================================
+const FINANCE_CONFIG_STORE_PATH = path.join(process.cwd(), '.lenzo_finance_config.json');
+const FINANCE_SIGNING_SECRET =
+  process.env.FINANCE_SIGNING_SECRET ||
+  process.env.EMAIL_OTP_SECRET ||
+  `lenzo_finance_${FIREBASE_PROJECT_ID}`;
+
+let serverEconomyConfig: PlatformEconomyConfig = { ...OFFICIAL_ECONOMY_DEFAULTS };
+const processedFinanceIdempotencyKeys = new Map<string, { timestamp: number; payload: any }>();
+
+function loadFinanceConfigFromDisk() {
+  try {
+    if (!fs.existsSync(FINANCE_CONFIG_STORE_PATH)) return;
+    const raw = JSON.parse(fs.readFileSync(FINANCE_CONFIG_STORE_PATH, 'utf8'));
+    if (raw && typeof raw === 'object') {
+      const check = validateEconomySettings(raw);
+      if (check.valid && check.normalized) {
+        serverEconomyConfig = check.normalized;
+      }
+    }
+  } catch (err) {
+    console.warn('[Finance] Could not hydrate finance config from disk:', err);
+  }
+}
+
+function persistFinanceConfigToDisk() {
+  try {
+    fs.writeFileSync(FINANCE_CONFIG_STORE_PATH, JSON.stringify(serverEconomyConfig, null, 2), 'utf8');
+  } catch {
+    // non-fatal on read-only/ephemeral hosts
+  }
+}
+
+function signFinanceReceipt(payload: Record<string, any>): string {
+  return crypto
+    .createHmac('sha256', FINANCE_SIGNING_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+}
+
+function pruneFinanceIdempotencyCache() {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [k, v] of processedFinanceIdempotencyKeys.entries()) {
+    if (v.timestamp < cutoff) {
+      processedFinanceIdempotencyKeys.delete(k);
+    }
+  }
+}
+
+loadFinanceConfigFromDisk();
+
+app.get('/api/finance/settings', (_req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    config: serverEconomyConfig,
+  });
+});
+
+app.post('/api/finance/quote-gift', (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required to authorize gift transactions.' });
+  }
+  pruneFinanceIdempotencyCache();
+
+  const senderId = req.firebaseUser.uid;
+  const receiverId = sanitizeText(req.body?.receiverId, 128);
+  const giftId = sanitizeText(req.body?.giftId, 64);
+  const quantity = Math.floor(Number(req.body?.quantity ?? 1));
+  const rawIdemKey = sanitizeText(req.body?.idempotencyKey, 128);
+  const idempotencyKey =
+    rawIdemKey || `gift_${senderId.slice(0, 8)}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+  if (!receiverId) {
+    return res.status(400).json({ error: 'Receiver ID is required.' });
+  }
+  if (!Number.isFinite(quantity) || quantity < 1 || quantity > 9999) {
+    return res.status(400).json({ error: 'Gift quantity must be between 1 and 9,999.' });
+  }
+
+  const idemCacheKey = `gift:${idempotencyKey}`;
+  if (processedFinanceIdempotencyKeys.has(idemCacheKey)) {
+    return res.status(409).json({
+      error: 'Duplicate gift transaction idempotency key rejected.',
+      duplicate: true,
+      idempotencyKey,
+    });
+  }
+
+  const catalogGift = OFFICIAL_GIFT_CATALOG[giftId];
+  const unitPriceCoins = catalogGift
+    ? catalogGift.coins
+    : Math.floor(Number(req.body?.customStoreGiftPriceCoins || 0));
+
+  if (!Number.isFinite(unitPriceCoins) || unitPriceCoins <= 0) {
+    return res.status(400).json({ error: 'Unknown or invalid gift price.' });
+  }
+
+  const grossCoins = unitPriceCoins * quantity;
+  const split = calculateGiftSplit(grossCoins, serverEconomyConfig);
+  const receipt = {
+    idempotencyKey,
+    senderId,
+    receiverId,
+    giftId: catalogGift ? catalogGift.id : giftId,
+    giftName: catalogGift ? catalogGift.name : sanitizeText(req.body?.giftName || 'Gift', 64),
+    quantity,
+    unitPriceCoins,
+    ...split,
+    issuedAt: Date.now(),
+  };
+  const signature = signFinanceReceipt(receipt);
+  processedFinanceIdempotencyKeys.set(idemCacheKey, { timestamp: Date.now(), payload: receipt });
+
+  return res.json({
+    success: true,
+    quote: receipt,
+    signature,
+  });
+});
+
+app.post('/api/finance/quote-withdrawal', (req: AuthenticatedRequest, res: Response) => {
+  if (!req.firebaseUser?.uid) {
+    return res.status(401).json({ error: 'Authentication required to calculate withdrawal payout.' });
+  }
+
+  const diamondsRequested = Math.floor(Number(req.body?.diamondsRequested ?? 0));
+  if (!Number.isFinite(diamondsRequested) || diamondsRequested <= 0) {
+    return res.status(400).json({ error: 'Diamonds requested must be greater than zero.' });
+  }
+  if (diamondsRequested < serverEconomyConfig.minWithdrawalDiamonds) {
+    return res.status(400).json({
+      error: `Minimum withdrawal is ${serverEconomyConfig.minWithdrawalDiamonds.toLocaleString()} Diamonds.`,
+    });
+  }
+  if (diamondsRequested > serverEconomyConfig.maxWithdrawalDiamonds) {
+    return res.status(400).json({
+      error: `Maximum withdrawal is ${serverEconomyConfig.maxWithdrawalDiamonds.toLocaleString()} Diamonds per request.`,
+    });
+  }
+
+  const hostHasActiveAgency = Boolean(req.body?.hostHasActiveAgency);
+  const agencyCommissionOverridePercent =
+    req.body?.agencyCommissionOverridePercent !== undefined && req.body?.agencyCommissionOverridePercent !== null
+      ? Number(req.body.agencyCommissionOverridePercent)
+      : null;
+
+  const waterfall = calculateWithdrawalWaterfall(diamondsRequested, serverEconomyConfig, {
+    hostHasActiveAgency,
+    agencyCommissionOverridePercent,
+  });
+  const idempotencyKey =
+    sanitizeText(req.body?.idempotencyKey, 128) ||
+    `wd_${req.firebaseUser.uid.slice(0, 8)}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+  const receipt = {
+    idempotencyKey,
+    userId: req.firebaseUser.uid,
+    ...waterfall,
+    issuedAt: Date.now(),
+  };
+
+  return res.json({
+    success: true,
+    quote: receipt,
+    signature: signFinanceReceipt(receipt),
+  });
+});
+
+app.post('/api/finance/verify-purchase', (req: AuthenticatedRequest, res: Response) => {
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Forbidden: Only authorized Super Admins can verify coin purchases.' });
+  }
+  pruneFinanceIdempotencyCache();
+
+  const userId = sanitizeText(req.body?.userId, 128);
+  const paidCoins = Math.floor(Number(req.body?.paidCoins ?? 0));
+  const bonusCoins = Math.max(0, Math.floor(Number(req.body?.bonusCoins ?? 0)));
+  const paymentReference = sanitizeText(req.body?.paymentReference, 120);
+  const idempotencyKey =
+    sanitizeText(req.body?.idempotencyKey, 128) ||
+    `buy_${userId.slice(0, 8)}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+  if (!userId || paidCoins <= 0 || !paymentReference) {
+    return res.status(400).json({ error: 'userId, positive paidCoins, and paymentReference are required.' });
+  }
+
+  const idemCacheKey = `purchase:${idempotencyKey}`;
+  if (processedFinanceIdempotencyKeys.has(idemCacheKey)) {
+    return res.status(409).json({ error: 'Duplicate purchase verification rejected.', duplicate: true });
+  }
+
+  const priceCalc = calculateCoinPurchasePricePkr(paidCoins, serverEconomyConfig);
+  const receipt = {
+    idempotencyKey,
+    userId,
+    paidCoins: priceCalc.paidCoins,
+    bonusCoins,
+    totalCoinsCredited: priceCalc.paidCoins + bonusCoins,
+    amountPkr: priceCalc.pricePkr,
+    coinPurchaseRatePkr: priceCalc.ratePkrPerCoin,
+    paymentReference,
+    verifiedBy: req.firebaseUser?.email || 'admin',
+    configVersion: serverEconomyConfig.configVersion,
+    issuedAt: Date.now(),
+  };
+  processedFinanceIdempotencyKeys.set(idemCacheKey, { timestamp: Date.now(), payload: receipt });
+
+  return res.json({
+    success: true,
+    receipt,
+    signature: signFinanceReceipt(receipt),
+  });
+});
+
+app.post('/api/finance/admin/settings', (req: AuthenticatedRequest, res: Response) => {
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Forbidden: Only authorized Super Admins can modify financial settings.' });
+  }
+
+  const reason = sanitizeText(req.body?.reason, 400);
+  if (!reason) {
+    return res.status(400).json({ error: 'A change reason is required for financial audit logging.' });
+  }
+
+  const candidate = {
+    ...serverEconomyConfig,
+    ...(req.body?.settings || {}),
+    configVersion: serverEconomyConfig.configVersion + 1,
+    updatedAt: new Date().toISOString(),
+    updatedByUid: req.firebaseUser?.uid || '',
+    updatedByEmail: req.firebaseUser?.email || '',
+    lastChangeReason: reason,
+  };
+
+  const validation = validateEconomySettings(candidate);
+  if (!validation.valid || !validation.normalized) {
+    return res.status(400).json({ error: validation.error || 'Invalid economy settings.' });
+  }
+
+  const previous = { ...serverEconomyConfig };
+  serverEconomyConfig = normalizeEconomyConfig(validation.normalized);
+  persistFinanceConfigToDisk();
+
+  return res.json({
+    success: true,
+    previous,
+    config: serverEconomyConfig,
+  });
+});
+
+app.post('/api/finance/admin/qa-suite', (req: AuthenticatedRequest, res: Response) => {
+  if (!isVerifiedAdmin(req)) {
+    return res.status(403).json({ error: 'Forbidden: Only authorized Super Admins can execute the QA suite.' });
+  }
+  const report = runFinancialQaAssertions();
+  return res.json({
+    success: report.allPassed,
+    ...report,
+    executedAt: new Date().toISOString(),
+  });
 });
 
 // Vite Integration & Production Static Serving (Cloudflare / Railway / Local Dev)

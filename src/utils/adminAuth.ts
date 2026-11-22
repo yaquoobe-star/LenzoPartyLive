@@ -8,6 +8,7 @@ import { auth } from '../firebase';
 export const AUTHORIZED_ADMIN_EMAILS = [
   'saifkhokhar657@gmail.com',
   'lenzopartyofficial@gmail.com',
+  'malikyaqoobniaz@gmail.com',
 ] as const;
 
 const AUTHORIZED_ADMIN_EMAIL_SET = new Set<string>(AUTHORIZED_ADMIN_EMAILS);

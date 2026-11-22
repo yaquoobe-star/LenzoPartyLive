@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
+  DollarSign,
   FileClock,
   Layers,
   Shield,
@@ -25,6 +26,7 @@ import { AdminUsersControlTab } from './AdminUsersControlTab';
 import { AdminAgenciesTab } from './AdminAgenciesTab';
 import { AdminDeviceBansTab } from './AdminDeviceBansTab';
 import { AdminStoreTab } from './AdminStoreTab';
+import { AdminFinanceTab } from './AdminFinanceTab';
 
 interface AdminProgressionModalProps {
   isOpen: boolean;
@@ -32,7 +34,7 @@ interface AdminProgressionModalProps {
   currentUserEmail?: string;
 }
 
-type AdminTab = 'users' | 'agencies' | 'devices' | 'store' | 'levels' | 'audit';
+type AdminTab = 'finance' | 'users' | 'agencies' | 'devices' | 'store' | 'levels' | 'audit';
 
 export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   isOpen,
@@ -74,6 +76,7 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
   };
 
   const tabs: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { id: 'finance', label: 'Financial Management', icon: DollarSign },
     { id: 'users', label: 'Users Control', icon: Users },
     { id: 'agencies', label: 'Agencies & Coins', icon: Building2 },
     { id: 'devices', label: 'Device Bans', icon: Smartphone },
@@ -179,6 +182,10 @@ export const AdminProgressionModal: React.FC<AdminProgressionModalProps> = ({
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {activeTab === 'finance' && (
+                <AdminFinanceTab onNotify={notify} onError={reportError} />
+              )}
+
               {activeTab === 'users' && (
                 <AdminUsersControlTab onNotify={notify} onError={reportError} />
               )}

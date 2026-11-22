@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { $t as CircleAlert, A as Shield, Ht as Crown, Ot as Funnel, Pt as Eye, Zt as CircleCheck, _ as TrendingUp, _n as Award, ht as Layers, in as Check, ln as Calendar, qt as Coins, r as X, ut as Lock, w as Sparkles, wn as require_react } from "./vendor-icons-CKZC98wp.js";
-import { At as evaluateAchievementBadges, C as VipTierBadge, Ct as ACHIEVEMENT_BADGE_DEFINITIONS, Dt as LEVEL_TIER_CONFIGS, F as calculateLevelProgression, Mt as getLevelDefinition, Ot as SUPER_VIP_TIER_DEFINITIONS, P as VIP_FRAME_DEFINITIONS, S as SuperVipTierBadge, a as subscribeUserLevelProgression, b as LevelEmblemBadge, gt as isAuthorizedAdminEmail, i as fetchAuthoritativeProgression, jt as formatCoinsCompact, n as equipAchievementBadges, o as AchievementBadgeEmblem, r as equipActiveFrame, wt as ALL_100_LEVELS, x as AvatarWithFrame, y as LevelBadge } from "./index-C_n6rme9.js";
-import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
+import { A as Shield, Ft as Eye, Jt as Coins, Qt as CircleCheck, Tn as require_react, Ut as Crown, _ as TrendingUp, an as Check, dt as Lock, en as CircleAlert, gt as Layers, kt as Funnel, r as X, un as Calendar, vn as Award, w as Sparkles } from "./vendor-icons-CJVQM6-0.js";
+import { At as evaluateAchievementBadges, C as VipTierBadge, Ct as ACHIEVEMENT_BADGE_DEFINITIONS, Dt as LEVEL_TIER_CONFIGS, F as calculateLevelProgression, Mt as getLevelDefinition, Ot as SUPER_VIP_TIER_DEFINITIONS, P as VIP_FRAME_DEFINITIONS, S as SuperVipTierBadge, a as subscribeUserLevelProgression, b as LevelEmblemBadge, gt as isAuthorizedAdminEmail, i as fetchAuthoritativeProgression, jt as formatCoinsCompact, n as equipAchievementBadges, o as AchievementBadgeEmblem, r as equipActiveFrame, wt as ALL_100_LEVELS, x as AvatarWithFrame, y as LevelBadge } from "./index-B59Ohlld.js";
+import { i as require_jsx_runtime } from "./vendor-motion-Bm1-bIDj.js";
 // src/components/screens/LevelAndVIPModal.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();

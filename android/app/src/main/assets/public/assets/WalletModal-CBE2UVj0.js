@@ -1,8 +1,8 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { $t as CircleAlert, Bt as DollarSign, Cn as ArrowDownLeft, E as Smartphone, G as Plus, Gt as Copy, J as Phone, Jt as Clock, L as Search, M as ShieldCheck, O as SlidersVertical, S as Store, Sn as ArrowLeft, Z as PenLine, Zt as CircleCheck, a as Wallet, gn as BadgeCheck, in as Check, ot as MessageCircle, qt as Coins, r as X, st as MapPin, tn as ChevronRight, un as Building2, ut as Lock, v as Trash2, w as Sparkles, wn as require_react, xn as ArrowRightLeft, xt as History, yn as ArrowUpRight } from "./vendor-icons-CKZC98wp.js";
-import { B as adminUpdateWithdrawalStatus, G as subscribeAllWithdrawalRequests, H as deleteCoinSellerAgency, I as DEFAULT_COIN_PACKAGES, J as subscribeTransactions, K as subscribeCoinPackages, L as DEFAULT_PAYOUT_METHODS, Q as updateWalletSettings, R as DEFAULT_WALLET_SETTINGS, U as requestWithdrawal, V as convertEarningsToWallet, W as saveCoinSellerAgency, X as subscribeUserWallet, Y as subscribeUserEarnings, Z as subscribeWalletSettings, _t as isVerifiedAdminSession, g as subscribeActiveAgencies, q as subscribeCoinSellerAgencies, z as adminAdjustBalance } from "./index-C_n6rme9.js";
+import { Cn as ArrowUpRight, Ct as History, Dn as ArrowDownLeft, E as Smartphone, En as ArrowLeft, G as Plus, J as Phone, L as Search, M as ShieldCheck, O as SlidersVertical, On as require_react, Qt as Clock, S as Store, Wt as DollarSign, Yt as Copy, Z as PenLine, Zt as Coins, a as Wallet, an as ChevronRight, bn as BadgeCheck, cn as Check, ct as MapPin, dt as Lock, mn as Building2, ot as MessageCircle, r as X, rn as CircleAlert, tn as CircleCheck, v as Trash2, w as Sparkles } from "./vendor-icons-Ca04WHp3.js";
+import { $ as updateWalletSettings, At as isVerifiedAdminSession, B as adminUpdateWithdrawalStatus, G as subscribeAllWithdrawalRequests, H as lookupActiveHostAgencyContract, I as DEFAULT_COIN_PACKAGES, J as subscribeTransactions, K as subscribeCoinPackages, L as DEFAULT_PAYOUT_METHODS, Q as subscribeWalletSettings, R as DEFAULT_WALLET_SETTINGS, U as requestWithdrawal, V as deleteCoinSellerAgency, W as saveCoinSellerAgency, X as subscribeUserWallet, Y as subscribeUserEarnings, Z as subscribeUserWithdrawalRequests, at as calculateWithdrawalWaterfall, et as walletSettingsToEconomyConfig, g as subscribeActiveAgencies, lt as roundPkr, q as subscribeCoinSellerAgencies, z as adminAdjustBalance } from "./index-BqmB7my3.js";
 import { r as auth } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
+import { i as require_jsx_runtime } from "./vendor-motion-D3T8Lfjf.js";
 // src/components/screens/WalletModal.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -51,12 +51,12 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 	});
 	const [walletTransactions, setWalletTransactions] = (0, import_react.useState)([]);
 	const [earningsTransactions, setEarningsTransactions] = (0, import_react.useState)([]);
+	const [userWithdrawals, setUserWithdrawals] = (0, import_react.useState)([]);
+	const [earningsHistoryView, setEarningsHistoryView] = (0, import_react.useState)("diamonds");
 	const [selectedTxFilter, setSelectedTxFilter] = (0, import_react.useState)("all");
-	const [isConvertModalOpen, setIsConvertModalOpen] = (0, import_react.useState)(false);
-	const [convertCoinsInput, setConvertCoinsInput] = (0, import_react.useState)("1000");
-	const [isConverting, setIsConverting] = (0, import_react.useState)(false);
+	const [activeHostAgency, setActiveHostAgency] = (0, import_react.useState)(null);
 	const [isWithdrawModalOpen, setIsWithdrawModalOpen] = (0, import_react.useState)(false);
-	const [withdrawCoinsInput, setWithdrawCoinsInput] = (0, import_react.useState)("5000");
+	const [withdrawCoinsInput, setWithdrawCoinsInput] = (0, import_react.useState)("100000");
 	const [selectedPayoutMethod, setSelectedPayoutMethod] = (0, import_react.useState)("bank_transfer");
 	const [accountTitle, setAccountTitle] = (0, import_react.useState)(currentUser.name || "");
 	const [accountNumber, setAccountNumber] = (0, import_react.useState)("");
@@ -118,7 +118,9 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 		const unsubEarnings = subscribeUserEarnings(currentUser.id, (e) => setEarningsData(e));
 		const unsubWalletTx = subscribeTransactions(currentUser.id, "wallet", (txs) => setWalletTransactions(txs));
 		const unsubEarningsTx = subscribeTransactions(currentUser.id, "earnings", (txs) => setEarningsTransactions(txs));
+		const unsubUserWithdrawals = subscribeUserWithdrawalRequests(currentUser.id, (reqs) => setUserWithdrawals(reqs));
 		const unsubAllReqs = isAdminUser ? subscribeAllWithdrawalRequests((reqs) => setAdminRequests(reqs)) : () => {};
+		lookupActiveHostAgencyContract(currentUser.id).then((ag) => setActiveHostAgency(ag)).catch(() => {});
 		return () => {
 			unsubSettings();
 			unsubPackages();
@@ -128,6 +130,7 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 			unsubEarnings();
 			unsubWalletTx();
 			unsubEarningsTx();
+			unsubUserWithdrawals();
 			unsubAllReqs();
 		};
 	}, [
@@ -310,29 +313,10 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 			setCreditCoinsAmount("");
 		} else showError(res.error || "Failed to adjust user wallet coins");
 	};
-	const handleConvertEarnings = async () => {
-		const num = parseInt(convertCoinsInput, 10);
-		if (isNaN(num) || num <= 0) {
-			showError("Please enter a valid number of Diamonds to exchange");
-			return;
-		}
-		if (num > earningsData.availableEarningsCoins) {
-			showError(`Cannot exchange more than available Diamonds (💎 ${earningsData.availableEarningsCoins.toLocaleString()})`);
-			return;
-		}
-		setIsConverting(true);
-		const res = await convertEarningsToWallet(currentUser.id, num, settings);
-		setIsConverting(false);
-		if (res.success) {
-			setIsConvertModalOpen(false);
-			showToast(`Exchanged 💎 ${num.toLocaleString()} Diamonds into 🪙 ${res.walletCoinsReceived.toLocaleString()} Gifting Wallet Coins!`);
-			if (onRechargeSuccess) onRechargeSuccess(res.walletCoinsReceived);
-		} else showError(res.error || "Exchange failed");
-	};
 	const handleSubmitWithdrawal = async () => {
 		const num = parseInt(withdrawCoinsInput, 10);
 		if (isNaN(num) || num < settings.minWithdrawalCoins) {
-			showError(`Minimum withdrawal is 💎 ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${(settings.minWithdrawalCoins * settings.exchangeRatePkrPerCoin).toLocaleString()})`);
+			showError(`Minimum withdrawal is 💎 ${settings.minWithdrawalCoins.toLocaleString()} Diamonds (PKR ${roundPkr(settings.minWithdrawalCoins * diamondRatePkr).toLocaleString()})`);
 			return;
 		}
 		if (num > settings.maxWithdrawalCoins) {
@@ -379,12 +363,29 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 		});
 		showToast("Admin wallet settings saved successfully!");
 	};
-	const convertCoinsNum = parseInt(convertCoinsInput || "0", 10);
-	const willReceiveWalletCoins = Math.round(convertCoinsNum * settings.earningsToWalletConversionRate);
-	const withdrawCoinsNum = parseInt(withdrawCoinsInput || "0", 10);
-	const withdrawGrossPkr = Math.round(withdrawCoinsNum * settings.exchangeRatePkrPerCoin);
-	const withdrawFeePkr = Math.round(withdrawGrossPkr * (settings.withdrawalFeePercent / 100));
-	const withdrawNetPkr = Math.max(0, withdrawGrossPkr - withdrawFeePkr);
+	const economyCfg = walletSettingsToEconomyConfig(settings);
+	const coinRatePkr = economyCfg.coinPurchasePkrPerCoin;
+	const diamondRatePkr = economyCfg.diamondWithdrawalPkrPerDiamond;
+	const withdrawCoinsNum = Math.max(0, parseInt(withdrawCoinsInput || "0", 10) || 0);
+	const withdrawWaterfall = withdrawCoinsNum > 0 ? calculateWithdrawalWaterfall(withdrawCoinsNum, economyCfg, {
+		hostHasActiveAgency: Boolean(activeHostAgency),
+		agencyCommissionOverridePercent: activeHostAgency?.dealCommissionPercent ?? null
+	}) : {
+		diamondsRequested: 0,
+		diamondRatePkr,
+		grossAmountPkr: 0,
+		agencyCommissionPercent: activeHostAgency ? activeHostAgency.dealCommissionPercent ?? economyCfg.agencyCommissionPercent : 0,
+		agencyCommissionPkr: 0,
+		processingFeePercent: economyCfg.withdrawalProcessingFeePercent,
+		processingFeePkr: 0,
+		totalDeductionsPkr: 0,
+		netPayablePkr: 0,
+		configVersion: economyCfg.configVersion
+	};
+	const withdrawGrossPkr = withdrawWaterfall.grossAmountPkr;
+	const withdrawAgencyPkr = withdrawWaterfall.agencyCommissionPkr;
+	const withdrawFeePkr = withdrawWaterfall.processingFeePkr;
+	const withdrawNetPkr = withdrawWaterfall.netPayablePkr;
 	const filteredTxs = (activeMainTab === "wallet" ? walletTransactions : earningsTransactions).filter((tx) => {
 		if (selectedTxFilter === "all") return true;
 		return tx.category === selectedTxFilter;
@@ -511,32 +512,42 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											className: "text-right",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 												className: "text-sm font-extrabold text-emerald-400 font-mono",
-												children: ["≈ PKR ", (walletData.walletPurchasedCoins * settings.exchangeRatePkrPerCoin).toLocaleString()]
+												children: ["≈ PKR ", roundPkr(walletData.walletPurchasedCoins * coinRatePkr).toLocaleString()]
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "text-[10px] text-[#A59AB8]",
-												children: ["Exchange: 1 Coin = PKR ", settings.exchangeRatePkrPerCoin]
+												children: ["Official Rate: 100,000 Coins = PKR ", economyCfg.coinPurchasePkrPer100k.toLocaleString()]
 											})]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10 text-xs",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] text-[#A59AB8] block",
-											children: "Total Purchased"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "font-bold text-white font-mono",
-											children: ["🪙 ", walletData.totalCoinsPurchased.toLocaleString()]
-										})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] text-[#A59AB8] block",
-											children: "Total Spent on Gifts"
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-											className: "font-bold text-rose-300 font-mono",
-											children: ["🪙 ", walletData.totalCoinsSpent.toLocaleString()]
-										})] })]
+										className: "grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10 text-xs",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] text-[#A59AB8] block",
+												children: "Total Purchased"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "font-bold text-white font-mono",
+												children: ["🪙 ", walletData.totalCoinsPurchased.toLocaleString()]
+											})] }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] text-[#A59AB8] block",
+												children: "Total Gifted"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "font-bold text-rose-300 font-mono",
+												children: ["🪙 ", walletData.totalCoinsSpent.toLocaleString()]
+											})] }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] text-[#A59AB8] block",
+												children: "Tracked Bonus"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "font-bold text-amber-300 font-mono",
+												children: ["🪙 ", (walletData.totalBonusCoinsReceived || 0).toLocaleString()]
+											})] })
+										]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 leading-tight flex items-start gap-2",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-amber-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Purchased coins can only be used for sending gifts to hosts, party rooms, and PK battles. They cannot be withdrawn as cash." })]
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-4 h-4 text-amber-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Purchased coins are used for sending gifts across Live Rooms, Party Rooms, and PK Battles. Only verified payments credit Coins." })]
 									})
 								]
 							}),
@@ -549,7 +560,7 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											className: "text-sm font-black text-white flex items-center gap-1.5",
 											children: [
 												/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sparkles, { className: "w-4 h-4 text-[#FFC84A]" }),
-												"Online Recharge Packages",
+												"Official Coin Packages",
 												/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 													className: "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30",
 													children: "Coming Soon"
@@ -557,10 +568,10 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											]
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 											className: "text-[11px] text-[#A59AB8]",
-											children: "Online card purchasing is coming soon • Buy coins right now via Official Offline Agencies below"
+											children: "Online card checkout coming soon • Buy verified Coins now via Official Offline Agencies below"
 										})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "text-xs text-emerald-400 font-bold",
-											children: ["1 Coin ≈ PKR ", settings.exchangeRatePkrPerCoin]
+											children: ["100,000 🪙 = PKR ", economyCfg.coinPurchasePkrPer100k.toLocaleString()]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -782,19 +793,21 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											className: "text-right",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 												className: "text-sm font-extrabold text-emerald-400 font-mono tabular-nums",
-												children: ["≈ PKR ", (earningsData.availableEarningsCoins * settings.exchangeRatePkrPerCoin).toLocaleString()]
+												children: ["≈ PKR ", roundPkr(earningsData.availableEarningsCoins * diamondRatePkr).toLocaleString()]
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "text-[10px] text-[#B9AECF]",
 												children: [
-													"Converted from ",
-													100 - settings.commissionRatePercent,
-													"% of gifts received"
+													"100,000 💎 = PKR ",
+													economyCfg.diamondWithdrawalPkrPer100k.toLocaleString(),
+													" (",
+													economyCfg.hostSharePercent,
+													"% Host Share)"
 												]
 											})]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10 text-xs",
+										className: "grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-3 border-t border-white/10 text-xs",
 										children: [
 											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 												className: "text-[10px] text-[#A59AB8] block",
@@ -805,6 +818,13 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											})] }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 												className: "text-[10px] text-[#A59AB8] block",
+												children: "Total Earned"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: "font-bold text-cyan-300 font-mono tabular-nums",
+												children: ["💎 ", (earningsData.totalEarnedDiamonds || 0).toLocaleString()]
+											})] }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] text-[#A59AB8] block",
 												children: "Withdrawn Paid"
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 												className: "font-bold text-emerald-400 font-mono tabular-nums",
@@ -812,25 +832,31 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											})] }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 												className: "text-[10px] text-[#A59AB8] block",
-												children: "Exchanged to Coins"
+												children: "Today / Month"
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "font-bold text-cyan-300 font-mono tabular-nums",
-												children: ["💎 ", earningsData.totalConvertedToWallet.toLocaleString()]
+												className: "font-bold text-white font-mono tabular-nums text-[11px]",
+												children: [
+													(earningsData.dailyEarnedDiamonds || 0).toLocaleString(),
+													" / ",
+													(earningsData.monthlyEarnedDiamonds || 0).toLocaleString()
+												]
 											})] })
 										]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-4 pt-2",
+										className: "mt-4 pt-2 space-y-2",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 											type: "button",
-											onClick: () => setIsWithdrawModalOpen(true),
-											className: "min-h-[46px] py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-105 text-[#041B10] text-xs font-black shadow-[0_4px_16px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DollarSign, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Withdraw Diamonds" })]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-											type: "button",
-											onClick: () => setIsConvertModalOpen(true),
-											className: "min-h-[46px] py-3 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-[#8B20FF] to-[#F328D5] hover:brightness-105 text-white text-xs font-black shadow-[0_4px_16px_rgba(139,32,255,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRightLeft, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Exchange Diamonds → Coins" })]
+											onClick: () => {
+												const suggested = earningsData.availableEarningsCoins >= economyCfg.minWithdrawalDiamonds ? Math.min(earningsData.availableEarningsCoins, economyCfg.maxWithdrawalDiamonds) : economyCfg.minWithdrawalDiamonds;
+												setWithdrawCoinsInput(String(suggested));
+												setIsWithdrawModalOpen(true);
+											},
+											className: "w-full min-h-[46px] py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-105 text-[#041B10] text-xs font-black shadow-[0_4px_16px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 active:scale-95 transition-all",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DollarSign, { className: "w-4 h-4 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Withdraw Host Diamonds to PKR" })]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[10px] text-cyan-200/80 text-center",
+											children: "Host Diamonds are dedicated to cash withdrawals only and cannot be used to buy or send gifts."
 										})]
 									})
 								]
@@ -846,10 +872,10 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-bold text-cyan-300",
 											children: [
-												100 - settings.commissionRatePercent,
+												economyCfg.hostSharePercent,
 												"% Host Diamonds / ",
-												settings.commissionRatePercent,
-												"% App"
+												economyCfg.appSharePercent,
+												"% App Share"
 											]
 										})]
 									}),
@@ -857,10 +883,16 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										className: "flex items-center justify-between text-xs border-b border-white/5 pb-2",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[#A59AB8]",
-											children: "Diamond Cash Value:"
+											children: "Official Withdrawal Rate:"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-bold text-emerald-400",
-											children: ["1 💎 Diamond = PKR ", settings.exchangeRatePkrPerCoin]
+											children: [
+												"100,000 💎 = PKR ",
+												economyCfg.diamondWithdrawalPkrPer100k.toLocaleString(),
+												" (PKR ",
+												diamondRatePkr,
+												"/💎)"
+											]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -877,10 +909,10 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										className: "flex items-center justify-between text-xs",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[#A59AB8]",
-											children: "Diamond → Coin Exchange Rate:"
+											children: "Host Agency Link:"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "font-bold text-amber-300",
-											children: "1 💎 Diamond = 1 🪙 Gifting Coin"
+											children: activeHostAgency ? `${activeHostAgency.agencyName} (${withdrawWaterfall.agencyCommissionPercent}% Comm)` : "Independent Host (0% Agency Comm)"
 										})]
 									})
 								]
@@ -888,11 +920,29 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "space-y-3 pt-2",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-										className: "text-sm font-black text-white flex items-center gap-1.5",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(History, { className: "w-4 h-4 text-cyan-300" }), "Diamonds History"]
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
+									className: "flex items-center justify-between gap-2 flex-wrap",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => setEarningsHistoryView("diamonds"),
+											className: `px-3 py-1.5 rounded-xl text-xs font-black transition-all ${earningsHistoryView === "diamonds" ? "bg-cyan-500/20 text-cyan-200 border border-cyan-400/40" : "bg-white/5 text-[#A59AB8] hover:text-white"}`,
+											children: [
+												"Diamonds Ledger (",
+												earningsTransactions.length,
+												")"
+											]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => setEarningsHistoryView("withdrawals"),
+											className: `px-3 py-1.5 rounded-xl text-xs font-black transition-all ${earningsHistoryView === "withdrawals" ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40" : "bg-white/5 text-[#A59AB8] hover:text-white"}`,
+											children: [
+												"Withdrawals (",
+												userWithdrawals.length,
+												")"
+											]
+										})]
+									}), earningsHistoryView === "diamonds" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("select", {
 										value: selectedTxFilter,
 										onChange: (e) => setSelectedTxFilter(e.target.value),
 										className: "bg-[#1b0e33] border border-white/10 rounded-xl px-2.5 py-1 text-[11px] text-white focus:outline-none",
@@ -901,17 +951,21 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 												value: "all",
 												children: "All Diamond Events"
 											}),
-											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("option", {
 												value: "gift_received",
-												children: "Gifts Received (60% 💎)"
+												children: [
+													"Gifts Received (",
+													economyCfg.hostSharePercent,
+													"% 💎)"
+												]
 											}),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
 												value: "withdrawal_request",
-												children: "Diamond Withdrawals"
+												children: "Withdrawal Reserved"
 											}),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
-												value: "earnings_conversion",
-												children: "Exchanged to Coins"
+												value: "withdrawal_payment",
+												children: "Withdrawal Paid"
 											}),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
 												value: "withdrawal_refund",
@@ -919,7 +973,7 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 											})
 										]
 									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								}), earningsHistoryView === "diamonds" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 									className: "space-y-2",
 									children: filteredTxs.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "p-8 text-center text-[#8e82a3] bg-[#140a24] rounded-2xl border border-white/5",
@@ -929,9 +983,9 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 											className: "text-[11px] mt-0.5",
 											children: [
-												"Receive gifts in Live Streams, Audio Party Rooms, Reels, or Chat to earn ",
-												100 - settings.commissionRatePercent,
-												"% as Diamonds."
+												"Receive gifts in Live Streams, Audio Party Rooms, PK Battles, or Private Rooms to earn ",
+												economyCfg.hostSharePercent,
+												"% as Host Diamonds."
 											]
 										})]
 									}) : filteredTxs.map((tx) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -939,119 +993,86 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 											className: "flex items-center gap-2.5 min-w-0",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: `w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${tx.amount > 0 ? "bg-cyan-500/20 text-cyan-300" : "bg-pink-500/20 text-pink-300"}`,
-												children: tx.amount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowDownLeft, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowUpRight, { className: "w-4 h-4" })
+												className: `w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${tx.amount >= 0 ? "bg-cyan-500/20 text-cyan-300" : "bg-pink-500/20 text-pink-300"}`,
+												children: tx.amount >= 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowDownLeft, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowUpRight, { className: "w-4 h-4" })
 											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "min-w-0",
 												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 													className: "font-bold text-white truncate text-[11px]",
 													children: tx.description
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-[10px] text-gray-400",
-													children: tx.timestamp
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-[10px] text-gray-400 font-mono",
+													children: [
+														tx.timestamp,
+														" · TX #",
+														tx.id.slice(-8).toUpperCase()
+													]
 												})]
 											})]
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 											className: "text-right shrink-0 ml-2",
 											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: `font-mono font-bold tabular-nums ${tx.amount > 0 ? "text-cyan-300" : "text-pink-300"}`,
+												className: `font-mono font-bold tabular-nums ${tx.amount >= 0 ? "text-cyan-300" : "text-pink-300"}`,
 												children: [tx.amount > 0 ? `+${tx.amount.toLocaleString()}` : tx.amount.toLocaleString(), " 💎"]
-											}), tx.pkrAmount && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											}), tx.pkrAmount !== void 0 && tx.pkrAmount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "text-[9px] text-emerald-300 font-mono",
 												children: ["≈ PKR ", tx.pkrAmount.toLocaleString()]
 											})]
 										})]
 									}, tx.id))
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "space-y-2",
+									children: userWithdrawals.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "p-8 text-center text-[#8e82a3] bg-[#140a24] rounded-2xl border border-white/5",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-xs font-bold text-white",
+											children: "No Withdrawal Requests Yet"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+											className: "text-[11px] mt-0.5",
+											children: "Submit a Diamond withdrawal request to track Pending, Under Review, Approved, Processing, or Paid status here."
+										})]
+									}) : userWithdrawals.map((req) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "p-3 rounded-2xl bg-[#140a24] border border-white/10 space-y-1.5 text-xs",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center justify-between gap-2",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "font-mono font-black text-white",
+													children: [
+														"WD #",
+														req.id.slice(-8).toUpperCase(),
+														" · 💎 ",
+														req.coinsRequested.toLocaleString()
+													]
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: `px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${req.status === "paid" ? "bg-emerald-500/20 text-emerald-300" : req.status === "rejected" || req.status === "cancelled" ? "bg-rose-500/20 text-rose-300" : "bg-amber-500/20 text-amber-300"}`,
+													children: req.status.replace("_", " ")
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "flex items-center justify-between text-[11px] text-[#A59AB8]",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+													req.paymentDetails.bankOrProviderName,
+													" · ",
+													req.paymentDetails.accountNumber
+												] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "font-mono font-bold text-emerald-400",
+													children: ["Net PKR ", req.finalPayablePkr.toLocaleString()]
+												})]
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "text-[10px] text-gray-500 flex items-center justify-between",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: req.requestedAt }), req.paymentReference && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "font-mono text-cyan-300",
+													children: ["Ref: ", req.paymentReference]
+												})]
+											})
+										]
+									}, req.id))
 								})]
 							})
 						]
 					})]
-				}),
-				isConvertModalOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "w-full max-w-sm rounded-3xl bg-[#190e2e] border border-cyan-400/25 p-5 space-y-4 shadow-2xl",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center justify-between pb-2 border-b border-white/10",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-									className: "text-sm font-black text-white flex items-center gap-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowRightLeft, { className: "w-4 h-4 text-cyan-300" }), "Exchange Diamonds to Coins"]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: () => setIsConvertModalOpen(false),
-									className: "text-gray-400 hover:text-white",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-3 rounded-2xl bg-[#110820] border border-white/5 space-y-1.5 text-xs",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex justify-between text-[#A59AB8]",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Available Diamonds:" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-										className: "font-mono font-bold text-cyan-300 tabular-nums",
-										children: ["💎 ", earningsData.availableEarningsCoins.toLocaleString()]
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex justify-between text-[#A59AB8]",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Exchange Rate:" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "font-bold text-amber-300",
-										children: "1 💎 Diamond = 1 🪙 Coin"
-									})]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
-								className: "text-xs font-bold text-gray-300",
-								children: "Enter Diamonds to Exchange"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "relative mt-1",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-									type: "number",
-									value: convertCoinsInput,
-									onChange: (e) => setConvertCoinsInput(e.target.value),
-									max: earningsData.availableEarningsCoins,
-									className: "w-full bg-[#23133e] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono font-bold focus:outline-none focus:border-cyan-400"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: () => setConvertCoinsInput(earningsData.availableEarningsCoins.toString()),
-									className: "absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-[10px] font-black bg-cyan-500/20 text-cyan-200",
-									children: "MAX"
-								})]
-							})] }),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "p-3 rounded-xl bg-purple-900/30 border border-amber-400/25 text-xs flex items-center justify-between",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-									className: "text-[#d7c9ec]",
-									children: "Credited to Gifting Wallet:"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-									className: "text-sm font-black text-amber-300 font-mono tabular-nums",
-									children: [
-										"🪙 ",
-										willReceiveWalletCoins.toLocaleString(),
-										" Coins"
-									]
-								})]
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-[10px] text-gray-400 leading-relaxed",
-								children: "* Exchanged Coins are credited immediately to your Buying/Gifting Wallet for sending gifts, buying frames, and store items. Exchanged Coins cannot be withdrawn back as cash."
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-2 pt-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: () => setIsConvertModalOpen(false),
-									className: "flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-white font-bold",
-									children: "Cancel"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									disabled: isConverting || convertCoinsNum <= 0 || convertCoinsNum > earningsData.availableEarningsCoins,
-									onClick: handleConvertEarnings,
-									className: "flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-[#8B20FF] to-[#F328D5] text-white text-xs font-black shadow-lg disabled:opacity-50 active:scale-95 transition-all",
-									children: isConverting ? "Exchanging..." : "Confirm Exchange"
-								})]
-							})
-						]
-					})
 				}),
 				isWithdrawModalOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: "fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4",
@@ -1064,7 +1085,7 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 									className: "flex items-center gap-2",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DollarSign, { className: "w-5 h-5 text-emerald-400" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
 										className: "text-base font-black text-white",
-										children: "Withdraw Diamonds"
+										children: "Withdraw Host Diamonds"
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									onClick: () => setIsWithdrawModalOpen(false),
@@ -1084,29 +1105,39 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 									})] }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 										className: "text-[#A59AB8] block",
-										children: "Payout Rate:"
+										children: "Official Payout Rate:"
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 										className: "font-bold text-emerald-400 font-mono",
-										children: ["1 💎 = PKR ", settings.exchangeRatePkrPerCoin]
+										children: ["100k 💎 = PKR ", economyCfg.diamondWithdrawalPkrPer100k.toLocaleString()]
 									})] }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "pt-1 border-t border-white/5",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[#A59AB8] block",
-											children: "Min Limit:"
+											children: "Min / Max Limit:"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-bold text-amber-300 font-mono tabular-nums",
-											children: ["💎 ", settings.minWithdrawalCoins.toLocaleString()]
+											children: [
+												economyCfg.minWithdrawalDiamonds.toLocaleString(),
+												" – ",
+												economyCfg.maxWithdrawalDiamonds.toLocaleString(),
+												" 💎"
+											]
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "pt-1 border-t border-white/5",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[#A59AB8] block",
-											children: "Processing Fee:"
+											children: "Agency / Fee:"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-bold text-purple-300 font-mono",
-											children: [settings.withdrawalFeePercent, "%"]
+											children: [
+												withdrawWaterfall.agencyCommissionPercent,
+												"% / ",
+												withdrawWaterfall.processingFeePercent,
+												"%"
+											]
 										})]
 									})
 								]
@@ -1211,9 +1242,16 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex justify-between text-[#A59AB8]",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Requested Diamonds:" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "font-mono text-cyan-300 tabular-nums",
+											children: ["💎 ", withdrawCoinsNum.toLocaleString()]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex justify-between text-[#A59AB8]",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-											"Gross Value (💎 ",
-											withdrawCoinsNum.toLocaleString(),
+											"Gross PKR Amount (× ",
+											diamondRatePkr,
 											"):"
 										] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-mono text-white tabular-nums",
@@ -1223,8 +1261,19 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "flex justify-between text-[#A59AB8]",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-											"Processing Fee (",
-											settings.withdrawalFeePercent,
+											"Agency Commission (",
+											withdrawWaterfall.agencyCommissionPercent,
+											"%):"
+										] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+											className: "font-mono text-amber-300 tabular-nums",
+											children: ["- PKR ", withdrawAgencyPkr.toLocaleString()]
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex justify-between text-[#A59AB8]",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+											"Withdrawal Processing Fee (",
+											withdrawWaterfall.processingFeePercent,
 											"%):"
 										] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-mono text-rose-300 tabular-nums",
@@ -1232,10 +1281,10 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex justify-between pt-1 border-t border-emerald-500/20 font-black text-sm",
+										className: "flex justify-between pt-1.5 border-t border-emerald-500/20 font-black text-sm",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-white",
-											children: "Final Payable Amount:"
+											children: "Net Payable Amount:"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 											className: "font-mono text-emerald-400 tabular-nums",
 											children: ["PKR ", withdrawNetPkr.toLocaleString()]

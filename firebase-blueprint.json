@@ -1022,6 +1022,162 @@
         "active": { "type": "boolean" }
       },
       "required": ["deviceId", "reason", "bannedBy", "bannedAt", "active"]
+    },
+    "PlatformFinancialSettings": {
+      "title": "PlatformFinancialSettings",
+      "description": "Authoritative Lenzo Party economy configuration (Coin Purchase Rate, 40/60 Gift Split, Diamond Withdrawal Rate, Agency Commission, Fees)",
+      "type": "object",
+      "properties": {
+        "configVersion": { "type": "number" },
+        "policyVersion": { "type": "string", "maxLength": 64 },
+        "coinPurchasePkrPer100k": { "type": "number" },
+        "coinPurchasePkrPerCoin": { "type": "number" },
+        "appSharePercent": { "type": "number" },
+        "hostSharePercent": { "type": "number" },
+        "diamondConversionRatio": { "type": "number" },
+        "diamondWithdrawalPkrPer100k": { "type": "number" },
+        "diamondWithdrawalPkrPerDiamond": { "type": "number" },
+        "minWithdrawalDiamonds": { "type": "number" },
+        "maxWithdrawalDiamonds": { "type": "number" },
+        "agencyCommissionPercent": { "type": "number" },
+        "withdrawalProcessingFeePercent": { "type": "number" },
+        "bonusCoinsEnabled": { "type": "boolean" },
+        "maxBonusCoinPercent": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 64 },
+        "updatedByEmail": { "type": "string", "maxLength": 120 }
+      },
+      "required": ["configVersion", "coinPurchasePkrPer100k", "appSharePercent", "hostSharePercent", "diamondWithdrawalPkrPer100k"]
+    },
+    "PlatformRevenue": {
+      "title": "PlatformRevenue",
+      "description": "App Beans / Revenue Wallet aggregate totals (strictly separate from User Coins and Host Diamonds)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "totalBeansEarned": { "type": "number" },
+        "totalGiftingCoinsProcessed": { "type": "number" },
+        "totalHostDiamondsIssued": { "type": "number" },
+        "totalGiftCount": { "type": "number" },
+        "totalCoinPurchaseRevenuePkr": { "type": "number" },
+        "totalWithdrawalsPaidPkr": { "type": "number" },
+        "totalAgencyCommissionPkr": { "type": "number" },
+        "dailyBeansEarned": { "type": "number" },
+        "monthlyBeansEarned": { "type": "number" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "totalBeansEarned", "totalGiftingCoinsProcessed"]
+    },
+    "PlatformBeansLedger": {
+      "title": "PlatformBeansLedger",
+      "description": "Immutable App Beans revenue ledger entry created for every 40% gifting revenue split",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "enum": ["gift_split", "agency_settlement", "reconciliation", "admin_adjustment"] },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "receiverId": { "type": "string", "maxLength": 128 },
+        "grossCoins": { "type": "number" },
+        "appSharePercent": { "type": "number" },
+        "hostSharePercent": { "type": "number" },
+        "beansAmount": { "type": "number" },
+        "hostDiamondsIssued": { "type": "number" },
+        "configVersion": { "type": "number" },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "idempotencyKey", "source", "senderId", "receiverId", "grossCoins", "beansAmount", "hostDiamondsIssued"]
+    },
+    "GiftTransaction": {
+      "title": "GiftTransaction",
+      "description": "Idempotent immutable record of a live/party/PK/private gift transaction with 40% App Beans and 60% Host Diamonds split",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "receiverId": { "type": "string", "maxLength": 128 },
+        "giftId": { "type": "string", "maxLength": 64 },
+        "quantity": { "type": "number" },
+        "coinAmount": { "type": "number" },
+        "appBeansAmount": { "type": "number" },
+        "hostDiamondsAmount": { "type": "number" },
+        "hostGrossPkr": { "type": "number" },
+        "configVersion": { "type": "number" },
+        "status": { "type": "string", "enum": ["completed"] },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "idempotencyKey", "senderId", "receiverId", "coinAmount", "appBeansAmount", "hostDiamondsAmount", "status"]
+    },
+    "CoinPurchase": {
+      "title": "CoinPurchase",
+      "description": "Verified Coin package purchase separating paid coins and promotional bonus coins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "paidCoins": { "type": "number" },
+        "bonusCoins": { "type": "number" },
+        "totalCoinsCredited": { "type": "number" },
+        "amountPkr": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 64 },
+        "paymentReference": { "type": "string", "maxLength": 120 },
+        "verifiedBy": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["completed", "refunded"] },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "idempotencyKey", "userId", "paidCoins", "bonusCoins", "amountPkr", "status"]
+    },
+    "AgencyCommission": {
+      "title": "AgencyCommission",
+      "description": "Agency commission accounting record tied to verified host diamond withdrawals",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "agencyId": { "type": "string", "maxLength": 140 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "agencyOwnerUid": { "type": "string", "maxLength": 128 },
+        "hostUid": { "type": "string", "maxLength": 128 },
+        "withdrawalId": { "type": "string", "maxLength": 128 },
+        "diamondsWithdrawn": { "type": "number" },
+        "hostGrossPkr": { "type": "number" },
+        "commissionPercent": { "type": "number" },
+        "commissionPkr": { "type": "number" },
+        "status": { "type": "string", "enum": ["accrued", "paid", "reversed"] }
+      },
+      "required": ["id", "agencyId", "agencyOwnerUid", "hostUid", "withdrawalId", "commissionPkr", "status"]
+    },
+    "AgencyFinancialRecord": {
+      "title": "AgencyFinancialRecord",
+      "description": "Aggregated financial performance & commission summary per Host Agency",
+      "type": "object",
+      "properties": {
+        "agencyId": { "type": "string", "maxLength": 140 },
+        "agencyName": { "type": "string", "maxLength": 80 },
+        "agencyOwnerUid": { "type": "string", "maxLength": 128 },
+        "commissionPercentOverride": { "type": "number" },
+        "totalCommissionEarnedPkr": { "type": "number" },
+        "totalCommissionPaidPkr": { "type": "number" },
+        "pendingCommissionPkr": { "type": "number" }
+      },
+      "required": ["agencyId", "agencyName", "agencyOwnerUid"]
+    },
+    "FinancialAuditLog": {
+      "title": "FinancialAuditLog",
+      "description": "Immutable financial audit log recording every economy setting change, package edit, withdrawal update, and reconciliation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "adminUid": { "type": "string", "maxLength": 128 },
+        "adminEmail": { "type": "string", "maxLength": 120 },
+        "action": { "type": "string", "maxLength": 64 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "targetLabel": { "type": "string", "maxLength": 160 },
+        "reason": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "adminUid", "adminEmail", "action", "targetId", "reason", "createdAtMillis"]
     }
   },
   "firestore": {
@@ -1032,6 +1188,22 @@
     "/users/{uid}": {
       "schema": "User",
       "description": "Stores user profiles keyed by their Firebase Auth UID"
+    },
+    "/users/{uid}/wallets/{walletType}": {
+      "schema": "UserWallet",
+      "description": "Per-user mirrored wallet subcollection (coins / diamonds)"
+    },
+    "/users/{uid}/coin_transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Per-user immutable coin wallet transaction history"
+    },
+    "/users/{uid}/diamond_transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "Per-user immutable host diamond earnings transaction history"
+    },
+    "/users/{uid}/withdrawals/{withdrawalId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Per-user withdrawal request mirror synchronized with withdrawal_requests"
     },
     "/user_levels/{uid}": {
       "schema": "UserLevelProgression",
@@ -1120,6 +1292,38 @@
     "/wallet_settings/{settingId}": {
       "schema": "WalletSettings",
       "description": "Global wallet commission, PKR conversion rate, and withdrawal limit configuration"
+    },
+    "/platform_financial_settings/{settingId}": {
+      "schema": "PlatformFinancialSettings",
+      "description": "Official Lenzo Party production economy configuration managed by authorized Super Admins"
+    },
+    "/platform_revenue/{docId}": {
+      "schema": "PlatformRevenue",
+      "description": "Platform App Beans / Revenue Wallet summary ledger"
+    },
+    "/platform_beans_ledger/{entryId}": {
+      "schema": "PlatformBeansLedger",
+      "description": "Immutable App Beans revenue entries generated by automatic 40/60 gifting splits"
+    },
+    "/gift_transactions/{txId}": {
+      "schema": "GiftTransaction",
+      "description": "Idempotent immutable record of every gift sent across Live, Party Rooms, PK, and 1v1"
+    },
+    "/coin_purchases/{purchaseId}": {
+      "schema": "CoinPurchase",
+      "description": "Verified Coin package purchases with separated paid and bonus coin accounting"
+    },
+    "/agency_commissions/{commissionId}": {
+      "schema": "AgencyCommission",
+      "description": "Agency commission accounting records calculated independently from the 40/60 split"
+    },
+    "/agency_financial_records/{recordId}": {
+      "schema": "AgencyFinancialRecord",
+      "description": "Aggregated financial performance and payout totals per Host Agency"
+    },
+    "/financial_audit_logs/{logId}": {
+      "schema": "FinancialAuditLog",
+      "description": "Immutable financial admin audit trail for settings, packages, withdrawals, and reconciliations"
     },
     "/coin_packages/{pkgId}": {
       "schema": "CoinPackage",

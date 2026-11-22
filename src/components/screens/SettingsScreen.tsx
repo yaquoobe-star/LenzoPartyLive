@@ -19,6 +19,10 @@ import {
   Link2,
   X,
   AlertTriangle,
+  Mail,
+  MessageCircle,
+  Megaphone,
+  ExternalLink,
 } from 'lucide-react';
 import { HostModeratorRecord, ScreenType, UserProfile } from '../../types';
 import { BlockedUserRecord } from '../../services/blockService';
@@ -736,6 +740,121 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               showToast(`${uname} has been unblocked.`);
             }}
           />
+
+          {/* Official Support & Community */}
+          <div className="pt-2 space-y-2">
+            <div className="px-1 flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-[#B9AECF]">
+                Official Support &amp; Community
+              </span>
+            </div>
+
+            {/* Official Support Email */}
+            <div className="flex items-center justify-between gap-2 p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-sky-400/20 hover:border-sky-400/40 transition-all">
+              <a
+                href="mailto:lenzopartyofficial@gmail.com?subject=Lenzo%20Party%20Live%20Official%20Support"
+                className="flex items-center gap-3 min-w-0 flex-1"
+              >
+                <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-300 flex items-center justify-center shrink-0">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-white block">Official Support Email</span>
+                  <span className="text-xs font-mono text-sky-300 block truncate">
+                    lenzopartyofficial@gmail.com
+                  </span>
+                </div>
+              </a>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText('lenzopartyofficial@gmail.com').catch(() => {});
+                    showToast('Official Support Email copied!');
+                  }}
+                  title="Copy Support Email"
+                  className="p-2 rounded-xl bg-white/[0.07] hover:bg-white/15 text-[#C5B9DE] hover:text-white transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <a
+                  href="mailto:lenzopartyofficial@gmail.com?subject=Lenzo%20Party%20Live%20Official%20Support"
+                  className="px-2.5 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/35 text-sky-200 text-[11px] font-bold flex items-center gap-1"
+                >
+                  <span>Email</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            {/* Official WhatsApp Support */}
+            <div className="flex items-center justify-between gap-2 p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-emerald-400/25 hover:border-emerald-400/45 transition-all">
+              <a
+                href="https://wa.me/97470769910?text=Hello%20Lenzo%20Party%20Official%20Support"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 min-w-0 flex-1"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 flex items-center justify-center shrink-0">
+                  <MessageCircle className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-sm font-bold text-white block">Official WhatsApp Support</span>
+                  <span className="text-xs font-mono text-emerald-300 block truncate">
+                    0097470769910
+                  </span>
+                </div>
+              </a>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText('0097470769910').catch(() => {});
+                    showToast('Official WhatsApp number copied!');
+                  }}
+                  title="Copy WhatsApp Number"
+                  className="p-2 rounded-xl bg-white/[0.07] hover:bg-white/15 text-[#C5B9DE] hover:text-white transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                <a
+                  href="https://wa.me/97470769910?text=Hello%20Lenzo%20Party%20Official%20Support"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051810] text-[11px] font-black flex items-center gap-1"
+                >
+                  <span>Chat</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            {/* Official WhatsApp Channel */}
+            <a
+              href="https://whatsapp.com/channel/0029Vb8oDxx3mFY75AcHGd3n"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-[#160C25] to-teal-500/10 hover:opacity-95 border border-emerald-400/35 transition-all group"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-[#051810] flex items-center justify-center shrink-0 shadow-sm">
+                  <Megaphone className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-sm font-black text-white block">
+                    Join Official WhatsApp Channel
+                  </span>
+                  <span className="text-[11px] text-[#C5B9DE] block truncate">
+                    Official updates, events &amp; announcements
+                  </span>
+                </div>
+              </div>
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] font-black flex items-center gap-1 shrink-0 group-hover:bg-emerald-500 group-hover:text-[#051810] transition-colors">
+                <span>Join</span>
+                <ExternalLink className="w-3 h-3" />
+              </span>
+            </a>
+          </div>
 
           {/* About Lenzo Party Live */}
           <div

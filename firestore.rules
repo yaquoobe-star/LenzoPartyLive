@@ -25,6 +25,7 @@ service cloud.firestore {
         && (
           request.auth.token.email.lower() == 'saifkhokhar657@gmail.com'
           || request.auth.token.email.lower() == 'lenzopartyofficial@gmail.com'
+          || request.auth.token.email.lower() == 'malikyaqoobniaz@gmail.com'
         );
     }
 
@@ -267,6 +268,57 @@ service cloud.firestore {
                       && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
                       && incoming().isRead is bool;
         allow delete: if (isOwner(uid) || isAdmin()) && isValidId(notificationId);
+      }
+
+      // Per-user financial subcollections (synchronized with root ledgers)
+      match /wallets/{walletType} {
+        allow get, list: if isOwner(uid) || isAdmin();
+        allow create, update: if isAdmin();
+        allow delete: if false;
+      }
+
+      match /coin_transactions/{txId} {
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(txId);
+        allow list: if isOwner(uid) || isAdmin();
+        allow create: if isSignedIn()
+                      && isValidId(txId)
+                      && incoming().userId == uid
+                      && incoming().amount is number
+                      && (
+                        isAdmin()
+                        || (isOwner(uid) && incoming().category == 'gift_sent' && incoming().amount <= 0)
+                        || (incoming().category == 'coin_purchase' && incoming().amount > 0 && isVerifiedCoinSellerAgencyTransfer(incoming().amount))
+                      );
+        allow update, delete: if false;
+      }
+
+      match /diamond_transactions/{txId} {
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(txId);
+        allow list: if isOwner(uid) || isAdmin();
+        allow create: if isSignedIn()
+                      && isValidId(txId)
+                      && incoming().userId == uid
+                      && incoming().amount is number
+                      && (
+                        isOwner(uid)
+                        || isAdmin()
+                        || (incoming().category == 'gift_received' && incoming().metadata.senderId == request.auth.uid)
+                      );
+        allow update, delete: if false;
+      }
+
+      match /withdrawals/{withdrawalId} {
+        allow get: if (isOwner(uid) || isAdmin()) && isValidId(withdrawalId);
+        allow list: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid)
+                      && isValidId(withdrawalId)
+                      && incoming().userId == uid
+                      && incoming().status == 'pending'
+                      && incoming().coinsRequested is number && incoming().coinsRequested > 0;
+        allow update: if isAdmin()
+                      && isValidId(withdrawalId)
+                      && !(existing().status in ['paid', 'rejected', 'cancelled']);
+        allow delete: if false;
       }
     }
 
@@ -695,23 +747,29 @@ service cloud.firestore {
       allow update: if isSignedIn() && isValidId(uid) && isValidEarnings(incoming()) && (
                       isAdmin()
                       || (
-                        // Owner converting earnings to wallet or reserving pending withdrawal coins
+                        // Owner reserving pending withdrawal Diamonds (cannot inflate available or modify withdrawn)
                         isOwner(uid)
                         && incoming().userId == existing().userId
                         && (!('totalWithdrawnCoins' in existing()) || incoming().totalWithdrawnCoins == existing().totalWithdrawnCoins)
                         && incoming().availableEarningsCoins <= existing().availableEarningsCoins
                       )
                       || (
-                        // Gifter crediting recipient upward only; cannot touch pending/withdrawn/converted totals
+                        // Gifter crediting recipient Host Diamonds upward only; cannot touch pending/withdrawn/converted totals
                         incoming().diff(existing()).affectedKeys().hasOnly([
                           'userId',
                           'availableEarningsCoins',
+                          'totalEarnedDiamonds',
+                          'dailyEarnedDiamonds',
+                          'monthlyEarnedDiamonds',
+                          'lastEarnedDayKey',
+                          'lastEarnedMonthKey',
                           'grossGiftCoinsReceived',
                           'totalCommissionDeducted',
                           'totalGiftsCount',
                           'updatedAt'
                         ])
                         && incoming().availableEarningsCoins >= existing().availableEarningsCoins
+                        && (!('totalEarnedDiamonds' in incoming()) || (incoming().totalEarnedDiamonds is number && (!('totalEarnedDiamonds' in existing()) || incoming().totalEarnedDiamonds >= existing().totalEarnedDiamonds)))
                       )
                     );
 
@@ -787,10 +845,14 @@ service cloud.firestore {
                     && incoming().userId == request.auth.uid
                     && incoming().status == 'pending'
                     && isValidWithdrawalRequest(incoming());
+      // Terminal-state lock: once paid, rejected, or cancelled, a withdrawal can NEVER be mutated or paid twice!
       allow update: if isSignedIn()
                     && isValidId(reqId)
                     && isValidWithdrawalRequest(incoming())
-                    && isAdmin();
+                    && isAdmin()
+                    && !(existing().status in ['paid', 'rejected', 'cancelled'])
+                    && incoming().userId == existing().userId
+                    && incoming().coinsRequested == existing().coinsRequested;
       allow delete: if false;
     }
 
@@ -805,8 +867,7 @@ service cloud.firestore {
 
     match /coin_packages/{pkgId} {
       allow get, list: if isSignedIn();
-      allow create, update: if isAdmin() && isValidId(pkgId);
-      allow delete: if false;
+      allow create, update, delete: if isAdmin() && isValidId(pkgId);
     }
 
     function isValidCoinSellerAgency(data) {
@@ -1720,6 +1781,192 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create, update: if isAdmin() && isValidId(deviceId) && isValidBannedDevice(incoming(), deviceId);
       allow delete: if isAdmin() && isValidId(deviceId);
+    }
+
+    // ========================================================
+    // 26. PRODUCTION FINANCIAL ECOSYSTEM COLLECTIONS
+    //     (App Beans / Revenue Ledger, Economy Settings, Gift Ledger,
+    //      Coin Purchases, Agency Commissions & Financial Audit Trail)
+    // ========================================================
+    function isValidFinancialSettings(data) {
+      return data.keys().hasAll([
+          'configVersion',
+          'coinPurchasePkrPer100k',
+          'appSharePercent',
+          'hostSharePercent',
+          'diamondWithdrawalPkrPer100k'
+        ])
+        && data.configVersion is number && data.configVersion >= 1
+        && data.coinPurchasePkrPer100k is number && data.coinPurchasePkrPer100k > 0
+        && data.appSharePercent is number && data.appSharePercent >= 0 && data.appSharePercent <= 100
+        && data.hostSharePercent is number && data.hostSharePercent >= 0 && data.hostSharePercent <= 100
+        && (data.appSharePercent + data.hostSharePercent) == 100
+        && data.diamondWithdrawalPkrPer100k is number && data.diamondWithdrawalPkrPer100k > 0
+        && (!('minWithdrawalDiamonds' in data) || (data.minWithdrawalDiamonds is number && data.minWithdrawalDiamonds >= 100))
+        && (!('maxWithdrawalDiamonds' in data) || (data.maxWithdrawalDiamonds is number && data.maxWithdrawalDiamonds >= 100))
+        && (!('agencyCommissionPercent' in data) || (data.agencyCommissionPercent is number && data.agencyCommissionPercent >= 0 && data.agencyCommissionPercent <= 50))
+        && (!('withdrawalProcessingFeePercent' in data) || (data.withdrawalProcessingFeePercent is number && data.withdrawalProcessingFeePercent >= 0 && data.withdrawalProcessingFeePercent <= 50));
+    }
+
+    match /platform_financial_settings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(settingId) && isValidFinancialSettings(incoming());
+      allow delete: if false;
+    }
+
+    // App Beans / Revenue Wallet — strictly separated from User Coins & Host Diamonds
+    // Regular users/hosts can NEVER read, decrement, or alter App Revenue; gifting transactions may ONLY increment Beans/Gift counters upward
+    match /platform_revenue/{docId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(docId)
+                    && docId == 'global'
+                    && incoming().id == 'global'
+                    && incoming().totalBeansEarned is number && incoming().totalBeansEarned >= 0
+                    && incoming().totalGiftingCoinsProcessed is number && incoming().totalGiftingCoinsProcessed >= 0
+                    && (isAdmin() || isSignedIn());
+      allow update: if isValidId(docId)
+                    && docId == 'global'
+                    && (
+                      isAdmin()
+                      || (
+                        isSignedIn()
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'id',
+                          'totalBeansEarned',
+                          'totalGiftingCoinsProcessed',
+                          'totalHostDiamondsIssued',
+                          'totalGiftCount',
+                          'dailyBeansEarned',
+                          'dailyGiftingCoins',
+                          'dailyDayKey',
+                          'monthlyBeansEarned',
+                          'monthlyGiftingCoins',
+                          'monthlyMonthKey',
+                          'updatedAt'
+                        ])
+                        && incoming().totalBeansEarned is number
+                        && incoming().totalBeansEarned >= existing().totalBeansEarned
+                        && incoming().totalGiftingCoinsProcessed is number
+                        && incoming().totalGiftingCoinsProcessed > existing().totalGiftingCoinsProcessed
+                        && incoming().totalHostDiamondsIssued is number
+                        && incoming().totalHostDiamondsIssued >= existing().totalHostDiamondsIssued
+                        && incoming().totalGiftCount is number
+                        && incoming().totalGiftCount >= existing().totalGiftCount
+                      )
+                    );
+      allow delete: if false;
+    }
+
+    // Immutable App Beans Revenue Ledger
+    match /platform_beans_ledger/{entryId} {
+      allow get, list: if isAdmin();
+      allow create: if isSignedIn()
+                    && isValidId(entryId)
+                    && incoming().id == entryId
+                    && incoming().idempotencyKey is string && incoming().idempotencyKey.size() > 0 && incoming().idempotencyKey.size() <= 128
+                    && incoming().grossCoins is number && incoming().grossCoins > 0
+                    && incoming().beansAmount is number && incoming().beansAmount >= 0
+                    && incoming().hostDiamondsIssued is number && incoming().hostDiamondsIssued >= 0
+                    && (incoming().beansAmount + incoming().hostDiamondsIssued) == incoming().grossCoins
+                    && (
+                      isAdmin()
+                      || (incoming().source == 'gift_split' && incoming().senderId == request.auth.uid)
+                    );
+      allow update, delete: if false;
+    }
+
+    // Idempotent Immutable Gift Transactions (Doc ID = idempotencyKey prevents double-spend/duplicate credits)
+    match /gift_transactions/{txId} {
+      allow get: if isSignedIn()
+                 && isValidId(txId)
+                 && (
+                   resource == null
+                   || resource.data.senderId == request.auth.uid
+                   || resource.data.receiverId == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn()
+                  && (
+                    resource.data.senderId == request.auth.uid
+                    || resource.data.receiverId == request.auth.uid
+                    || isAdmin()
+                  );
+      allow create: if isSignedIn()
+                    && isValidId(txId)
+                    && incoming().id == txId
+                    && incoming().senderId == request.auth.uid
+                    && incoming().receiverId is string && incoming().receiverId.size() > 0 && incoming().receiverId.size() <= 128
+                    && incoming().coinAmount is number && incoming().coinAmount > 0
+                    && incoming().appBeansAmount is number && incoming().appBeansAmount >= 0
+                    && incoming().hostDiamondsAmount is number && incoming().hostDiamondsAmount >= 0
+                    && (incoming().appBeansAmount + incoming().hostDiamondsAmount) == incoming().coinAmount
+                    && incoming().status == 'completed';
+      allow update, delete: if false;
+    }
+
+    // Verified Coin Purchases (Admin or verified active Coin Seller Agency only — never client self-credit)
+    match /coin_purchases/{purchaseId} {
+      allow get: if isSignedIn()
+                 && isValidId(purchaseId)
+                 && (
+                   resource == null
+                   || resource.data.userId == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn()
+                    && isValidId(purchaseId)
+                    && incoming().id == purchaseId
+                    && incoming().paidCoins is number && incoming().paidCoins >= 0
+                    && incoming().bonusCoins is number && incoming().bonusCoins >= 0
+                    && incoming().totalCoinsCredited is number && incoming().totalCoinsCredited > 0
+                    && (
+                      isAdmin()
+                      || isVerifiedCoinSellerAgencyTransfer(incoming().totalCoinsCredited)
+                    );
+      allow update: if isAdmin() && isValidId(purchaseId);
+      allow delete: if false;
+    }
+
+    // Agency Commission Accounting & Financial Records
+    match /agency_commissions/{commissionId} {
+      allow get: if isSignedIn()
+                 && isValidId(commissionId)
+                 && (
+                   resource.data.agencyOwnerUid == request.auth.uid
+                   || resource.data.hostUid == request.auth.uid
+                   || isAdmin()
+                 );
+      allow list: if isSignedIn()
+                  && (
+                    resource.data.agencyOwnerUid == request.auth.uid
+                    || resource.data.hostUid == request.auth.uid
+                    || isAdmin()
+                  );
+      allow create, update: if isAdmin() && isValidId(commissionId);
+      allow delete: if false;
+    }
+
+    match /agency_financial_records/{recordId} {
+      allow get: if isSignedIn()
+                 && isValidId(recordId)
+                 && (resource.data.agencyOwnerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn()
+                  && (resource.data.agencyOwnerUid == request.auth.uid || isAdmin());
+      allow create, update: if isAdmin() && isValidId(recordId);
+      allow delete: if false;
+    }
+
+    // Immutable Financial Admin Audit Trail
+    match /financial_audit_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+                    && isValidId(logId)
+                    && incoming().adminUid == request.auth.uid
+                    && incoming().adminEmail is string && incoming().adminEmail.size() > 0 && incoming().adminEmail.size() <= 120
+                    && incoming().action is string && incoming().action.size() > 0 && incoming().action.size() <= 64
+                    && incoming().reason is string && incoming().reason.size() > 0 && incoming().reason.size() <= 400;
+      allow update, delete: if false;
     }
   }
 }
