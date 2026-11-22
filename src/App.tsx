@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { 
   ScreenType, 
   UserProfile, 
@@ -105,16 +105,39 @@ import { HomeScreen } from './components/screens/HomeScreen';
 import { RoomsScreen } from './components/screens/RoomsScreen';
 import { ActiveLiveScreen } from './components/screens/ActiveLiveScreen';
 import { AudioRoomScreen } from './components/screens/AudioRoomScreen';
-import { CreateLiveScreen } from './components/screens/CreateLiveScreen';
-import { CreateRoomScreen } from './components/screens/CreateRoomScreen';
-import { RankingsScreen } from './components/screens/RankingsScreen';
 import { MessagesScreen } from './components/screens/MessagesScreen';
-import { StoreScreen } from './components/screens/StoreScreen';
 import { ProfileScreen } from './components/screens/ProfileScreen';
 import { PullToRefresh, PullToRefreshResult } from './components/common/PullToRefresh';
-import { SettingsScreen } from './components/screens/SettingsScreen';
 import { VideoFeedScreen } from './components/screens/VideoFeedScreen';
-import { UploadVideoScreen } from './components/screens/UploadVideoScreen';
+
+// Lazy-loaded secondary screens & heavy modals to reduce initial Web/Android WebView parse time
+const CreateLiveScreen = lazy(() =>
+  import('./components/screens/CreateLiveScreen').then((m) => ({ default: m.CreateLiveScreen }))
+);
+const CreateRoomScreen = lazy(() =>
+  import('./components/screens/CreateRoomScreen').then((m) => ({ default: m.CreateRoomScreen }))
+);
+const RankingsScreen = lazy(() =>
+  import('./components/screens/RankingsScreen').then((m) => ({ default: m.RankingsScreen }))
+);
+const StoreScreen = lazy(() =>
+  import('./components/screens/StoreScreen').then((m) => ({ default: m.StoreScreen }))
+);
+const SettingsScreen = lazy(() =>
+  import('./components/screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
+const UploadVideoScreen = lazy(() =>
+  import('./components/screens/UploadVideoScreen').then((m) => ({ default: m.UploadVideoScreen }))
+);
+const WalletModal = lazy(() =>
+  import('./components/screens/WalletModal').then((m) => ({ default: m.WalletModal }))
+);
+const LevelAndVIPModal = lazy(() =>
+  import('./components/screens/LevelAndVIPModal').then((m) => ({ default: m.LevelAndVIPModal }))
+);
+const AdminProgressionModal = lazy(() =>
+  import('./components/screens/AdminProgressionModal').then((m) => ({ default: m.AdminProgressionModal }))
+);
 
 // Modals
 import { GiftShopModal } from './components/screens/GiftShopModal';
@@ -122,11 +145,9 @@ import { PKBattleModal } from './components/screens/PKBattleModal';
 import { PKHostInviteModal } from './components/screens/PKHostInviteModal';
 import { PKIncomingChallengeModal } from './components/screens/PKIncomingChallengeModal';
 import { PKWinnerAnnouncementModal } from './components/screens/PKWinnerAnnouncementModal';
-import { WalletModal } from './components/screens/WalletModal';
 import { VIPModal } from './components/screens/VIPModal';
-import { LevelAndVIPModal, ProgressionModalTab } from './components/screens/LevelAndVIPModal';
+import type { ProgressionModalTab } from './components/screens/LevelAndVIPModal';
 import { LevelUpCelebrationModal } from './components/screens/LevelUpCelebrationModal';
-import { AdminProgressionModal } from './components/screens/AdminProgressionModal';
 import {
   addQualifyingGiftingCoins,
   equipSuperVipFrame,
@@ -1004,7 +1025,8 @@ export default function App() {
                 enforcePartyRoomSeatPolicy({
                   ...existing,
                   ...fsItem,
-                  numericParticipants: Math.max(fsItem.numericParticipants || 0, existing.numericParticipants || 0),
+                  numericParticipants: typeof fsItem.numericParticipants === 'number' ? fsItem.numericParticipants : 0,
+                  participantCount: String(typeof fsItem.numericParticipants === 'number' ? fsItem.numericParticipants : 0),
                 })
               );
             } else {
@@ -1978,13 +2000,15 @@ export default function App() {
             setCurrentScreen('profile');
           }}
         />
-        <WalletModal
-          isOpen={isWalletOpen}
-          onClose={() => setIsWalletOpen(false)}
-          currentUser={currentUser}
-          onRechargeSuccess={handleRechargeSuccess}
-          onSendMessage={handleSendMessageToUser}
-        />
+        <Suspense fallback={null}>
+          <WalletModal
+            isOpen={isWalletOpen}
+            onClose={() => setIsWalletOpen(false)}
+            currentUser={currentUser}
+            onRechargeSuccess={handleRechargeSuccess}
+            onSendMessage={handleSendMessageToUser}
+          />
+        </Suspense>
         {appToast && (
           <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
             {appToast}
@@ -2074,13 +2098,15 @@ export default function App() {
             setCurrentScreen('profile');
           }}
         />
-        <WalletModal
-          isOpen={isWalletOpen}
-          onClose={() => setIsWalletOpen(false)}
-          currentUser={currentUser}
-          onRechargeSuccess={handleRechargeSuccess}
-          onSendMessage={handleSendMessageToUser}
-        />
+        <Suspense fallback={null}>
+          <WalletModal
+            isOpen={isWalletOpen}
+            onClose={() => setIsWalletOpen(false)}
+            currentUser={currentUser}
+            onRechargeSuccess={handleRechargeSuccess}
+            onSendMessage={handleSendMessageToUser}
+          />
+        </Suspense>
         {appToast && (
           <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
             {appToast}
@@ -2164,89 +2190,97 @@ export default function App() {
           )}
 
           {currentScreen === 'create_live' && (
-            <CreateLiveScreen
-              currentUser={currentUser}
-              onClose={() => setCurrentScreen('home')}
-              onStartLive={handleStartLive}
-            />
+            <Suspense fallback={null}>
+              <CreateLiveScreen
+                currentUser={currentUser}
+                onClose={() => setCurrentScreen('home')}
+                onStartLive={handleStartLive}
+              />
+            </Suspense>
           )}
 
           {currentScreen === 'create_room' && (
-            <CreateRoomScreen
-              currentUser={currentUser}
-              onClose={() => setCurrentScreen('rooms')}
-              onCreateRoom={handleCreateRoom}
-            />
+            <Suspense fallback={null}>
+              <CreateRoomScreen
+                currentUser={currentUser}
+                onClose={() => setCurrentScreen('rooms')}
+                onCreateRoom={handleCreateRoom}
+              />
+            </Suspense>
           )}
 
           {currentScreen === 'rankings' && (
-            <RankingsScreen
-              currentUser={currentUser}
-              onNavigate={(s) => setCurrentScreen(s)}
-              onSelectUser={(u) => setViewingProfileUser(u)}
-            />
+            <Suspense fallback={null}>
+              <RankingsScreen
+                currentUser={currentUser}
+                onNavigate={(s) => setCurrentScreen(s)}
+                onSelectUser={(u) => setViewingProfileUser(u)}
+              />
+            </Suspense>
           )}
 
           {currentScreen === 'store' && (
-            <StoreScreen
-              currentUser={currentUser}
-              onNavigate={(s) => setCurrentScreen(s)}
-              onOpenWallet={() => setIsWalletOpen(true)}
-              onOpenVIP={() => setIsVIPOpen(true)}
-              onUpdateUserBalance={(newCoins, newDiamonds) => {
-                setCurrentUser((prev) => ({
-                  ...prev,
-                  coins: newCoins,
-                  diamonds: newDiamonds,
-                }));
-              }}
-              onCoinsSpent={(coinsSpent, reason) => {
-                if (!currentUser.id || coinsSpent <= 0) return;
-                const txId = `store_prog_${currentUser.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-                addQualifyingGiftingCoins(currentUser.id, coinsSpent, {
-                  transactionId: txId,
-                  reason,
-                  userSnapshot: {
-                    name: currentUser.name,
-                    avatar: currentUser.avatar,
-                    email: currentUser.email,
-                  },
-                })
-                  .then((levelRes) => {
-                    const prog = levelRes.progression;
-                    setCurrentUser((prev) => {
-                      const next = {
-                        ...prev,
-                        level: prog.currentLevel,
-                        totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
-                        vipLevel: prog.highestUnlockedVipTier,
-                        isVIP: prog.highestUnlockedVipTier > 0,
-                        superVipLevel: prog.highestUnlockedSuperVipTier,
-                        isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
-                        activeFrameType: prog.activeFrameType,
-                        equippedVipFrame: prog.equippedVipFrame,
-                        equippedSuperVipFrame: prog.equippedSuperVipFrame,
-                        unlockedVipTiers: prog.unlockedVipTiers,
-                        unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
-                      };
-                      saveStoredUserProfile(next);
-                      return next;
-                    });
-                    if (levelRes.levelUpEvent && levelRes.levelUpEvent.newLevel > levelRes.levelUpEvent.oldLevel) {
-                      const event = levelRes.levelUpEvent;
-                      setLevelUpData({
-                        oldLevel: event.oldLevel,
-                        newLevel: event.newLevel,
-                        coinsSpent,
-                        unlockedVipFrames: event.unlockedVipFrames,
-                        unlockedSuperVipFrames: event.unlockedSuperVipFrames,
-                        newlyEarnedAchievements: event.newlyEarnedAchievements,
-                      });
-                    }
+            <Suspense fallback={null}>
+              <StoreScreen
+                currentUser={currentUser}
+                onNavigate={(s) => setCurrentScreen(s)}
+                onOpenWallet={() => setIsWalletOpen(true)}
+                onOpenVIP={() => setIsVIPOpen(true)}
+                onUpdateUserBalance={(newCoins, newDiamonds) => {
+                  setCurrentUser((prev) => ({
+                    ...prev,
+                    coins: newCoins,
+                    diamonds: newDiamonds,
+                  }));
+                }}
+                onCoinsSpent={(coinsSpent, reason) => {
+                  if (!currentUser.id || coinsSpent <= 0) return;
+                  const txId = `store_prog_${currentUser.id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                  addQualifyingGiftingCoins(currentUser.id, coinsSpent, {
+                    transactionId: txId,
+                    reason,
+                    userSnapshot: {
+                      name: currentUser.name,
+                      avatar: currentUser.avatar,
+                      email: currentUser.email,
+                    },
                   })
-                  .catch(() => {});
-              }}
-            />
+                    .then((levelRes) => {
+                      const prog = levelRes.progression;
+                      setCurrentUser((prev) => {
+                        const next = {
+                          ...prev,
+                          level: prog.currentLevel,
+                          totalQualifyingCoinsSpent: prog.totalQualifyingCoinsSpent,
+                          vipLevel: prog.highestUnlockedVipTier,
+                          isVIP: prog.highestUnlockedVipTier > 0,
+                          superVipLevel: prog.highestUnlockedSuperVipTier,
+                          isSuperVIP: prog.highestUnlockedSuperVipTier > 0,
+                          activeFrameType: prog.activeFrameType,
+                          equippedVipFrame: prog.equippedVipFrame,
+                          equippedSuperVipFrame: prog.equippedSuperVipFrame,
+                          unlockedVipTiers: prog.unlockedVipTiers,
+                          unlockedSuperVipTiers: prog.unlockedSuperVipTiers,
+                        };
+                        saveStoredUserProfile(next);
+                        return next;
+                      });
+                      if (levelRes.levelUpEvent && levelRes.levelUpEvent.newLevel > levelRes.levelUpEvent.oldLevel) {
+                        const event = levelRes.levelUpEvent;
+                        setLevelUpData({
+                          oldLevel: event.oldLevel,
+                          newLevel: event.newLevel,
+                          coinsSpent,
+                          unlockedVipFrames: event.unlockedVipFrames,
+                          unlockedSuperVipFrames: event.unlockedSuperVipFrames,
+                          newlyEarnedAchievements: event.newlyEarnedAchievements,
+                        });
+                      }
+                    })
+                    .catch(() => {});
+                }}
+              />
+            </Suspense>
           )}
 
           {(currentScreen === 'messages' || currentScreen === 'chat' || currentScreen === 'inbox') && (
@@ -2295,22 +2329,31 @@ export default function App() {
           )}
 
           {currentScreen === 'upload_video' && (
-            <UploadVideoScreen
-              currentUser={currentUser}
-              initialVideoUrl={stagedVideoData?.url}
-              initialFile={stagedVideoData?.file}
-              onClose={() => {
-                setStagedVideoData(null);
-                setCurrentScreen('videos');
-              }}
-              onUploadSuccess={(newVideo) => {
-                const existingStored = profileService.getStoredVideos().filter((v) => v.id !== newVideo.id);
-                profileService.saveStoredVideos([newVideo, ...existingStored]);
-                setVideos([newVideo, ...videos]);
-                setStagedVideoData(null);
-                setCurrentScreen('videos');
-              }}
-            />
+            <Suspense fallback={null}>
+              <UploadVideoScreen
+                currentUser={currentUser}
+                initialVideoUrl={stagedVideoData?.url}
+                initialFile={stagedVideoData?.file}
+                onClose={() => {
+                  if (stagedVideoData?.url?.startsWith('blob:')) {
+                    URL.revokeObjectURL(stagedVideoData.url);
+                  }
+                  setStagedVideoData(null);
+                  setCurrentScreen('videos');
+                }}
+                onUploadSuccess={(newVideo) => {
+                  if (stagedVideoData?.url?.startsWith('blob:')) {
+                    URL.revokeObjectURL(stagedVideoData.url);
+                  }
+                  const existingStored = profileService.getStoredVideos().filter((v) => v.id !== newVideo.id);
+                  profileService.saveStoredVideos([newVideo, ...existingStored]);
+                  setFirestoreReels((prev) => [newVideo, ...prev.filter((v) => v.id !== newVideo.id)]);
+                  setVideos((prev) => [newVideo, ...prev.filter((v) => v.id !== newVideo.id)]);
+                  setStagedVideoData(null);
+                  setCurrentScreen('videos');
+                }}
+              />
+            </Suspense>
           )}
 
           {currentScreen === 'profile' && (
@@ -2369,19 +2412,21 @@ export default function App() {
           )}
 
           {currentScreen === 'settings' && (
-            <SettingsScreen
-              currentUser={currentUser}
-              onNavigate={(s) => setCurrentScreen(s)}
-              onLogout={handleLogout}
-              onOpenWallet={() => setIsWalletOpen(true)}
-              onOpenAccountSwitcher={() => setIsAccountSwitcherOpen(true)}
-              isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
-              onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
-              blockedUsers={blockedUsers}
-              onUnblockUser={handleUnblockUser}
-              moderators={myModerators}
-              onRemoveModerator={handleRemoveModerator}
-            />
+            <Suspense fallback={null}>
+              <SettingsScreen
+                currentUser={currentUser}
+                onNavigate={(s) => setCurrentScreen(s)}
+                onLogout={handleLogout}
+                onOpenWallet={() => setIsWalletOpen(true)}
+                onOpenAccountSwitcher={() => setIsAccountSwitcherOpen(true)}
+                isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
+                onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
+                blockedUsers={blockedUsers}
+                onUnblockUser={handleUnblockUser}
+                moderators={myModerators}
+                onRemoveModerator={handleRemoveModerator}
+              />
+            </Suspense>
           )}
 
           </main>
@@ -2456,29 +2501,33 @@ export default function App() {
       />
 
       {/* 4. Wallet & Coins Recharge Modal */}
-      <WalletModal
-        isOpen={isWalletOpen}
-        onClose={() => setIsWalletOpen(false)}
-        currentUser={currentUser}
-        onRechargeSuccess={handleRechargeSuccess}
-        onSendMessage={handleSendMessageToUser}
-      />
+      <Suspense fallback={null}>
+        <WalletModal
+          isOpen={isWalletOpen}
+          onClose={() => setIsWalletOpen(false)}
+          currentUser={currentUser}
+          onRechargeSuccess={handleRechargeSuccess}
+          onSendMessage={handleSendMessageToUser}
+        />
+      </Suspense>
 
       {/* 5. 100-LEVEL, 12-VIP, 6-SUPER-VIP & ACHIEVEMENT VAULT MODAL */}
-      <LevelAndVIPModal
-        isOpen={isLevelVIPOpen}
-        onClose={() => setIsLevelVIPOpen(false)}
-        currentUser={currentUser}
-        initialTab={levelVIPInitialTab}
-        onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
-        onUpdateUser={(updated) => {
-          setCurrentUser((prev) => {
-            const next = { ...prev, ...updated };
-            saveStoredUserProfile(next);
-            return next;
-          });
-        }}
-      />
+      <Suspense fallback={null}>
+        <LevelAndVIPModal
+          isOpen={isLevelVIPOpen}
+          onClose={() => setIsLevelVIPOpen(false)}
+          currentUser={currentUser}
+          initialTab={levelVIPInitialTab}
+          onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
+          onUpdateUser={(updated) => {
+            setCurrentUser((prev) => {
+              const next = { ...prev, ...updated };
+              saveStoredUserProfile(next);
+              return next;
+            });
+          }}
+        />
+      </Suspense>
 
       {/* 5b. Multi-Milestone Level Up Celebration Modal */}
       <LevelUpCelebrationModal
@@ -2533,11 +2582,13 @@ export default function App() {
       />
 
       {/* 5c. Admin-Only Progression Management Console */}
-      <AdminProgressionModal
-        isOpen={isAdminProgressionOpen}
-        onClose={() => setIsAdminProgressionOpen(false)}
-        currentUserEmail={currentUser.email}
-      />
+      <Suspense fallback={null}>
+        <AdminProgressionModal
+          isOpen={isAdminProgressionOpen}
+          onClose={() => setIsAdminProgressionOpen(false)}
+          currentUserEmail={currentUser.email}
+        />
+      </Suspense>
 
       {/* VIP Membership Privileges Modal */}
       <VIPModal

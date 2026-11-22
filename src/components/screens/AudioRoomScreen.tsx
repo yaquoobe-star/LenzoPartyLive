@@ -360,6 +360,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   mutedSeatIndicesRef.current = mutedSeatIndices;
   const seatsRef = useRef<(UserProfile | null)[]>(seats);
   seatsRef.current = seats;
+  const participantTotalRef = useRef<number>(participantTotal);
+  participantTotalRef.current = participantTotal;
+  const roomEnteredAtRef = useRef<number>(Date.now());
+  const preEntryMsgIdsRef = useRef<Set<string>>(new Set());
+  const fsMessagesBaselineCapturedRef = useRef<boolean>(false);
+  const optimisticSentMsgIdsRef = useRef<Set<string>>(new Set());
 
   // Settings & Announcements
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
@@ -579,6 +585,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   useEffect(() => {
     let active = true;
     hasExplicitlyLeftRef.current = false;
+    // Reset comments & establish fresh entry baseline so users never see historical messages from before entry
+    roomEnteredAtRef.current = Date.now();
+    preEntryMsgIdsRef.current = new Set();
+    fsMessagesBaselineCapturedRef.current = false;
+    optimisticSentMsgIdsRef.current = new Set();
+    setActivities([]);
+
     const knownParticipantIds = new Set<string>([currentUser.id]);
     let fsParticipantsInitialized = false;
 
@@ -625,7 +638,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         setSeatTheme(nextRoom.seatTheme);
       }
       if (typeof nextRoom.numericParticipants === 'number') {
-        setParticipantTotal((prev) => Math.max(prev, nextRoom.numericParticipants || 0));
+        setParticipantTotal(Math.max(0, nextRoom.numericParticipants || 0));
       }
       onUpdateRoom?.({ ...nextRoom, maxSeats: nextMax, seats: nextSeats });
     };
@@ -681,31 +694,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             });
           }
         }
-        if (Array.isArray(res.messages) && res.messages.length > 0) {
-          setActivities((prev) => {
-            const seen = new Set(prev.map((a) => a.id));
-            const next = [...prev];
-            res.messages.forEach((m: any) => {
-              if (!seen.has(m.id)) {
-                seen.add(m.id);
-                next.push({
-                  id: m.id,
-                  userId: m.senderId,
-                  name: m.senderName,
-                  avatar: m.senderAvatar,
-                  text: m.text,
-                  level: typeof m.senderLevel === 'number' ? m.senderLevel : typeof m.level === 'number' ? m.level : 0,
-                  vipLevel: typeof m.senderVip === 'number' ? m.senderVip : typeof m.vipLevel === 'number' ? m.vipLevel : 0,
-                  superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
-                  isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
-                  isHost: m.isHost,
-                  type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
-                });
-              }
-            });
-            return next.slice(-60);
-          });
-        }
+        // Intentionally ignore historical res.messages so entering/re-entering users only see new comments from this moment onward.
       })
       .catch((err) => {
         const msg = String(err?.message || err || '');
@@ -778,9 +767,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       }
     });
 
-    // Cloud Firestore real-time room messages subscription (syncs new messages, replies, AND deletions in real time)
+    // Cloud Firestore real-time room messages subscription (strictly post-entry messages + real-time deletions)
     const unsubFsMessages = subscribeFirestoreRoomMessages(room.id, (fsMessages) => {
       if (!active) return;
+
+      // Capture all pre-existing historical messages on the initial snapshot and exclude them from view
+      if (!fsMessagesBaselineCapturedRef.current) {
+        fsMessagesBaselineCapturedRef.current = true;
+        fsMessages.forEach((m) => {
+          if (!optimisticSentMsgIdsRef.current.has(m.id)) {
+            preEntryMsgIdsRef.current.add(m.id);
+          }
+        });
+        return;
+      }
+
       const fsIds = new Set(fsMessages.map((m) => m.id));
       setActivities((prev) => {
         // Remove any previously synced Firestore chat items that were deleted by Host/Moderator/author
@@ -790,6 +791,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         let changed = kept.length !== prev.length;
 
         fsMessages.forEach((m) => {
+          if (preEntryMsgIdsRef.current.has(m.id)) return;
+          const isOptimisticOwn = optimisticSentMsgIdsRef.current.has(m.id);
+          if (
+            !isOptimisticOwn &&
+            typeof m.createdAtMillis === 'number' &&
+            m.createdAtMillis > 0 &&
+            m.createdAtMillis < roomEnteredAtRef.current - 5000
+          ) {
+            preEntryMsgIdsRef.current.add(m.id);
+            return;
+          }
           if (isRoomHost && blockedUserIdsRef.current.has(m.senderId)) return;
           if (!seen.has(m.id)) {
             seen.add(m.id);
@@ -990,25 +1002,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               });
             }
           }
-          if (Array.isArray(payload.messages)) {
-            setActivities(
-              payload.messages
-                .filter((m: any) => !isRoomHost || !blockedUserIdsRef.current.has(m.senderId))
-                .map((m: any) => ({
-                  id: m.id,
-                  userId: m.senderId,
-                  name: m.senderName,
-                  avatar: m.senderAvatar,
-                  text: m.text,
-                  level: typeof m.senderLevel === 'number' ? m.senderLevel : typeof m.level === 'number' ? m.level : 0,
-                  vipLevel: typeof m.senderVip === 'number' ? m.senderVip : typeof m.vipLevel === 'number' ? m.vipLevel : 0,
-                  superVipLevel: typeof m.senderSuperVip === 'number' ? m.senderSuperVip : 0,
-                  isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
-                  isHost: m.isHost,
-                  type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
-                }))
-            );
-          }
+          // Intentionally ignore historical payload.messages so room chat starts fresh from entry time.
         }
       } else if (event === 'room:participant_joined') {
         if (payload.room) applyServerRoomState(payload.room as PartyRoom);
@@ -1143,6 +1137,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         }
       } else if (event === 'room:chat' && payload.message) {
         const m = payload.message;
+        if (preEntryMsgIdsRef.current.has(m.id)) return;
+        const msgCreatedAt = typeof m.createdAt === 'number' ? m.createdAt : 0;
+        if (
+          msgCreatedAt > 0 &&
+          msgCreatedAt < roomEnteredAtRef.current - 3000 &&
+          !optimisticSentMsgIdsRef.current.has(m.id)
+        ) {
+          preEntryMsgIdsRef.current.add(m.id);
+          return;
+        }
         setActivities((prev) =>
           prev.some((a) => a.id === m.id)
             ? prev
@@ -1176,8 +1180,36 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       }
     });
 
+    const cleanupOnUnexpectedExit = () => {
+      if (hasExplicitlyLeftRef.current) return;
+      hasExplicitlyLeftRef.current = true;
+      const leavingSeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
+      const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : undefined;
+      const nextSeats = seatsRef.current.map((s, idx) =>
+        s?.id === currentUser.id || (isRoomHost && idx === 0) ? null : s
+      );
+      const nextCount = Math.max(0, participantTotalRef.current - 1);
+      onUpdateRoom?.({
+        ...room,
+        seats: nextSeats,
+        numericParticipants: nextCount,
+        participantCount: String(nextCount),
+      });
+      if (targetSeatIdx !== undefined) {
+        void vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {});
+      }
+      void updateFirestoreRoomParticipantCount(room.id, nextCount).catch(() => {});
+      void liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
+      void leaveFirestoreRoomParticipant(room.id).catch(() => {});
+    };
+
+    window.addEventListener('pagehide', cleanupOnUnexpectedExit);
+    window.addEventListener('beforeunload', cleanupOnUnexpectedExit);
+
     return () => {
       active = false;
+      window.removeEventListener('pagehide', cleanupOnUnexpectedExit);
+      window.removeEventListener('beforeunload', cleanupOnUnexpectedExit);
       clearInterval(heartbeatInterval);
       if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
       unsubWs();
@@ -1185,10 +1217,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       unsubFsMessages();
       unsubFsRoomDoc();
       liveAndRoomService.unsubscribeRoom();
-      if (!hasExplicitlyLeftRef.current) {
-        liveAndRoomService.leavePartyRoom(room.id, currentUser.id);
-        void leaveFirestoreRoomParticipant(room.id);
-      }
+      cleanupOnUnexpectedExit();
     };
   }, [room.id, currentUser.id, isRoomHost]);
 
@@ -1690,12 +1719,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? '4+1' : clamped}-seat layout`);
   };
 
-  // Cleanly exit party room (vacates seat, removes pending request, disconnects voice & leaves server room)
+  // Cleanly exit party room (vacates seat — including Host Seat #1 — updates count, disconnects voice & leaves room)
   const handleCleanLeaveParty = async () => {
     setShowExitRoomModal(false);
     setShowSettingsSheet(false);
     hasExplicitlyLeftRef.current = true;
     const leavingSeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
+    const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : undefined;
+    const nextSeats = seatsRef.current.map((s, idx) =>
+      s?.id === currentUser.id || (isRoomHost && idx === 0) ? null : s
+    );
+    const remainingCount = Math.max(
+      0,
+      participantsList.filter((p) => p.userId !== currentUser.id).length
+    );
+
+    // Immediately reflect empty host seat & updated participant count in UI + parent room directory
+    setSeats(nextSeats);
+    setParticipantTotal(remainingCount);
+    onUpdateRoom?.({
+      ...room,
+      seats: nextSeats,
+      numericParticipants: remainingCount,
+      participantCount: String(remainingCount),
+    });
+
     webrtcMediaService.stopPartyVoice();
     if (realMicAnalyserRef.current) {
       realMicAnalyserRef.current.cleanup();
@@ -1707,9 +1755,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
     await agoraRtcService.leaveChannel().catch(() => {});
     await Promise.all([
-      leavingSeatIdx !== -1
-        ? vacateFirestoreSeat(room.id, currentUser.id, leavingSeatIdx, maxSeats).catch(() => {})
+      targetSeatIdx !== undefined
+        ? vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {})
         : Promise.resolve(),
+      updateFirestoreRoomParticipantCount(room.id, remainingCount).catch(() => {}),
       liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}),
       leaveFirestoreRoomParticipant(room.id).catch(() => {}),
     ]);
@@ -1750,6 +1799,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
 
     if (canModerate) {
+      if (isRoomHost && index === 0) {
+        void handleOwnerTakeSeat(0);
+        return;
+      }
       const ownerSittingIdx = seats.findIndex((s) => s?.id === currentUser.id);
       if (ownerSittingIdx === -1) {
         setShowOwnerSeatChoice(index);
@@ -2385,6 +2438,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     try {
       const backendSaved = await liveAndRoomService.sendRoomChat(room.id, currentUser, text);
       saved = backendSaved;
+      optimisticSentMsgIdsRef.current.add(backendSaved.id);
       void sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, backendSaved.id, activeReply);
     } catch (err: any) {
       const errMsg = String(err?.message || err || '');
@@ -2393,6 +2447,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         return;
       }
       const fallbackId = `rm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      optimisticSentMsgIdsRef.current.add(fallbackId);
       saved = await sendFirestoreRoomMessage(room.id, currentUser, text, isRoomHost, fallbackId, activeReply);
     }
 
@@ -3081,6 +3136,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             >
               Leave Seat
             </button>
+          </div>
+        )}
+
+        {/* Empty Room Notice when all seats (including Host Seat #1) are vacant */}
+        {seats.every((s) => !s) && (
+          <div className="flex items-center justify-center pt-1.5">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/45 border border-white/15 text-[11px] font-semibold text-white/80 backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
+              <span>
+                {isRoomHost
+                  ? 'Room is empty · Tap Host seat to take the stage'
+                  : 'Room is currently empty · Host is away'}
+              </span>
+            </div>
           </div>
         )}
 

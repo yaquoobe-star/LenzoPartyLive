@@ -201,18 +201,32 @@ public class NativeGoogleAuthPlugin extends Plugin {
         }
 
         GoogleSignInClient client = buildClient(activity, webConfig);
-        client.signOut().addOnCompleteListener(activity, task -> {
-            if (!task.isSuccessful()) {
-                Log.w(TAG, "Pre-signIn client.signOut() did not succeed; proceeding to account picker.");
-            }
+        GoogleSignInAccount cachedAccount = GoogleSignIn.getLastSignedInAccount(activity);
+        if (cachedAccount != null) {
             try {
-                Intent signInIntent = client.getSignInIntent();
-                startActivityForResult(call, signInIntent, "handleGoogleSignInResult");
-            } catch (Exception launchErr) {
-                Log.e(TAG, "Failed to launch Google Sign-In intent: " + launchErr.getMessage());
-                call.reject("Unable to launch Google Sign-In picker: " + launchErr.getMessage());
+                client.signOut().addOnCompleteListener(activity, task -> {
+                    if (!task.isSuccessful()) {
+                        Log.w(TAG, "Pre-signIn client.signOut() did not succeed; proceeding to account picker.");
+                    }
+                    launchSignInIntent(call, client);
+                });
+            } catch (Exception signOutErr) {
+                Log.w(TAG, "Pre-signIn client.signOut() threw; launching picker directly: " + signOutErr.getMessage());
+                launchSignInIntent(call, client);
             }
-        });
+        } else {
+            launchSignInIntent(call, client);
+        }
+    }
+
+    private void launchSignInIntent(PluginCall call, GoogleSignInClient client) {
+        try {
+            Intent signInIntent = client.getSignInIntent();
+            startActivityForResult(call, signInIntent, "handleGoogleSignInResult");
+        } catch (Exception launchErr) {
+            Log.e(TAG, "Failed to launch Google Sign-In intent: " + launchErr.getMessage());
+            call.reject("Unable to launch Google Sign-In picker: " + launchErr.getMessage());
+        }
     }
 
     @ActivityCallback

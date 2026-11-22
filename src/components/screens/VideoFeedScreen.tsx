@@ -13,6 +13,7 @@ import {
   Flag,
   Eye,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { VideoItem, UserProfile, GiftItem, VideoComment } from '../../types';
 import { AvatarWithFrame } from '../common/AvatarWithFrame';
@@ -25,6 +26,10 @@ import {
   deleteOwnReel,
   submitContentReport,
 } from '../../services/reelService';
+import {
+  isFirestoreChunkedVideoUrl,
+  resolveFirestoreChunkedReelUrl,
+} from '../../services/storageService';
 
 interface VideoFeedScreenProps {
   videos: VideoItem[];
@@ -54,13 +59,14 @@ interface FloatingHeart {
 function isPlayableVideoUrl(url?: string): boolean {
   if (!url) return false;
   const lower = url.toLowerCase();
-  if (lower.startsWith('blob:')) return true;
+  if (isFirestoreChunkedVideoUrl(url)) return true;
+  if (lower.startsWith('blob:') || lower.startsWith('data:video/')) return true;
   if (/\.(mp4|webm|mov|m4v|ogg|ogv|3gp|mkv|m3u8)(\?|$)/i.test(lower)) return true;
   if (lower.includes('/api/reels/media/')) {
     return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
   }
-  if (lower.includes('firebasestorage') && (lower.includes('video') || lower.includes('reels%2f'))) {
-    return !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower);
+  if (lower.includes('firebasestorage') && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower)) {
+    return true;
   }
   return false;
 }
@@ -88,9 +94,19 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
 
-  // Sync feed when videos prop updates without jarring index resets if current video still exists
+  // Sync feed when videos prop updates; jump to index 0 when a brand-new reel is prepended
   useEffect(() => {
     setFeedVideos((prev) => {
+      const prevIds = new Set(prev.map((v) => v.id));
+      const newestTopId = videos[0]?.id;
+      const isNewTopPrepend = Boolean(newestTopId && prev.length > 0 && !prevIds.has(newestTopId));
+
+      if (isNewTopPrepend) {
+        setIsEndOfFeed(false);
+        setActiveVideoIndex(0);
+        return videos;
+      }
+
       const currentId = prev[activeVideoIndex]?.id;
       if (currentId) {
         const nextIdx = videos.findIndex((v) => v.id === currentId);
@@ -138,10 +154,14 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
       (currentVideo.creatorUid === currentUser.id || currentVideo.creator?.id === currentUser.id)
   );
 
-  // Playback state
+  // Playback & resilient video resolution state
   const [isPlaying, setIsPlaying] = useState(true);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isEndOfFeed, setIsEndOfFeed] = useState(false);
+  const [resolvedVideoSrc, setResolvedVideoSrc] = useState<string>('');
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
+  const [videoRetryNonce, setVideoRetryNonce] = useState(0);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -168,10 +188,53 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     return () => unsub();
   }, [showComments, currentVideo?.id]);
 
+  // Resolve standard or Firestore-chunked video URLs and pre-warm the next reel
+  useEffect(() => {
+    let cancelled = false;
+    setVideoLoadError(null);
+
+    if (!currentVideo || isEndOfFeed || !isCurrentVideoPlayable) {
+      setResolvedVideoSrc('');
+      setIsVideoLoading(false);
+      return;
+    }
+
+    const rawUrl = currentVideo.videoUrl;
+    if (isFirestoreChunkedVideoUrl(rawUrl)) {
+      setResolvedVideoSrc('');
+      setIsVideoLoading(true);
+      resolveFirestoreChunkedReelUrl(rawUrl, currentVideo.videoMimeType)
+        .then((blobUrl) => {
+          if (cancelled) return;
+          setResolvedVideoSrc(blobUrl);
+          setIsVideoLoading(false);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          console.warn('[VideoFeed] Chunked reel load failed:', err);
+          setIsVideoLoading(false);
+          setVideoLoadError('Unable to load video right now. Tap to retry.');
+        });
+    } else {
+      setResolvedVideoSrc(rawUrl);
+      setIsVideoLoading(true);
+    }
+
+    // Background pre-warm next chunked reel so vertical swipes are instant
+    const nextVideo = feedVideos[activeVideoIndex + 1];
+    if (nextVideo && isFirestoreChunkedVideoUrl(nextVideo.videoUrl)) {
+      void resolveFirestoreChunkedReelUrl(nextVideo.videoUrl, nextVideo.videoMimeType).catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentVideo?.id, currentVideo?.videoUrl, currentVideo?.videoMimeType, isCurrentVideoPlayable, isEndOfFeed, videoRetryNonce, activeVideoIndex, feedVideos]);
+
   // Real HTML5 <video> play/pause sync — ALWAYS keep audio ON automatically without a speaker toggle
   useEffect(() => {
     const el = videoRef.current;
-    if (!el || !isCurrentVideoPlayable || isEndOfFeed) return;
+    if (!el || !isCurrentVideoPlayable || !resolvedVideoSrc || isEndOfFeed) return;
 
     let unlockCleanup: (() => void) | null = null;
 
@@ -214,7 +277,7 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
     return () => {
       if (unlockCleanup) unlockCleanup();
     };
-  }, [isPlaying, currentVideo?.id, isCurrentVideoPlayable, isEndOfFeed]);
+  }, [isPlaying, currentVideo?.id, resolvedVideoSrc, isCurrentVideoPlayable, isEndOfFeed]);
 
   // Fallback timer ONLY for legacy static image posts (real videos drive progress via onTimeUpdate)
   useEffect(() => {
@@ -648,33 +711,102 @@ export const VideoFeedScreen: React.FC<VideoFeedScreenProps> = ({
         className="relative flex-1 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer bg-black"
       >
         {isCurrentVideoPlayable ? (
-          <video
-            key={currentVideo.id}
-            ref={videoRef}
-            src={currentVideo.videoUrl}
-            poster={
-              currentVideo.thumbnailUrl && currentVideo.thumbnailUrl !== currentVideo.videoUrl
-                ? currentVideo.thumbnailUrl
-                : undefined
-            }
-            autoPlay
-            loop
-            playsInline
-            muted={false}
-            onTimeUpdate={(e) => {
-              const el = e.currentTarget;
-              if (el.duration && Number.isFinite(el.duration) && el.duration > 0) {
-                setPlaybackProgress(Math.min(100, (el.currentTime / el.duration) * 100));
+          resolvedVideoSrc ? (
+            <video
+              key={`${currentVideo.id}_${videoRetryNonce}`}
+              ref={videoRef}
+              src={resolvedVideoSrc}
+              poster={
+                currentVideo.thumbnailUrl &&
+                currentVideo.thumbnailUrl !== currentVideo.videoUrl &&
+                !isFirestoreChunkedVideoUrl(currentVideo.thumbnailUrl)
+                  ? currentVideo.thumbnailUrl
+                  : undefined
               }
-            }}
-            className="w-full h-full object-cover"
-          />
+              autoPlay
+              loop
+              playsInline
+              preload="auto"
+              onLoadStart={() => setIsVideoLoading(true)}
+              onLoadedData={() => {
+                setIsVideoLoading(false);
+                setVideoLoadError(null);
+              }}
+              onCanPlay={(e) => {
+                setIsVideoLoading(false);
+                setVideoLoadError(null);
+                if (isPlaying && e.currentTarget.paused) {
+                  e.currentTarget.play().catch(() => {
+                    e.currentTarget.muted = true;
+                    e.currentTarget.play().catch(() => {});
+                  });
+                }
+              }}
+              onWaiting={() => setIsVideoLoading(true)}
+              onPlaying={() => {
+                setIsVideoLoading(false);
+                setVideoLoadError(null);
+              }}
+              onError={() => {
+                setIsVideoLoading(false);
+                setVideoLoadError('Video playback error. Tap to retry.');
+              }}
+              onTimeUpdate={(e) => {
+                const el = e.currentTarget;
+                if (el.duration && Number.isFinite(el.duration) && el.duration > 0) {
+                  setPlaybackProgress(Math.min(100, (el.currentTime / el.duration) * 100));
+                }
+              }}
+              className="w-full h-full object-cover"
+            />
+          ) : currentVideo.thumbnailUrl && !isFirestoreChunkedVideoUrl(currentVideo.thumbnailUrl) ? (
+            <img
+              src={currentVideo.thumbnailUrl}
+              alt={currentVideo.description}
+              className="w-full h-full object-cover filter brightness-90"
+            />
+          ) : (
+            <div className="w-full h-full bg-[#090611]" />
+          )
         ) : (
           <img
-            src={currentVideo.thumbnailUrl || currentVideo.videoUrl}
+            src={
+              currentVideo.thumbnailUrl && !isFirestoreChunkedVideoUrl(currentVideo.thumbnailUrl)
+                ? currentVideo.thumbnailUrl
+                : currentVideo.videoUrl
+            }
             alt={currentVideo.description}
             className="w-full h-full object-cover filter brightness-95"
           />
+        )}
+
+        {/* Loading / Buffering Spinner */}
+        {isCurrentVideoPlayable && isVideoLoading && !videoLoadError && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className="w-12 h-12 rounded-full bg-black/55 backdrop-blur-md border border-white/15 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-[#FA26A0] animate-spin" />
+            </div>
+          </div>
+        )}
+
+        {/* Video Error Recovery Overlay */}
+        {videoLoadError && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setVideoLoadError(null);
+              setVideoRetryNonce((n) => n + 1);
+            }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-sm z-25 px-6 text-center"
+          >
+            <div className="w-14 h-14 rounded-full bg-[#FA26A0]/20 border border-[#FA26A0]/50 flex items-center justify-center text-[#FA26A0]">
+              <RefreshCw className="w-6 h-6" />
+            </div>
+            <p className="text-xs font-bold text-white max-w-xs">{videoLoadError}</p>
+            <span className="px-4 py-1.5 rounded-full bg-[#FA26A0] text-white text-xs font-extrabold">
+              Retry Video
+            </span>
+          </div>
         )}
 
         {/* Ambient Overlays for Readability */}

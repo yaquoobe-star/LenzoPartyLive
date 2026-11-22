@@ -21,6 +21,7 @@ export const VideoUploadSourceModal: React.FC<VideoUploadSourceModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      e.target.value = '';
       onClose();
       onSelectGalleryFile(file);
     }
@@ -42,7 +43,7 @@ export const VideoUploadSourceModal: React.FC<VideoUploadSourceModalProps> = ({
         <input 
           ref={fileInputRef}
           type="file" 
-          accept="video/*" 
+          accept="video/mp4,video/webm,video/quicktime,video/3gpp,video/*" 
           onChange={handleFileChange}
           className="hidden" 
         />

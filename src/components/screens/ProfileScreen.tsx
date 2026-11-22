@@ -63,6 +63,10 @@ import { AchievementsModal } from '../profile/AchievementsModal';
 import { AgencyCenterModal } from '../profile/AgencyCenterModal';
 import { BlockedUsersModal } from '../profile/BlockedUsersModal';
 import { BlockedUserRecord, blockUser as blockUserService, unblockUser as unblockUserService } from '../../services/blockService';
+import {
+  isFirestoreChunkedVideoUrl,
+  resolveFirestoreChunkedReelUrl,
+} from '../../services/storageService';
 import { profileService } from '../../utils/profileService';
 import { uploadUserImage } from '../../services/storageService';
 import {
@@ -157,7 +161,31 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Video Player & Delete Confirmation State
   const [playingVideo, setPlayingVideo] = useState<VideoItem | null>(null);
+  const [resolvedPlayingVideoUrl, setResolvedPlayingVideoUrl] = useState<string>('');
   const [videoToDelete, setVideoToDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!playingVideo) {
+      setResolvedPlayingVideoUrl('');
+      return;
+    }
+    if (isFirestoreChunkedVideoUrl(playingVideo.videoUrl)) {
+      setResolvedPlayingVideoUrl('');
+      resolveFirestoreChunkedReelUrl(playingVideo.videoUrl, playingVideo.videoMimeType)
+        .then((blobUrl) => {
+          if (!cancelled) setResolvedPlayingVideoUrl(blobUrl);
+        })
+        .catch(() => {
+          if (!cancelled) setResolvedPlayingVideoUrl('');
+        });
+    } else {
+      setResolvedPlayingVideoUrl(playingVideo.videoUrl);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [playingVideo?.id, playingVideo?.videoUrl, playingVideo?.videoMimeType]);
 
   // Content Tabs Data
   const [publicVideos, setPublicVideos] = useState<VideoItem[]>([]);
@@ -548,9 +576,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if (!url) return false;
     const lower = url.toLowerCase();
     return (
+      isFirestoreChunkedVideoUrl(url) ||
       lower.startsWith('blob:') ||
+      lower.startsWith('data:video/') ||
       /\.(mp4|webm|mov|m4v|ogv|ogg|3gp|mkv|m3u8)(\?|$)/i.test(lower) ||
       (lower.includes('/api/reels/media/') && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower)) ||
+      (lower.includes('firebasestorage') && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(lower)) ||
       lower.includes('/videos%2f')
     );
   };
@@ -892,14 +923,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
             <div className="relative aspect-[9/14] w-full bg-black flex items-center justify-center overflow-hidden">
               {isVideoSource(playingVideo.videoUrl) ? (
-                <video
-                  src={playingVideo.videoUrl}
-                  poster={playingVideo.thumbnailUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
+                resolvedPlayingVideoUrl ? (
+                  <video
+                    src={resolvedPlayingVideoUrl}
+                    poster={
+                      playingVideo.thumbnailUrl && !isFirestoreChunkedVideoUrl(playingVideo.thumbnailUrl)
+                        ? playingVideo.thumbnailUrl
+                        : undefined
+                    }
+                    controls
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-xs text-[#B9AECF]">
+                    <div className="w-8 h-8 border-2 border-[#FA26A0] border-t-transparent rounded-full animate-spin" />
+                    <span>Loading video...</span>
+                  </div>
+                )
               ) : (
                 <img
                   src={playingVideo.thumbnailUrl || playingVideo.videoUrl}
@@ -1771,12 +1813,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                         onClick={() => setPlayingVideo(item)}
                         className="group relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#0E071B] border border-white/10 hover:border-[#FA26A0]/60 cursor-pointer transition-all flex flex-col justify-between p-2.5"
                       >
-                        <img
-                          src={item.thumbnailUrl || item.videoUrl}
-                          alt={item.description || 'Lenzo moment'}
-                          referrerPolicy="no-referrer"
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                        {item.thumbnailUrl && !isFirestoreChunkedVideoUrl(item.thumbnailUrl) ? (
+                          <img
+                            src={item.thumbnailUrl}
+                            alt={item.description || 'Lenzo moment'}
+                            referrerPolicy="no-referrer"
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : !isFirestoreChunkedVideoUrl(item.videoUrl) && !isVideoSource(item.videoUrl) ? (
+                          <img
+                            src={item.videoUrl}
+                            alt={item.description || 'Lenzo moment'}
+                            referrerPolicy="no-referrer"
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-[#1C0F33] via-[#120922] to-[#260D3B] flex items-center justify-center">
+                            <Play className="w-8 h-8 text-[#FA26A0]/80 fill-[#FA26A0]/30" />
+                          </div>
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/35 pointer-events-none" />
 
                         <div className="relative z-10 flex items-center justify-between gap-1">

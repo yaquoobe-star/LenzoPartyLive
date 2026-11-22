@@ -67,6 +67,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
   const [etaSeconds, setEtaSeconds] = useState<number | undefined>(undefined);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
   const [isMuted] = useState(false);
 
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
@@ -77,6 +78,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
   useEffect(() => {
     if (initialVideoUrl) {
       setPreviewUrl(initialVideoUrl);
+      setPreviewError(false);
     }
     if (initialFile) {
       setSelectedFile(initialFile);
@@ -135,7 +137,9 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
       localObjectUrlRef.current = url;
       setSelectedFile(file);
       setPreviewUrl(url);
+      setPreviewError(false);
     }
+    e.target.value = '';
   };
 
   const handleAddHashtag = (tagToAdd?: string) => {
@@ -259,6 +263,8 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
         musicTitle: `${currentUser.name} - Original Sound`,
         fileSizeBytes: uploaded.fileSizeBytes,
         storageBackend: uploaded.storageBackend,
+        videoMimeType: uploaded.videoMimeType,
+        mediaChunkCount: uploaded.mediaChunkCount,
       });
 
       setUploadProgress(100);
@@ -328,7 +334,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/mp4,video/webm,video/quicktime,video/*"
+        accept="video/mp4,video/webm,video/quicktime,video/3gpp,video/*"
         onChange={handleFileChange}
         disabled={isUploading}
         className="hidden"
@@ -397,7 +403,7 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
           </div>
 
           <div className="relative h-60 sm:h-72 w-full rounded-3xl overflow-hidden bg-black border border-white/10 shadow-2xl flex items-center justify-center group">
-            {isBlobOrVideoUrl ? (
+            {isBlobOrVideoUrl && !previewError ? (
               <video
                 ref={videoPlayerRef}
                 src={previewUrl}
@@ -406,8 +412,19 @@ export const UploadVideoScreen: React.FC<UploadVideoScreenProps> = ({
                 playsInline
                 muted={isMuted}
                 controls={!isUploading}
+                onError={() => setPreviewError(true)}
                 className="w-full h-full object-contain bg-black"
               />
+            ) : isBlobOrVideoUrl && previewError ? (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-[#140D20] px-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                  <Film className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold text-white">Video Selected &amp; Ready</span>
+                <span className="text-[11px] text-[#9E97AA]">
+                  Preview unavailable for this codec, but your video can still be uploaded.
+                </span>
+              </div>
             ) : (
               <button
                 type="button"

@@ -362,6 +362,11 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                       <span className="text-[10px] text-[#9E97AA] font-mono leading-none">
                         • {seatedCount}/{getActiveSeatCapacity(room.maxSeats, room.host?.level)} seats
                       </span>
+                      {seatedCount === 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-white/10 text-[9px] font-bold text-[#B9AECF] uppercase tracking-wide leading-none">
+                          Empty
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -369,7 +374,11 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
                 {/* Right Side: Real-Time Online Count & Pink Join Button */}
                 <div className="flex items-center gap-3 shrink-0 ml-2">
                   <div className="flex items-center gap-1 text-xs font-mono font-bold text-white/90" title="Real-time connected viewers">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        liveOnlineCount > 0 || seatedCount > 0 ? 'bg-emerald-400' : 'bg-white/30'
+                      }`}
+                    />
                     <Users className="w-3.5 h-3.5 text-[#9E97AA]" />
                     <span>{liveOnlineCount}</span>
                   </div>

@@ -1119,7 +1119,11 @@
     },
     "/reels/{reelId}": {
       "schema": "Reel",
-      "description": "Production Reels metadata pointing to Firebase Storage reels/{userUID}/{reelID}/ assets"
+      "description": "Production Reels metadata pointing to Firebase Storage, backend chunked media, or Firestore chunked media assets"
+    },
+    "/reels/{reelId}/media_chunks/{chunkId}": {
+      "schema": "Reel",
+      "description": "Ordered base64 binary media chunks for Firestore fallback reel storage when external bucket/server is unavailable"
     },
     "/reel_likes/{likeId}": {
       "schema": "ReelLike",

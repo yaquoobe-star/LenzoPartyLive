@@ -26,6 +26,9 @@ export interface VideoItem {
   processingStatus?: 'uploading' | 'processing' | 'ready' | 'failed';
   sourceCollection?: 'reels' | 'posts';
   contentType?: 'video' | 'post';
+  storageBackend?: 'firebase_storage' | 'server_media' | 'firestore_chunks';
+  videoMimeType?: string;
+  mediaChunkCount?: number;
 }
 
 export interface VideoComment {

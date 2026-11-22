@@ -5,11 +5,21 @@ import {
   deleteObject,
   UploadTaskSnapshot,
 } from 'firebase/storage';
-import { storage, auth, FIREBASE_RUNTIME_INFO } from '../firebase';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  writeBatch,
+} from 'firebase/firestore';
+import { storage, auth, db, FIREBASE_RUNTIME_INFO } from '../firebase';
 import { apiFetch, apiUrl, resolveMediaUrl } from '../utils/apiConfig';
 
 export const MAX_REEL_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB strict maximum
+export const MAX_FIRESTORE_FALLBACK_VIDEO_BYTES = 15 * 1024 * 1024; // 15 MB Firestore chunk fallback ceiling
 const DEFAULT_CHUNK_SIZE_BYTES = 4 * 1024 * 1024; // 4 MB chunks (proxy, Cloud Run & mobile safe)
+const FIRESTORE_CHUNK_RAW_BYTES = 450 * 1024; // 450 KB raw binary (~600 KB base64 < 750 KB rule limit)
+const FIRESTORE_CHUNK_PREFIX = 'firestore_chunks://';
 
 export type UploadProgressPhase =
   | 'init'
@@ -428,7 +438,313 @@ export interface ReelUploadResult {
   thumbnailUrl: string;
   thumbnailStoragePath: string;
   fileSizeBytes: number;
-  storageBackend: 'firebase_storage' | 'server_media';
+  storageBackend: 'firebase_storage' | 'server_media' | 'firestore_chunks';
+  videoMimeType?: string;
+  mediaChunkCount?: number;
+}
+
+export function isFirestoreChunkedVideoUrl(url?: string | null): boolean {
+  return Boolean(url && typeof url === 'string' && url.startsWith(FIRESTORE_CHUNK_PREFIX));
+}
+
+export function extractFirestoreChunkedReelId(url?: string | null): string | null {
+  if (!isFirestoreChunkedVideoUrl(url)) return null;
+  const raw = String(url).slice(FIRESTORE_CHUNK_PREFIX.length).split(/[/?#]/)[0]?.trim() || '';
+  return /^[a-zA-Z0-9_-]{3,128}$/.test(raw) ? raw : null;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const blockSize = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += blockSize) {
+    const slice = bytes.subarray(i, Math.min(bytes.length, i + blockSize));
+    parts.push(String.fromCharCode(...slice));
+  }
+  return btoa(parts.join(''));
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// LRU objectURL cache for resolved Firestore chunked reels (prevents redundant downloads & mobile RAM bloat)
+const MAX_CACHED_CHUNK_BLOBS = 12;
+const resolvedChunkReelCache = new Map<string, string>();
+const inflightChunkReelLoads = new Map<string, Promise<string>>();
+
+export async function resolveFirestoreChunkedReelUrl(
+  videoUrl: string,
+  fallbackMimeType = 'video/mp4'
+): Promise<string> {
+  if (!isFirestoreChunkedVideoUrl(videoUrl)) return videoUrl;
+  const reelId = extractFirestoreChunkedReelId(videoUrl);
+  if (!reelId) {
+    throw new Error('Invalid reel media reference.');
+  }
+
+  const cached = resolvedChunkReelCache.get(reelId);
+  if (cached) {
+    // Refresh LRU order
+    resolvedChunkReelCache.delete(reelId);
+    resolvedChunkReelCache.set(reelId, cached);
+    return cached;
+  }
+
+  const pending = inflightChunkReelLoads.get(reelId);
+  if (pending) return pending;
+
+  const loader = (async () => {
+    const snap = await getDocs(collection(db, 'reels', reelId, 'media_chunks'));
+    if (snap.empty) {
+      throw new Error('Video media chunks are no longer available.');
+    }
+    const ordered = snap.docs
+      .map((d) => {
+        const data = d.data() as Record<string, any>;
+        return {
+          index: typeof data.chunkIndex === 'number' ? data.chunkIndex : Number.MAX_SAFE_INTEGER,
+          data: typeof data.data === 'string' ? data.data : '',
+          mimeType: typeof data.mimeType === 'string' ? data.mimeType : '',
+        };
+      })
+      .filter((c) => c.data.length > 0)
+      .sort((a, b) => a.index - b.index);
+
+    if (ordered.length === 0) {
+      throw new Error('Video media payload is empty.');
+    }
+
+    const mimeType = ordered[0].mimeType || fallbackMimeType || 'video/mp4';
+    const parts: BlobPart[] = ordered.map((c) => base64ToUint8Array(c.data) as unknown as BlobPart);
+    const blob = new Blob(parts, { type: mimeType });
+    const objectUrl = URL.createObjectURL(blob);
+
+    resolvedChunkReelCache.set(reelId, objectUrl);
+    if (resolvedChunkReelCache.size > MAX_CACHED_CHUNK_BLOBS) {
+      const oldestKey = resolvedChunkReelCache.keys().next().value;
+      if (oldestKey) {
+        const oldestUrl = resolvedChunkReelCache.get(oldestKey);
+        resolvedChunkReelCache.delete(oldestKey);
+        if (oldestUrl) {
+          try {
+            URL.revokeObjectURL(oldestUrl);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+    return objectUrl;
+  })().finally(() => {
+    inflightChunkReelLoads.delete(reelId);
+  });
+
+  inflightChunkReelLoads.set(reelId, loader);
+  return loader;
+}
+
+export async function deleteFirestoreReelChunks(reelId: string): Promise<boolean> {
+  if (!auth.currentUser || !/^[a-zA-Z0-9_-]{3,128}$/.test(reelId)) return false;
+  try {
+    const snap = await getDocs(collection(db, 'reels', reelId, 'media_chunks'));
+    if (snap.empty) return true;
+    for (let i = 0; i < snap.docs.length; i += 250) {
+      const batch = writeBatch(db);
+      snap.docs.slice(i, i + 250).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    const cached = resolvedChunkReelCache.get(reelId);
+    if (cached) {
+      resolvedChunkReelCache.delete(reelId);
+      try {
+        URL.revokeObjectURL(cached);
+      } catch {
+        // ignore
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Firestore Chunks] Could not delete reel media chunks:', reelId, err);
+    return false;
+  }
+}
+
+/**
+ * Tier 3 Resilient Cloud Fallback: Stores videos <= 15 MB in Firestore `reels/{reelId}/media_chunks/*`
+ * so Reels upload & play reliably across Web, AI Studio Preview, and Android APK even when
+ * Firebase Storage is unprovisioned (404) and api.lenzoparty.com is offline (502).
+ */
+async function uploadReelViaFirestoreChunks(params: {
+  reelId: string;
+  videoFile: File | Blob;
+  mimeType: string;
+  signal?: AbortSignal;
+  onProgress?: UploadProgressCallback;
+}): Promise<ReelUploadResult> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Authentication required to upload reels.');
+  }
+  if (params.signal?.aborted) {
+    throw createAbortError();
+  }
+
+  const totalBytes = params.videoFile.size;
+  if (totalBytes > MAX_FIRESTORE_FALLBACK_VIDEO_BYTES) {
+    const sizeMb = (totalBytes / (1024 * 1024)).toFixed(1);
+    throw new Error(
+      `Video is ${sizeMb} MB. While Firebase Storage / media server is offline, cloud fallback supports videos up to 15 MB. Please pick a shorter/smaller video or enable Firebase Storage for up to 100 MB.`
+    );
+  }
+
+  const totalChunks = Math.max(1, Math.ceil(totalBytes / FIRESTORE_CHUNK_RAW_BYTES));
+  const uploadStartMs = Date.now();
+  let highWaterPct = 2;
+  let completedBytes = 0;
+
+  const emitProgress = (info: UploadProgressInfo) => {
+    const clampedPct = Math.max(highWaterPct, Math.min(96, Math.round(info.percent)));
+    highWaterPct = clampedPct;
+    params.onProgress?.(clampedPct, {
+      ...info,
+      percent: clampedPct,
+      totalBytes,
+    });
+  };
+
+  emitProgress({
+    percent: 3,
+    bytesTransferred: 0,
+    totalBytes,
+    phase: 'uploading',
+    chunkIndex: 1,
+    totalChunks,
+    stage: `Uploading video to cloud (0.0 / ${formatMb(totalBytes)} MB)`,
+  });
+
+  // Upload chunks in small parallel batches (3 concurrent) for fast mobile + web throughput
+  const CONCURRENCY = 3;
+  try {
+    for (let batchStart = 0; batchStart < totalChunks; batchStart += CONCURRENCY) {
+      if (params.signal?.aborted) {
+        throw createAbortError();
+      }
+      const indices: number[] = [];
+      for (let i = batchStart; i < Math.min(totalChunks, batchStart + CONCURRENCY); i++) {
+        indices.push(i);
+      }
+
+      await Promise.all(
+        indices.map(async (chunkIndex) => {
+          if (params.signal?.aborted) {
+            throw createAbortError();
+          }
+          const start = chunkIndex * FIRESTORE_CHUNK_RAW_BYTES;
+          const end = Math.min(totalBytes, start + FIRESTORE_CHUNK_RAW_BYTES);
+          const chunkBlob = params.videoFile.slice(start, end);
+          const arrayBuf = await chunkBlob.arrayBuffer();
+          const b64 = arrayBufferToBase64(arrayBuf);
+          const chunkDocId = `chunk_${String(chunkIndex).padStart(4, '0')}`;
+
+          await setDoc(doc(db, 'reels', params.reelId, 'media_chunks', chunkDocId), {
+            reelId: params.reelId,
+            creatorUID: user.uid,
+            chunkIndex,
+            totalChunks,
+            mimeType: params.mimeType,
+            data: b64,
+          });
+
+          completedBytes = Math.min(totalBytes, completedBytes + (end - start));
+          const elapsedSec = Math.max(0.25, (Date.now() - uploadStartMs) / 1000);
+          const bytesPerSecond = completedBytes / elapsedSec;
+          const remainingBytes = Math.max(0, totalBytes - completedBytes);
+          const etaSeconds = bytesPerSecond > 1024 ? Math.ceil(remainingBytes / bytesPerSecond) : undefined;
+          const pct = Math.min(91, Math.max(3, Math.round(3 + (completedBytes / totalBytes) * 88)));
+
+          emitProgress({
+            percent: pct,
+            bytesTransferred: completedBytes,
+            totalBytes,
+            bytesPerSecond,
+            etaSeconds,
+            phase: 'uploading',
+            chunkIndex: Math.min(totalChunks, chunkIndex + 1),
+            totalChunks,
+            stage: `Uploading video (${formatMb(completedBytes)} / ${formatMb(totalBytes)} MB)`,
+          });
+        })
+      );
+    }
+  } catch (err: any) {
+    // Clean up partial chunks if cancelled or failed
+    void deleteFirestoreReelChunks(params.reelId);
+    throw err;
+  }
+
+  if (params.signal?.aborted) {
+    void deleteFirestoreReelChunks(params.reelId);
+    throw createAbortError();
+  }
+
+  // Generate compact JPEG cover data URL (< 90 KB) so feed & profile grid show preview instantly
+  let thumbnailUrl = '';
+  try {
+    emitProgress({
+      percent: 93,
+      bytesTransferred: totalBytes,
+      totalBytes,
+      phase: 'thumbnail',
+      stage: 'Creating preview cover...',
+    });
+    const thumbBlob = await captureVideoThumbnailBlob(params.videoFile);
+    if (thumbBlob && thumbBlob.size > 0 && !params.signal?.aborted) {
+      let compactThumb = await compressImageToDataUrl(thumbBlob, 480, 0.72);
+      if (compactThumb.length > 140000) {
+        compactThumb = await compressImageToDataUrl(thumbBlob, 360, 0.6);
+      }
+      if (compactThumb.length <= 155000) {
+        thumbnailUrl = compactThumb;
+      }
+    }
+  } catch {
+    // Non-fatal: video still plays without poster
+  }
+
+  const videoUrl = `${FIRESTORE_CHUNK_PREFIX}${params.reelId}`;
+  // Pre-seed local blob URL cache so the creator's newly published reel plays with zero delay!
+  try {
+    const localBlobUrl = URL.createObjectURL(params.videoFile);
+    resolvedChunkReelCache.set(params.reelId, localBlobUrl);
+  } catch {
+    // ignore
+  }
+
+  emitProgress({
+    percent: 96,
+    bytesTransferred: totalBytes,
+    totalBytes,
+    phase: 'saving',
+    stage: 'Publishing reel...',
+  });
+
+  return {
+    videoUrl,
+    videoStoragePath: `firestore_chunks:${params.reelId}`,
+    thumbnailUrl: thumbnailUrl || videoUrl,
+    thumbnailStoragePath: '',
+    fileSizeBytes: totalBytes,
+    storageBackend: 'firestore_chunks',
+    videoMimeType: params.mimeType,
+    mediaChunkCount: totalChunks,
+  };
 }
 
 function createAbortError(): Error {
@@ -1235,15 +1551,50 @@ export async function uploadReelVideoAndThumbnail(params: {
     }
   }
 
-  // Primary active path when Firebase Storage bucket is not provisioned (404)
-  return uploadReelViaChunkedBackend({
-    reelId: params.reelId,
-    videoFile: params.videoFile,
-    mimeType,
-    fileName,
-    signal: params.signal,
-    onProgress: params.onProgress,
-  });
+  // Tier 2: Persistent 4 MB chunked streaming storage on Lenzo backend (up to 100 MB)
+  try {
+    return await uploadReelViaChunkedBackend({
+      reelId: params.reelId,
+      videoFile: params.videoFile,
+      mimeType,
+      fileName,
+      signal: params.signal,
+      onProgress: params.onProgress,
+    });
+  } catch (backendErr: any) {
+    if (backendErr?.name === 'AbortError' || params.signal?.aborted) {
+      throw createAbortError();
+    }
+    const errMsg = String(backendErr?.message || '');
+    const isBackendUnavailable =
+      backendErr?.isNetworkError ||
+      backendErr?.isTimeout ||
+      backendErr?.status === 502 ||
+      backendErr?.status === 503 ||
+      backendErr?.status === 504 ||
+      backendErr?.status === 404 ||
+      /502|503|504|offline|unavailable|failed to fetch|unable to reach|network|timed out|could not start video upload/i.test(
+        errMsg
+      );
+
+    if (!isBackendUnavailable) {
+      throw backendErr;
+    }
+
+    console.warn(
+      '[Reels Storage] Media server unreachable; falling back to resilient Firestore cloud chunk storage:',
+      errMsg
+    );
+
+    // Tier 3: Firestore cloud chunk fallback (works on Web, AI Studio & Android APK up to 15 MB)
+    return uploadReelViaFirestoreChunks({
+      reelId: params.reelId,
+      videoFile: params.videoFile,
+      mimeType,
+      signal: params.signal,
+      onProgress: params.onProgress,
+    });
+  }
 }
 
 /**
@@ -1270,6 +1621,11 @@ export async function uploadPostVideo(
 export async function deleteStoragePath(storagePath?: string | null): Promise<boolean> {
   if (!storagePath || !storagePath.trim()) return false;
   const trimmed = storagePath.trim();
+
+  if (trimmed.startsWith('firestore_chunks:')) {
+    const reelId = trimmed.slice('firestore_chunks:'.length).split('/')[0];
+    return reelId ? deleteFirestoreReelChunks(reelId) : false;
+  }
 
   if (trimmed.startsWith('server_media:')) {
     const reelId = trimmed.slice('server_media:'.length).split('/')[0];
@@ -1298,10 +1654,15 @@ export async function deleteStoragePath(storagePath?: string | null): Promise<bo
 }
 
 /**
- * Safely delete an uploaded file by URL (handles both server media and Firebase Storage URLs)
+ * Safely delete an uploaded file by URL (handles Firestore chunks, server media, and Firebase Storage URLs)
  */
 export async function deleteStorageFileByUrl(fileUrl: string): Promise<boolean> {
   if (!fileUrl) return false;
+
+  if (isFirestoreChunkedVideoUrl(fileUrl)) {
+    const reelId = extractFirestoreChunkedReelId(fileUrl);
+    return reelId ? deleteFirestoreReelChunks(reelId) : false;
+  }
 
   const serverMediaMatch = fileUrl.match(/\/api\/reels\/media\/([a-zA-Z0-9_-]+)\//);
   if (serverMediaMatch?.[1]) {

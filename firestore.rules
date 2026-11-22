@@ -1171,8 +1171,10 @@ service cloud.firestore {
         && (!('description' in data) || (data.description is string && data.description.size() <= 500))
         && (!('musicTitle' in data) || (data.musicTitle is string && data.musicTitle.size() <= 150))
         && (!('videoStoragePath' in data) || (data.videoStoragePath is string && data.videoStoragePath.size() <= 512))
-        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 2048))
+        && (!('thumbnailUrl' in data) || (data.thumbnailUrl is string && data.thumbnailUrl.size() <= 160000))
         && (!('thumbnailStoragePath' in data) || (data.thumbnailStoragePath is string && data.thumbnailStoragePath.size() <= 512))
+        && (!('videoMimeType' in data) || (data.videoMimeType is string && data.videoMimeType.size() <= 64))
+        && (!('mediaChunkCount' in data) || (data.mediaChunkCount is number && data.mediaChunkCount >= 1 && data.mediaChunkCount <= 40))
         && (!('hashtags' in data) || (data.hashtags is list && data.hashtags.size() <= 12))
         && (!('likesCount' in data) || (data.likesCount is number && data.likesCount >= 0))
         && (!('commentsCount' in data) || (data.commentsCount is number && data.commentsCount >= 0))
@@ -1180,7 +1182,7 @@ service cloud.firestore {
         && (!('sharesCount' in data) || (data.sharesCount is number && data.sharesCount >= 0))
         && (!('repostsCount' in data) || (data.repostsCount is number && data.repostsCount >= 0))
         && (!('fileSizeBytes' in data) || (data.fileSizeBytes is number && data.fileSizeBytes > 0 && data.fileSizeBytes <= 104857600))
-        && (!('storageBackend' in data) || data.storageBackend in ['firebase_storage', 'server_media'])
+        && (!('storageBackend' in data) || data.storageBackend in ['firebase_storage', 'server_media', 'firestore_chunks'])
         && (!('isPrivate' in data) || data.isPrivate is bool)
         && (!('processingStatus' in data) || data.processingStatus in ['uploading', 'processing', 'ready', 'failed']);
     }
@@ -1208,6 +1210,27 @@ service cloud.firestore {
       allow delete: if isSignedIn()
                     && isValidId(reelId)
                     && (existing().creatorUID == request.auth.uid || isAdmin());
+
+      match /media_chunks/{chunkId} {
+        allow get: if isSignedIn() && isValidId(reelId) && isValidId(chunkId);
+        allow list: if isSignedIn() && isValidId(reelId);
+        allow create: if isSignedIn()
+                      && isValidId(reelId)
+                      && isValidId(chunkId)
+                      && incoming().creatorUID == request.auth.uid
+                      && incoming().reelId == reelId
+                      && incoming().chunkIndex is number
+                      && incoming().chunkIndex >= 0
+                      && incoming().chunkIndex < 40
+                      && incoming().data is string
+                      && incoming().data.size() > 0
+                      && incoming().data.size() <= 750000;
+        allow update: if false;
+        allow delete: if isSignedIn()
+                      && isValidId(reelId)
+                      && isValidId(chunkId)
+                      && (existing().creatorUID == request.auth.uid || isAdmin());
+      }
     }
 
     // ========================================================

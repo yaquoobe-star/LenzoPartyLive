@@ -3516,12 +3516,11 @@ function resolvePublicBaseUrl(req: Request): string {
   const configured = (process.env.PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
   const forwardedHost = String(req.headers['x-forwarded-host'] || req.get('host') || '').split(',')[0].trim();
-  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
   if (!forwardedHost) return '';
   if (/^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(forwardedHost)) {
     return '';
   }
-  return `${forwardedProto === 'http' ? 'http' : 'https'}://${forwardedHost}`;
+  return `https://${forwardedHost}`;
 }
 
 function resolveVideoMimeAndExt(rawContentType?: string, rawFileName?: string): { mimeType: string; ext: string } | null {

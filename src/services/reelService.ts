@@ -99,6 +99,14 @@ function mapReelDocToVideoItem(
     createdAtMillis: typeof data.createdAtMillis === 'number' ? data.createdAtMillis : ts.millis,
     sourceCollection: 'reels',
     contentType: 'video',
+    storageBackend:
+      data.storageBackend === 'firebase_storage' ||
+      data.storageBackend === 'server_media' ||
+      data.storageBackend === 'firestore_chunks'
+        ? data.storageBackend
+        : undefined,
+    videoMimeType: typeof data.videoMimeType === 'string' ? data.videoMimeType : undefined,
+    mediaChunkCount: typeof data.mediaChunkCount === 'number' ? data.mediaChunkCount : undefined,
   };
 }
 
@@ -117,7 +125,9 @@ export async function createReelDocument(params: {
   visibility: 'public' | 'friends' | 'private';
   musicTitle?: string;
   fileSizeBytes?: number;
-  storageBackend?: 'firebase_storage' | 'server_media';
+  storageBackend?: 'firebase_storage' | 'server_media' | 'firestore_chunks';
+  videoMimeType?: string;
+  mediaChunkCount?: number;
 }): Promise<VideoItem> {
   const user = auth.currentUser;
   if (!user) {
@@ -146,6 +156,11 @@ export async function createReelDocument(params: {
     videoStoragePath: params.videoStoragePath,
     thumbnailUrl: params.thumbnailUrl || params.videoUrl,
     thumbnailStoragePath: params.thumbnailStoragePath || '',
+    videoMimeType: params.videoMimeType ? params.videoMimeType.slice(0, 64) : undefined,
+    mediaChunkCount:
+      typeof params.mediaChunkCount === 'number' && params.mediaChunkCount >= 1 && params.mediaChunkCount <= 40
+        ? Math.round(params.mediaChunkCount)
+        : undefined,
     caption: params.caption.trim().slice(0, 500),
     description: params.caption.trim().slice(0, 500),
     musicTitle: (params.musicTitle || `Original Sound - ${safeCreator.name}`).slice(0, 120),
@@ -194,6 +209,9 @@ export async function createReelDocument(params: {
       createdAtMillis: nowMs,
       sourceCollection: 'reels',
       contentType: 'video',
+      storageBackend: payload.storageBackend,
+      videoMimeType: payload.videoMimeType,
+      mediaChunkCount: payload.mediaChunkCount,
     };
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, `reels/${params.reelId}`);
@@ -239,39 +257,58 @@ export function subscribeReelsFeed(
     });
   }
 
-  const q = query(collection(db, 'reels'), orderBy('createdAt', 'desc'), limit(pageSize));
-  const unsubscribe = onSnapshot(
-    q,
-    async (snap) => {
-      if (!active) return;
-      if (viewerUid && cachedLikes.size === 0) {
-        cachedLikes = await fetchViewerLikedReelIds(viewerUid);
-      }
-      const items = snap.docs
-        .map((d) => mapReelDocToVideoItem(d.id, d.data(), cachedLikes))
-        .filter((reel) => {
-          if (!reel.videoUrl) return false;
-          if (reel.privacy === 'private') {
-            return Boolean(viewerUid && (reel.creatorUid === viewerUid || reel.creator.id === viewerUid));
-          }
-          return true;
-        });
+  // Order by numeric `createdAtMillis` (always populated immediately on create, never null during latency compensation)
+  const q = query(collection(db, 'reels'), orderBy('createdAtMillis', 'desc'), limit(pageSize));
+  let activeUnsub: (() => void) | null = null;
 
-      const lastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
-      onUpdate({
-        reels: items,
-        lastDoc,
-        hasMore: snap.docs.length >= pageSize,
-      });
+  const handleSnap = async (snap: any) => {
+    if (!active) return;
+    if (viewerUid && cachedLikes.size === 0) {
+      cachedLikes = await fetchViewerLikedReelIds(viewerUid);
+    }
+    const items = snap.docs
+      .map((d: any) => mapReelDocToVideoItem(d.id, d.data(), cachedLikes))
+      .filter((reel: VideoItem) => {
+        if (!reel.videoUrl) return false;
+        if (reel.privacy === 'private') {
+          return Boolean(viewerUid && (reel.creatorUid === viewerUid || reel.creator.id === viewerUid));
+        }
+        return true;
+      })
+      .sort((a: VideoItem, b: VideoItem) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
+
+    const lastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+    onUpdate({
+      reels: items,
+      lastDoc,
+      hasMore: snap.docs.length >= pageSize,
+    });
+  };
+
+  activeUnsub = onSnapshot(
+    q,
+    (snap) => {
+      void handleSnap(snap);
     },
     (err) => {
-      console.warn('[Firestore] subscribeReelsFeed notice:', err);
+      console.warn('[Firestore] subscribeReelsFeed primary query notice, falling back to createdAt:', err);
+      if (!active) return;
+      const fallbackQ = query(collection(db, 'reels'), orderBy('createdAt', 'desc'), limit(pageSize));
+      activeUnsub = onSnapshot(
+        fallbackQ,
+        (snap) => {
+          void handleSnap(snap);
+        },
+        (fallbackErr) => {
+          console.warn('[Firestore] subscribeReelsFeed fallback notice:', fallbackErr);
+        }
+      );
     }
   );
 
   return () => {
     active = false;
-    unsubscribe();
+    activeUnsub?.();
   };
 }
 
