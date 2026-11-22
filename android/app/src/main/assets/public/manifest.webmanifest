@@ -4,12 +4,12 @@
   "description": "Lenzo Party Live — Chat, Live Streams, Party Rooms, PK Battles, Virtual Gifts & Community.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#060212",
-  "theme_color": "#060212",
+  "background_color": "#06071C",
+  "theme_color": "#06071C",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/app-icon.png",
+      "src": "/app-icon.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

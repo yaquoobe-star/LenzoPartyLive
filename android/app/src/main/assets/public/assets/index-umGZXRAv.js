@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-B_GRrNM7.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Dlv_q2hi.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CrMGE5cV.js","assets/CreateRoomScreen-C1Qzk0-O.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-DbMopDUJ.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-BVhddR0L.js","assets/StoreAssetPreview-DElLd5GG.js","assets/pushNotificationService-D66AMxEz.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-B__UvS3R.js","assets/UploadVideoScreen-B4aTY0Lp.js","assets/WalletModal-B3Ww5M-D.js","assets/LevelAndVIPModal-BSlnJh3K.js","assets/AdminProgressionModal-CiP87Q4I.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CsmQFCB3.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Dlv_q2hi.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CrMGE5cV.js","assets/CreateRoomScreen-DxR5qFPt.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-CuI1yvL1.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-DlgcC9kt.js","assets/StoreAssetPreview-DElLd5GG.js","assets/pushNotificationService-D66AMxEz.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-C5s4hHGv.js","assets/UploadVideoScreen-B3isGlQp.js","assets/WalletModal-BHZSbcU5.js","assets/LevelAndVIPModal-DQMbL5Hr.js","assets/AdminProgressionModal-BW5r5X24.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-DG4qo-ea.js";
 import { $ as Pause, $t as Clock, A as ShoppingBag, An as require_react, At as Gem, B as RotateCcw, Bt as ExternalLink, Cn as Award, Ct as House, D as Smartphone, Dn as ArrowRightLeft, Dt as Hash, E as Smile, En as ArrowRight, Et as Heart, F as Share2, Ft as FileText, G as Radio, H as Repeat2, Ht as Ellipsis, I as Settings, J as Pin, Jt as Crop, K as Plus, L as Send, M as ShieldOff, Mt as Flame, N as ShieldCheck, Nt as Flag, O as SlidersHorizontal, On as ArrowLeft, Ot as Globe, P as ShieldAlert, Pt as Film, Q as PenLine, Qt as Coins, R as Search, Rt as Eye, S as Swords, Sn as BadgeCheck, T as Sparkles, Tt as Hexagon, U as RefreshCw, V as Reply, Vt as Eraser, W as Receipt, X as Percent, Xt as Copy, Y as Phone, Yt as CornerUpLeft, Z as Pen, Zt as Compass, _ as TriangleAlert, _n as BookmarkCheck, a as Wallet, an as ChevronUp, at as MicOff, b as Timer, bn as BellOff, c as Video, cn as ChevronDown, d as User, dn as ChartColumn, dt as LogOut, en as CircleX, et as Paperclip, f as UserX, fn as Camera, ft as Lock, g as Trophy, gn as Bookmark, gt as LayoutGrid, h as Upload, hn as Building2, i as WifiOff, in as CircleAlert, it as Mic, j as Shield, kt as Gift, ln as Check, m as UserCheck, mn as Calendar, mt as LoaderCircle, n as Zap, nn as CircleCheck, o as VolumeX, on as ChevronRight, ot as MessageSquare, p as UserPlus, pn as CameraOff, pt as LockOpen, q as Play, qt as Crown, r as X, rn as CircleArrowDown, s as Volume2, sn as ChevronLeft, st as MessageCircle, t as ZoomIn, tt as Music, u as Users, un as CheckCheck, ut as Mail, v as TrendingUp, vn as Bell, w as Star, wn as AtSign, wt as History, x as Target, xn as Ban, xt as Image$1, y as Trash2, yn as BellRing, yt as KeyRound, z as Save, zt as EyeOff } from "./vendor-icons-Dlv_q2hi.js";
@@ -10041,23 +10041,27 @@ var BottomNav = ({ currentScreen, onNavigate, onOpenCreate, unreadMessagesCount 
 	});
 };
 // src/components/common/LenzoLogo.tsx
-var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className = "", horizontal = false, uppercase = false }) => {
+var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className = "", horizontal = false, uppercase = true }) => {
 	const iconDimensions = {
 		sm: {
-			width: 34,
-			height: 34
+			width: 38,
+			height: 38,
+			radius: "rounded-xl"
 		},
 		md: {
-			width: 50,
-			height: 50
+			width: 56,
+			height: 56,
+			radius: "rounded-2xl"
 		},
 		lg: {
-			width: 84,
-			height: 84
+			width: 92,
+			height: 92,
+			radius: "rounded-[22px]"
 		},
 		xl: {
-			width: 120,
-			height: 120
+			width: 132,
+			height: 132,
+			radius: "rounded-[28px]"
 		}
 	}[size];
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -10068,215 +10072,46 @@ var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className =
 				width: iconDimensions.width,
 				height: iconDimensions.height
 			},
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] opacity-55 blur-xl scale-125 animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-				viewBox: "0 0 100 100",
-				fill: "none",
-				xmlns: "http://www.w3.org/2000/svg",
-				className: "w-full h-full relative z-10 drop-shadow-[0_8px_20px_rgba(243,40,213,0.45)]",
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("defs", { children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "lenzoPlayGrad",
-							x1: "15",
-							y1: "15",
-							x2: "85",
-							y2: "85",
-							gradientUnits: "userSpaceOnUse",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "0%",
-									stopColor: "#8B20FF"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "48%",
-									stopColor: "#C415F5"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "100%",
-									stopColor: "#F328D5"
-								})
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "lenzoSheenGrad",
-							x1: "30",
-							y1: "20",
-							x2: "70",
-							y2: "80",
-							gradientUnits: "userSpaceOnUse",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "0%",
-									stopColor: "#FFFFFF",
-									stopOpacity: "0.85"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "30%",
-									stopColor: "#F328D5",
-									stopOpacity: "0.4"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "100%",
-									stopColor: "#8B20FF",
-									stopOpacity: "0.1"
-								})
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "lenzoCrownGrad",
-							x1: "20",
-							y1: "0",
-							x2: "80",
-							y2: "40",
-							gradientUnits: "userSpaceOnUse",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "0%",
-									stopColor: "#FFF176"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "35%",
-									stopColor: "#FFC84A"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "70%",
-									stopColor: "#F59E0B"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "100%",
-									stopColor: "#D97706"
-								})
-							]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "lenzoJewelGrad",
-							x1: "45",
-							y1: "20",
-							x2: "55",
-							y2: "30",
-							gradientUnits: "userSpaceOnUse",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-								offset: "0%",
-								stopColor: "#F328D5"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-								offset: "100%",
-								stopColor: "#8B20FF"
-							})]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "lenzoArrowGrad",
-							x1: "40",
-							y1: "40",
-							x2: "68",
-							y2: "60",
-							gradientUnits: "userSpaceOnUse",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-								offset: "0%",
-								stopColor: "#FFFFFF"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-								offset: "100%",
-								stopColor: "#F3E8FF"
-							})]
-						})
-					] }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", {
-						transform: "translate(0, -6)",
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-								d: "M26 30 L32 10 L43 23 L50 6 L57 23 L68 10 L74 30 C74 30 65 33 50 33 C35 33 26 30 26 30 Z",
-								fill: "url(#lenzoCrownGrad)",
-								filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "32",
-								cy: "10",
-								r: "2.8",
-								fill: "#FFFBEB",
-								stroke: "#D97706",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "43",
-								cy: "23",
-								r: "2.2",
-								fill: "#FFFBEB",
-								stroke: "#D97706",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "50",
-								cy: "6",
-								r: "3.4",
-								fill: "#FFFFFF",
-								stroke: "#D97706",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "57",
-								cy: "23",
-								r: "2.2",
-								fill: "#FFFBEB",
-								stroke: "#D97706",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "68",
-								cy: "10",
-								r: "2.8",
-								fill: "#FFFBEB",
-								stroke: "#D97706",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("polygon", {
-								points: "50,17 54,23 50,28 46,23",
-								fill: "url(#lenzoJewelGrad)",
-								stroke: "#FFE082",
-								strokeWidth: "0.8"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "38",
-								cy: "26",
-								r: "1.8",
-								fill: "#F328D5"
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
-								cx: "62",
-								cy: "26",
-								r: "1.8",
-								fill: "#F328D5"
-							})
-						]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-						d: "M32 25 C23 25 18 32 21 40 L45 78 C49 84 57 85 62 81 L82 66 C89 60 90 51 84 45 L43 27 C39 25 35 25 32 25 Z",
-						fill: "url(#lenzoPlayGrad)"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-						d: "M34 29 C27 29 23 34 25 41 L47 75 C50 80 56 81 60 78 L78 65 C83 61 84 54 79 49 L43 31 C40 29 37 29 34 29 Z",
-						stroke: "url(#lenzoSheenGrad)",
-						strokeWidth: "2.5",
-						strokeLinecap: "round"
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-						d: "M44 43 C44 40.5 46.8 39 49 40.2 L63 48.5 C65.2 49.8 65.2 52.8 63 54.1 L49 62.4 C46.8 63.6 44 62.1 44 59.6 Z",
-						fill: "url(#lenzoArrowGrad)",
-						filter: "drop-shadow(0 2px 5px rgba(0,0,0,0.4))"
-					})
-				]
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#F5C557] opacity-45 blur-xl scale-115 pointer-events-none" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+				src: "/app-icon.png?v=2",
+				alt: "Lenzo Party Live",
+				draggable: false,
+				className: `relative z-10 w-full h-full object-cover ${iconDimensions.radius} border border-[#F328D5]/30 shadow-[0_8px_24px_rgba(139,32,255,0.45)] bg-[#06071C]`
 			})]
 		}), showText && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: `flex flex-col ${horizontal ? "text-left" : "items-center mt-2.5"}`,
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: `flex items-center gap-1.5 font-display tracking-tight font-extrabold leading-none ${uppercase ? "uppercase tracking-wide" : ""}`,
+			children: [horizontal ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex flex-col leading-none",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: `bg-gradient-to-r from-white via-[#F3E8FF] to-[#F328D5] bg-clip-text text-transparent drop-shadow-sm ${size === "sm" ? "text-sm" : size === "md" ? "text-xl" : size === "lg" ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`,
+					className: `font-display font-black tracking-wider text-white drop-shadow-sm ${size === "sm" ? "text-sm" : size === "md" ? "text-lg" : "text-2xl"}`,
 					children: uppercase ? "LENZO" : "Lenzo"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: `bg-gradient-to-r from-[#F328D5] via-[#FFC84A] to-[#FFD770] bg-clip-text text-transparent ${size === "sm" ? "text-sm" : size === "md" ? "text-xl" : size === "lg" ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`,
-					children: uppercase ? "PARTY LIVE" : "Party Live"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `flex items-center gap-1 font-display font-extrabold tracking-widest mt-0.5 ${size === "sm" ? "text-[10px]" : size === "md" ? "text-xs" : "text-sm"}`,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-white",
+						children: uppercase ? "PARTY" : "Party"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#F5C557]",
+						children: uppercase ? "LIVE" : "Live"
+					})]
+				})]
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex flex-col items-center leading-none",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: `font-display font-black tracking-[0.08em] text-white drop-shadow-sm ${size === "sm" ? "text-base" : size === "md" ? "text-2xl" : size === "lg" ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`,
+					children: uppercase ? "LENZO" : "Lenzo"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `flex items-center gap-1.5 font-display font-extrabold tracking-[0.12em] mt-1 ${size === "sm" ? "text-xs" : size === "md" ? "text-sm" : size === "lg" ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-white",
+						children: uppercase ? "PARTY" : "Party"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#F5C557]",
+						children: uppercase ? "LIVE" : "Live"
+					})]
 				})]
 			}), showTagline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: `text-[#B9AECF] font-medium tracking-wider flex items-center justify-center gap-1.5 ${size === "sm" ? "text-[10px] mt-0.5" : size === "md" ? "text-xs mt-1" : "text-sm mt-1.5"}`,
+				className: `text-[#B9AECF] font-medium tracking-wider flex items-center ${horizontal ? "justify-start" : "justify-center"} gap-1.5 ${size === "sm" ? "text-[9px] mt-1" : size === "md" ? "text-xs mt-1.5" : "text-xs sm:text-sm mt-2"}`,
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Chat" }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -10290,7 +10125,7 @@ var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className =
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Party" }),
 					size === "lg" || size === "xl" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#FFC84A] text-[10px]",
+						className: "text-[#F5C557] text-[10px]",
 						children: "•"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Connect" })] }) : null
 				]
@@ -12526,8 +12361,8 @@ var SplashScreen = ({ onComplete }) => {
 	const [progress, setProgress] = (0, import_react.useState)(15);
 	const [statusText, setStatusText] = (0, import_react.useState)("Connecting to Lenzo Party Live...");
 	(0, import_react.useEffect)(() => {
-		const t1 = setTimeout(() => setStatusText("Verifying Firebase Session..."), 350);
-		const t2 = setTimeout(() => setStatusText("Synchronizing Cloud Firestore..."), 700);
+		const t1 = setTimeout(() => setStatusText("Verifying Session..."), 350);
+		const t2 = setTimeout(() => setStatusText("Loading Live Rooms & Parties..."), 700);
 		const timer = setInterval(() => {
 			setProgress((prev) => {
 				if (prev >= 100) {
@@ -12545,90 +12380,44 @@ var SplashScreen = ({ onComplete }) => {
 		};
 	}, [onComplete]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "relative min-h-dvh-screen w-full flex flex-col items-center justify-between px-6 sm:px-10 safe-pt-4 safe-pb-6 bg-[#090611] overflow-hidden select-none",
+		className: "relative min-h-dvh-screen w-full flex flex-col items-center justify-between px-6 sm:px-10 safe-pt-4 safe-pb-6 bg-[#06071C] overflow-hidden select-none",
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute inset-0 pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-gradient-to-tr from-[#8B20FF]/30 via-[#F328D5]/25 to-transparent rounded-full blur-[130px] animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-					className: "absolute inset-0 w-full h-full opacity-60",
-					xmlns: "http://www.w3.org/2000/svg",
+				className: "absolute inset-0 flex items-center justify-center bg-[#06071C] pointer-events-none",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "relative w-full h-full sm:w-auto sm:max-w-[560px] flex items-center justify-center",
 					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("linearGradient", {
-							id: "splashNeonSwoosh",
-							x1: "0%",
-							y1: "0%",
-							x2: "100%",
-							y2: "100%",
-							children: [
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "0%",
-									stopColor: "#8B20FF",
-									stopOpacity: "0.8"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "50%",
-									stopColor: "#F328D5",
-									stopOpacity: "0.7"
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("stop", {
-									offset: "100%",
-									stopColor: "#FFC84A",
-									stopOpacity: "0.4"
-								})
-							]
-						}) }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-							d: "M-100,600 C300,200 800,800 1600,300",
-							stroke: "url(#splashNeonSwoosh)",
-							strokeWidth: "3",
-							fill: "none"
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+							src: "/splash.png?v=2",
+							alt: "Lenzo Party Live",
+							draggable: false,
+							className: "w-full h-full object-cover sm:object-contain animate-fade-in"
 						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
-							d: "M-50,700 C400,300 900,900 1700,400",
-							stroke: "url(#splashNeonSwoosh)",
-							strokeWidth: "1.5",
-							strokeDasharray: "8 6",
-							fill: "none"
-						})
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "hidden sm:block absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#06071C] to-transparent" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "hidden sm:block absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#06071C] to-transparent" })
 					]
-				})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#06071C]/95 via-[#06071C]/50 to-transparent" })]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "w-full flex justify-end z-10",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
 					onClick: onComplete,
-					className: "text-xs text-[#B9AECF] hover:text-white bg-white/5 hover:bg-white/10 px-4 py-1.5 rounded-full border border-white/10 transition-colors backdrop-blur-md active:scale-95",
+					className: "text-xs text-[#D4CBE8] hover:text-white bg-black/35 hover:bg-black/55 px-4 py-1.5 rounded-full border border-white/15 transition-colors backdrop-blur-md active:scale-95",
 					children: "Skip Intro ›"
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col items-center z-10 animate-fade-in my-auto text-center space-y-5",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LenzoLogo, {
-					size: "xl",
-					showTagline: true
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "pt-2 flex flex-col items-center",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "relative w-10 h-10 mb-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-full h-full rounded-full border-2 border-white/15 border-t-[#F328D5] border-r-[#8B20FF] animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full blur-[8px] bg-[#F328D5]/30 animate-pulse pointer-events-none" })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-xs font-semibold text-[#B9AECF] tracking-wider animate-pulse",
-						children: statusText
-					})]
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "w-full max-w-xs flex flex-col items-center gap-3 z-10 pb-6",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "w-full h-1.5 bg-[#160C25] rounded-full overflow-hidden border border-white/10 p-[1px] relative shadow-lg",
+				className: "w-full max-w-xs flex flex-col items-center gap-2.5 z-10 pb-6 mt-auto",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: "text-xs font-semibold text-[#D6CCE9] tracking-wider drop-shadow",
+					children: statusText
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "w-full h-1.5 bg-[#120F2E]/90 rounded-full overflow-hidden border border-white/15 p-[1px] relative shadow-lg backdrop-blur-sm",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] rounded-full transition-all duration-300 ease-out shadow-[0_0_14px_#F328D5]",
+						className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#F5C557] rounded-full transition-all duration-300 ease-out shadow-[0_0_14px_#F328D5]",
 						style: { width: `${progress}%` }
 					})
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-1.5 text-[10px] text-[#9E97AA] font-mono",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Firebase Auth Ready" })]
 				})]
 			})
 		]
@@ -16569,19 +16358,23 @@ var RoomsScreen = ({ partyRooms, onSelectRoom, onNavigate, onOpenCreateRoom, onO
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
 					className: "flex items-center justify-between gap-2 pt-0.5",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "flex items-center gap-1.5 cursor-pointer min-w-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2 cursor-pointer min-w-0",
 						onClick: () => onNavigate("home"),
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
-							className: "text-lg sm:text-xl font-black tracking-tight font-display truncate",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+							src: "/app-icon.png?v=2",
+							alt: "Lenzo Party Live",
+							className: "w-8 h-8 rounded-xl object-cover border border-[#F328D5]/35 shadow-md shadow-[#8B20FF]/35 shrink-0 bg-[#06071C]"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
+							className: "text-base sm:text-lg font-black tracking-wide font-display truncate",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 								className: "text-white",
-								children: "Lenzo "
+								children: "LENZO PARTY "
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "bg-gradient-to-r from-[#F328D5] to-[#FFC84A] bg-clip-text text-transparent",
-								children: "Party Live"
+								className: "text-[#F5C557]",
+								children: "LIVE"
 							})]
-						})
+						})]
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "flex items-center gap-1.5 sm:gap-2 shrink-0",
 						children: [
@@ -39376,15 +39169,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-B_GRrNM7.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C1Qzk0-O.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DbMopDUJ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-BVhddR0L.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-B__UvS3R.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B4aTY0Lp.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-B3Ww5M-D.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BSlnJh3K.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-CiP87Q4I.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CsmQFCB3.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-DxR5qFPt.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-CuI1yvL1.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-DlgcC9kt.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C5s4hHGv.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B3isGlQp.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BHZSbcU5.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DQMbL5Hr.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BW5r5X24.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");

@@ -1,45 +1,27 @@
 import React from 'react';
-import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
-import { LenzoLogo } from './LenzoLogo';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 
-// 1. Startup / Fullscreen Branded Loading Screen (Matches Reference Image #7)
+// 1. Startup / Fullscreen Branded Loading Screen
 export const BrandLoadingScreen: React.FC<{
   progress?: number;
   message?: string;
   onSkip?: () => void;
 }> = ({ progress = 65, message = 'Loading...', onSkip }) => {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between p-6 sm:p-10 bg-[#090611] select-none overflow-hidden animate-fade-in">
-      {/* Silky glowing neon ribbon waves and radial cosmic glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-[#8B20FF]/25 via-[#F328D5]/20 to-transparent rounded-full blur-[120px]" />
-        
-        {/* Abstract neon swoosh lines */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-60"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <linearGradient id="neonSwoosh" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#8B20FF" stopOpacity="0.8" />
-              <stop offset="50%" stopColor="#F328D5" stopOpacity="0.7" />
-              <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.3" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M-100,600 C300,200 800,800 1600,300"
-            stroke="url(#neonSwoosh)"
-            strokeWidth="3"
-            fill="none"
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between p-6 sm:p-10 bg-[#06071C] select-none overflow-hidden animate-fade-in">
+      {/* Official Full-Bleed Lenzo Party Live Splash Artwork */}
+      <div className="absolute inset-0 flex items-center justify-center bg-[#06071C] pointer-events-none">
+        <div className="relative w-full h-full sm:w-auto sm:max-w-[560px] flex items-center justify-center">
+          <img
+            src="/splash.png?v=2"
+            alt="Lenzo Party Live"
+            draggable={false}
+            className="w-full h-full object-cover sm:object-contain"
           />
-          <path
-            d="M-50,700 C400,300 900,900 1700,400"
-            stroke="url(#neonSwoosh)"
-            strokeWidth="1.5"
-            strokeDasharray="8 6"
-            fill="none"
-          />
-        </svg>
+          <div className="hidden sm:block absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#06071C] to-transparent" />
+          <div className="hidden sm:block absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#06071C] to-transparent" />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#06071C]/95 via-[#06071C]/50 to-transparent" />
       </div>
 
       {/* Top Bar with Skip Intro */}
@@ -47,34 +29,24 @@ export const BrandLoadingScreen: React.FC<{
         {onSkip && (
           <button
             onClick={onSkip}
-            className="text-xs text-[#B9AECF] hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-colors backdrop-blur-sm"
+            className="text-xs text-[#D4CBE8] hover:text-white bg-black/35 hover:bg-black/55 px-3.5 py-1.5 rounded-full border border-white/15 transition-colors backdrop-blur-md"
           >
             Skip Intro ›
           </button>
         )}
       </div>
 
-      {/* Center Brand Identity with Crowned Play Icon matching screen #7 */}
-      <div className="flex flex-col items-center z-10 my-auto text-center space-y-4">
-        <LenzoLogo size="xl" showTagline={true} />
-        
-        {/* Animated Circular Spinner matching screen #7 */}
-        <div className="pt-4 flex flex-col items-center">
-          <div className="relative w-10 h-10">
-            <div className="w-full h-full rounded-full border-2 border-white/10 border-t-[#F328D5] border-r-[#8B20FF] animate-spin" />
-            <div className="absolute inset-0 rounded-full blur-[6px] bg-[#F328D5]/30 animate-pulse pointer-events-none" />
-          </div>
-          <span className="text-xs font-semibold text-[#B9AECF] mt-3 tracking-wider">
+      {/* Bottom Progress Bar & Spinner */}
+      <div className="w-full max-w-xs flex flex-col items-center gap-3 z-10 pb-6 mt-auto">
+        <div className="flex items-center gap-2.5">
+          <div className="w-5 h-5 rounded-full border-2 border-white/15 border-t-[#F328D5] border-r-[#F5C557] animate-spin" />
+          <span className="text-xs font-semibold text-[#D6CCE9] tracking-wider">
             {message}
           </span>
         </div>
-      </div>
-
-      {/* Bottom Progress Bar */}
-      <div className="w-full max-w-xs flex flex-col items-center gap-2 z-10 pb-6">
-        <div className="w-full h-1.5 bg-[#160C25] rounded-full overflow-hidden border border-white/10 p-[1px] relative shadow-lg">
+        <div className="w-full h-1.5 bg-[#120F2E]/90 rounded-full overflow-hidden border border-white/15 p-[1px] relative shadow-lg">
           <div
-            className="h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_#F328D5]"
+            className="h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#F5C557] rounded-full transition-all duration-300 ease-out shadow-[0_0_12px_#F328D5]"
             style={{ width: `${Math.min(100, Math.max(5, progress))}%` }}
           />
         </div>

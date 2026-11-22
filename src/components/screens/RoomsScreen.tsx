@@ -87,11 +87,16 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             1. HEADER (Lenzo Party Live + Search + Notifications)
            ======================================================== */}
         <header className="flex items-center justify-between gap-2 pt-0.5">
-          {/* Logo: Lenzo (white) + Party Live (neon pink #F328D5 to gold #FFC84A) */}
-          <div className="flex items-center gap-1.5 cursor-pointer min-w-0" onClick={() => onNavigate('home')}>
-            <h1 className="text-lg sm:text-xl font-black tracking-tight font-display truncate">
-              <span className="text-white">Lenzo </span>
-              <span className="bg-gradient-to-r from-[#F328D5] to-[#FFC84A] bg-clip-text text-transparent">Party Live</span>
+          {/* Official Brand Logo + LENZO PARTY LIVE Wordmark */}
+          <div className="flex items-center gap-2 cursor-pointer min-w-0" onClick={() => onNavigate('home')}>
+            <img
+              src="/app-icon.png?v=2"
+              alt="Lenzo Party Live"
+              className="w-8 h-8 rounded-xl object-cover border border-[#F328D5]/35 shadow-md shadow-[#8B20FF]/35 shrink-0 bg-[#06071C]"
+            />
+            <h1 className="text-base sm:text-lg font-black tracking-wide font-display truncate">
+              <span className="text-white">LENZO PARTY </span>
+              <span className="text-[#F5C557]">LIVE</span>
             </h1>
           </div>
 
