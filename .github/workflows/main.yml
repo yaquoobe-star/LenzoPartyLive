@@ -219,16 +219,35 @@ jobs:
             echo "::error::android/app/google-services.json is missing!"
             exit 1
           fi
-          GS_VALUES_XML="android/app/build/generated/res/google-services/release/values/values.xml"
-          if [ ! -f "$GS_VALUES_XML" ]; then
-            echo "::error::Google Services plugin did not generate $GS_VALUES_XML for release build!"
+          EXPECTED_WEB_CLIENT_ID="238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com"
+          GS_VALUES_XML=""
+          for candidate in \
+            "android/app/build/generated/res/processReleaseGoogleServices/values/values.xml" \
+            "android/app/build/generated/res/google-services/release/values/values.xml"; do
+            if [ -f "$candidate" ]; then
+              GS_VALUES_XML="$candidate"
+              break
+            fi
+          done
+          if [ -z "$GS_VALUES_XML" ]; then
+            GS_VALUES_XML=$(find android/app/build/generated/res -type f -name "values.xml" 2>/dev/null | grep -iE "google.*release|release.*google" | head -n 1 || true)
+          fi
+          if [ -z "$GS_VALUES_XML" ] || [ ! -f "$GS_VALUES_XML" ]; then
+            echo "Available generated res files under android/app/build/generated/res:"
+            find android/app/build/generated/res -maxdepth 4 2>/dev/null || true
+            echo "::error::Google Services plugin did not generate release values.xml!"
             exit 1
           fi
-          if ! grep -Fq 'name="default_web_client_id"' "$GS_VALUES_XML" || ! grep -Fq '238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com' "$GS_VALUES_XML"; then
-            echo "::error::Generated release values.xml is missing the expected default_web_client_id!"
+          echo "Found Google Services generated resources at: $GS_VALUES_XML"
+          if ! grep -Fq 'name="default_web_client_id"' "$GS_VALUES_XML" || ! grep -Fq "$EXPECTED_WEB_CLIENT_ID" "$GS_VALUES_XML"; then
+            echo "::error::Generated release values.xml ($GS_VALUES_XML) is missing the expected default_web_client_id!"
             exit 1
           fi
-          echo "Confirmed: Gradle google-services plugin compiled exact default_web_client_id into release resources."
+          if ! "$AAPT2" dump resources dist-android/app-release.apk | grep -Fq "$EXPECTED_WEB_CLIENT_ID"; then
+            echo "::error::Compiled APK resources are missing expected default_web_client_id ($EXPECTED_WEB_CLIENT_ID)!"
+            exit 1
+          fi
+          echo "Confirmed: Gradle google-services plugin compiled exact default_web_client_id into release resources & APK."
 
           echo "=== 1. Verify APK Signature (apksigner) ==="
           "$APKSIGNER" verify --verbose --print-certs dist-android/app-release.apk > apk_verify.txt
