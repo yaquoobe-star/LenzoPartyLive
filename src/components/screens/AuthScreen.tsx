@@ -28,6 +28,7 @@ import {
   loginWithEmail, 
   resetPassword, 
   resendVerification,
+  checkEmailVerificationStatus,
   fetchCurrentFirestoreProfile,
   FIREBASE_AUTH_SETTINGS_URL,
   DEFAULT_AVATARS 
@@ -106,6 +107,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [emailOtpCode, setEmailOtpCode] = useState('');
   const [emailOtpVerified, setEmailOtpVerified] = useState(false);
   const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+  const [signupVerificationMode, setSignupVerificationMode] = useState<'otp' | 'link'>('otp');
+  const [emailLinkFallbackOffered, setEmailLinkFallbackOffered] = useState(false);
 
   useEffect(() => {
     if (otpResendCooldown <= 0) return;
@@ -219,11 +222,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // 2. EMAIL SIGN-UP: send Resend OTP first; only create Firebase account after verification.
+  // 2. EMAIL SIGN-UP: send custom SMTP 6-digit OTP first; only create Firebase account after verification.
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setEmailLinkFallbackOffered(false);
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
@@ -236,20 +240,43 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       const result = await sendEmailOtp(cleanEmail);
       setEmail(cleanEmail);
       setRegisteredEmail(cleanEmail);
+      setSignupVerificationMode('otp');
       setEmailOtpChallenge(result.challenge);
       setEmailOtpCode('');
       setEmailOtpVerified(false);
-      setOtpResendCooldown(result.cooldownSeconds || 60);
-      setSuccessMessage('Verification code sent. Check your inbox (and spam folder).');
+      setOtpResendCooldown(result.cooldownSeconds || 45);
+      setSuccessMessage('6-digit verification code sent! Check your inbox (and spam folder).');
       setSubScreen('email_otp');
     } catch (err: any) {
       if (typeof err?.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0) {
         setOtpResendCooldown(err.retryAfterSeconds);
       }
+      if (
+        err?.code === 'SMTP_NOT_CONFIGURED' ||
+        err?.code === 'SMTP_AUTH_ERROR' ||
+        err?.code === 'SMTP_BACKEND_UNREACHABLE'
+      ) {
+        setEmailLinkFallbackOffered(true);
+      }
       setErrorMessage(err.message || 'Could not send verification code.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleContinueWithEmailLinkSignup = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+      setErrorMessage('Please enter a valid email address first.');
+      return;
+    }
+    setEmail(cleanEmail);
+    setRegisteredEmail(cleanEmail);
+    setSignupVerificationMode('link');
+    setEmailOtpVerified(false);
+    setSubScreen('complete_profile');
   };
 
   const handleCompleteProfile = async (e: React.FormEvent) => {
@@ -259,8 +286,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     const cleanName = fullName.trim();
     const cleanEmail = (registeredEmail || email).trim().toLowerCase();
-    if (!emailOtpVerified) {
-      setErrorMessage('Please verify your email with the OTP first.');
+    const isOtpFlow = signupVerificationMode === 'otp';
+    if (isOtpFlow && !emailOtpVerified) {
+      setErrorMessage('Please verify your email with the 6-digit OTP first.');
       setSubScreen('signup');
       return;
     }
@@ -288,10 +316,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         email: cleanEmail,
         password,
         profileImage: selectedAvatar,
-        emailOtpVerified: true,
+        emailOtpVerified: isOtpFlow,
       });
-      setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
-      setTimeout(() => onSuccess(profile), 450);
+      if (isOtpFlow) {
+        setSuccessMessage(`Email verified! Welcome to Lenzo Party Live, ${profile.name}!`);
+        setTimeout(() => onSuccess(profile), 450);
+      } else {
+        setVerificationSent(true);
+        setSuccessMessage(`Verification email sent to ${cleanEmail}. Open your inbox and tap the link.`);
+        setSubScreen('verification');
+      }
     } catch (err: any) {
       if (err?.code === 'auth/email-already-in-use') {
         setEmail(cleanEmail);
@@ -327,7 +361,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       await verifyEmailOtp(cleanEmail, cleanOtp, emailOtpChallenge);
       setEmailOtpCode(cleanOtp);
       setEmailOtpVerified(true);
-      setSuccessMessage('Email verified. Now complete your profile.');
+      setSignupVerificationMode('otp');
+      setSuccessMessage('Email verified! Now complete your profile.');
       setSubScreen('complete_profile');
     } catch (err: any) {
       setErrorMessage(err.message || 'Email verification failed.');
@@ -347,8 +382,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setEmailOtpChallenge(r.challenge);
       setEmailOtpCode('');
       setEmailOtpVerified(false);
-      setOtpResendCooldown(r.cooldownSeconds || 60);
-      setSuccessMessage('A new 6-digit verification code has been sent.');
+      setOtpResendCooldown(r.cooldownSeconds || 45);
+      setSuccessMessage('A fresh 6-digit verification code has been sent to your email.');
     } catch (err: any) {
       if (typeof err?.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0) {
         setOtpResendCooldown(err.retryAfterSeconds);
@@ -412,16 +447,35 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // 5. RESEND VERIFICATION EMAIL
+  // 5. RESEND VERIFICATION EMAIL & CHECK LIVE VERIFICATION STATUS
   const handleResendVerification = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsLoading(true);
     try {
       await resendVerification();
-      setSuccessMessage('A fresh verification link was sent to your email! ✉️');
+      setSuccessMessage('A fresh verification link was sent to your email! Check inbox & spam.');
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to resend email. Please try again in a moment.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCheckEmailLinkVerified = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsLoading(true);
+    try {
+      const result = await checkEmailVerificationStatus();
+      if (result.verified && result.profile) {
+        setSuccessMessage(`Email verified! Welcome to Lenzo Party Live, ${result.profile.name}!`);
+        setTimeout(() => onSuccess(result.profile!), 400);
+      } else {
+        setErrorMessage('Email is not verified yet. Open the verification email in your inbox, click the link, then tap again.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Could not verify email status. Please try logging in.');
     } finally {
       setIsLoading(false);
     }
@@ -795,13 +849,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <div className="relative flex items-center">
                   <Mail className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
                   <input type="email" required autoComplete="email" placeholder="Enter your email address" value={email}
-                    onChange={(e) => setEmail(e.target.value.trimStart())}
+                    onChange={(e) => {
+                      setEmail(e.target.value.trimStart());
+                      if (emailLinkFallbackOffered) setEmailLinkFallbackOffered(false);
+                    }}
                     className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3.5 text-sm text-white placeholder-[#B9AECF]/40 outline-none" />
                 </div>
               </div>
               <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
-                {isLoading ? 'Sending OTP...' : 'Send Verification Code'}
+                {isLoading ? 'Sending 6-Digit OTP...' : 'Send 6-Digit Email OTP'}
               </button>
+              {emailLinkFallbackOffered && (
+                <button
+                  type="button"
+                  onClick={handleContinueWithEmailLinkSignup}
+                  className="w-full py-3 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 font-bold text-xs transition-colors"
+                >
+                  Continue with Email Verification Link Instead
+                </button>
+              )}
             </form>
             <div className="w-full flex items-center my-4">
               <div className="flex-1 border-t border-white/10" />
@@ -821,13 +887,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {subScreen === 'complete_profile' && (
           <div className="flex flex-col animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <button type="button" onClick={() => navigateTo('email_otp')} className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#B9AECF]">
+              <button
+                type="button"
+                onClick={() => navigateTo(signupVerificationMode === 'otp' ? 'email_otp' : 'signup')}
+                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#B9AECF]"
+              >
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <h2 className="text-lg font-black text-white font-display">Complete Profile</h2>
               <div className="w-9" />
             </div>
-            <p className="text-xs text-[#B9AECF] text-center mb-4">Verified: <span className="text-[#FFC84A]">{registeredEmail}</span></p>
+            <p className="text-xs text-[#B9AECF] text-center mb-4">
+              {signupVerificationMode === 'otp' ? 'Verified: ' : 'Email: '}
+              <span className="text-[#FFC84A]">{registeredEmail}</span>
+            </p>
             <div className="flex flex-col items-center mb-5">
               <img src={selectedAvatar} alt="Selected Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-[#F328D5] mb-2" />
               <span className="text-[10px] text-[#9E97AA] mb-2">Choose an Avatar (Optional)</span>
@@ -867,8 +940,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <input type="checkbox" id="agreeTermsAfterOtp" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="rounded border-white/20 bg-[#211333] text-[#F328D5]" />
                 <label htmlFor="agreeTermsAfterOtp" className="text-[11px] text-[#B9AECF]">I agree to the Terms and Privacy Policy</label>
               </div>
-              <button type="submit" disabled={isLoading || !emailOtpVerified} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
-                {isLoading ? 'Creating Account...' : 'Create Account & Enter App'}
+              <button
+                type="submit"
+                disabled={isLoading || (signupVerificationMode === 'otp' && !emailOtpVerified)}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60"
+              >
+                {isLoading
+                  ? 'Creating Account...'
+                  : signupVerificationMode === 'otp'
+                    ? 'Create Account & Enter App'
+                    : 'Create Account & Send Verification Link'}
               </button>
             </form>
           </div>
@@ -1081,8 +1162,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white mb-4 shadow-xl shadow-[#F328D5]/40">
               <Mail className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-white font-display mb-2">Verify Your Email</h2>
-            <p className="text-xs text-[#B9AECF] mb-5">Enter the 6-digit code sent to <span className="text-[#FFC84A] font-semibold">{registeredEmail}</span>.</p>
+            <h2 className="text-xl font-bold text-white font-display mb-2">Enter 6-Digit Code</h2>
+            <p className="text-xs text-[#B9AECF] mb-2">
+              We sent a 6-digit verification code to <span className="text-[#FFC84A] font-semibold">{registeredEmail}</span>.
+            </p>
+            <p className="text-[11px] text-[#9E97AA] mb-5">
+              Valid for 10 minutes. Check Spam or Promotions if you do not see it in your inbox.
+            </p>
             <form onSubmit={handleVerifyEmailOtp} className="w-full space-y-3">
               <input
                 type="text"
@@ -1101,7 +1187,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 disabled={isLoading || emailOtpCode.length !== 6}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60"
               >
-                {isLoading ? 'Verifying...' : 'Verify Email'}
+                {isLoading ? 'Verifying...' : 'Verify Email Code'}
               </button>
             </form>
             <button
@@ -1142,29 +1228,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-[11px] text-[#B9AECF] mb-6 text-left space-y-1.5">
               <div className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Click the link in the email to verify your account.</span>
+                <span>Open your email inbox (or Spam folder) and click the verification link.</span>
               </div>
               <div className="flex items-start gap-2">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>You can now explore live streams and start partying!</span>
+                <span>Come back here and tap "I've Verified My Email" to enter Lenzo Party Live.</span>
               </div>
             </div>
 
             <div className="w-full space-y-3">
-              {/* Continue to App */}
+              {/* Live Email Verification Check */}
               <button
                 type="button"
-                onClick={() => {
-                  // Complete sign in
-                  if (email) {
-                    handleEmailLogin({ preventDefault: () => {} } as any);
-                  } else {
-                    navigateTo('login');
-                  }
-                }}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2"
+                disabled={isLoading}
+                onClick={handleCheckEmailLinkVerified}
+                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <span>Continue to Lenzo Party Live</span>
+                <span>{isLoading ? 'Checking Verification...' : "I've Verified My Email"}</span>
               </button>
 
               {/* Resend Verification */}

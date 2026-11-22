@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#090611</color>
-    <color name="colorPrimaryDark">#060212</color>
+    <color name="colorPrimary">#070214</color>
+    <color name="colorPrimaryDark">#070214</color>
     <color name="colorAccent">#F328D5</color>
-    <color name="lenzoSystemBar">#060212</color>
+    <color name="lenzoSystemBar">#070214</color>
 </resources>

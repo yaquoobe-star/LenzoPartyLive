@@ -622,8 +622,8 @@ async function postEmailOtpJson(
 }
 
 /**
- * Send a short-lived 6-digit email OTP through the Lenzo backend (Resend).
- * The backend returns a signed challenge; the OTP itself is never stored client-side.
+ * Send a short-lived 6-digit email OTP through the custom Lenzo SMTP backend.
+ * The backend returns an HMAC-signed challenge; the OTP itself is never stored or exposed client-side.
  */
 export async function sendEmailOtp(email: string): Promise<{
   challenge: string;
@@ -643,27 +643,30 @@ export async function sendEmailOtp(email: string): Promise<{
   let primaryNetworkError: any = null;
 
   try {
-    attempt = await postEmailOtpJson('/api/auth/email/send-otp', { email: cleanEmail }, 20000);
+    attempt = await postEmailOtpJson('/api/auth/email/send-otp', { email: cleanEmail }, 25000);
   } catch (err: any) {
     if (canFallbackToProdApi) {
       primaryNetworkError = err;
     } else if (err?.isNetworkError) {
-      throw new Error(
-        `Unable to reach the Lenzo email backend (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}). Check that Railway is running and Cloudflare DNS/SSL for api.lenzoparty.com is not returning 502 (${err?.message || 'Failed to fetch'}).`
+      const netErr: any = new Error(
+        `Unable to reach the Lenzo email server (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}). Please check your internet connection and try again.`
       );
+      netErr.code = 'SMTP_BACKEND_UNREACHABLE';
+      throw netErr;
     } else {
       throw err;
     }
   }
 
-  // On AI Studio Preview (*.run.app), if same-origin hits an iframe cookie HTML redirect,
-  // throws a CORS-redirect network error, or lacks local RESEND_API_KEY (503 EMAIL_PROVIDER_NOT_CONFIGURED),
-  // automatically try the live Railway API.
+  // On AI Studio Preview (*.run.app), if same-origin lacks local SMTP env vars or hits an iframe HTML redirect,
+  // automatically try the production backend API.
+  const primaryNotConfigured =
+    attempt?.response.status === 503 &&
+    (attempt?.data?.code === 'SMTP_NOT_CONFIGURED' || attempt?.data?.code === 'EMAIL_PROVIDER_NOT_CONFIGURED');
+
   const shouldTryProdFallback =
     canFallbackToProdApi &&
-    (Boolean(primaryNetworkError) ||
-      Boolean(attempt?.looksLikeHtml) ||
-      (attempt?.response.status === 503 && attempt?.data?.code === 'EMAIL_PROVIDER_NOT_CONFIGURED'));
+    (Boolean(primaryNetworkError) || Boolean(attempt?.looksLikeHtml) || primaryNotConfigured);
 
   if (shouldTryProdFallback) {
     try {
@@ -675,20 +678,24 @@ export async function sendEmailOtp(email: string): Promise<{
       );
       if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) {
         attempt = prodAttempt;
-      } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) {
+      } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error && prodAttempt.response.status < 500) {
         attempt = prodAttempt;
       } else {
-        throw new Error(
-          `Email OTP could not be sent. In AI Studio Preview, add RESEND_API_KEY, RESEND_FROM_EMAIL, and EMAIL_OTP_SECRET in AI Studio Settings -> Secrets, OR bring the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) online (currently returning HTTP ${prodAttempt.response.status}).`
+        const cfgErr: any = new Error(
+          '6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.'
         );
+        cfgErr.code = 'SMTP_NOT_CONFIGURED';
+        throw cfgErr;
       }
     } catch (fallbackErr: any) {
-      if (fallbackErr?.isNetworkError) {
-        throw new Error(
-          `Email OTP could not be sent. AI Studio Preview is missing RESEND_API_KEY / RESEND_FROM_EMAIL / EMAIL_OTP_SECRET in Settings -> Secrets, and the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is currently unreachable (offline / 502 Bad Gateway).`
-        );
+      if (fallbackErr?.code === 'SMTP_NOT_CONFIGURED') {
+        throw fallbackErr;
       }
-      throw fallbackErr;
+      const cfgErr: any = new Error(
+        '6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.'
+      );
+      cfgErr.code = 'SMTP_NOT_CONFIGURED';
+      throw cfgErr;
     }
   }
 
@@ -700,15 +707,18 @@ export async function sendEmailOtp(email: string): Promise<{
 
   if (!response.ok || !data?.success || !data?.challenge) {
     if (looksLikeHtml) {
-      const targetInfo = response.url || '/api/auth/email/send-otp';
-      throw new Error(
-        `Email API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`
+      const htmlErr: any = new Error(
+        'Email OTP server returned an unexpected response. You can verify via Email Link below or try again.'
       );
+      htmlErr.code = 'SMTP_BACKEND_UNREACHABLE';
+      throw htmlErr;
     }
     if (response.status >= 502 && !data?.error) {
-      throw new Error(
-        `Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs and Cloudflare DNS/SSL for api.lenzoparty.com.`
+      const gwErr: any = new Error(
+        'Email server is temporarily unavailable. You can verify via Email Link below or try again shortly.'
       );
+      gwErr.code = 'SMTP_BACKEND_UNREACHABLE';
+      throw gwErr;
     }
     const err: any = new Error(
       data?.error || `Could not send verification code (HTTP ${response.status}).`
@@ -725,7 +735,7 @@ export async function sendEmailOtp(email: string): Promise<{
   return {
     challenge: String(data.challenge),
     expiresIn: Number(data.expiresIn || 600),
-    cooldownSeconds: Number(data.cooldownSeconds || 60),
+    cooldownSeconds: Number(data.cooldownSeconds || 45),
     messageId: typeof data.messageId === 'string' ? data.messageId : undefined,
   };
 }
@@ -753,15 +763,10 @@ export async function verifyEmailOtp(email: string, otp: string, challenge: stri
 
   if (!response.ok || !data?.success || !data?.verified) {
     if (looksLikeHtml) {
-      const targetInfo = response.url || '/api/auth/email/verify-otp';
-      throw new Error(
-        `Email verification API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`
-      );
+      throw new Error('Email verification service returned an unexpected response. Please try again.');
     }
     if (response.status >= 502 && !data?.error) {
-      throw new Error(
-        `Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs for api.lenzoparty.com.`
-      );
+      throw new Error('Email verification server is temporarily unavailable. Please try again.');
     }
     const err: any = new Error(
       data?.error || `Email verification failed (HTTP ${response.status}).`
@@ -793,8 +798,8 @@ export async function registerWithEmail(params: {
       photoURL: chosenAvatar,
     }).catch((e) => console.warn('Could not update Auth display name:', e));
 
-    // Resend OTP has already verified this address in the app registration flow.
-    // Keep Firebase email-link verification only for legacy/non-OTP callers.
+    // Custom SMTP OTP has already verified this address when emailOtpVerified is true.
+    // For Firebase Email Link verification flow, send the official Firebase verification email.
     if (!params.emailOtpVerified) {
       try {
         await sendEmailVerification(user);
@@ -896,13 +901,41 @@ export async function resetPassword(email: string): Promise<void> {
 }
 
 /**
- * Resend Email Verification
+ * Resend Firebase Email Verification link
  */
 export async function resendVerification(): Promise<void> {
   if (!auth.currentUser) {
     throw new Error('No user is currently signed in.');
   }
   await sendEmailVerification(auth.currentUser);
+}
+
+/**
+ * Reload current Firebase user to confirm whether they clicked the verification link in their inbox.
+ */
+export async function checkEmailVerificationStatus(): Promise<{
+  verified: boolean;
+  profile: UserProfile | null;
+}> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Session expired. Please log in with your email and password.');
+  }
+  await user.reload();
+  const refreshed = auth.currentUser;
+  const verified = Boolean(refreshed?.emailVerified);
+  if (verified && refreshed) {
+    await updateDoc(doc(db, 'users', refreshed.uid), {
+      emailVerified: true,
+      lastActiveAt: new Date().toISOString(),
+    }).catch(() => {});
+    const firestoreData = await syncUserInFirestore(refreshed, 'password');
+    await syncBackendAuthSession(refreshed);
+    const profile = mapFirestoreUserToProfile(firestoreData, refreshed);
+    rememberAuthenticatedAccount(profile, 'password');
+    return { verified: true, profile };
+  }
+  return { verified: false, profile: null };
 }
 
 /**

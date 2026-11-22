@@ -25,7 +25,7 @@
     "SplashScreen": {
       "launchShowDuration": 2500,
       "launchAutoHide": true,
-      "backgroundColor": "#06071C",
+      "backgroundColor": "#070214",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
       "showSpinner": false
@@ -33,7 +33,7 @@
     "StatusBar": {
       "overlaysWebView": false,
       "style": "DARK",
-      "backgroundColor": "#06071C"
+      "backgroundColor": "#070214"
     },
     "Keyboard": {
       "resize": "body",

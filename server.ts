@@ -9,6 +9,7 @@ import { createRequire } from 'module';
 import { WebSocketServer, WebSocket } from 'ws';
 import agoraTokenPkg from 'agora-token';
 import type WebPushType from 'web-push';
+import type NodemailerType from 'nodemailer';
 import {
   ALL_100_LEVELS,
   ACHIEVEMENT_BADGE_DEFINITIONS,
@@ -46,6 +47,7 @@ import {
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
 const _require = createRequire(import.meta.url);
 const webpush = _require('web-push') as typeof WebPushType;
+const nodemailer = _require('nodemailer') as typeof NodemailerType;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -208,6 +210,7 @@ interface AuthenticatedRequest extends Request {
 // Reject invalid or expired Firebase ID tokens anywhere on /api/*
 const PUBLIC_AUTH_OTP_PATHS = new Set([
   '/health',
+  '/auth/email/status',
   '/auth/email/send-otp',
   '/auth/email/verify-otp',
 ]);
@@ -1206,16 +1209,17 @@ setInterval(() => {
 
 // REST API Endpoints
 
-// 0. Health & Ecosystem Verification Endpoint
-// Resend email OTP challenge for email verification, registration & login.
-// Requires RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET in Railway / backend env.
+// 0. Health & Custom Email OTP Verification Engine (SMTP via Nodemailer — Zero Third-Party Lock-in)
+// Supports Gmail App Password (SMTP_USER + SMTP_PASS) or any standard SMTP server (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS).
 const EMAIL_OTP_TTL_SECONDS = 10 * 60;
-const EMAIL_OTP_RESEND_COOLDOWN_MS = 60_000;
+const EMAIL_OTP_RESEND_COOLDOWN_MS = 45_000;
 const EMAIL_OTP_MAX_VERIFY_ATTEMPTS = 5;
 const EMAIL_OTP_IP_WINDOW_MS = 15 * 60_000;
 const EMAIL_OTP_IP_MAX_REQUESTS = 15;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const EMAIL_OTP_STORE_PATH = path.join(process.cwd(), '.lenzo_email_otp_store.json');
+// Secure per-process random signing key fallback when EMAIL_OTP_SECRET env var is not explicitly configured.
+const GENERATED_EMAIL_OTP_SECRET = crypto.randomBytes(32).toString('hex');
 
 interface EmailOtpStateStore {
   latestJtiByEmail: Record<string, { jti: string; exp: number; issuedAt: number }>;
@@ -1232,6 +1236,9 @@ const emailOtpState: EmailOtpStateStore = {
 };
 const emailOtpIpRequests = new Map<string, number[]>();
 
+let cachedSmtpTransportKey = '';
+let cachedSmtpTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+
 function maskEmailForLog(email: string): string {
   const parts = email.split('@');
   if (parts.length !== 2) return '***';
@@ -1243,7 +1250,7 @@ function maskEmailForLog(email: string): string {
 function parseFromEmailAddress(rawFrom: string): { valid: boolean; address: string; domain: string | null } {
   const trimmed = rawFrom.trim();
   if (!trimmed) return { valid: false, address: '', domain: null };
-  // Supports either "noreply@lenzoparty.com" or "Lenzo Party Live <noreply@lenzoparty.com>"
+  // Supports either "user@domain.com" or "Lenzo Party Live <user@domain.com>"
   const angleMatch = trimmed.match(/<([^<>]+)>$/);
   const address = (angleMatch ? angleMatch[1] : trimmed).trim().toLowerCase();
   if (!EMAIL_REGEX.test(address)) {
@@ -1253,29 +1260,124 @@ function parseFromEmailAddress(rawFrom: string): { valid: boolean; address: stri
   return { valid: true, address, domain };
 }
 
+function inferSmtpHostAndPort(smtpUser: string): { host: string; port: number; secure: boolean } {
+  const domain = (smtpUser.split('@')[1] || '').toLowerCase();
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    return { host: 'smtp.gmail.com', port: 465, secure: true };
+  }
+  if (domain === 'outlook.com' || domain === 'hotmail.com' || domain === 'live.com' || domain === 'office365.com') {
+    return { host: 'smtp-mail.outlook.com', port: 587, secure: false };
+  }
+  if (domain === 'zoho.com' || domain === 'zohomail.com') {
+    return { host: 'smtp.zoho.com', port: 465, secure: true };
+  }
+  if (domain === 'yahoo.com' || domain === 'ymail.com') {
+    return { host: 'smtp.mail.yahoo.com', port: 465, secure: true };
+  }
+  return { host: '', port: 587, secure: false };
+}
+
 function getEmailOtpConfig() {
-  const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
-  const resendFromEmail = (process.env.RESEND_FROM_EMAIL || '').trim();
-  const emailOtpSecret = (process.env.EMAIL_OTP_SECRET || '').trim();
-  const parsedFrom = parseFromEmailAddress(resendFromEmail);
+  const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const rawPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
+  const explicitHost = (process.env.SMTP_HOST || '').trim();
+  const inferred = inferSmtpHostAndPort(smtpUser);
+  const smtpHost = explicitHost || inferred.host;
+  const parsedPort = Number(process.env.SMTP_PORT || '');
+  const smtpPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : inferred.port;
+  const rawSecure = (process.env.SMTP_SECURE || '').trim().toLowerCase();
+  const smtpSecure =
+    rawSecure === 'true'
+      ? true
+      : rawSecure === 'false'
+        ? false
+        : explicitHost
+          ? smtpPort === 465
+          : inferred.secure;
+
+  // Google App Passwords are often pasted with spaces ("abcd efgh ijkl mnop"); normalize for Gmail SMTP.
+  const smtpPass =
+    smtpHost.toLowerCase() === 'smtp.gmail.com' ? rawPass.replace(/\s+/g, '') : rawPass;
+
+  const rawFrom = (process.env.SMTP_FROM || '').trim();
+  const smtpFrom = rawFrom || (smtpUser ? `Lenzo Party Live <${smtpUser}>` : '');
+  const parsedFrom = parseFromEmailAddress(smtpFrom);
+
+  const explicitSecret = (process.env.EMAIL_OTP_SECRET || '').trim();
+  const emailOtpSecret = explicitSecret || GENERATED_EMAIL_OTP_SECRET;
+
   const missingVars: string[] = [];
-  if (!resendApiKey) missingVars.push('RESEND_API_KEY');
-  if (!resendFromEmail) missingVars.push('RESEND_FROM_EMAIL');
-  if (!emailOtpSecret) missingVars.push('EMAIL_OTP_SECRET');
+  if (!smtpUser) missingVars.push('SMTP_USER');
+  if (!smtpPass) missingVars.push('SMTP_PASS');
+  if (smtpUser && !smtpHost) missingVars.push('SMTP_HOST');
 
   return {
-    resendApiKey,
-    resendFromEmail,
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    smtpUser,
+    smtpPass,
+    smtpFrom,
+    fromValid: parsedFrom.valid,
+    fromDomain: parsedFrom.domain,
     emailOtpSecret,
-    resendApiKeyConfigured: Boolean(resendApiKey),
-    resendFromEmailConfigured: Boolean(resendFromEmail),
-    resendFromEmailValid: parsedFrom.valid,
-    resendFromDomain: parsedFrom.domain,
-    emailOtpSecretConfigured: Boolean(emailOtpSecret),
-    emailOtpSecretStrong: emailOtpSecret.length >= 16,
+    emailOtpSecretExplicit: Boolean(explicitSecret),
     missingVars,
-    configured: Boolean(resendApiKey && parsedFrom.valid && emailOtpSecret),
+    configured: Boolean(smtpHost && smtpUser && smtpPass && parsedFrom.valid),
   };
+}
+
+function getSmtpTransporter(cfg: ReturnType<typeof getEmailOtpConfig>) {
+  const key = `${cfg.smtpHost}:${cfg.smtpPort}:${cfg.smtpSecure}:${cfg.smtpUser}:${crypto
+    .createHash('sha256')
+    .update(cfg.smtpPass)
+    .digest('hex')
+    .slice(0, 12)}`;
+  if (cachedSmtpTransporter && cachedSmtpTransportKey === key) {
+    return cachedSmtpTransporter;
+  }
+  cachedSmtpTransporter = nodemailer.createTransport({
+    host: cfg.smtpHost,
+    port: cfg.smtpPort,
+    secure: cfg.smtpSecure,
+    auth: {
+      user: cfg.smtpUser,
+      pass: cfg.smtpPass,
+    },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 20_000,
+  });
+  cachedSmtpTransportKey = key;
+  return cachedSmtpTransporter;
+}
+
+function buildOtpEmailHtml(otp: string): string {
+  const formattedOtp = `${otp.slice(0, 3)} ${otp.slice(3)}`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px 12px;background:#090611;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#ffffff;">
+  <div style="max-width:480px;margin:0 auto;background:linear-gradient(160deg,#1B0F2E 0%,#120820 100%);border:1px solid rgba(255,200,74,0.28);border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+    <div style="padding:24px 24px 18px;text-align:center;background:linear-gradient(135deg,rgba(139,32,255,0.28),rgba(243,40,213,0.18));border-bottom:1px solid rgba(255,255,255,0.08);">
+      <div style="display:inline-block;padding:6px 14px;border-radius:999px;background:rgba(255,200,74,0.14);border:1px solid rgba(255,200,74,0.45);color:#FFC84A;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Lenzo Party Live</div>
+      <h1 style="margin:14px 0 4px;font-size:22px;font-weight:800;color:#ffffff;">Email Verification Code</h1>
+      <p style="margin:0;font-size:13px;color:#CBBFE0;">Enter this 6-digit code in the app to verify your account</p>
+    </div>
+    <div style="padding:28px 24px;text-align:center;">
+      <div style="display:inline-block;padding:18px 30px;background:#221338;border:1.5px solid rgba(243,40,213,0.45);border-radius:16px;font-size:34px;font-weight:900;letter-spacing:8px;color:#FFC84A;font-family:'Courier New',Courier,monospace;">${formattedOtp}</div>
+      <p style="margin:20px 0 0;font-size:13px;line-height:1.6;color:#B9AECF;">
+        This code expires in <strong style="color:#ffffff;">10 minutes</strong> and can only be used once.<br/>
+        Never share this verification code with anyone.
+      </p>
+    </div>
+    <div style="padding:16px 24px;background:rgba(0,0,0,0.25);border-top:1px solid rgba(255,255,255,0.06);text-align:center;font-size:11px;color:#8E82A8;">
+      If you did not request this code, you can safely ignore this email.<br/>
+      Official Support: <a href="mailto:lenzopartyofficial@gmail.com" style="color:#FFC84A;text-decoration:none;">lenzopartyofficial@gmail.com</a>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function pruneEmailOtpState() {
@@ -1323,7 +1425,7 @@ function loadEmailOtpStateFromDisk() {
     }
     pruneEmailOtpState();
   } catch (err) {
-    console.warn('[Resend OTP] Could not hydrate OTP challenge state from disk:', (err as Error)?.message || err);
+    console.warn('[Email OTP] Could not hydrate OTP challenge state from disk:', (err as Error)?.message || err);
   }
 }
 
@@ -1375,7 +1477,7 @@ function verifyEmailOtpChallenge(email: string, otp: string, challenge: string, 
       ok: false,
       code: 'OTP_NOT_CONFIGURED',
       status: 503,
-      error: 'Email verification service is not configured on the server.',
+      error: 'Email verification service is not ready on the server.',
     };
   }
   if (!challenge || typeof challenge !== 'string') {
@@ -1415,7 +1517,7 @@ function verifyEmailOtpChallenge(email: string, otp: string, challenge: string, 
       ok: false,
       code: 'OTP_SIGNATURE_INVALID',
       status: 400,
-      error: 'Verification session is invalid. Please request a new code.',
+      error: 'Verification session expired or was reset. Please request a new code.',
     };
   }
 
@@ -1532,21 +1634,36 @@ function getClientIp(req: Request): string {
   return req.socket?.remoteAddress || 'unknown';
 }
 
+app.get('/api/auth/email/status', (_req: Request, res: Response) => {
+  const cfg = getEmailOtpConfig();
+  return res.json({
+    configured: cfg.configured,
+    provider: 'custom-smtp',
+    smtpHost: cfg.smtpHost || null,
+    smtpPort: cfg.smtpPort,
+    fromDomain: cfg.fromDomain,
+    missingVars: cfg.missingVars,
+    otpTtlSeconds: EMAIL_OTP_TTL_SECONDS,
+    resendCooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
+  });
+});
+
 app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
   const rawEmail = typeof req.body?.email === 'string' ? req.body.email : '';
   const email = rawEmail.trim().toLowerCase();
   const maskedEmail = email ? maskEmailForLog(email) : '<empty>';
   const cfg = getEmailOtpConfig();
 
-  console.info('[Resend OTP] send-otp request received', {
+  console.info('[Email OTP] send-otp request received', {
     email: maskedEmail,
     configured: cfg.configured,
-    fromDomain: cfg.resendFromDomain,
+    smtpHost: cfg.smtpHost || null,
+    fromDomain: cfg.fromDomain,
   });
 
   try {
     if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
-      console.warn('[Resend OTP] Email validation failed', { email: maskedEmail });
+      console.warn('[Email OTP] Email validation failed', { email: maskedEmail });
       return res.status(400).json({
         success: false,
         code: 'INVALID_EMAIL',
@@ -1555,18 +1672,19 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
     }
 
     if (!cfg.configured) {
-      const reason =
+      const missingText =
         cfg.missingVars.length > 0
-          ? `Missing required server environment variables: ${cfg.missingVars.join(', ')}.`
-          : 'RESEND_FROM_EMAIL is not a valid sender address format.';
-      console.error('[Resend OTP] Backend configuration incomplete', {
+          ? `Set ${cfg.missingVars.join(' and ')} on the backend server.`
+          : 'SMTP sender address format is invalid.';
+      console.error('[Email OTP] Custom SMTP configuration incomplete', {
         missingVars: cfg.missingVars,
-        resendFromEmailValid: cfg.resendFromEmailValid,
+        fromValid: cfg.fromValid,
       });
       return res.status(503).json({
         success: false,
-        code: 'EMAIL_PROVIDER_NOT_CONFIGURED',
-        error: `Email OTP is not configured on the backend. ${reason}`,
+        code: 'SMTP_NOT_CONFIGURED',
+        missingVars: cfg.missingVars,
+        error: `Custom Email OTP server needs SMTP credentials. ${missingText}`,
       });
     }
 
@@ -1579,7 +1697,7 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       (ts) => now - ts < EMAIL_OTP_IP_WINDOW_MS
     );
     if (ipTimestamps.length >= EMAIL_OTP_IP_MAX_REQUESTS) {
-      console.warn('[Resend OTP] IP rate limit reached', { email: maskedEmail });
+      console.warn('[Email OTP] IP rate limit reached', { email: maskedEmail });
       return res.status(429).json({
         success: false,
         code: 'RATE_LIMITED',
@@ -1587,12 +1705,12 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Per-email 60-second resend cooldown
+    // Per-email resend cooldown
     const lastSent = emailOtpState.lastSentByEmail[email] || 0;
     const elapsedMs = now - lastSent;
     if (lastSent > 0 && elapsedMs < EMAIL_OTP_RESEND_COOLDOWN_MS) {
       const retryAfterSeconds = Math.max(1, Math.ceil((EMAIL_OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000));
-      console.warn('[Resend OTP] Cooldown active', { email: maskedEmail, retryAfterSeconds });
+      console.warn('[Email OTP] Cooldown active', { email: maskedEmail, retryAfterSeconds });
       return res.status(429).json({
         success: false,
         code: 'COOLDOWN_ACTIVE',
@@ -1605,90 +1723,29 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
     const expiresAt = Math.floor(now / 1000) + EMAIL_OTP_TTL_SECONDS;
     const { challenge, jti } = makeEmailOtpChallenge(email, otp, expiresAt, cfg.emailOtpSecret);
 
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 15_000);
+    const transporter = getSmtpTransporter(cfg);
+    const mailInfo = await transporter.sendMail({
+      from: cfg.smtpFrom,
+      to: email,
+      replyTo: 'lenzopartyofficial@gmail.com',
+      subject: `${otp} is your Lenzo Party Live verification code`,
+      text: `Lenzo Party Live\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 10 minutes and can only be used once. Do not share it with anyone.\n\nOfficial Support: lenzopartyofficial@gmail.com`,
+      html: buildOtpEmailHtml(otp),
+    });
 
-    let response: globalThis.Response;
-    try {
-      response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${cfg.resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: cfg.resendFromEmail,
-          to: [email],
-          subject: 'Your Lenzo Party Live verification code',
-          text: `Lenzo Party Live\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
-          html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#120820;color:#ffffff;border-radius:16px"><h2 style="margin:0 0 12px;color:#ffffff">Lenzo Party Live</h2><p style="margin:0 0 16px;color:#d6cce8">Use the 6-digit verification code below to verify your email address:</p><div style="font-size:32px;font-weight:bold;letter-spacing:10px;text-align:center;padding:16px;background:#211333;border-radius:12px;color:#FFC84A">${otp}</div><p style="margin:16px 0 0;font-size:13px;color:#b9aecf">This code expires in 10 minutes. If you did not request it, you can safely ignore this email.</p></div>`,
-        }),
-        signal: abortController.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    const rawBody = await response.text().catch(() => '');
-    let result: any = {};
-    try {
-      result = rawBody ? JSON.parse(rawBody) : {};
-    } catch {
-      result = { message: rawBody.slice(0, 200) };
-    }
-
-    if (!response.ok || !result?.id) {
-      const providerName = typeof result?.name === 'string' ? result.name : 'resend_error';
-      const providerMsg = typeof result?.message === 'string' ? result.message : `HTTP ${response.status}`;
-      console.error('[Resend OTP] Provider rejected email request', {
-        email: maskedEmail,
-        httpStatus: response.status,
-        providerName,
-        providerMessage: providerMsg,
-        fromDomain: cfg.resendFromDomain,
-      });
-
-      if (response.status === 401) {
-        return res.status(502).json({
-          success: false,
-          code: 'RESEND_AUTH_ERROR',
-          error: 'Email service authentication failed. Verify RESEND_API_KEY in Railway backend settings.',
-        });
-      }
-      if (response.status === 403 || response.status === 422) {
-        return res.status(502).json({
-          success: false,
-          code: 'RESEND_DOMAIN_OR_RECIPIENT_ERROR',
-          error: `Email could not be delivered: ${providerMsg}`,
-        });
-      }
-      if (response.status === 429) {
-        return res.status(429).json({
-          success: false,
-          code: 'RESEND_RATE_LIMIT',
-          error: 'Email provider rate limit reached. Please wait a moment and try again.',
-        });
-      }
-      return res.status(502).json({
-        success: false,
-        code: 'RESEND_DELIVERY_FAILED',
-        error: 'Email provider could not send the verification code. Please try again.',
-      });
-    }
-
-    // Resend accepted the message: supersede any previous active OTP for this email & record cooldown
+    // SMTP server accepted the message: supersede any previous active OTP for this email & record cooldown
     emailOtpState.latestJtiByEmail[email] = { jti, exp: expiresAt, issuedAt: now };
     emailOtpState.lastSentByEmail[email] = now;
     ipTimestamps.push(now);
     emailOtpIpRequests.set(clientIp, ipTimestamps);
     persistEmailOtpStateToDisk();
 
-    console.info('[Resend OTP] Email accepted by Resend', {
+    console.info('[Email OTP] Verification email dispatched via SMTP', {
       email: maskedEmail,
-      messageId: String(result.id),
+      messageId: String(mailInfo?.messageId || ''),
       jtiPrefix: jti.slice(0, 8),
       expiresIn: EMAIL_OTP_TTL_SECONDS,
-      fromDomain: cfg.resendFromDomain,
+      smtpHost: cfg.smtpHost,
     });
 
     return res.json({
@@ -1696,21 +1753,55 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       challenge,
       expiresIn: EMAIL_OTP_TTL_SECONDS,
       cooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
-      messageId: String(result.id),
+      messageId: String(mailInfo?.messageId || ''),
     });
   } catch (error: any) {
-    const isAbort = error?.name === 'AbortError';
-    console.error('[Resend OTP] Send request failed', {
+    const errCode = String(error?.code || '').toUpperCase();
+    const responseCode = Number(error?.responseCode || 0);
+    const rawMsg = String(error?.message || error || '');
+
+    console.error('[Email OTP] SMTP delivery failed', {
       email: maskedEmail,
-      timeout: isAbort,
-      message: error?.message || String(error),
+      smtpHost: cfg.smtpHost,
+      errCode,
+      responseCode,
+      message: rawMsg,
     });
-    return res.status(isAbort ? 504 : 500).json({
+
+    if (errCode === 'EAUTH' || responseCode === 534 || responseCode === 535) {
+      return res.status(502).json({
+        success: false,
+        code: 'SMTP_AUTH_ERROR',
+        error:
+          'SMTP authentication failed. For Gmail, enable 2-Step Verification and use a 16-character Google App Password in SMTP_PASS.',
+      });
+    }
+
+    if (errCode === 'EENVELOPE' || responseCode === 550 || responseCode === 553) {
+      return res.status(400).json({
+        success: false,
+        code: 'SMTP_RECIPIENT_ERROR',
+        error: 'Email address could not receive mail. Please double-check the spelling and try again.',
+      });
+    }
+
+    if (
+      errCode === 'ETIMEDOUT' ||
+      errCode === 'ESOCKET' ||
+      errCode === 'ECONNECTION' ||
+      errCode === 'ENOTFOUND'
+    ) {
+      return res.status(504).json({
+        success: false,
+        code: 'SMTP_CONNECTION_ERROR',
+        error: 'Could not connect to the SMTP mail server. Please try again in a moment.',
+      });
+    }
+
+    return res.status(502).json({
       success: false,
-      code: isAbort ? 'RESEND_TIMEOUT' : 'OTP_SEND_ERROR',
-      error: isAbort
-        ? 'Email provider timed out while sending your code. Please try again.'
-        : 'Could not send verification code. Please try again.',
+      code: 'SMTP_DELIVERY_FAILED',
+      error: 'Could not deliver the verification email right now. Please try again.',
     });
   }
 });
@@ -1723,7 +1814,7 @@ app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
   const cfg = getEmailOtpConfig();
 
   if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
-    console.warn('[Resend OTP] Verify rejected: invalid email', { email: maskedEmail });
+    console.warn('[Email OTP] Verify rejected: invalid email', { email: maskedEmail });
     return res.status(400).json({
       success: false,
       verified: false,
@@ -1733,7 +1824,7 @@ app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
   }
 
   if (!/^\d{6}$/.test(otp)) {
-    console.warn('[Resend OTP] Verify rejected: invalid OTP format', {
+    console.warn('[Email OTP] Verify rejected: invalid OTP format', {
       email: maskedEmail,
       otpLength: otp.length,
     });
@@ -1747,7 +1838,7 @@ app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
 
   const verification = verifyEmailOtpChallenge(email, otp, challenge, cfg.emailOtpSecret);
   if (!verification.ok) {
-    console.warn('[Resend OTP] Verification failed', {
+    console.warn('[Email OTP] Verification failed', {
       email: maskedEmail,
       code: verification.code,
     });
@@ -1759,7 +1850,7 @@ app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
     });
   }
 
-  console.info('[Resend OTP] Verification succeeded', {
+  console.info('[Email OTP] Verification succeeded', {
     email: maskedEmail,
     jtiPrefix: verification.jti.slice(0, 8),
   });
@@ -1787,13 +1878,12 @@ app.get('/api/health', (_req: Request, res: Response) => {
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
     emailOtp: {
       configured: emailOtpCfg.configured,
-      provider: 'resend',
-      resendApiKeyConfigured: emailOtpCfg.resendApiKeyConfigured,
-      resendFromEmailConfigured: emailOtpCfg.resendFromEmailConfigured,
-      resendFromEmailValid: emailOtpCfg.resendFromEmailValid,
-      resendFromDomain: emailOtpCfg.resendFromDomain,
-      emailOtpSecretConfigured: emailOtpCfg.emailOtpSecretConfigured,
-      emailOtpSecretStrong: emailOtpCfg.emailOtpSecretStrong,
+      provider: 'custom-smtp',
+      smtpHost: emailOtpCfg.smtpHost || null,
+      smtpPort: emailOtpCfg.smtpPort,
+      fromValid: emailOtpCfg.fromValid,
+      fromDomain: emailOtpCfg.fromDomain,
+      emailOtpSecretExplicit: emailOtpCfg.emailOtpSecretExplicit,
       missingVars: emailOtpCfg.missingVars,
       otpTtlSeconds: EMAIL_OTP_TTL_SECONDS,
       resendCooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
@@ -6943,7 +7033,7 @@ const FINANCE_CONFIG_STORE_PATH = path.join(process.cwd(), '.lenzo_finance_confi
 const FINANCE_SIGNING_SECRET =
   process.env.FINANCE_SIGNING_SECRET ||
   process.env.EMAIL_OTP_SECRET ||
-  `lenzo_finance_${FIREBASE_PROJECT_ID}`;
+  GENERATED_EMAIL_OTP_SECRET;
 
 let serverEconomyConfig: PlatformEconomyConfig = { ...OFFICIAL_ECONOMY_DEFAULTS };
 const processedFinanceIdempotencyKeys = new Map<string, { timestamp: number; payload: any }>();

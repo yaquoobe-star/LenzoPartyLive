@@ -484,8 +484,8 @@ async function deliverOsDeviceNotification(payload, prefs) {
 			if (reg && typeof reg.showNotification === "function") {
 				await reg.showNotification(payload.title, {
 					body: payload.message,
-					icon: payload.avatar || "/app-icon.png",
-					badge: "/app-icon.png",
+					icon: payload.avatar || "/app-icon.png?v=3",
+					badge: "/app-icon.png?v=3",
 					tag: `lenzo-${payload.type}-${payload.id}`,
 					data: {
 						id: payload.id,
@@ -499,7 +499,7 @@ async function deliverOsDeviceNotification(payload, prefs) {
 			}
 			new Notification(payload.title, {
 				body: payload.message,
-				icon: payload.avatar || "/app-icon.png",
+				icon: payload.avatar || "/app-icon.png?v=3",
 				tag: `lenzo-${payload.type}-${payload.id}`
 			});
 			return true;

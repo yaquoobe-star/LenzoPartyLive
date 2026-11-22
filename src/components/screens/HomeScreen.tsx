@@ -308,35 +308,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="w-full pb-28 md:pb-12 animate-fade-in">
-      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-5">
-        {/* Category Feed Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          {[
-            { id: 'foryou', label: 'For You', isActive: activeTab === 'foryou', action: () => setActiveTab('foryou') },
-            { id: 'live', label: 'Live', isActive: activeTab === 'live', action: () => setActiveTab('live') },
-            { id: 'rooms', label: 'Rooms', isActive: false, action: () => onNavigate('rooms') },
-            { id: 'videos', label: 'Videos', isActive: false, action: () => onNavigate('videos') },
-            { id: 'following', label: 'Following', isActive: activeTab === 'following', action: () => setActiveTab('following') },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={tab.action}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
-                tab.isActive
-                  ? 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/25'
-                  : 'bg-[#160C25] text-[#B9AECF] hover:text-white border border-white/5'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-2 shrink-0">
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-4">
+        {/* Official Lenzo Party LIVE Brand Header */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src="/app-icon.png?v=3"
+              alt="Lenzo Party LIVE"
+              className="w-9 h-9 object-contain drop-shadow-[0_4px_14px_rgba(168,85,247,0.55)] shrink-0"
+            />
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-display font-black italic text-lg sm:text-xl tracking-tight bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent truncate">
+                Lenzo Party
+              </span>
+              <span className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_10px_rgba(244,63,94,0.65)] shrink-0">
+                LIVE
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
             {onOpenNotifications && (
               <button
                 type="button"
                 onClick={onOpenNotifications}
                 aria-label="Open Notifications"
-                className="relative w-8 h-8 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all"
+                className="relative w-9 h-9 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all"
               >
                 <Bell className="w-4 h-4 text-[#E6DDF7]" />
                 {unreadNotificationsCount > 0 && (
@@ -357,6 +354,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* Category Feed Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          {[
+            { id: 'foryou', label: 'For You', isActive: activeTab === 'foryou', action: () => setActiveTab('foryou') },
+            { id: 'live', label: 'Live', isActive: activeTab === 'live', action: () => setActiveTab('live') },
+            { id: 'rooms', label: 'Rooms', isActive: false, action: () => onNavigate('rooms') },
+            { id: 'videos', label: 'Videos', isActive: false, action: () => onNavigate('videos') },
+            { id: 'following', label: 'Following', isActive: activeTab === 'following', action: () => setActiveTab('following') },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={tab.action}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${
+                tab.isActive
+                  ? 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/25'
+                  : 'bg-[#160C25] text-[#B9AECF] hover:text-white border border-white/5'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* ===================================================================== */}

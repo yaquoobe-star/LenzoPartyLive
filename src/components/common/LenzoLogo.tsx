@@ -15,14 +15,17 @@ export const LenzoLogo: React.FC<LenzoLogoProps> = ({
   showTagline = true,
   className = '',
   horizontal = false,
-  uppercase = true,
 }) => {
   const iconDimensions = {
-    sm: { width: 38, height: 38, radius: 'rounded-xl' },
-    md: { width: 56, height: 56, radius: 'rounded-2xl' },
-    lg: { width: 92, height: 92, radius: 'rounded-[22px]' },
-    xl: { width: 132, height: 132, radius: 'rounded-[28px]' },
+    sm: { width: 42, height: 42 },
+    md: { width: 76, height: 76 },
+    lg: { width: 132, height: 132 },
+    xl: { width: 176, height: 176 },
   }[size];
+
+  // For large vertical displays, the official emblem itself already carries the iconic
+  // "Lenzo Party LIVE" typography, so we only render side text for compact/horizontal headers.
+  const shouldRenderSideWordmark = showText && (horizontal || size === 'sm');
 
   return (
     <div
@@ -30,102 +33,62 @@ export const LenzoLogo: React.FC<LenzoLogoProps> = ({
         horizontal ? 'flex-row items-center gap-3' : 'flex-col items-center text-center'
       } ${className}`}
     >
-      {/* Official Lenzo Party Live Crowned Play Brand Icon */}
+      {/* Official Lenzo Party LIVE Royal Masquerade Crown Emblem */}
       <div
         className="relative flex items-center justify-center shrink-0"
         style={{ width: iconDimensions.width, height: iconDimensions.height }}
       >
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#F5C557] opacity-45 blur-xl scale-115 pointer-events-none" />
+        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#38BDF8] opacity-40 blur-xl scale-115 pointer-events-none" />
         <img
-          src="/app-icon.png?v=2"
-          alt="Lenzo Party Live"
+          src="/app-icon.png?v=3"
+          alt="Lenzo Party LIVE"
           draggable={false}
-          className={`relative z-10 w-full h-full object-cover ${iconDimensions.radius} border border-[#F328D5]/30 shadow-[0_8px_24px_rgba(139,32,255,0.45)] bg-[#06071C]`}
+          className="relative z-10 w-full h-full object-contain drop-shadow-[0_10px_28px_rgba(168,85,247,0.5)]"
         />
       </div>
 
-      {/* Official Brand Typography: LENZO (White) + PARTY (White) + LIVE (Gold) */}
-      {showText && (
-        <div className={`flex flex-col ${horizontal ? 'text-left' : 'items-center mt-2.5'}`}>
-          {horizontal ? (
-            <div className="flex flex-col leading-none">
-              <span
-                className={`font-display font-black tracking-wider text-white drop-shadow-sm ${
-                  size === 'sm'
-                    ? 'text-sm'
-                    : size === 'md'
-                      ? 'text-lg'
-                      : 'text-2xl'
-                }`}
-              >
-                {uppercase ? 'LENZO' : 'Lenzo'}
-              </span>
-              <div
-                className={`flex items-center gap-1 font-display font-extrabold tracking-widest mt-0.5 ${
-                  size === 'sm'
-                    ? 'text-[10px]'
-                    : size === 'md'
-                      ? 'text-xs'
-                      : 'text-sm'
-                }`}
-              >
-                <span className="text-white">{uppercase ? 'PARTY' : 'Party'}</span>
-                <span className="text-[#F5C557]">{uppercase ? 'LIVE' : 'Live'}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center leading-none">
-              <span
-                className={`font-display font-black tracking-[0.08em] text-white drop-shadow-sm ${
-                  size === 'sm'
-                    ? 'text-base'
-                    : size === 'md'
-                      ? 'text-2xl'
-                      : size === 'lg'
-                        ? 'text-3xl sm:text-4xl'
-                        : 'text-4xl sm:text-5xl'
-                }`}
-              >
-                {uppercase ? 'LENZO' : 'Lenzo'}
-              </span>
-              <div
-                className={`flex items-center gap-1.5 font-display font-extrabold tracking-[0.12em] mt-1 ${
-                  size === 'sm'
-                    ? 'text-xs'
-                    : size === 'md'
-                      ? 'text-sm'
-                      : size === 'lg'
-                        ? 'text-lg sm:text-xl'
-                        : 'text-xl sm:text-2xl'
-                }`}
-              >
-                <span className="text-white">{uppercase ? 'PARTY' : 'Party'}</span>
-                <span className="text-[#F5C557]">{uppercase ? 'LIVE' : 'Live'}</span>
-              </div>
-            </div>
-          )}
+      {/* Horizontal / Compact Wordmark */}
+      {shouldRenderSideWordmark && (
+        <div className={`flex flex-col ${horizontal ? 'text-left' : 'items-center mt-2'}`}>
+          <div className="flex items-center gap-1.5 leading-none">
+            <span
+              className={`font-display font-black italic tracking-tight bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent drop-shadow-sm ${
+                size === 'sm' ? 'text-base' : size === 'md' ? 'text-xl' : 'text-2xl'
+              }`}
+            >
+              Lenzo Party
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_10px_rgba(244,63,94,0.65)]">
+              LIVE
+            </span>
+          </div>
 
           {showTagline && (
             <div
               className={`text-[#B9AECF] font-medium tracking-wider flex items-center ${
                 horizontal ? 'justify-start' : 'justify-center'
-              } gap-1.5 ${
-                size === 'sm' ? 'text-[9px] mt-1' : size === 'md' ? 'text-xs mt-1.5' : 'text-xs sm:text-sm mt-2'
-              }`}
+              } gap-1.5 text-[10px] mt-1`}
             >
               <span>Chat</span>
-              <span className="text-[#F328D5] text-[10px]">•</span>
+              <span className="text-[#F328D5]">•</span>
               <span>Live</span>
-              <span className="text-[#8B20FF] text-[10px]">•</span>
+              <span className="text-[#8B20FF]">•</span>
               <span>Party</span>
-              {size === 'lg' || size === 'xl' ? (
-                <>
-                  <span className="text-[#F5C557] text-[10px]">•</span>
-                  <span>Connect</span>
-                </>
-              ) : null}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tagline under large standalone emblem */}
+      {!shouldRenderSideWordmark && showTagline && (
+        <div className="text-[#D4CBE8] font-semibold tracking-[0.2em] uppercase flex items-center justify-center gap-2 text-[11px] sm:text-xs mt-3">
+          <span>Chat</span>
+          <span className="text-[#F328D5]">•</span>
+          <span>Live</span>
+          <span className="text-[#38BDF8]">•</span>
+          <span>Party</span>
+          <span className="text-[#FFC84A]">•</span>
+          <span>Connect</span>
         </div>
       )}
     </div>

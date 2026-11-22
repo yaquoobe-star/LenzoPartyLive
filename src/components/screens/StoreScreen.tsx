@@ -388,10 +388,15 @@ export const StoreScreen: React.FC<StoreScreenProps> = ({
               <ChevronLeft className="w-5 h-5" />
             </button>
 
-            {/* Centered Lenzo Party Branding */}
-            <div className="flex items-center gap-1.5 min-w-0">
+            {/* Centered Official Lenzo Party Branding */}
+            <div className="flex items-center gap-2 min-w-0">
+              <img
+                src="/app-icon.png?v=3"
+                alt="Lenzo Party LIVE"
+                className="w-7 h-7 object-contain drop-shadow-[0_2px_10px_rgba(168,85,247,0.55)] shrink-0"
+              />
               <span
-                className="font-display text-lg sm:text-xl font-black tracking-tight bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(217,70,239,0.55)]"
+                className="font-display text-lg sm:text-xl font-black italic tracking-tight bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(217,70,239,0.55)] truncate"
                 style={{
                   backgroundImage:
                     'linear-gradient(90deg, #FFFFFF 0%, #F5D0FE 42%, #FFC84A 100%)',

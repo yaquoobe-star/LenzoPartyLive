@@ -1,9 +1,9 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { An as require_react, Bt as ExternalLink, Dn as ArrowRightLeft, L as Send, N as ShieldCheck, On as ArrowLeft, Ot as Globe, Xt as Copy, _ as TriangleAlert, a as Wallet, bt as Info, ct as Megaphone, dt as LogOut, f as UserX, ft as Lock, ht as Link2, j as Shield, l as Vibrate, ln as Check, nt as Moon, on as ChevronRight, r as X, s as Volume2, st as MessageCircle, ut as Mail, vn as Bell, y as Trash2, yn as BellRing } from "./vendor-icons-Dlv_q2hi.js";
-import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-D66AMxEz.js";
-import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-umGZXRAv.js";
+import { Dn as ArrowLeft, Dt as Globe, En as ArrowRightLeft, L as Send, N as ShieldCheck, Yt as Copy, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, cn as Check, ct as Megaphone, dt as LogOut, f as UserX, ft as Lock, ht as Link2, j as Shield, kn as require_react, l as Vibrate, nt as Moon, r as X, s as Volume2, st as MessageCircle, ut as Mail, vn as BellRing, y as Trash2, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
+import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-C9mUqIr0.js";
+import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-DTa1xr8z.js";
 import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-CrMGE5cV.js";
+import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/SettingsScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -980,11 +980,15 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast(`Lenzo Party Live v1.0.2 (Build 3 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
+							onClick: () => showToast(`Lenzo Party Live v1.0.6 (Build 7 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Info, { className: "w-5 h-5 text-[#06B6D4]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: "/app-icon.png?v=3",
+									alt: "Lenzo Party LIVE",
+									className: "w-7 h-7 object-contain drop-shadow-[0_2px_8px_rgba(168,85,247,0.5)] shrink-0"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-sm font-semibold text-white",
 									children: "About Lenzo Party Live"
 								})]
@@ -992,7 +996,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 								className: "flex items-center gap-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-xs text-[#B9AECF]",
-									children: "v1.0.2 (Build 3)"
+									children: "v1.0.6 (Build 7)"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 							})]
 						}),

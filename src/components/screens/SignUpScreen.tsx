@@ -75,8 +75,13 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({
         <div className="w-10" />
       </header>
 
-      {/* Form Container matching Screen 03 in Showcase */}
+      {/* Form Container */}
       <main className="relative z-10 w-full max-w-sm flex flex-col items-center my-auto py-4">
+        <img
+          src="/app-icon.png?v=3"
+          alt="Lenzo Party LIVE"
+          className="w-20 h-20 object-contain mb-3 drop-shadow-[0_8px_22px_rgba(168,85,247,0.5)]"
+        />
         <h1 className="text-2xl font-black text-white font-display tracking-tight text-center mb-1">
           Create Account
         </h1>

@@ -1,7 +1,7 @@
 /* Lenzo Party Live — Production Web Push & Notification Service Worker */
 
-const APP_ICON = '/app-icon.png';
-const APP_BADGE = '/app-icon.png';
+const APP_ICON = '/app-icon.png?v=3';
+const APP_BADGE = '/app-icon.png?v=3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());

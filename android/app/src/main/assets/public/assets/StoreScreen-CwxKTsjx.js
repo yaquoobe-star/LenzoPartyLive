@@ -1,8 +1,8 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { An as require_react, B as RotateCcw, K as Plus, N as ShieldCheck, Qt as Coins, T as Sparkles, a as Wallet, ln as Check, nn as CircleCheck, q as Play, r as X, sn as ChevronLeft } from "./vendor-icons-Dlv_q2hi.js";
-import { a as purchaseStoreProduct, c as subscribeUserInventory, d as DEFAULT_STORE_PRODUCTS, l as toggleEquipInventoryItem, o as subscribeStoreCategories, s as subscribeStoreProducts, t as StoreAssetPreview, u as DEFAULT_STORE_CATEGORIES } from "./StoreAssetPreview-DElLd5GG.js";
-import { X as subscribeUserWallet } from "./index-umGZXRAv.js";
-import { i as require_jsx_runtime } from "./vendor-motion-CrMGE5cV.js";
+import { B as RotateCcw, K as Plus, N as ShieldCheck, T as Sparkles, Zt as Coins, a as Wallet, cn as Check, kn as require_react, on as ChevronLeft, q as Play, r as X, tn as CircleCheck } from "./vendor-icons-sqDS8tFw.js";
+import { a as purchaseStoreProduct, c as subscribeUserInventory, d as DEFAULT_STORE_PRODUCTS, l as toggleEquipInventoryItem, o as subscribeStoreCategories, s as subscribeStoreProducts, t as StoreAssetPreview, u as DEFAULT_STORE_CATEGORIES } from "./StoreAssetPreview-BVP15Xng.js";
+import { X as subscribeUserWallet } from "./index-DTa1xr8z.js";
+import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/StoreScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -430,13 +430,17 @@ var StoreScreen = ({ currentUser, onNavigate, onOpenWallet, onUpdateUserBalance,
 									className: "w-9 h-9 rounded-xl bg-white/[0.06] border border-purple-400/30 flex items-center justify-center text-white hover:bg-purple-500/20 hover:border-purple-300/60 active:scale-95 transition-all shadow-[0_0_12px_rgba(168,85,247,0.28)]",
 									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronLeft, { className: "w-5 h-5" })
 								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "flex items-center gap-1.5 min-w-0",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: "font-display text-lg sm:text-xl font-black tracking-tight bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(217,70,239,0.55)]",
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+										src: "/app-icon.png?v=3",
+										alt: "Lenzo Party LIVE",
+										className: "w-7 h-7 object-contain drop-shadow-[0_2px_10px_rgba(168,85,247,0.55)] shrink-0"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "font-display text-lg sm:text-xl font-black italic tracking-tight bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(217,70,239,0.55)] truncate",
 										style: { backgroundImage: "linear-gradient(90deg, #FFFFFF 0%, #F5D0FE 42%, #FFC84A 100%)" },
 										children: "Lenzo Party"
-									})
+									})]
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									type: "button",

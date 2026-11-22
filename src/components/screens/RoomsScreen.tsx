@@ -87,17 +87,21 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
             1. HEADER (Lenzo Party Live + Search + Notifications)
            ======================================================== */}
         <header className="flex items-center justify-between gap-2 pt-0.5">
-          {/* Official Brand Logo + LENZO PARTY LIVE Wordmark */}
+          {/* Official Brand Logo + Lenzo Party LIVE Wordmark */}
           <div className="flex items-center gap-2 cursor-pointer min-w-0" onClick={() => onNavigate('home')}>
             <img
-              src="/app-icon.png?v=2"
-              alt="Lenzo Party Live"
-              className="w-8 h-8 rounded-xl object-cover border border-[#F328D5]/35 shadow-md shadow-[#8B20FF]/35 shrink-0 bg-[#06071C]"
+              src="/app-icon.png?v=3"
+              alt="Lenzo Party LIVE"
+              className="w-9 h-9 object-contain drop-shadow-[0_4px_12px_rgba(168,85,247,0.55)] shrink-0"
             />
-            <h1 className="text-base sm:text-lg font-black tracking-wide font-display truncate">
-              <span className="text-white">LENZO PARTY </span>
-              <span className="text-[#F5C557]">LIVE</span>
-            </h1>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h1 className="text-base sm:text-lg font-black italic tracking-tight font-display bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent truncate">
+                Lenzo Party
+              </h1>
+              <span className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_8px_rgba(244,63,94,0.6)] shrink-0">
+                LIVE
+              </span>
+            </div>
           </div>
 
           {/* Right Action Icons: Leaderboard, Microphone Broadcast, Search & Bell */}

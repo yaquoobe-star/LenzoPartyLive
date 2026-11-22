@@ -1,15 +1,15 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CsmQFCB3.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Dlv_q2hi.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CrMGE5cV.js","assets/CreateRoomScreen-DxR5qFPt.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-CuI1yvL1.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-DlgcC9kt.js","assets/StoreAssetPreview-DElLd5GG.js","assets/pushNotificationService-D66AMxEz.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-C5s4hHGv.js","assets/UploadVideoScreen-B3isGlQp.js","assets/WalletModal-BHZSbcU5.js","assets/LevelAndVIPModal-DQMbL5Hr.js","assets/AdminProgressionModal-BW5r5X24.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BBV4fSnl.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-BJVFKOyV.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-ZiIyZ9BI.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-CwxKTsjx.js","assets/StoreAssetPreview-BVP15Xng.js","assets/pushNotificationService-C9mUqIr0.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-CN14glx2.js","assets/UploadVideoScreen-CjSJOs2S.js","assets/WalletModal-Cpn0p6YT.js","assets/LevelAndVIPModal-FUctg_p3.js","assets/AdminProgressionModal-D1dknAnf.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { t as require_client } from "./vendor-react-DG4qo-ea.js";
-import { $ as Pause, $t as Clock, A as ShoppingBag, An as require_react, At as Gem, B as RotateCcw, Bt as ExternalLink, Cn as Award, Ct as House, D as Smartphone, Dn as ArrowRightLeft, Dt as Hash, E as Smile, En as ArrowRight, Et as Heart, F as Share2, Ft as FileText, G as Radio, H as Repeat2, Ht as Ellipsis, I as Settings, J as Pin, Jt as Crop, K as Plus, L as Send, M as ShieldOff, Mt as Flame, N as ShieldCheck, Nt as Flag, O as SlidersHorizontal, On as ArrowLeft, Ot as Globe, P as ShieldAlert, Pt as Film, Q as PenLine, Qt as Coins, R as Search, Rt as Eye, S as Swords, Sn as BadgeCheck, T as Sparkles, Tt as Hexagon, U as RefreshCw, V as Reply, Vt as Eraser, W as Receipt, X as Percent, Xt as Copy, Y as Phone, Yt as CornerUpLeft, Z as Pen, Zt as Compass, _ as TriangleAlert, _n as BookmarkCheck, a as Wallet, an as ChevronUp, at as MicOff, b as Timer, bn as BellOff, c as Video, cn as ChevronDown, d as User, dn as ChartColumn, dt as LogOut, en as CircleX, et as Paperclip, f as UserX, fn as Camera, ft as Lock, g as Trophy, gn as Bookmark, gt as LayoutGrid, h as Upload, hn as Building2, i as WifiOff, in as CircleAlert, it as Mic, j as Shield, kt as Gift, ln as Check, m as UserCheck, mn as Calendar, mt as LoaderCircle, n as Zap, nn as CircleCheck, o as VolumeX, on as ChevronRight, ot as MessageSquare, p as UserPlus, pn as CameraOff, pt as LockOpen, q as Play, qt as Crown, r as X, rn as CircleArrowDown, s as Volume2, sn as ChevronLeft, st as MessageCircle, t as ZoomIn, tt as Music, u as Users, un as CheckCheck, ut as Mail, v as TrendingUp, vn as Bell, w as Star, wn as AtSign, wt as History, x as Target, xn as Ban, xt as Image$1, y as Trash2, yn as BellRing, yt as KeyRound, z as Save, zt as EyeOff } from "./vendor-icons-Dlv_q2hi.js";
-import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-D66AMxEz.js";
+import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
+import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
+import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-C9mUqIr0.js";
 import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CPEwW-gN.js";
 import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
 import { B as linkWithPopup, C as updateDoc, D as collection, E as Timestamp, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as doc, P as GoogleAuthProvider, S as startAfter, T as writeBatch, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, _ as onSnapshot, b as runTransaction, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as enableNetwork, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as orderBy, w as where, x as setDoc, y as query, z as getRedirectResult } from "./vendor-firebase-pU_0pKhI.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
 import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-D6F5ZQ0I.js";
 import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
-import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CrMGE5cV.js";
+import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CI-970bO.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 // \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -2186,8 +2186,8 @@ async function postEmailOtpJson(path, payload, timeoutMs, explicitBaseUrl) {
 	};
 }
 /**
-* Send a short-lived 6-digit email OTP through the Lenzo backend (Resend).
-* The backend returns a signed challenge; the OTP itself is never stored client-side.
+* Send a short-lived 6-digit email OTP through the custom Lenzo SMTP backend.
+* The backend returns an HMAC-signed challenge; the OTP itself is never stored or exposed client-side.
 */
 async function sendEmailOtp(email) {
 	const cleanEmail = email.trim().toLowerCase();
@@ -2197,29 +2197,44 @@ async function sendEmailOtp(email) {
 	let attempt = null;
 	let primaryNetworkError = null;
 	try {
-		attempt = await postEmailOtpJson("/api/auth/email/send-otp", { email: cleanEmail }, 2e4);
+		attempt = await postEmailOtpJson("/api/auth/email/send-otp", { email: cleanEmail }, 25e3);
 	} catch (err) {
 		if (canFallbackToProdApi) primaryNetworkError = err;
-		else if (err?.isNetworkError) throw new Error(`Unable to reach the Lenzo email backend (${primaryBase || "https://api.lenzoparty.com"}). Check that Railway is running and Cloudflare DNS/SSL for api.lenzoparty.com is not returning 502 (${err?.message || "Failed to fetch"}).`);
-		else throw err;
+		else if (err?.isNetworkError) {
+			const netErr = /* @__PURE__ */ new Error(`Unable to reach the Lenzo email server (${primaryBase || "https://api.lenzoparty.com"}). Please check your internet connection and try again.`);
+			netErr.code = "SMTP_BACKEND_UNREACHABLE";
+			throw netErr;
+		} else throw err;
 	}
-	if (canFallbackToProdApi && (Boolean(primaryNetworkError) || Boolean(attempt?.looksLikeHtml) || attempt?.response.status === 503 && attempt?.data?.code === "EMAIL_PROVIDER_NOT_CONFIGURED")) try {
+	const primaryNotConfigured = attempt?.response.status === 503 && (attempt?.data?.code === "SMTP_NOT_CONFIGURED" || attempt?.data?.code === "EMAIL_PROVIDER_NOT_CONFIGURED");
+	if (canFallbackToProdApi && (Boolean(primaryNetworkError) || Boolean(attempt?.looksLikeHtml) || primaryNotConfigured)) try {
 		const prodAttempt = await postEmailOtpJson("/api/auth/email/send-otp", { email: cleanEmail }, 2e4, DEFAULT_BACKEND_API_ORIGIN);
 		if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) attempt = prodAttempt;
-		else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) attempt = prodAttempt;
-		else throw new Error(`Email OTP could not be sent. In AI Studio Preview, add RESEND_API_KEY, RESEND_FROM_EMAIL, and EMAIL_OTP_SECRET in AI Studio Settings -> Secrets, OR bring the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) online (currently returning HTTP ${prodAttempt.response.status}).`);
+		else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error && prodAttempt.response.status < 500) attempt = prodAttempt;
+		else {
+			const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.");
+			cfgErr.code = "SMTP_NOT_CONFIGURED";
+			throw cfgErr;
+		}
 	} catch (fallbackErr) {
-		if (fallbackErr?.isNetworkError) throw new Error(`Email OTP could not be sent. AI Studio Preview is missing RESEND_API_KEY / RESEND_FROM_EMAIL / EMAIL_OTP_SECRET in Settings -> Secrets, and the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is currently unreachable (offline / 502 Bad Gateway).`);
-		throw fallbackErr;
+		if (fallbackErr?.code === "SMTP_NOT_CONFIGURED") throw fallbackErr;
+		const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.");
+		cfgErr.code = "SMTP_NOT_CONFIGURED";
+		throw cfgErr;
 	}
 	if (!attempt) throw primaryNetworkError || /* @__PURE__ */ new Error("Could not reach the email verification service.");
 	const { response, data, looksLikeHtml, usedBaseUrl } = attempt;
 	if (!response.ok || !data?.success || !data?.challenge) {
 		if (looksLikeHtml) {
-			const targetInfo = response.url || "/api/auth/email/send-otp";
-			throw new Error(`Email API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`);
+			const htmlErr = /* @__PURE__ */ new Error("Email OTP server returned an unexpected response. You can verify via Email Link below or try again.");
+			htmlErr.code = "SMTP_BACKEND_UNREACHABLE";
+			throw htmlErr;
 		}
-		if (response.status >= 502 && !data?.error) throw new Error(`Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs and Cloudflare DNS/SSL for api.lenzoparty.com.`);
+		if (response.status >= 502 && !data?.error) {
+			const gwErr = /* @__PURE__ */ new Error("Email server is temporarily unavailable. You can verify via Email Link below or try again shortly.");
+			gwErr.code = "SMTP_BACKEND_UNREACHABLE";
+			throw gwErr;
+		}
 		const err = new Error(data?.error || `Could not send verification code (HTTP ${response.status}).`);
 		if (data?.code) err.code = data.code;
 		if (typeof data?.retryAfterSeconds === "number") err.retryAfterSeconds = data.retryAfterSeconds;
@@ -2229,7 +2244,7 @@ async function sendEmailOtp(email) {
 	return {
 		challenge: String(data.challenge),
 		expiresIn: Number(data.expiresIn || 600),
-		cooldownSeconds: Number(data.cooldownSeconds || 60),
+		cooldownSeconds: Number(data.cooldownSeconds || 45),
 		messageId: typeof data.messageId === "string" ? data.messageId : void 0
 	};
 }
@@ -2246,11 +2261,8 @@ async function verifyEmailOtp(email, otp, challenge) {
 		challenge: challenge.trim()
 	}, 15e3, lastEmailOtpBaseUrl);
 	if (!response.ok || !data?.success || !data?.verified) {
-		if (looksLikeHtml) {
-			const targetInfo = response.url || "/api/auth/email/verify-otp";
-			throw new Error(`Email verification API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (${DEFAULT_BACKEND_API_ORIGIN}) is online and deployed.`);
-		}
-		if (response.status >= 502 && !data?.error) throw new Error(`Lenzo backend (${DEFAULT_BACKEND_API_ORIGIN}) returned HTTP ${response.status} Bad Gateway. Check Railway deployment logs for api.lenzoparty.com.`);
+		if (looksLikeHtml) throw new Error("Email verification service returned an unexpected response. Please try again.");
+		if (response.status >= 502 && !data?.error) throw new Error("Email verification server is temporarily unavailable. Please try again.");
 		const err = new Error(data?.error || `Email verification failed (HTTP ${response.status}).`);
 		if (data?.code) err.code = data.code;
 		throw err;
@@ -2337,11 +2349,38 @@ async function resetPassword(email) {
 	}
 }
 /**
-* Resend Email Verification
+* Resend Firebase Email Verification link
 */
 async function resendVerification() {
 	if (!auth.currentUser) throw new Error("No user is currently signed in.");
 	await sendEmailVerification(auth.currentUser);
+}
+/**
+* Reload current Firebase user to confirm whether they clicked the verification link in their inbox.
+*/
+async function checkEmailVerificationStatus() {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Session expired. Please log in with your email and password.");
+	await user.reload();
+	const refreshed = auth.currentUser;
+	if (Boolean(refreshed?.emailVerified) && refreshed) {
+		await updateDoc(doc(db, "users", refreshed.uid), {
+			emailVerified: true,
+			lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
+		}).catch(() => {});
+		const firestoreData = await syncUserInFirestore(refreshed, "password");
+		await syncBackendAuthSession(refreshed);
+		const profile = mapFirestoreUserToProfile(firestoreData, refreshed);
+		rememberAuthenticatedAccount(profile, "password");
+		return {
+			verified: true,
+			profile
+		};
+	}
+	return {
+		verified: false,
+		profile: null
+	};
 }
 /**
 * REAL Sign Out via Firebase
@@ -10041,96 +10080,92 @@ var BottomNav = ({ currentScreen, onNavigate, onOpenCreate, unreadMessagesCount 
 	});
 };
 // src/components/common/LenzoLogo.tsx
-var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className = "", horizontal = false, uppercase = true }) => {
+var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className = "", horizontal = false }) => {
 	const iconDimensions = {
 		sm: {
-			width: 38,
-			height: 38,
-			radius: "rounded-xl"
+			width: 42,
+			height: 42
 		},
 		md: {
-			width: 56,
-			height: 56,
-			radius: "rounded-2xl"
+			width: 76,
+			height: 76
 		},
 		lg: {
-			width: 92,
-			height: 92,
-			radius: "rounded-[22px]"
+			width: 132,
+			height: 132
 		},
 		xl: {
-			width: 132,
-			height: 132,
-			radius: "rounded-[28px]"
+			width: 176,
+			height: 176
 		}
 	}[size];
+	const shouldRenderSideWordmark = showText && (horizontal || size === "sm");
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: `flex ${horizontal ? "flex-row items-center gap-3" : "flex-col items-center text-center"} ${className}`,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "relative flex items-center justify-center shrink-0",
-			style: {
-				width: iconDimensions.width,
-				height: iconDimensions.height
-			},
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#F5C557] opacity-45 blur-xl scale-115 pointer-events-none" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-				src: "/app-icon.png?v=2",
-				alt: "Lenzo Party Live",
-				draggable: false,
-				className: `relative z-10 w-full h-full object-cover ${iconDimensions.radius} border border-[#F328D5]/30 shadow-[0_8px_24px_rgba(139,32,255,0.45)] bg-[#06071C]`
-			})]
-		}), showText && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: `flex flex-col ${horizontal ? "text-left" : "items-center mt-2.5"}`,
-			children: [horizontal ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col leading-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: `font-display font-black tracking-wider text-white drop-shadow-sm ${size === "sm" ? "text-sm" : size === "md" ? "text-lg" : "text-2xl"}`,
-					children: uppercase ? "LENZO" : "Lenzo"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: `flex items-center gap-1 font-display font-extrabold tracking-widest mt-0.5 ${size === "sm" ? "text-[10px]" : size === "md" ? "text-xs" : "text-sm"}`,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-white",
-						children: uppercase ? "PARTY" : "Party"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#F5C557]",
-						children: uppercase ? "LIVE" : "Live"
-					})]
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "relative flex items-center justify-center shrink-0",
+				style: {
+					width: iconDimensions.width,
+					height: iconDimensions.height
+				},
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 rounded-full bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#38BDF8] opacity-40 blur-xl scale-115 pointer-events-none" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: "/app-icon.png?v=3",
+					alt: "Lenzo Party LIVE",
+					draggable: false,
+					className: "relative z-10 w-full h-full object-contain drop-shadow-[0_10px_28px_rgba(168,85,247,0.5)]"
 				})]
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "flex flex-col items-center leading-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: `font-display font-black tracking-[0.08em] text-white drop-shadow-sm ${size === "sm" ? "text-base" : size === "md" ? "text-2xl" : size === "lg" ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`,
-					children: uppercase ? "LENZO" : "Lenzo"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: `flex items-center gap-1.5 font-display font-extrabold tracking-[0.12em] mt-1 ${size === "sm" ? "text-xs" : size === "md" ? "text-sm" : size === "lg" ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"}`,
+			}),
+			shouldRenderSideWordmark && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: `flex flex-col ${horizontal ? "text-left" : "items-center mt-2"}`,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-1.5 leading-none",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-white",
-						children: uppercase ? "PARTY" : "Party"
+						className: `font-display font-black italic tracking-tight bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent drop-shadow-sm ${size === "sm" ? "text-base" : size === "md" ? "text-xl" : "text-2xl"}`,
+						children: "Lenzo Party"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#F5C557]",
-						children: uppercase ? "LIVE" : "Live"
+						className: "px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_10px_rgba(244,63,94,0.65)]",
+						children: "LIVE"
 					})]
+				}), showTagline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: `text-[#B9AECF] font-medium tracking-wider flex items-center ${horizontal ? "justify-start" : "justify-center"} gap-1.5 text-[10px] mt-1`,
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Chat" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[#F328D5]",
+							children: "•"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Live" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[#8B20FF]",
+							children: "•"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Party" })
+					]
 				})]
-			}), showTagline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: `text-[#B9AECF] font-medium tracking-wider flex items-center ${horizontal ? "justify-start" : "justify-center"} gap-1.5 ${size === "sm" ? "text-[9px] mt-1" : size === "md" ? "text-xs mt-1.5" : "text-xs sm:text-sm mt-2"}`,
+			}),
+			!shouldRenderSideWordmark && showTagline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "text-[#D4CBE8] font-semibold tracking-[0.2em] uppercase flex items-center justify-center gap-2 text-[11px] sm:text-xs mt-3",
 				children: [
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Chat" }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#F328D5] text-[10px]",
+						className: "text-[#F328D5]",
 						children: "•"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Live" }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#8B20FF] text-[10px]",
+						className: "text-[#38BDF8]",
 						children: "•"
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Party" }),
-					size === "lg" || size === "xl" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: "text-[#F5C557] text-[10px]",
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-[#FFC84A]",
 						children: "•"
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Connect" })] }) : null
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Connect" })
 				]
-			})]
-		})]
+			})
+		]
 	});
 };
 // src/components/common/AvatarWithFrame.tsx
@@ -12380,42 +12415,62 @@ var SplashScreen = ({ onComplete }) => {
 		};
 	}, [onComplete]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "relative min-h-dvh-screen w-full flex flex-col items-center justify-between px-6 sm:px-10 safe-pt-4 safe-pb-6 bg-[#06071C] overflow-hidden select-none",
+		className: "relative min-h-dvh-screen w-full flex flex-col items-center justify-between px-6 sm:px-10 safe-pt-4 safe-pb-6 bg-[#070214] overflow-hidden select-none",
 		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "absolute inset-0 flex items-center justify-center bg-[#06071C] pointer-events-none",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "relative w-full h-full sm:w-auto sm:max-w-[560px] flex items-center justify-center",
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-							src: "/splash.png?v=2",
-							alt: "Lenzo Party Live",
-							draggable: false,
-							className: "w-full h-full object-cover sm:object-contain animate-fade-in"
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "hidden sm:block absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#06071C] to-transparent" }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "hidden sm:block absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#06071C] to-transparent" })
-					]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#06071C]/95 via-[#06071C]/50 to-transparent" })]
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "absolute inset-0 pointer-events-none flex items-center justify-center",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-[460px] h-[460px] sm:w-[560px] sm:h-[560px] rounded-full bg-gradient-to-tr from-[#8B20FF]/35 via-[#F328D5]/25 to-[#38BDF8]/25 blur-[110px] animate-pulse" })
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "w-full flex justify-end z-10",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
 					onClick: onComplete,
-					className: "text-xs text-[#D4CBE8] hover:text-white bg-black/35 hover:bg-black/55 px-4 py-1.5 rounded-full border border-white/15 transition-colors backdrop-blur-md active:scale-95",
+					className: "text-xs text-[#D4CBE8] hover:text-white bg-white/5 hover:bg-white/15 px-4 py-1.5 rounded-full border border-white/15 transition-colors backdrop-blur-md active:scale-95",
 					children: "Skip Intro ›"
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: "w-full max-w-xs flex flex-col items-center gap-2.5 z-10 pb-6 mt-auto",
+				className: "relative z-10 flex flex-col items-center justify-center my-auto animate-fade-in",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-2 rounded-[44px] bg-gradient-to-tr from-[#F328D5]/40 via-[#8B20FF]/40 to-[#38BDF8]/40 blur-2xl animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+						src: "/app-icon.png?v=3",
+						alt: "Lenzo Party LIVE",
+						draggable: false,
+						className: "relative z-10 w-full h-full object-contain drop-shadow-[0_18px_45px_rgba(168,85,247,0.55)]"
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "mt-5 text-[#D4CBE8]/90 text-[11px] sm:text-xs font-semibold tracking-[0.25em] uppercase flex items-center gap-2",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Chat" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[#F328D5]",
+							children: "•"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Live" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[#38BDF8]",
+							children: "•"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Party" }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "text-[#FFC84A]",
+							children: "•"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Connect" })
+					]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "w-full max-w-xs flex flex-col items-center gap-2.5 z-10 pb-6",
 				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 					className: "text-xs font-semibold text-[#D6CCE9] tracking-wider drop-shadow",
 					children: statusText
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "w-full h-1.5 bg-[#120F2E]/90 rounded-full overflow-hidden border border-white/15 p-[1px] relative shadow-lg backdrop-blur-sm",
+					className: "w-full h-1.5 bg-[#150A2E] rounded-full overflow-hidden border border-white/15 p-[1px] relative shadow-lg",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#F5C557] rounded-full transition-all duration-300 ease-out shadow-[0_0_14px_#F328D5]",
+						className: "h-full bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#38BDF8] rounded-full transition-all duration-300 ease-out shadow-[0_0_14px_#F328D5]",
 						style: { width: `${progress}%` }
 					})
 				})]
@@ -12456,6 +12511,8 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 	const [emailOtpCode, setEmailOtpCode] = (0, import_react.useState)("");
 	const [emailOtpVerified, setEmailOtpVerified] = (0, import_react.useState)(false);
 	const [otpResendCooldown, setOtpResendCooldown] = (0, import_react.useState)(0);
+	const [signupVerificationMode, setSignupVerificationMode] = (0, import_react.useState)("otp");
+	const [emailLinkFallbackOffered, setEmailLinkFallbackOffered] = (0, import_react.useState)(false);
 	(0, import_react.useEffect)(() => {
 		if (otpResendCooldown <= 0) return;
 		const timer = setInterval(() => {
@@ -12550,6 +12607,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 		e.preventDefault();
 		setErrorMessage(null);
 		setSuccessMessage(null);
+		setEmailLinkFallbackOffered(false);
 		const cleanEmail = email.trim().toLowerCase();
 		if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
 			setErrorMessage("Please enter a valid email address.");
@@ -12560,18 +12618,34 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 			const result = await sendEmailOtp(cleanEmail);
 			setEmail(cleanEmail);
 			setRegisteredEmail(cleanEmail);
+			setSignupVerificationMode("otp");
 			setEmailOtpChallenge(result.challenge);
 			setEmailOtpCode("");
 			setEmailOtpVerified(false);
-			setOtpResendCooldown(result.cooldownSeconds || 60);
-			setSuccessMessage("Verification code sent. Check your inbox (and spam folder).");
+			setOtpResendCooldown(result.cooldownSeconds || 45);
+			setSuccessMessage("6-digit verification code sent! Check your inbox (and spam folder).");
 			setSubScreen("email_otp");
 		} catch (err) {
 			if (typeof err?.retryAfterSeconds === "number" && err.retryAfterSeconds > 0) setOtpResendCooldown(err.retryAfterSeconds);
+			if (err?.code === "SMTP_NOT_CONFIGURED" || err?.code === "SMTP_AUTH_ERROR" || err?.code === "SMTP_BACKEND_UNREACHABLE") setEmailLinkFallbackOffered(true);
 			setErrorMessage(err.message || "Could not send verification code.");
 		} finally {
 			setIsLoading(false);
 		}
+	};
+	const handleContinueWithEmailLinkSignup = () => {
+		setErrorMessage(null);
+		setSuccessMessage(null);
+		const cleanEmail = email.trim().toLowerCase();
+		if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+			setErrorMessage("Please enter a valid email address first.");
+			return;
+		}
+		setEmail(cleanEmail);
+		setRegisteredEmail(cleanEmail);
+		setSignupVerificationMode("link");
+		setEmailOtpVerified(false);
+		setSubScreen("complete_profile");
 	};
 	const handleCompleteProfile = async (e) => {
 		e.preventDefault();
@@ -12579,8 +12653,9 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 		setSuccessMessage(null);
 		const cleanName = fullName.trim();
 		const cleanEmail = (registeredEmail || email).trim().toLowerCase();
-		if (!emailOtpVerified) {
-			setErrorMessage("Please verify your email with the OTP first.");
+		const isOtpFlow = signupVerificationMode === "otp";
+		if (isOtpFlow && !emailOtpVerified) {
+			setErrorMessage("Please verify your email with the 6-digit OTP first.");
 			setSubScreen("signup");
 			return;
 		}
@@ -12607,10 +12682,16 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 				email: cleanEmail,
 				password,
 				profileImage: selectedAvatar,
-				emailOtpVerified: true
+				emailOtpVerified: isOtpFlow
 			});
-			setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
-			setTimeout(() => onSuccess(profile), 450);
+			if (isOtpFlow) {
+				setSuccessMessage(`Email verified! Welcome to Lenzo Party Live, ${profile.name}!`);
+				setTimeout(() => onSuccess(profile), 450);
+			} else {
+				setVerificationSent(true);
+				setSuccessMessage(`Verification email sent to ${cleanEmail}. Open your inbox and tap the link.`);
+				setSubScreen("verification");
+			}
 		} catch (err) {
 			if (err?.code === "auth/email-already-in-use") {
 				setEmail(cleanEmail);
@@ -12644,7 +12725,8 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 			await verifyEmailOtp(cleanEmail, cleanOtp, emailOtpChallenge);
 			setEmailOtpCode(cleanOtp);
 			setEmailOtpVerified(true);
-			setSuccessMessage("Email verified. Now complete your profile.");
+			setSignupVerificationMode("otp");
+			setSuccessMessage("Email verified! Now complete your profile.");
 			setSubScreen("complete_profile");
 		} catch (err) {
 			setErrorMessage(err.message || "Email verification failed.");
@@ -12663,8 +12745,8 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 			setEmailOtpChallenge(r.challenge);
 			setEmailOtpCode("");
 			setEmailOtpVerified(false);
-			setOtpResendCooldown(r.cooldownSeconds || 60);
-			setSuccessMessage("A new 6-digit verification code has been sent.");
+			setOtpResendCooldown(r.cooldownSeconds || 45);
+			setSuccessMessage("A fresh 6-digit verification code has been sent to your email.");
 		} catch (err) {
 			if (typeof err?.retryAfterSeconds === "number" && err.retryAfterSeconds > 0) setOtpResendCooldown(err.retryAfterSeconds);
 			setErrorMessage(err.message || "Could not resend code.");
@@ -12723,9 +12805,25 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 		setIsLoading(true);
 		try {
 			await resendVerification();
-			setSuccessMessage("A fresh verification link was sent to your email! ✉️");
+			setSuccessMessage("A fresh verification link was sent to your email! Check inbox & spam.");
 		} catch (err) {
 			setErrorMessage(err.message || "Failed to resend email. Please try again in a moment.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+	const handleCheckEmailLinkVerified = async () => {
+		setErrorMessage(null);
+		setSuccessMessage(null);
+		setIsLoading(true);
+		try {
+			const result = await checkEmailVerificationStatus();
+			if (result.verified && result.profile) {
+				setSuccessMessage(`Email verified! Welcome to Lenzo Party Live, ${result.profile.name}!`);
+				setTimeout(() => onSuccess(result.profile), 400);
+			} else setErrorMessage("Email is not verified yet. Open the verification email in your inbox, click the link, then tap again.");
+		} catch (err) {
+			setErrorMessage(err.message || "Could not verify email status. Please try logging in.");
 		} finally {
 			setIsLoading(false);
 		}
@@ -13151,26 +13249,38 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
 								onSubmit: handleEmailSignUp,
 								className: "w-full space-y-4",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
-									className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
-									children: "Email Address"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative flex items-center",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-										type: "email",
-										required: true,
-										autoComplete: "email",
-										placeholder: "Enter your email address",
-										value: email,
-										onChange: (e) => setEmail(e.target.value.trimStart()),
-										className: "w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3.5 text-sm text-white placeholder-[#B9AECF]/40 outline-none"
-									})]
-								})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "submit",
-									disabled: isLoading,
-									className: "w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60",
-									children: isLoading ? "Sending OTP..." : "Send Verification Code"
-								})]
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+										className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
+										children: "Email Address"
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative flex items-center",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											type: "email",
+											required: true,
+											autoComplete: "email",
+											placeholder: "Enter your email address",
+											value: email,
+											onChange: (e) => {
+												setEmail(e.target.value.trimStart());
+												if (emailLinkFallbackOffered) setEmailLinkFallbackOffered(false);
+											},
+											className: "w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-4 py-3.5 text-sm text-white placeholder-[#B9AECF]/40 outline-none"
+										})]
+									})] }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "submit",
+										disabled: isLoading,
+										className: "w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60",
+										children: isLoading ? "Sending 6-Digit OTP..." : "Send 6-Digit Email OTP"
+									}),
+									emailLinkFallbackOffered && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: handleContinueWithEmailLinkSignup,
+										className: "w-full py-3 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-200 font-bold text-xs transition-colors",
+										children: "Continue with Email Verification Link Instead"
+									})
+								]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "w-full flex items-center my-4",
@@ -13209,7 +13319,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 										type: "button",
-										onClick: () => navigateTo("email_otp"),
+										onClick: () => navigateTo(signupVerificationMode === "otp" ? "email_otp" : "signup"),
 										className: "w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#B9AECF]",
 										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ArrowLeft, { className: "w-4 h-4" })
 									}),
@@ -13222,7 +13332,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
 								className: "text-xs text-[#B9AECF] text-center mb-4",
-								children: ["Verified: ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								children: [signupVerificationMode === "otp" ? "Verified: " : "Email: ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-[#FFC84A]",
 									children: registeredEmail
 								})]
@@ -13340,9 +13450,9 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 										type: "submit",
-										disabled: isLoading || !emailOtpVerified,
+										disabled: isLoading || signupVerificationMode === "otp" && !emailOtpVerified,
 										className: "w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60",
-										children: isLoading ? "Creating Account..." : "Create Account & Enter App"
+										children: isLoading ? "Creating Account..." : signupVerificationMode === "otp" ? "Create Account & Enter App" : "Create Account & Send Verification Link"
 									})
 								]
 							})
@@ -13554,18 +13664,22 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
 								className: "text-xl font-bold text-white font-display mb-2",
-								children: "Verify Your Email"
+								children: "Enter 6-Digit Code"
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
-								className: "text-xs text-[#B9AECF] mb-5",
+								className: "text-xs text-[#B9AECF] mb-2",
 								children: [
-									"Enter the 6-digit code sent to ",
+									"We sent a 6-digit verification code to ",
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 										className: "text-[#FFC84A] font-semibold",
 										children: registeredEmail
 									}),
 									"."
 								]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[11px] text-[#9E97AA] mb-5",
+								children: "Valid for 10 minutes. Check Spam or Promotions if you do not see it in your inbox."
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
 								onSubmit: handleVerifyEmailOtp,
@@ -13585,7 +13699,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 									type: "submit",
 									disabled: isLoading || emailOtpCode.length !== 6,
 									className: "w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60",
-									children: isLoading ? "Verifying..." : "Verify Email"
+									children: isLoading ? "Verifying..." : "Verify Email Code"
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -13634,22 +13748,20 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 								className: "p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-[11px] text-[#B9AECF] mb-6 text-left space-y-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-start gap-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-emerald-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Click the link in the email to verify your account." })]
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-emerald-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Open your email inbox (or Spam folder) and click the verification link." })]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "flex items-start gap-2",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-emerald-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "You can now explore live streams and start partying!" })]
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-emerald-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Come back here and tap \"I've Verified My Email\" to enter Lenzo Party Live." })]
 								})]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "w-full space-y-3",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									type: "button",
-									onClick: () => {
-										if (email) handleEmailLogin({ preventDefault: () => {} });
-										else navigateTo("login");
-									},
-									className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2",
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Continue to Lenzo Party Live" })
+									disabled: isLoading,
+									onClick: handleCheckEmailLinkVerified,
+									className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-60",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: isLoading ? "Checking Verification..." : "I've Verified My Email" })
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									type: "button",
 									onClick: handleResendVerification,
@@ -15619,11 +15731,48 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "w-full pb-28 md:pb-12 animate-fade-in",
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-5",
+			className: "max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-4",
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "flex items-center gap-2 overflow-x-auto no-scrollbar py-1",
-					children: [[
+					className: "flex items-center justify-between gap-2 pt-0.5",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2.5 min-w-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+							src: "/app-icon.png?v=3",
+							alt: "Lenzo Party LIVE",
+							className: "w-9 h-9 object-contain drop-shadow-[0_4px_14px_rgba(168,85,247,0.55)] shrink-0"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "font-display font-black italic text-lg sm:text-xl tracking-tight bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent truncate",
+								children: "Lenzo Party"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_10px_rgba(244,63,94,0.65)] shrink-0",
+								children: "LIVE"
+							})]
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex items-center gap-2 shrink-0",
+						children: [onOpenNotifications && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: onOpenNotifications,
+							"aria-label": "Open Notifications",
+							className: "relative w-9 h-9 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4 text-[#E6DDF7]" }), unreadNotificationsCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#F328D5] text-white text-[9px] font-black flex items-center justify-center shadow-md shadow-pink-500/40 border border-[#090611]",
+								children: unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount
+							})]
+						}), isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: onOpenAdminPanel,
+							className: "px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
+						})]
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5",
+					children: [
 						{
 							id: "foryou",
 							label: "For You",
@@ -15658,24 +15807,7 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 						onClick: tab.action,
 						className: `px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${tab.isActive ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/25" : "bg-[#160C25] text-[#B9AECF] hover:text-white border border-white/5"}`,
 						children: tab.label
-					}, tab.id)), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "ml-auto flex items-center gap-2 shrink-0",
-						children: [onOpenNotifications && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							type: "button",
-							onClick: onOpenNotifications,
-							"aria-label": "Open Notifications",
-							className: "relative w-8 h-8 rounded-full bg-[#160C25] hover:bg-[#23143D] border border-white/10 text-white flex items-center justify-center shrink-0 active:scale-95 transition-all",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Bell, { className: "w-4 h-4 text-[#E6DDF7]" }), unreadNotificationsCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-gradient-to-r from-[#FF2E93] to-[#F328D5] text-white text-[9px] font-black flex items-center justify-center shadow-md shadow-pink-500/40 border border-[#090611]",
-								children: unreadNotificationsCount > 99 ? "99+" : unreadNotificationsCount
-							})]
-						}), isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-							type: "button",
-							onClick: onOpenAdminPanel,
-							className: "px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
-						})]
-					})]
+					}, tab.id))
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 					className: "space-y-2.5",
@@ -16362,16 +16494,16 @@ var RoomsScreen = ({ partyRooms, onSelectRoom, onNavigate, onOpenCreateRoom, onO
 						className: "flex items-center gap-2 cursor-pointer min-w-0",
 						onClick: () => onNavigate("home"),
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-							src: "/app-icon.png?v=2",
-							alt: "Lenzo Party Live",
-							className: "w-8 h-8 rounded-xl object-cover border border-[#F328D5]/35 shadow-md shadow-[#8B20FF]/35 shrink-0 bg-[#06071C]"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h1", {
-							className: "text-base sm:text-lg font-black tracking-wide font-display truncate",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-white",
-								children: "LENZO PARTY "
+							src: "/app-icon.png?v=3",
+							alt: "Lenzo Party LIVE",
+							className: "w-9 h-9 object-contain drop-shadow-[0_4px_12px_rgba(168,85,247,0.55)] shrink-0"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+								className: "text-base sm:text-lg font-black italic tracking-tight font-display bg-gradient-to-b from-white via-[#FCE7F3] to-[#F472B6] bg-clip-text text-transparent truncate",
+								children: "Lenzo Party"
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: "text-[#F5C557]",
+								className: "px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#FF1744] to-[#F43F5E] text-white font-black text-[9px] tracking-wider uppercase shadow-[0_0_8px_rgba(244,63,94,0.6)] shrink-0",
 								children: "LIVE"
 							})]
 						})]
@@ -39169,15 +39301,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CsmQFCB3.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-DxR5qFPt.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-CuI1yvL1.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-DlgcC9kt.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C5s4hHGv.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B3isGlQp.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BHZSbcU5.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DQMbL5Hr.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BW5r5X24.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BBV4fSnl.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BJVFKOyV.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-ZiIyZ9BI.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CwxKTsjx.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CN14glx2.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-CjSJOs2S.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-Cpn0p6YT.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-FUctg_p3.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-D1dknAnf.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
