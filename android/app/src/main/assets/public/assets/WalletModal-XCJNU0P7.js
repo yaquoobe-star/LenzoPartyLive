@@ -1,8 +1,8 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { Bt as DollarSign, Cn as require_react, E as Smartphone, G as Plus, Gt as Copy, J as Phone, Jt as Clock, L as Search, M as ShieldCheck, O as SlidersVertical, Qt as CircleAlert, S as Store, Sn as ArrowDownLeft, Xt as CircleCheck, Z as PenLine, a as Wallet, bn as ArrowRightLeft, en as ChevronRight, hn as BadgeCheck, ln as Building2, ot as MessageCircle, qt as Coins, r as X, rn as Check, st as MapPin, ut as Lock, v as Trash2, vn as ArrowUpRight, w as Sparkles, xn as ArrowLeft, xt as History } from "./vendor-icons-8ivBScnZ.js";
-import { A as adminAdjustBalance, B as subscribeUserEarnings, D as DEFAULT_COIN_PACKAGES, F as saveCoinSellerAgency, H as subscribeWalletSettings, I as subscribeAllWithdrawalRequests, L as subscribeCoinPackages, M as convertEarningsToWallet, N as deleteCoinSellerAgency, O as DEFAULT_PAYOUT_METHODS, P as requestWithdrawal, R as subscribeCoinSellerAgencies, U as updateWalletSettings, V as subscribeUserWallet, _ as subscribeActiveAgencies, j as adminUpdateWithdrawalStatus, k as DEFAULT_WALLET_SETTINGS, z as subscribeTransactions } from "./index-BNHhc6LD.js";
+import { $t as CircleAlert, Bt as DollarSign, Cn as ArrowDownLeft, E as Smartphone, G as Plus, Gt as Copy, J as Phone, Jt as Clock, L as Search, M as ShieldCheck, O as SlidersVertical, S as Store, Sn as ArrowLeft, Z as PenLine, Zt as CircleCheck, a as Wallet, gn as BadgeCheck, in as Check, ot as MessageCircle, qt as Coins, r as X, st as MapPin, tn as ChevronRight, un as Building2, ut as Lock, v as Trash2, w as Sparkles, wn as require_react, xn as ArrowRightLeft, xt as History, yn as ArrowUpRight } from "./vendor-icons-CKZC98wp.js";
+import { B as adminUpdateWithdrawalStatus, G as subscribeAllWithdrawalRequests, H as deleteCoinSellerAgency, I as DEFAULT_COIN_PACKAGES, J as subscribeTransactions, K as subscribeCoinPackages, L as DEFAULT_PAYOUT_METHODS, Q as updateWalletSettings, R as DEFAULT_WALLET_SETTINGS, U as requestWithdrawal, V as convertEarningsToWallet, W as saveCoinSellerAgency, X as subscribeUserWallet, Y as subscribeUserEarnings, Z as subscribeWalletSettings, _t as isVerifiedAdminSession, g as subscribeActiveAgencies, q as subscribeCoinSellerAgencies, z as adminAdjustBalance } from "./index-C_n6rme9.js";
 import { r as auth } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-DFP_D_jg.js";
+import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
 // src/components/screens/WalletModal.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -101,7 +101,7 @@ var WalletModal = ({ isOpen, onClose, currentUser, onRechargeSuccess, initialTab
 		setErrorMessage(msg);
 		setTimeout(() => setErrorMessage(null), 4e3);
 	};
-	const isAdminUser = auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
+	const isAdminUser = isVerifiedAdminSession();
 	(0, import_react.useEffect)(() => {
 		if (!isOpen) return;
 		const unsubSettings = subscribeWalletSettings((s) => {

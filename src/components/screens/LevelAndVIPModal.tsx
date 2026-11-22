@@ -17,6 +17,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { isAuthorizedAdminEmail } from '../../utils/adminAuth';
 import {
   ActiveFrameType,
   EvaluatedAchievementBadge,
@@ -326,7 +327,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {currentUser.isAdmin && onOpenAdminPanel && (
+              {isAuthorizedAdminEmail(currentUser.email) && onOpenAdminPanel && (
                 <button
                   onClick={() => {
                     onClose();

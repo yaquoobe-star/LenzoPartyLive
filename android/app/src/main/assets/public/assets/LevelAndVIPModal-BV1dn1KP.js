@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { A as Shield, Cn as require_react, Ht as Crown, Ot as Funnel, Pt as Eye, Qt as CircleAlert, Xt as CircleCheck, _ as TrendingUp, cn as Calendar, gn as Award, ht as Layers, qt as Coins, r as X, rn as Check, ut as Lock, w as Sparkles } from "./vendor-icons-8ivBScnZ.js";
-import { C as SuperVipTierBadge, E as calculateLevelProgression, S as AvatarWithFrame, T as VIP_FRAME_DEFINITIONS, _t as SUPER_VIP_TIER_DEFINITIONS, a as subscribeUserLevelProgression, b as LevelBadge, bt as formatCoinsCompact, ft as ACHIEVEMENT_BADGE_DEFINITIONS, gt as LEVEL_TIER_CONFIGS, i as fetchAuthoritativeProgression, n as equipAchievementBadges, o as AchievementBadgeEmblem, pt as ALL_100_LEVELS, r as equipActiveFrame, w as VipTierBadge, x as LevelEmblemBadge, xt as getLevelDefinition, yt as evaluateAchievementBadges } from "./index-BNHhc6LD.js";
-import { i as require_jsx_runtime } from "./vendor-motion-DFP_D_jg.js";
+import { $t as CircleAlert, A as Shield, Ht as Crown, Ot as Funnel, Pt as Eye, Zt as CircleCheck, _ as TrendingUp, _n as Award, ht as Layers, in as Check, ln as Calendar, qt as Coins, r as X, ut as Lock, w as Sparkles, wn as require_react } from "./vendor-icons-CKZC98wp.js";
+import { At as evaluateAchievementBadges, C as VipTierBadge, Ct as ACHIEVEMENT_BADGE_DEFINITIONS, Dt as LEVEL_TIER_CONFIGS, F as calculateLevelProgression, Mt as getLevelDefinition, Ot as SUPER_VIP_TIER_DEFINITIONS, P as VIP_FRAME_DEFINITIONS, S as SuperVipTierBadge, a as subscribeUserLevelProgression, b as LevelEmblemBadge, gt as isAuthorizedAdminEmail, i as fetchAuthoritativeProgression, jt as formatCoinsCompact, n as equipAchievementBadges, o as AchievementBadgeEmblem, r as equipActiveFrame, wt as ALL_100_LEVELS, x as AvatarWithFrame, y as LevelBadge } from "./index-C_n6rme9.js";
+import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
 // src/components/screens/LevelAndVIPModal.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -192,7 +192,7 @@ var LevelAndVIPModal = ({ isOpen, onClose, currentUser, initialTab = "roadmap", 
 								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-2 shrink-0",
-								children: [currentUser.isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								children: [isAuthorizedAdminEmail(currentUser.email) && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 									onClick: () => {
 										onClose();
 										onOpenAdminPanel();

@@ -19,10 +19,13 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email == 'yaquoobe@gmail.com' && request.auth.token.email_verified == true)
-      );
+      return isSignedIn()
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true
+        && (
+          request.auth.token.email.lower() == 'saifkhokhar657@gmail.com'
+          || request.auth.token.email.lower() == 'lenzopartyofficial@gmail.com'
+        );
     }
 
     function isValidId(id) {
@@ -103,7 +106,7 @@ service cloud.firestore {
         && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 60
         && data.email is string && data.email.size() <= 120
         && data.authProvider in ['google', 'password']
-        && data.accountStatus in ['active', 'suspended', 'pending']
+        && data.accountStatus in ['active', 'suspended', 'pending', 'blocked']
         && (!('username' in data) || (data.username is string && data.username.size() <= 40))
         && (!('displayId' in data) || (data.displayId is string && data.displayId.size() <= 32))
         && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 32))
@@ -133,6 +136,17 @@ service cloud.firestore {
         && (!('isVerified' in data) || data.isVerified is bool)
         && (!('verificationTier' in data) || data.verificationTier in ['none', 'blue', 'gold'])
         && (!('verifiedTag' in data) || (data.verifiedTag is string && data.verifiedTag.size() <= 32))
+        && (!('isBlocked' in data) || data.isBlocked is bool)
+        && (!('blockReason' in data) || (data.blockReason is string && data.blockReason.size() <= 300))
+        && (!('blockedAt' in data) || (data.blockedAt is string && data.blockedAt.size() <= 64))
+        && (!('blockedBy' in data) || (data.blockedBy is string && data.blockedBy.size() <= 120))
+        && (!('suspendedUntil' in data) || (data.suspendedUntil is number && data.suspendedUntil >= 0))
+        && (!('suspendReason' in data) || (data.suspendReason is string && data.suspendReason.size() <= 300))
+        && (!('suspendedAt' in data) || (data.suspendedAt is string && data.suspendedAt.size() <= 64))
+        && (!('suspendedBy' in data) || (data.suspendedBy is string && data.suspendedBy.size() <= 120))
+        && (!('isDeviceBanned' in data) || data.isDeviceBanned is bool)
+        && (!('lastDeviceId' in data) || (data.lastDeviceId is string && data.lastDeviceId.size() <= 128))
+        && (!('lastDeviceInfo' in data) || (data.lastDeviceInfo is string && data.lastDeviceInfo.size() <= 200))
         && (!('isOnline' in data) || data.isOnline is bool);
     }
 
@@ -200,7 +214,16 @@ service cloud.firestore {
                           'isAdmin',
                           'isVerified',
                           'verificationTier',
-                          'verifiedTag'
+                          'verifiedTag',
+                          'isBlocked',
+                          'blockReason',
+                          'blockedAt',
+                          'blockedBy',
+                          'suspendedUntil',
+                          'suspendReason',
+                          'suspendedAt',
+                          'suspendedBy',
+                          'isDeviceBanned'
                         ])
                       )
                       || (
@@ -1669,6 +1692,34 @@ service cloud.firestore {
                       )
                     );
       allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // ========================================================
+    // 25. ADMIN DEVICE BAN REGISTRY (/banned_devices/{deviceId})
+    // ========================================================
+    function isValidBannedDevice(data, deviceId) {
+      return data.keys().hasAll(['deviceId', 'reason', 'bannedBy', 'bannedAt', 'active'])
+        && data.keys().hasOnly([
+          'deviceId', 'targetUid', 'targetUserName', 'targetUserEmail',
+          'reason', 'bannedBy', 'bannedAt', 'active'
+        ])
+        && data.deviceId == deviceId
+        && data.deviceId is string && data.deviceId.size() >= 6 && data.deviceId.size() <= 128
+        && (!('targetUid' in data) || (data.targetUid is string && data.targetUid.size() <= 128))
+        && (!('targetUserName' in data) || (data.targetUserName is string && data.targetUserName.size() <= 80))
+        && (!('targetUserEmail' in data) || (data.targetUserEmail is string && data.targetUserEmail.size() <= 120))
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 300
+        && data.bannedBy is string && data.bannedBy.size() > 0 && data.bannedBy.size() <= 120
+        && data.bannedAt is string && data.bannedAt.size() > 0 && data.bannedAt.size() <= 64
+        && data.active is bool;
+    }
+
+    match /banned_devices/{deviceId} {
+      // Signed-in clients can check ONLY their exact deviceId doc for live lockout; listing and mutations are strictly Admin-only
+      allow get: if isSignedIn() && isValidId(deviceId);
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(deviceId) && isValidBannedDevice(incoming(), deviceId);
+      allow delete: if isAdmin() && isValidId(deviceId);
     }
   }
 }

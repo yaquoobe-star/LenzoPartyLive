@@ -1,13 +1,13 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-Bls9_sV5.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-8ivBScnZ.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-DFP_D_jg.js","assets/CreateRoomScreen-BKnHGmUG.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-HDQWAT9s.js","assets/StoreScreen-AoFGuoi7.js","assets/StoreAssetPreview-BMYpByWo.js","assets/SettingsScreen-CqOM4HH4.js","assets/UploadVideoScreen-5OV1p81X.js","assets/WalletModal-B1W51ilM.js","assets/LevelAndVIPModal-BOcv4zwG.js","assets/AdminProgressionModal-Dg8OqdrC.js","assets/apiConfig-CPEwW-gN.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-cOIJCC-o.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-CKZC98wp.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-BGGq0eX2.js","assets/CreateRoomScreen-BmoWnS4B.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-DijdTgX1.js","assets/StoreScreen-BlP4eP4_.js","assets/StoreAssetPreview-C5DuShFD.js","assets/SettingsScreen-Bj76A46F.js","assets/UploadVideoScreen-DTX6bTPB.js","assets/WalletModal-XCJNU0P7.js","assets/LevelAndVIPModal-BV1dn1KP.js","assets/AdminProgressionModal-B_5UbjOC.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { t as require_client } from "./vendor-react-LuIKx2w4.js";
-import { $ as Paperclip, $t as ChevronUp, A as Shield, At as Flag, B as Reply, C as Star, Cn as require_react, Ct as Heart, D as SlidersHorizontal, Dt as Gem, E as Smartphone, Et as Gift, F as Settings, Ft as EyeOff, G as Plus, Gt as Copy, H as RefreshCw, Ht as Crown, I as Send, It as ExternalLink, J as Phone, Jt as Clock, K as Play, Kt as Compass, L as Search, Lt as Eraser, M as ShieldCheck, Mt as FileText, N as ShieldAlert, P as Share2, Pt as Eye, Q as Pause, Qt as CircleAlert, R as Save, Rt as Ellipsis, St as Hexagon, T as Smile, Tt as Globe, U as Receipt, Ut as Crop, V as Repeat2, W as Radio, Wt as CornerUpLeft, X as Pen, Xt as CircleCheck, Y as Percent, Yt as CircleX, Z as PenLine, Zt as CircleArrowDown, _ as TrendingUp, _n as AtSign, a as Wallet, an as ChartColumn, at as MessageSquare, b as Target, bn as ArrowRightLeft, bt as House, c as Video, cn as Calendar, ct as Mail, d as UserX, dn as BookmarkCheck, dt as LockOpen, en as ChevronRight, et as Music, f as UserPlus, fn as Bell, ft as LoaderCircle, g as TriangleAlert, gn as Award, gt as KeyRound, h as Trophy, hn as BadgeCheck, i as WifiOff, in as CheckCheck, it as MicOff, j as ShieldOff, jt as Film, k as ShoppingBag, kt as Flame, l as Users, ln as Building2, lt as LogOut, m as Upload, mn as Ban, mt as LayoutGrid, n as Zap, nn as ChevronDown, o as VolumeX, on as Camera, ot as MessageCircle, p as UserCheck, pn as BellOff, q as Pin, qt as Coins, r as X, rn as Check, rt as Mic, s as Volume2, sn as CameraOff, t as ZoomIn, tn as ChevronLeft, u as User, un as Bookmark, ut as Lock, v as Trash2, vt as Image$1, w as Sparkles, wt as Hash, x as Swords, xn as ArrowLeft, xt as History, y as Timer, yn as ArrowRight, z as RotateCcw } from "./vendor-icons-8ivBScnZ.js";
+import { t as require_client } from "./vendor-react-C6sXt7e7.js";
+import { $ as Paperclip, $t as CircleAlert, A as Shield, At as Flag, B as Reply, C as Star, Ct as Heart, D as SlidersHorizontal, Dt as Gem, E as Smartphone, Et as Gift, F as Settings, Ft as EyeOff, G as Plus, Gt as Copy, H as RefreshCw, Ht as Crown, I as Send, It as ExternalLink, J as Phone, Jt as Clock, K as Play, Kt as Compass, L as Search, Lt as Eraser, M as ShieldCheck, Mt as FileText, N as ShieldAlert, P as Share2, Pt as Eye, Q as Pause, Qt as CircleArrowDown, R as Save, Rt as Ellipsis, Sn as ArrowLeft, St as Hexagon, T as Smile, Tt as Globe, U as Receipt, Ut as Crop, V as Repeat2, W as Radio, Wt as CornerUpLeft, X as Pen, Y as Percent, Yt as CircleX, Z as PenLine, Zt as CircleCheck, _ as TrendingUp, _n as Award, a as Wallet, an as CheckCheck, at as MessageSquare, b as Target, bn as ArrowRight, bt as House, c as Video, cn as CameraOff, ct as Mail, d as UserX, dn as Bookmark, dt as LockOpen, en as ChevronUp, et as Music, f as UserPlus, fn as BookmarkCheck, ft as LoaderCircle, g as TriangleAlert, gn as BadgeCheck, gt as KeyRound, h as Trophy, hn as Ban, i as WifiOff, in as Check, it as MicOff, j as ShieldOff, jt as Film, k as ShoppingBag, kt as Flame, l as Users, ln as Calendar, lt as LogOut, m as Upload, mn as BellOff, mt as LayoutGrid, n as Zap, nn as ChevronLeft, o as VolumeX, on as ChartColumn, ot as MessageCircle, p as UserCheck, pn as Bell, q as Pin, qt as Coins, r as X, rn as ChevronDown, rt as Mic, s as Volume2, sn as Camera, t as ZoomIn, tn as ChevronRight, u as User, un as Building2, ut as Lock, v as Trash2, vn as AtSign, vt as Image$1, w as Sparkles, wn as require_react, wt as Hash, x as Swords, xn as ArrowRightLeft, xt as History, y as Timer, z as RotateCcw } from "./vendor-icons-CKZC98wp.js";
 import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CPEwW-gN.js";
 import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
 import { B as linkWithPopup, C as updateDoc, D as collection, E as Timestamp, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as doc, P as GoogleAuthProvider, S as startAfter, T as writeBatch, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, _ as onSnapshot, b as runTransaction, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as enableNetwork, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as orderBy, w as where, x as setDoc, y as query, z as getRedirectResult } from "./vendor-firebase-pU_0pKhI.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
 import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
-import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-DFP_D_jg.js";
+import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-BGGq0eX2.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 // \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -1266,33 +1266,6 @@ function formatCoinsCompact(coins) {
 	if (coins >= 1e3) return `${(coins / 1e3).toFixed(1).replace(/\.0$/, "")}K`;
 	return Math.floor(coins).toLocaleString();
 }
-/**
-* Self-check helper returning exact mathematical totals for audit & admin verification.
-*/
-function getProgressionMathAudit() {
-	const sum1to50 = ALL_100_LEVELS.slice(1, 51).reduce((acc, l) => acc + l.coinsForThisLevel, 0);
-	const sum51to100 = ALL_100_LEVELS.slice(51, 101).reduce((acc, l) => acc + l.coinsForThisLevel, 0);
-	const grandTotal = sum1to50 + sum51to100;
-	return {
-		totalLevels: ALL_100_LEVELS.length,
-		minLevel: 0,
-		maxLevel: 100,
-		totalTiers: LEVEL_TIER_CONFIGS.length,
-		totalVipTiers: VIP_TIER_DEFINITIONS.length,
-		totalSuperVipTiers: SUPER_VIP_TIER_DEFINITIONS.length,
-		totalAchievements: ACHIEVEMENT_BADGE_DEFINITIONS.length,
-		level0Cost: ALL_100_LEVELS[0].coinsForThisLevel,
-		level1Cost: ALL_100_LEVELS[1].coinsForThisLevel,
-		level2Cost: ALL_100_LEVELS[2].coinsForThisLevel,
-		level50Cost: ALL_100_LEVELS[50].coinsForThisLevel,
-		level51Cost: ALL_100_LEVELS[51].coinsForThisLevel,
-		level100Cost: ALL_100_LEVELS[100].coinsForThisLevel,
-		sumLevels1To50: sum1to50,
-		sumLevels51To100: sum51to100,
-		grandTotalCoins: grandTotal,
-		isExact: ALL_100_LEVELS.length === 101 && ALL_100_LEVELS[0].level === 0 && ALL_100_LEVELS[100].level === 100 && ALL_100_LEVELS[1].coinsForThisLevel === 5e4 && ALL_100_LEVELS[2].coinsForThisLevel === 3e4 && ALL_100_LEVELS[50].cumulativeCoins === 2e7 && sum1to50 === 2e7 && sum51to100 === 1313333333 && grandTotal === 1333333333
-	};
-}
 // src/utils/levelSystem.ts
 var MAX_LEVEL = 100;
 function getExpNeededForLevel(level) {
@@ -1808,6 +1781,54 @@ async function submitAccountDeletionRequest(reason) {
 		requestedAt: (/* @__PURE__ */ new Date()).toISOString()
 	});
 }
+var AUTHORIZED_ADMIN_EMAIL_SET = /* @__PURE__ */ new Set(["saifkhokhar657@gmail.com", "lenzopartyofficial@gmail.com"]);
+function isAuthorizedAdminEmail(email) {
+	if (!email || typeof email !== "string") return false;
+	return AUTHORIZED_ADMIN_EMAIL_SET.has(email.trim().toLowerCase());
+}
+/**
+* Strict check used before privileged writes requiring verified Firebase token claims.
+*/
+function isVerifiedAdminSession() {
+	const liveUser = auth.currentUser;
+	if (!liveUser) return false;
+	return isAuthorizedAdminEmail(liveUser.email) && liveUser.emailVerified === true;
+}
+var DEVICE_ID_STORAGE_KEY = "lenzo_device_id_v1";
+function generateSafeDeviceId() {
+	try {
+		if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return `dev_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+	} catch {}
+	return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 10)}`.replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 48);
+}
+/**
+* Returns a persistent, Firestore-ID-safe device identifier stored on this device.
+* Matches `^[a-zA-Z0-9_\-]+$` (max 64 chars) so it can be used directly as `/banned_devices/{deviceId}`.
+*/
+function getOrCreateDeviceId() {
+	if (typeof window === "undefined") return "dev_server";
+	try {
+		const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+		if (existing && /^[a-zA-Z0-9_\-]{8,64}$/.test(existing)) return existing;
+		const created = generateSafeDeviceId();
+		window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
+		return created;
+	} catch {
+		return generateSafeDeviceId();
+	}
+}
+/**
+* Returns a short, safe device/platform summary label (max 180 chars) for admin diagnostics.
+*/
+function getDeviceSummaryLabel() {
+	if (typeof navigator === "undefined") return "Unknown Device";
+	const ua = navigator.userAgent || "";
+	const isAndroid = /Android/i.test(ua);
+	const isIOS = /iPhone|iPad|iPod/i.test(ua);
+	const platform = typeof window !== "undefined" && Boolean(window.Capacitor?.isNativePlatform?.()) ? isAndroid ? "Android App" : isIOS ? "iOS App" : "Native App" : isAndroid ? "Android Web" : isIOS ? "iOS Web" : /Windows/i.test(ua) ? "Windows Web" : /Mac/i.test(ua) ? "macOS Web" : /Linux/i.test(ua) ? "Linux Web" : "Web Browser";
+	const model = ua.match(/Android\s[\d.]+;\s*([^;)]+)/i)?.[1]?.trim();
+	return (model ? `${platform} · ${model}` : platform).replace(/[<>]/g, "").slice(0, 180);
+}
 // src/services/authService.ts
 var NativeGoogleAuth = registerPlugin("NativeGoogleAuth");
 var DEFAULT_AVATARS = [
@@ -1853,7 +1874,15 @@ function mapFirestoreUserToProfile(data, fallbackUser) {
 		giftsSentCount: data.giftsSentCount ?? 0,
 		pkWinsCount: data.pkWinsCount ?? 0,
 		eventsWonCount: data.eventsWonCount ?? 0,
-		isAdmin: userEmail.toLowerCase() === "yaquoobe@gmail.com",
+		isAdmin: isAuthorizedAdminEmail(userEmail),
+		accountStatus: data.accountStatus || "active",
+		isBlocked: Boolean(data.isBlocked || data.accountStatus === "blocked"),
+		blockReason: data.blockReason || "",
+		suspendedUntil: typeof data.suspendedUntil === "number" ? data.suspendedUntil : 0,
+		suspendReason: data.suspendReason || "",
+		isDeviceBanned: Boolean(data.isDeviceBanned),
+		lastDeviceId: data.lastDeviceId || "",
+		lastDeviceInfo: data.lastDeviceInfo || "",
 		fansCount: (data.followersCount || 0).toLocaleString(),
 		followersCount: data.followersCount || 0,
 		followingCount: data.followingCount || 0,
@@ -1908,6 +1937,8 @@ async function syncUserInFirestore(user, authProvider, extra) {
 				lastLogin: now,
 				lastActiveAt: now,
 				isOnline: true,
+				lastDeviceId: getOrCreateDeviceId(),
+				lastDeviceInfo: getDeviceSummaryLabel(),
 				...providerIds.length > 0 ? { providerIds } : {}
 			};
 			if (!existingData.displayId) updatePayload.displayId = `LP${user.uid.substring(0, 6).toUpperCase()}`;
@@ -1946,7 +1977,9 @@ async function syncUserInFirestore(user, authProvider, extra) {
 				coins: 0,
 				diamonds: 0,
 				vipLevel: 0,
-				accountStatus: "active"
+				accountStatus: "active",
+				lastDeviceId: getOrCreateDeviceId(),
+				lastDeviceInfo: getDeviceSummaryLabel()
 			};
 			await setDoc(userRef, newUserData);
 			return newUserData;
@@ -6405,9 +6438,6 @@ var LEGACY_PLACEHOLDER_AGENCY_IDS = /* @__PURE__ */ new Set([
 	"agency_multan_fsd_star",
 	"agency_gulf_international"
 ]);
-function isVerifiedAdminSession() {
-	return auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
-}
 /**
 * 1. SETTINGS & CONFIGURATION SERVICE
 */
@@ -8422,6 +8452,623 @@ function subscribeHostModerators(hostId, onUpdate) {
 		console.warn("[RoomModeration] subscribeHostModerators notice:", err?.message || err);
 	});
 }
+// src/utils/levelAndVipConfig.ts
+/**
+* 12 VIP Frame definitions mapped with legacy display helpers so all existing consumers stay compatible.
+*/
+var VIP_FRAME_DEFINITIONS = VIP_TIER_DEFINITIONS.map((v) => ({
+	...v,
+	borderColor: v.primaryColor,
+	glowColor: v.glowColor,
+	gradientBg: v.gradientCss,
+	badgeIcon: v.code
+}));
+function getVipFrameDefinition(tier) {
+	return VIP_FRAME_DEFINITIONS.find((f) => f.tier === tier);
+}
+/**
+* Computes full UserLevelProgression from total qualifying coins spent using the exact 1,333,333,333 coin chart.
+*/
+function calculateLevelProgression(totalQualifyingCoinsSpent, userId = "", equippedVipFrame = 0, options) {
+	const computed = calculateProgressionState(totalQualifyingCoinsSpent, {
+		userId,
+		activeFrameType: options?.activeFrameType,
+		equippedVipFrame,
+		equippedSuperVipFrame: options?.equippedSuperVipFrame ?? 0,
+		equippedAchievementBadges: options?.equippedAchievementBadges ?? []
+	});
+	return {
+		userId,
+		currentLevel: computed.currentLevel,
+		currentTier: computed.currentTierId,
+		currentTierName: computed.currentTierName,
+		totalQualifyingCoinsSpent: computed.totalQualifyingCoinsSpent,
+		coinsInCurrentLevel: computed.coinsInCurrentLevel,
+		coinsNeededForNextLevel: computed.coinsForCurrentLevel,
+		remainingCoinsNeeded: computed.remainingCoinsNeeded,
+		percentage: computed.percentage,
+		isMaxLevel: computed.isMaxLevel,
+		isMaxMastery: computed.isMaxMastery,
+		highestUnlockedVipTier: computed.highestUnlockedVipTier,
+		unlockedVipTiers: computed.unlockedVipTiers,
+		highestUnlockedSuperVipTier: computed.highestUnlockedSuperVipTier,
+		unlockedSuperVipTiers: computed.unlockedSuperVipTiers,
+		activeFrameType: computed.activeFrameType,
+		equippedVipFrame: computed.equippedVipFrame,
+		equippedSuperVipFrame: computed.equippedSuperVipFrame,
+		earnedAchievements: options?.earnedAchievements ?? [],
+		equippedAchievementBadges: computed.equippedAchievementBadges
+	};
+}
+// src/services/adminService.ts
+function assertAuthorizedAdmin() {
+	const user = auth.currentUser;
+	const email = (user?.email || "").trim().toLowerCase();
+	if (!user || !isAuthorizedAdminEmail(email)) throw new Error("Access denied: Only authorized Lenzo Party administrators can perform this action.");
+	if (!user.emailVerified) throw new Error("Your admin email must be verified in Firebase Auth (sign in with Google or verify your email) to write administration changes.");
+	return {
+		uid: user.uid,
+		email
+	};
+}
+function makeAuditId(prefix) {
+	return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.replace(/[^a-zA-Z0-9_\-]/g, "");
+}
+async function writeAdminAuditLog(params) {
+	const logId = makeAuditId("adm");
+	await setDoc(doc(db, "progression_audit_logs", logId), {
+		id: logId,
+		adminUid: params.adminUid,
+		adminEmail: params.adminEmail,
+		action: params.action.slice(0, 80),
+		targetUid: params.targetUid.slice(0, 128),
+		targetLabel: params.targetLabel.slice(0, 120),
+		summary: params.summary.slice(0, 360),
+		reason: (params.reason || "Admin control action").slice(0, 240),
+		createdAt: (/* @__PURE__ */ new Date()).toISOString()
+	});
+}
+function mapDocToAdminUser(id, data) {
+	const uid = String(data.uid || id);
+	const rawEmail = String(data.email || "");
+	const rawUsername = String(data.username || "");
+	const normalizedUsername = rawUsername ? rawUsername.startsWith("@") ? rawUsername : `@${rawUsername}` : `@${(rawEmail.split("@")[0] || "user").replace(/[^a-zA-Z0-9_]/g, "").toLowerCase()}`;
+	const vipLevel = Math.max(0, Math.min(12, Math.floor(Number(data.vipLevel || 0))));
+	const superVipLevel = Math.max(0, Math.min(6, Math.floor(Number(data.superVipLevel || 0))));
+	const accountStatus = data.accountStatus === "blocked" || data.isBlocked ? "blocked" : data.accountStatus === "suspended" ? "suspended" : data.accountStatus === "pending" ? "pending" : "active";
+	return {
+		uid,
+		displayId: String(data.displayId || `LP${uid.slice(0, 6).toUpperCase()}`),
+		fullName: String(data.fullName || "Lenzo User"),
+		username: normalizedUsername,
+		email: rawEmail,
+		profileImage: String(data.profileImage || ""),
+		coins: Math.max(0, Math.floor(Number(data.coins || 0))),
+		diamonds: Math.max(0, Math.floor(Number(data.diamonds || 0))),
+		level: Math.max(0, Math.min(100, Math.floor(Number(data.level || 0)))),
+		totalQualifyingCoinsSpent: Math.max(0, Math.floor(Number(data.totalQualifyingCoinsSpent || 0))),
+		vipLevel,
+		superVipLevel,
+		isVIP: Boolean(data.isVIP || vipLevel > 0),
+		isSuperVIP: Boolean(data.isSuperVIP || superVipLevel > 0),
+		isVerified: Boolean(data.isVerified),
+		verificationTier: data.verificationTier === "gold" || data.verificationTier === "blue" || data.verificationTier === "none" ? data.verificationTier : "none",
+		verifiedTag: String(data.verifiedTag || ""),
+		isOnline: Boolean(data.isOnline),
+		accountStatus,
+		isBlocked: Boolean(data.isBlocked || accountStatus === "blocked"),
+		blockReason: String(data.blockReason || ""),
+		blockedAt: String(data.blockedAt || ""),
+		blockedBy: String(data.blockedBy || ""),
+		suspendedUntil: Number(data.suspendedUntil || 0) || 0,
+		suspendReason: String(data.suspendReason || ""),
+		suspendedAt: String(data.suspendedAt || ""),
+		suspendedBy: String(data.suspendedBy || ""),
+		isDeviceBanned: Boolean(data.isDeviceBanned),
+		lastDeviceId: String(data.lastDeviceId || ""),
+		lastDeviceInfo: String(data.lastDeviceInfo || ""),
+		agencyId: String(data.agencyId || ""),
+		agencyName: String(data.agencyName || ""),
+		createdAt: String(data.createdAt || ""),
+		lastLogin: String(data.lastLogin || ""),
+		lastActiveAt: String(data.lastActiveAt || data.lastLogin || data.createdAt || "")
+	};
+}
+/**
+* Subscribe to ALL registered user accounts in real time (Admin only).
+*/
+function subscribeAllUsersForAdmin(onUpdate, onError) {
+	return onSnapshot(collection(db, "users"), (snap) => {
+		onUpdate(snap.docs.map((d) => mapDocToAdminUser(d.id, d.data())).sort((a, b) => {
+			if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+			return (b.lastActiveAt || "").localeCompare(a.lastActiveAt || "");
+		}));
+	}, (err) => {
+		console.warn("[Admin] Users listener error:", err);
+		onError?.(err?.message || "Unable to load users list. Verify your admin account email is verified.");
+		onUpdate([]);
+	});
+}
+/**
+* Subscribe to all banned devices in real time (Admin only).
+*/
+function subscribeBannedDevicesForAdmin(onUpdate, onError) {
+	return onSnapshot(collection(db, "banned_devices"), (snap) => {
+		onUpdate(snap.docs.map((d) => {
+			const data = d.data();
+			return {
+				deviceId: String(data.deviceId || d.id),
+				targetUid: String(data.targetUid || ""),
+				targetUserName: String(data.targetUserName || ""),
+				targetUserEmail: String(data.targetUserEmail || ""),
+				reason: String(data.reason || "Banned by Administration"),
+				bannedBy: String(data.bannedBy || ""),
+				bannedAt: String(data.bannedAt || ""),
+				active: data.active !== false
+			};
+		}).sort((a, b) => (b.bannedAt || "").localeCompare(a.bannedAt || "")));
+	}, (err) => {
+		console.warn("[Admin] Banned devices listener error:", err);
+		onError?.(err?.message || "Unable to load banned devices.");
+		onUpdate([]);
+	});
+}
+/**
+* Real-time client-side listener checking whether THIS device ID is banned.
+*/
+function subscribeDeviceBanStatus(deviceId, onUpdate) {
+	if (!deviceId || !/^[a-zA-Z0-9_\-]{6,64}$/.test(deviceId)) {
+		onUpdate(null);
+		return () => {};
+	}
+	return onSnapshot(doc(db, "banned_devices", deviceId), (snap) => {
+		if (!snap.exists()) {
+			onUpdate(null);
+			return;
+		}
+		const data = snap.data();
+		if (data.active === false) {
+			onUpdate(null);
+			return;
+		}
+		onUpdate({
+			deviceId: String(data.deviceId || snap.id),
+			targetUid: String(data.targetUid || ""),
+			targetUserName: String(data.targetUserName || ""),
+			targetUserEmail: String(data.targetUserEmail || ""),
+			reason: String(data.reason || "This device has been banned by Lenzo Party Administration."),
+			bannedBy: String(data.bannedBy || ""),
+			bannedAt: String(data.bannedAt || ""),
+			active: true
+		});
+	}, () => {
+		onUpdate(null);
+	});
+}
+/**
+* Subscribe to real-time Administration Audit Logs stored directly in Firestore.
+*/
+function subscribeAdminAuditLogs(onUpdate, onError) {
+	return onSnapshot(collection(db, "progression_audit_logs"), (snap) => {
+		onUpdate(snap.docs.map((d) => {
+			const data = d.data();
+			return {
+				id: d.id,
+				adminEmail: String(data.adminEmail || ""),
+				adminUid: String(data.adminUid || ""),
+				action: String(data.action || "admin_action"),
+				targetUid: String(data.targetUid || ""),
+				targetLabel: String(data.targetLabel || data.targetUid || ""),
+				summary: String(data.summary || data.reason || ""),
+				reason: String(data.reason || ""),
+				createdAt: String(data.createdAt || "")
+			};
+		}).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 120));
+	}, (err) => {
+		console.warn("[Admin] Audit logs listener error:", err);
+		onError?.(err?.message || "Unable to load audit logs.");
+		onUpdate([]);
+	});
+}
+/**
+* Directly add, deduct, or set a user's Coin balance in real time (syncs `users/{uid}`, `wallets/{uid}`, `wallet_transactions`, and audit logs).
+*/
+async function adminAdjustUserCoins(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const targetUid = params.targetUid.trim();
+		const numericAmount = Math.trunc(Number(params.amount));
+		if (!targetUid) return {
+			success: false,
+			error: "Target user ID is required."
+		};
+		if (!Number.isFinite(numericAmount) || params.mode !== "set" && numericAmount <= 0 || numericAmount < 0) return {
+			success: false,
+			error: "Enter a valid coin amount."
+		};
+		const userRef = doc(db, "users", targetUid);
+		const walletRef = doc(db, "wallets", targetUid);
+		let nextBalance = 0;
+		let deltaApplied = 0;
+		let targetName = targetUid;
+		await runTransaction(db, async (tx) => {
+			const [userSnap, walletSnap] = await Promise.all([tx.get(userRef), tx.get(walletRef)]);
+			if (!userSnap.exists()) throw new Error("Target user account not found.");
+			const userData = userSnap.data();
+			targetName = String(userData.fullName || userData.displayId || targetUid);
+			const walletData = walletSnap.exists() ? walletSnap.data() : null;
+			const currentBalance = Math.max(0, Math.floor(Number(walletData?.walletPurchasedCoins ?? userData.coins ?? 0)));
+			if (params.mode === "add") nextBalance = currentBalance + numericAmount;
+			else if (params.mode === "deduct") nextBalance = Math.max(0, currentBalance - numericAmount);
+			else nextBalance = Math.max(0, numericAmount);
+			deltaApplied = nextBalance - currentBalance;
+			const prevPurchased = Math.max(0, Math.floor(Number(walletData?.totalCoinsPurchased ?? currentBalance)));
+			const prevSpent = Math.max(0, Math.floor(Number(walletData?.totalCoinsSpent ?? 0)));
+			tx.update(userRef, { coins: nextBalance });
+			if (walletSnap.exists()) tx.update(walletRef, {
+				userId: targetUid,
+				walletPurchasedCoins: nextBalance,
+				totalCoinsPurchased: deltaApplied > 0 ? prevPurchased + deltaApplied : prevPurchased,
+				updatedAt: serverTimestamp()
+			});
+			else tx.set(walletRef, {
+				userId: targetUid,
+				walletPurchasedCoins: nextBalance,
+				totalCoinsPurchased: nextBalance,
+				totalCoinsSpent: prevSpent,
+				updatedAt: serverTimestamp()
+			});
+			const txId = makeAuditId("admc");
+			tx.set(doc(db, "wallet_transactions", txId), {
+				userId: targetUid,
+				category: "admin_adjustment",
+				amount: deltaApplied,
+				balanceAfter: nextBalance,
+				description: params.reason?.trim() || `Admin ${params.mode === "add" ? "System Coin Credit" : params.mode === "deduct" ? "Coin Deduction" : "Balance Set"} by ${admin.email}`,
+				metadata: {
+					adminEmail: admin.email,
+					mode: params.mode,
+					previousBalance: currentBalance
+				},
+				createdAt: serverTimestamp()
+			});
+		});
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: `user_coins_${params.mode}`,
+			targetUid,
+			targetLabel: targetName,
+			summary: `${params.mode === "add" ? "Added" : params.mode === "deduct" ? "Deducted" : "Set"} coins (${deltaApplied >= 0 ? "+" : ""}${deltaApplied.toLocaleString()}) -> New balance: ${nextBalance.toLocaleString()} coins for ${targetName}`,
+			reason: params.reason?.trim() || "Direct admin coin adjustment"
+		});
+		return {
+			success: true,
+			newBalance: nextBalance
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to update user coins."
+		};
+	}
+}
+/**
+* Edit any user's Name, Username, Level (0-100), VIP (0-12), Super VIP (0-6), and Verification Tier in real time.
+* Syncs both `users/{uid}` and `user_levels/{uid}` so progression listeners immediately reflect the exact edits.
+*/
+async function adminEditUserProfileAndProgression(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const targetUid = params.targetUid.trim();
+		if (!targetUid) return {
+			success: false,
+			error: "Target user UID is required."
+		};
+		const cleanName = params.fullName.trim().replace(/\s+/g, " ").slice(0, 60);
+		if (cleanName.length < 2) return {
+			success: false,
+			error: "Name must be at least 2 characters."
+		};
+		const rawHandle = params.username.trim().replace(/^@+/, "").replace(/[^a-zA-Z0-9_.]/g, "").toLowerCase();
+		if (rawHandle.length < 2) return {
+			success: false,
+			error: "Username must have at least 2 letters or numbers."
+		};
+		const cleanUsername = `@${rawHandle}`.slice(0, 40);
+		const safeLevel = Math.max(0, Math.min(100, Math.floor(Number(params.level || 0))));
+		const safeVip = Math.max(0, Math.min(12, Math.floor(Number(params.vipLevel || 0))));
+		const safeSuperVip = Math.max(0, Math.min(6, Math.floor(Number(params.superVipLevel || 0))));
+		const safeVerificationTier = params.verificationTier === "gold" || params.verificationTier === "blue" ? params.verificationTier : "none";
+		const cleanVerifiedTag = (params.verifiedTag || "").trim().slice(0, 32);
+		const levelEntry = ALL_100_LEVELS.find((l) => l.level === safeLevel) || ALL_100_LEVELS[0];
+		const targetQualifyingCoins = Math.min(2e9, Math.max(0, levelEntry?.cumulativeCoins ?? 0));
+		const unlockedVipTiers = Array.from({ length: safeVip }, (_, idx) => idx + 1);
+		const unlockedSuperVipTiers = Array.from({ length: safeSuperVip }, (_, idx) => idx + 1);
+		const activeFrameType = safeSuperVip > 0 ? "super_vip" : safeVip > 0 ? "vip" : "none";
+		const equippedVipFrame = activeFrameType === "vip" ? safeVip : 0;
+		const equippedSuperVipFrame = activeFrameType === "super_vip" ? safeSuperVip : 0;
+		const userRef = doc(db, "users", targetUid);
+		const userLevelRef = doc(db, "user_levels", targetUid);
+		await runTransaction(db, async (tx) => {
+			const [userSnap, levelSnap] = await Promise.all([tx.get(userRef), tx.get(userLevelRef)]);
+			if (!userSnap.exists()) throw new Error("User document not found.");
+			const existingLevelData = levelSnap.exists() ? levelSnap.data() : {};
+			tx.update(userRef, {
+				fullName: cleanName,
+				username: cleanUsername,
+				level: safeLevel,
+				totalQualifyingCoinsSpent: targetQualifyingCoins,
+				vipLevel: safeVip,
+				isVIP: safeVip > 0,
+				superVipLevel: safeSuperVip,
+				isSuperVIP: safeSuperVip > 0,
+				unlockedVipTiers,
+				unlockedSuperVipTiers,
+				activeFrameType,
+				equippedVipFrame,
+				equippedSuperVipFrame,
+				isVerified: safeVerificationTier !== "none",
+				verificationTier: safeVerificationTier,
+				verifiedTag: cleanVerifiedTag
+			});
+			const levelDocPayload = {
+				userId: targetUid,
+				currentLevel: safeLevel,
+				totalQualifyingCoinsSpent: targetQualifyingCoins,
+				vipLevel: safeVip,
+				superVipLevel: safeSuperVip,
+				unlockedVipTiers,
+				unlockedSuperVipTiers,
+				equippedVipFrame,
+				equippedSuperVipFrame,
+				activeFrameType,
+				equippedAchievementBadges: Array.isArray(existingLevelData.equippedAchievementBadges) ? existingLevelData.equippedAchievementBadges.slice(0, 3) : [],
+				earnedAchievements: Array.isArray(existingLevelData.earnedAchievements) ? existingLevelData.earnedAchievements : [],
+				updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+			};
+			if (levelSnap.exists()) tx.update(userLevelRef, levelDocPayload);
+			else tx.set(userLevelRef, levelDocPayload);
+		});
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: "user_profile_progression_edited",
+			targetUid,
+			targetLabel: `${cleanName} (${cleanUsername})`,
+			summary: `Updated ${cleanName} (${cleanUsername}): Lv.${safeLevel}, VIP ${safeVip}, SVIP ${safeSuperVip}, Tick: ${safeVerificationTier}`,
+			reason: params.reason?.trim() || "Admin profile/level/VIP edit"
+		});
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to save user changes."
+		};
+	}
+}
+/**
+* Permanently block or unblock a user account globally in real time.
+*/
+async function adminSetUserBlockStatus(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const targetUid = params.targetUid.trim();
+		if (!targetUid) return {
+			success: false,
+			error: "Target UID is required."
+		};
+		if (targetUid === admin.uid && params.blocked) return {
+			success: false,
+			error: "You cannot block your own active admin account."
+		};
+		const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+		const cleanReason = (params.reason || (params.blocked ? "Blocked by Administration" : "")).trim().slice(0, 280);
+		await updateDoc(doc(db, "users", targetUid), {
+			isBlocked: params.blocked,
+			accountStatus: params.blocked ? "blocked" : "active",
+			blockReason: params.blocked ? cleanReason : "",
+			blockedAt: params.blocked ? nowIso : "",
+			blockedBy: params.blocked ? admin.email : "",
+			...params.blocked ? {} : {
+				suspendedUntil: 0,
+				suspendReason: ""
+			}
+		});
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: params.blocked ? "user_blocked" : "user_unblocked",
+			targetUid,
+			targetLabel: params.targetName || targetUid,
+			summary: `${params.blocked ? "Blocked" : "Unblocked"} user ${params.targetName || targetUid}`,
+			reason: cleanReason || (params.blocked ? "Blocked by Admin" : "Unblocked by Admin")
+		});
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to update block status."
+		};
+	}
+}
+/**
+* Suspend (temporary or permanent) or unsuspend a user ID in real time.
+* durationHours === 0 means Permanent Suspension until manually unsuspended.
+*/
+async function adminSetUserSuspension(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const targetUid = params.targetUid.trim();
+		if (!targetUid) return {
+			success: false,
+			error: "Target UID is required."
+		};
+		if (targetUid === admin.uid && params.suspended) return {
+			success: false,
+			error: "You cannot suspend your own active admin account."
+		};
+		const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+		const hours = Math.max(0, Math.floor(Number(params.durationHours || 0)));
+		const suspendedUntil = params.suspended && hours > 0 ? Date.now() + hours * 36e5 : 0;
+		const cleanReason = (params.reason || (params.suspended ? "Suspended by Administration" : "")).trim().slice(0, 280);
+		await updateDoc(doc(db, "users", targetUid), {
+			accountStatus: params.suspended ? "suspended" : "active",
+			isBlocked: false,
+			suspendedUntil: params.suspended ? suspendedUntil : 0,
+			suspendReason: params.suspended ? cleanReason : "",
+			suspendedAt: params.suspended ? nowIso : "",
+			suspendedBy: params.suspended ? admin.email : ""
+		});
+		const durationLabel = !params.suspended ? "Restored" : hours === 0 ? "Permanent" : hours >= 24 ? `${Math.round(hours / 24)} day(s)` : `${hours} hour(s)`;
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: params.suspended ? "user_suspended" : "user_unsuspended",
+			targetUid,
+			targetLabel: params.targetName || targetUid,
+			summary: `${params.suspended ? `Suspended (${durationLabel})` : "Unsuspended"} user ${params.targetName || targetUid}`,
+			reason: cleanReason || durationLabel
+		});
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to update suspension status."
+		};
+	}
+}
+/**
+* Ban a device ID in real time (`banned_devices/{deviceId}`) and mark the user's `isDeviceBanned = true`.
+*/
+async function adminBanDevice(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const cleanDeviceId = params.deviceId.trim().replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 128);
+		if (cleanDeviceId.length < 6) return {
+			success: false,
+			error: "Valid Device ID is required (user must sign in at least once to register a Device ID)."
+		};
+		if (params.targetUid && params.targetUid === admin.uid) return {
+			success: false,
+			error: "You cannot ban your own active admin device."
+		};
+		const nowIso = (/* @__PURE__ */ new Date()).toISOString();
+		const cleanReason = (params.reason || "Device permanently banned by Lenzo Party Administration.").trim().slice(0, 280);
+		await setDoc(doc(db, "banned_devices", cleanDeviceId), {
+			deviceId: cleanDeviceId,
+			targetUid: (params.targetUid || "").slice(0, 128),
+			targetUserName: (params.targetUserName || "").slice(0, 80),
+			targetUserEmail: (params.targetUserEmail || "").slice(0, 120),
+			reason: cleanReason,
+			bannedBy: admin.email,
+			bannedAt: nowIso,
+			active: true
+		});
+		if (params.targetUid) {
+			const userRef = doc(db, "users", params.targetUid);
+			if ((await getDoc(userRef)).exists()) await updateDoc(userRef, {
+				isDeviceBanned: true,
+				lastDeviceId: cleanDeviceId
+			});
+		}
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: "device_banned",
+			targetUid: params.targetUid || cleanDeviceId,
+			targetLabel: params.targetUserName || cleanDeviceId,
+			summary: `Banned device ${cleanDeviceId}${params.targetUserName ? ` (${params.targetUserName})` : ""}`,
+			reason: cleanReason
+		});
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to ban device."
+		};
+	}
+}
+/**
+* Remove a device ban and clear `isDeviceBanned` on the associated user document if present.
+*/
+async function adminUnbanDevice(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const cleanDeviceId = params.deviceId.trim().replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 128);
+		if (!cleanDeviceId) return {
+			success: false,
+			error: "Device ID is required."
+		};
+		await deleteDoc(doc(db, "banned_devices", cleanDeviceId));
+		if (params.targetUid) {
+			const userRef = doc(db, "users", params.targetUid);
+			if ((await getDoc(userRef)).exists()) await updateDoc(userRef, { isDeviceBanned: false });
+		}
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: "device_unbanned",
+			targetUid: params.targetUid || cleanDeviceId,
+			targetLabel: params.targetUserName || cleanDeviceId,
+			summary: `Unbanned device ${cleanDeviceId}${params.targetUserName ? ` (${params.targetUserName})` : ""}`,
+			reason: "Device ban lifted by Admin"
+		});
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to unban device."
+		};
+	}
+}
+/**
+* Send system-generated coins to (or deduct from) any agency and record an immutable audit log.
+*/
+async function adminSendSystemCoinsToAgency(params) {
+	try {
+		const admin = assertAuthorizedAdmin();
+		const absAmount = Math.trunc(Math.abs(Number(params.amount)));
+		if (!Number.isFinite(absAmount) || absAmount <= 0) return {
+			success: false,
+			error: "Enter a valid coin amount greater than 0."
+		};
+		const delta = absAmount * params.direction;
+		const agencyRef = doc(db, "agencies", params.agencyId);
+		let nextBalance = 0;
+		let agencyLabel = params.agencyId;
+		await runTransaction(db, async (tx) => {
+			const snap = await tx.get(agencyRef);
+			if (!snap.exists()) throw new Error("Agency not found.");
+			const data = snap.data();
+			agencyLabel = `${data.name || params.agencyId} (${data.agencyCode || ""})`.trim();
+			const prevBalance = Math.max(0, Math.floor(Number(data.coinBalance || 0)));
+			nextBalance = Math.max(0, prevBalance + delta);
+			tx.update(agencyRef, {
+				coinBalance: nextBalance,
+				updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+			});
+		});
+		await writeAdminAuditLog({
+			adminUid: admin.uid,
+			adminEmail: admin.email,
+			action: params.direction > 0 ? "agency_system_coins_sent" : "agency_system_coins_deducted",
+			targetUid: params.agencyId,
+			targetLabel: agencyLabel,
+			summary: `${params.direction > 0 ? "Sent" : "Deducted"} ${absAmount.toLocaleString()} system-generated coins ${params.direction > 0 ? "to" : "from"} ${agencyLabel} -> Balance: ${nextBalance.toLocaleString()}`,
+			reason: params.note?.trim() || "System-generated agency coin grant"
+		});
+		return {
+			success: true,
+			newBalance: nextBalance
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err?.message || "Failed to update agency coin balance."
+		};
+	}
+}
 // src/components/common/BottomNav.tsx
 var import_jsx_runtime = require_jsx_runtime();
 var BottomNav = ({ currentScreen, onNavigate, onOpenCreate, unreadMessagesCount = 0, storeNotificationCount = 0 }) => {
@@ -8846,54 +9493,6 @@ var LenzoLogo = ({ size = "md", showText = true, showTagline = true, className =
 		})]
 	});
 };
-// src/utils/levelAndVipConfig.ts
-/**
-* 12 VIP Frame definitions mapped with legacy display helpers so all existing consumers stay compatible.
-*/
-var VIP_FRAME_DEFINITIONS = VIP_TIER_DEFINITIONS.map((v) => ({
-	...v,
-	borderColor: v.primaryColor,
-	glowColor: v.glowColor,
-	gradientBg: v.gradientCss,
-	badgeIcon: v.code
-}));
-function getVipFrameDefinition(tier) {
-	return VIP_FRAME_DEFINITIONS.find((f) => f.tier === tier);
-}
-/**
-* Computes full UserLevelProgression from total qualifying coins spent using the exact 1,333,333,333 coin chart.
-*/
-function calculateLevelProgression(totalQualifyingCoinsSpent, userId = "", equippedVipFrame = 0, options) {
-	const computed = calculateProgressionState(totalQualifyingCoinsSpent, {
-		userId,
-		activeFrameType: options?.activeFrameType,
-		equippedVipFrame,
-		equippedSuperVipFrame: options?.equippedSuperVipFrame ?? 0,
-		equippedAchievementBadges: options?.equippedAchievementBadges ?? []
-	});
-	return {
-		userId,
-		currentLevel: computed.currentLevel,
-		currentTier: computed.currentTierId,
-		currentTierName: computed.currentTierName,
-		totalQualifyingCoinsSpent: computed.totalQualifyingCoinsSpent,
-		coinsInCurrentLevel: computed.coinsInCurrentLevel,
-		coinsNeededForNextLevel: computed.coinsForCurrentLevel,
-		remainingCoinsNeeded: computed.remainingCoinsNeeded,
-		percentage: computed.percentage,
-		isMaxLevel: computed.isMaxLevel,
-		isMaxMastery: computed.isMaxMastery,
-		highestUnlockedVipTier: computed.highestUnlockedVipTier,
-		unlockedVipTiers: computed.unlockedVipTiers,
-		highestUnlockedSuperVipTier: computed.highestUnlockedSuperVipTier,
-		unlockedSuperVipTiers: computed.unlockedSuperVipTiers,
-		activeFrameType: computed.activeFrameType,
-		equippedVipFrame: computed.equippedVipFrame,
-		equippedSuperVipFrame: computed.equippedSuperVipFrame,
-		earnedAchievements: options?.earnedAchievements ?? [],
-		equippedAchievementBadges: computed.equippedAchievementBadges
-	};
-}
 // src/components/common/AvatarWithFrame.tsx
 var SIZE_MAP = {
 	xs: {
@@ -12810,38 +13409,6 @@ async function updateAgencyProfile(agencyId, patch) {
 		};
 	}
 }
-async function adminAdjustAgencyCoinBalance(agencyId, coinDelta) {
-	try {
-		const delta = Math.trunc(Number(coinDelta));
-		if (!Number.isFinite(delta) || delta === 0) return {
-			success: false,
-			error: "Enter a valid non-zero coin amount."
-		};
-		const agencyRef = doc(db, "agencies", agencyId);
-		let nextBalance = 0;
-		await runTransaction(db, async (tx) => {
-			const snap = await tx.get(agencyRef);
-			if (!snap.exists()) throw new Error("Agency not found.");
-			const data = snap.data();
-			if (data.agencyType !== "coin_seller") throw new Error("Only Coin Seller Agencies hold a transferable coin balance.");
-			const prevBalance = Number(data.coinBalance || 0);
-			nextBalance = Math.max(0, prevBalance + delta);
-			tx.update(agencyRef, {
-				coinBalance: nextBalance,
-				updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-			});
-		});
-		return {
-			success: true,
-			newBalance: nextBalance
-		};
-	} catch (err) {
-		return {
-			success: false,
-			error: err?.message || "Failed to adjust agency coin balance."
-		};
-	}
-}
 async function adminSetAgencyStatus(agencyId, status) {
 	try {
 		await updateDoc(doc(db, "agencies", agencyId), {
@@ -14099,7 +14666,7 @@ function formatCompactScore(num) {
 	if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
 	return String(Math.max(0, Math.round(num)));
 }
-var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], onSelectLive, onSelectRoom, onSelectUser, onNavigate, onToggleFollow, onSendMessage }) => {
+var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], onSelectLive, onSelectRoom, onSelectUser, onNavigate, onToggleFollow, onSendMessage, isAdmin = false, onOpenAdminPanel }) => {
 	const [activeTab, setActiveTab] = (0, import_react.useState)("foryou");
 	const [streamCategoryTab, setStreamCategoryTab] = (0, import_react.useState)("live_stream");
 	const [coinSellerAgencies, setCoinSellerAgencies] = (0, import_react.useState)([]);
@@ -14261,9 +14828,9 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: "max-w-7xl mx-auto px-3.5 sm:px-6 safe-pt-3 space-y-5",
 			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "flex items-center gap-2 overflow-x-auto no-scrollbar py-1",
-					children: [
+					children: [[
 						{
 							id: "foryou",
 							label: "For You",
@@ -14298,7 +14865,12 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 						onClick: tab.action,
 						className: `px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 ${tab.isActive ? "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white shadow-md shadow-[#F328D5]/25" : "bg-[#160C25] text-[#B9AECF] hover:text-white border border-white/5"}`,
 						children: tab.label
-					}, tab.id))
+					}, tab.id)), isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+						type: "button",
+						onClick: onOpenAdminPanel,
+						className: "ml-auto px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Admin" })]
+					})]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
 					className: "space-y-2.5",
@@ -15347,7 +15919,7 @@ function resolveVerificationStatus(params) {
 	const vipLevel = params.vipLevel ?? user?.vipLevel ?? 0;
 	const superVipLevel = params.superVipLevel ?? user?.superVipLevel ?? 0;
 	const followers = user?.followersCount ?? 0;
-	const isAdminAccount = Boolean(user?.isAdmin) || (user?.email ? user.email.toLowerCase() === "yaquoobe@gmail.com" : false);
+	const isAdminAccount = isAuthorizedAdminEmail(user?.email);
 	const customTag = user?.verifiedTag?.trim();
 	let tier = "none";
 	let reason = "Reach Lv.8, unlock VIP 1, join a verified agency, or receive Admin verification.";
@@ -33316,7 +33888,7 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUser
 									})
 								]
 							}),
-							isOwner && currentUser.isAdmin && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							isOwner && isAuthorizedAdminEmail(currentUser.email) && onOpenAdminPanel && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 								type: "button",
 								onClick: onOpenAdminPanel,
 								className: "w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#24103F] to-fuchsia-500/15 border border-[#FFC84A]/50 hover:border-[#FFC84A] flex items-center justify-between gap-3 text-left transition-all",
@@ -33329,10 +33901,10 @@ var ProfileScreen = ({ currentUser, viewingUser, conversations = [], blockedUser
 										className: "min-w-0",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 											className: "text-xs font-black text-white",
-											children: "Admin Progression Panel"
+											children: "Lenzo Administration Panel"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 											className: "text-[10px] text-[#C5B9DE] truncate",
-											children: "Manage 100 levels, 12 VIP, 6 Super VIP, achievements & audit logs"
+											children: "Live users, direct coins, agencies, block/suspend, device ban, level & VIP"
 										})]
 									})]
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#FFC84A] shrink-0" })]
@@ -37649,15 +38221,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-Bls9_sV5.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BKnHGmUG.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-HDQWAT9s.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-AoFGuoi7.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,4,5,13,7,6,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CqOM4HH4.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,4,5,6,7,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-5OV1p81X.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-B1W51ilM.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,4,5,6,7,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BOcv4zwG.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,4,5,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-Dg8OqdrC.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,4,5,7,6,19,1,13,8])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-cOIJCC-o.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BmoWnS4B.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DijdTgX1.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-BlP4eP4_.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,4,5,13,7,6,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Bj76A46F.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,4,5,6,7,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DTX6bTPB.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-XCJNU0P7.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,4,5,6,7,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BV1dn1KP.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,4,5,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-B_5UbjOC.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,4,5,6,7,8,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -37727,6 +38299,9 @@ function App() {
 	const isBlockedByTarget = (userId) => Boolean(userId && blockedByUserIds.includes(userId));
 	const isBlockedRelationship = (userId) => isBlockedByMe(userId) || isBlockedByTarget(userId);
 	const [myModerators, setMyModerators] = (0, import_react.useState)([]);
+	const [activeDeviceBan, setActiveDeviceBan] = (0, import_react.useState)(null);
+	const currentDeviceId = getOrCreateDeviceId();
+	const isAuthorizedAdmin = isAuthorizedAdminEmail(auth.currentUser?.email || currentUser?.email);
 	(0, import_react.useEffect)(() => {
 		const uid = currentUser?.id;
 		if (!uid) {
@@ -38297,7 +38872,8 @@ function App() {
 				setCurrentUser((prev) => {
 					const merged = {
 						...prev,
-						...mapped
+						...mapped,
+						isAdmin: isAuthorizedAdminEmail(auth.currentUser?.email || mapped.email)
 					};
 					saveStoredUserProfile(merged);
 					return merged;
@@ -38305,6 +38881,9 @@ function App() {
 			}
 		}, (err) => {
 			console.warn("[Firestore] User profile listener notice:", err);
+		});
+		const unsubDeviceBan = subscribeDeviceBanStatus(currentDeviceId, (banRecord) => {
+			setActiveDeviceBan(banRecord);
 		});
 		const unsubWallet = subscribeUserWallet(authenticatedUid, (wallet) => {
 			setCurrentUser((prev) => {
@@ -38418,6 +38997,7 @@ function App() {
 		});
 		return () => {
 			unsubUserDoc();
+			unsubDeviceBan();
 			unsubWallet();
 			unsubEarnings();
 			unsubWalletSettings();
@@ -38427,7 +39007,11 @@ function App() {
 			unsubReels();
 			unsubVideos();
 		};
-	}, [authenticatedUid, refreshTick]);
+	}, [
+		authenticatedUid,
+		refreshTick,
+		currentDeviceId
+	]);
 	const handleGlobalAppRefresh = (0, import_react.useCallback)(async () => {
 		if (typeof navigator !== "undefined" && navigator.onLine === false) return {
 			offline: true,
@@ -39084,6 +39668,53 @@ function App() {
 			setCurrentScreen("profile");
 		}
 	});
+	const isAccountBlocked = Boolean(currentUser.isBlocked || currentUser.accountStatus === "blocked");
+	const isAccountSuspended = Boolean(currentUser.accountStatus === "suspended" && (!currentUser.suspendedUntil || currentUser.suspendedUntil > Date.now()));
+	const isDeviceLocked = Boolean(activeDeviceBan || currentUser.isDeviceBanned);
+	if (!isAuthorizedAdmin && authenticatedUid && (isDeviceLocked || isAccountBlocked || isAccountSuspended)) {
+		const title = isDeviceLocked ? "Device Permanently Banned" : isAccountBlocked ? "Account Permanently Blocked" : "Account Suspended";
+		const detailReason = isDeviceLocked ? activeDeviceBan?.reason || "This device has been permanently restricted by Lenzo Party Administration." : isAccountBlocked ? currentUser.blockReason || "Your account has been permanently blocked by Lenzo Party Administration." : currentUser.suspendReason || "Your account ID has been suspended by Lenzo Party Administration.";
+		const expiryLabel = isAccountSuspended && currentUser.suspendedUntil && currentUser.suspendedUntil > Date.now() ? `Suspension ends: ${new Date(currentUser.suspendedUntil).toLocaleString()}` : isAccountSuspended ? "Duration: Permanent until reviewed by Administration" : null;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: "min-h-dvh-screen w-full bg-[#090611] text-white flex items-center justify-center p-5",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "w-full max-w-md rounded-3xl bg-[#160B2B] border border-rose-500/40 p-6 text-center space-y-4 shadow-2xl",
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center mx-auto text-rose-300 text-2xl font-black",
+						children: "!"
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-1.5",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", {
+								className: "text-xl font-black text-white",
+								children: title
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-rose-200 leading-relaxed",
+								children: detailReason
+							}),
+							expiryLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[11px] font-mono text-amber-300 pt-1",
+								children: expiryLabel
+							})
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "p-3 rounded-xl bg-black/40 border border-white/10 text-[11px] font-mono text-[#B9AECF] space-y-1",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: ["ID: ", currentUser.displayId || currentUser.id] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: ["Device: ", currentDeviceId] })]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						onClick: () => void handleLogout(),
+						className: "w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black transition-all",
+						children: "Sign Out"
+					})
+				]
+			})
+		});
+	}
 	if (currentScreen === "live_active" && activeLiveStream) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PullToRefresh, {
 		onRefresh: handleGlobalAppRefresh,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -39346,7 +39977,9 @@ function App() {
 								},
 								onOpenMicMenu: handleOpenMicMenu,
 								onToggleFollow: handleToggleFollow,
-								onSendMessage: handleSendMessageToUser
+								onSendMessage: handleSendMessageToUser,
+								isAdmin: isAuthorizedAdmin,
+								onOpenAdminPanel: () => setIsAdminProgressionOpen(true)
 							}),
 							(currentScreen === "party" || currentScreen === "rooms") && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RoomsScreen, {
 								partyRooms: visiblePartyRooms,
@@ -39559,7 +40192,7 @@ function App() {
 									onLogout: handleLogout,
 									onOpenWallet: () => setIsWalletOpen(true),
 									onOpenAccountSwitcher: () => setIsAccountSwitcherOpen(true),
-									isAdmin: Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === "yaquoobe@gmail.com"),
+									isAdmin: isAuthorizedAdmin,
 									onOpenAdminProgression: () => setIsAdminProgressionOpen(true),
 									blockedUsers,
 									onUnblockUser: handleUnblockUser,
@@ -39701,12 +40334,12 @@ function App() {
 					});
 				}
 			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Suspense, {
+			isAuthorizedAdmin && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Suspense, {
 				fallback: null,
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AdminProgressionModal, {
 					isOpen: isAdminProgressionOpen,
 					onClose: () => setIsAdminProgressionOpen(false),
-					currentUserEmail: currentUser.email
+					currentUserEmail: auth.currentUser?.email || currentUser.email
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(VIPModal, {
@@ -39792,4 +40425,4 @@ function App() {
 // src/main.tsx
 androidBridge.initViewportMetrics();
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
-export { generateReelId as $, adminAdjustBalance as A, subscribeUserEarnings as B, SuperVipTierBadge as C, DEFAULT_COIN_PACKAGES as D, calculateLevelProgression as E, saveCoinSellerAgency as F, acquireRealDeviceCamera as G, subscribeWalletSettings as H, subscribeAllWithdrawalRequests as I, isNativeAndroidApp as J, acquireRealMicrophone as K, subscribeCoinPackages as L, convertEarningsToWallet as M, deleteCoinSellerAgency as N, DEFAULT_PAYOUT_METHODS as O, requestWithdrawal as P, createReelDocument as Q, subscribeCoinSellerAgencies as R, AvatarWithFrame as S, getProgressionMathAudit as St, VIP_FRAME_DEFINITIONS as T, updateWalletSettings as U, subscribeUserWallet as V, liveAndRoomService as W, setStagedLiveStream as X, openNativeAppSettings as Y, stopMediaStream as Z, subscribeActiveAgencies as _, SUPER_VIP_TIER_DEFINITIONS as _t, subscribeUserLevelProgression as a, getLinkedAuthProviders as at, LevelBadge as b, formatCoinsCompact as bt, PARTY_BACKGROUND_PRESETS as c, loadUserSettingsFromFirestore as ct, VerifiedTick as d, subscribeUserSettings as dt, uploadMediaDataUrlWithProgress as et, resolveVerificationStatus as f, ACHIEVEMENT_BADGE_DEFINITIONS as ft, buildWhatsAppUrl as g, LEVEL_TIER_CONFIGS as gt, adminSetAgencyStatus as h, LEVELS_51_TO_100_EXACT_TOTAL as ht, fetchAuthoritativeProgression as i, profileService as it, adminUpdateWithdrawalStatus as j, DEFAULT_WALLET_SETTINGS as k, resolvePartyBackgroundImageUrl as l, saveUserSettingsToFirestore as lt, adminReviewAgencyApplication as m, LEVELS_1_TO_50_EXACT_TOTAL as mt, equipAchievementBadges as n, uploadReelVideoAndThumbnail as nt, AchievementBadgeEmblem as o, linkGoogleAccount as ot, adminAdjustAgencyCoinBalance as p, ALL_100_LEVELS as pt, createAudioAnalyser as q, equipActiveFrame as r, uploadUserImage as rt, DEFAULT_PARTY_BACKGROUND_ID as s, getSavedDeviceAccounts as st, BlockedUsersModal as t, uploadPartyBackgroundImage as tt, resolvePartyRoomBackground as u, submitAccountDeletionRequest as ut, subscribeAllAgenciesForAdmin as v, TOTAL_PROGRESSION_COINS_EXACT as vt, VipTierBadge as w, LevelEmblemBadge as x, getLevelDefinition as xt, subscribeAllAgencyApplications as y, evaluateAchievementBadges as yt, subscribeTransactions as z };
+export { liveAndRoomService as $, adminUnbanDevice as A, evaluateAchievementBadges as At, adminUpdateWithdrawalStatus as B, VipTierBadge as C, ACHIEVEMENT_BADGE_DEFINITIONS as Ct, adminSendSystemCoinsToAgency as D, LEVEL_TIER_CONFIGS as Dt, adminEditUserProfileAndProgression as E, LEVELS_51_TO_100_EXACT_TOTAL as Et, calculateLevelProgression as F, subscribeAllWithdrawalRequests as G, deleteCoinSellerAgency as H, DEFAULT_COIN_PACKAGES as I, subscribeTransactions as J, subscribeCoinPackages as K, DEFAULT_PAYOUT_METHODS as L, subscribeAllUsersForAdmin as M, getLevelDefinition as Mt, subscribeBannedDevicesForAdmin as N, adminSetUserBlockStatus as O, SUPER_VIP_TIER_DEFINITIONS as Ot, VIP_FRAME_DEFINITIONS as P, updateWalletSettings as Q, DEFAULT_WALLET_SETTINGS as R, SuperVipTierBadge as S, subscribeUserSettings as St, adminBanDevice as T, LEVELS_1_TO_50_EXACT_TOTAL as Tt, requestWithdrawal as U, convertEarningsToWallet as V, saveCoinSellerAgency as W, subscribeUserWallet as X, subscribeUserEarnings as Y, subscribeWalletSettings as Z, subscribeAllAgenciesForAdmin as _, isVerifiedAdminSession as _t, subscribeUserLevelProgression as a, setStagedLiveStream as at, LevelEmblemBadge as b, saveUserSettingsToFirestore as bt, PARTY_BACKGROUND_PRESETS as c, generateReelId as ct, VerifiedTick as d, uploadReelVideoAndThumbnail as dt, acquireRealDeviceCamera as et, resolveVerificationStatus as f, uploadUserImage as ft, subscribeActiveAgencies as g, isAuthorizedAdminEmail as gt, buildWhatsAppUrl as h, linkGoogleAccount as ht, fetchAuthoritativeProgression as i, openNativeAppSettings as it, subscribeAdminAuditLogs as j, formatCoinsCompact as jt, adminSetUserSuspension as k, TOTAL_PROGRESSION_COINS_EXACT as kt, resolvePartyBackgroundImageUrl as l, uploadMediaDataUrlWithProgress as lt, adminSetAgencyStatus as m, getLinkedAuthProviders as mt, equipAchievementBadges as n, createAudioAnalyser as nt, AchievementBadgeEmblem as o, stopMediaStream as ot, adminReviewAgencyApplication as p, profileService as pt, subscribeCoinSellerAgencies as q, equipActiveFrame as r, isNativeAndroidApp as rt, DEFAULT_PARTY_BACKGROUND_ID as s, createReelDocument as st, BlockedUsersModal as t, acquireRealMicrophone as tt, resolvePartyRoomBackground as u, uploadPartyBackgroundImage as ut, subscribeAllAgencyApplications as v, getSavedDeviceAccounts as vt, adminAdjustUserCoins as w, ALL_100_LEVELS as wt, AvatarWithFrame as x, submitAccountDeletionRequest as xt, LevelBadge as y, loadUserSettingsFromFirestore as yt, adminAdjustBalance as z };

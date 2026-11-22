@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { isVerifiedAdminSession } from '../utils/adminAuth';
 import {
   DEFAULT_STORE_CATEGORIES,
   DEFAULT_STORE_PRODUCTS,
@@ -36,12 +37,7 @@ function toIsoDate(val: unknown): string {
   return new Date().toISOString();
 }
 
-function isVerifiedAdminSession(): boolean {
-  return (
-    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
-    auth.currentUser?.emailVerified === true
-  );
-}
+// Admin session verification imported from ../utils/adminAuth
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -695,7 +691,7 @@ export async function toggleEquipInventoryItem(params: {
 
 /**
  * ADMIN CRUD — Create or update a Store Product in Firestore + Backend API.
- * Strictly restricted to verified Lenzo Party Admin (`yaquoobe@gmail.com`).
+ * Strictly restricted to verified Lenzo Party Admins.
  */
 export async function adminSaveStoreProduct(
   product: LenzoStoreProduct

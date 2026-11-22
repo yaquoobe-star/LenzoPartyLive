@@ -1,8 +1,9 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { Cn as require_react, Ht as Crown, w as Sparkles } from "./vendor-icons-8ivBScnZ.js";
+import { Ht as Crown, w as Sparkles, wn as require_react } from "./vendor-icons-CKZC98wp.js";
 import { D as collection, E as Timestamp, N as serverTimestamp, O as doc, T as writeBatch, _ as onSnapshot, b as runTransaction, f as deleteDoc, h as getDocs, w as where, x as setDoc, y as query } from "./vendor-firebase-pU_0pKhI.js";
 import { i as db, r as auth } from "./firebase-zc-_OxQs.js";
-import { i as require_jsx_runtime } from "./vendor-motion-DFP_D_jg.js";
+import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
+import { _t as isVerifiedAdminSession } from "./index-C_n6rme9.js";
 // src/assets/images/store_cat_vip_frames_1795168966830.jpg
 var store_cat_vip_frames_1795168966830_default = "/assets/store_cat_vip_frames_1795168966830-BDdPQwha.jpg";
 // src/assets/images/store_cat_special_entry_1795168967865.jpg
@@ -339,9 +340,6 @@ function toIsoDate(val) {
 	if (val instanceof Timestamp) return val.toDate().toISOString();
 	if (typeof val.toDate === "function") return val.toDate().toISOString();
 	return (/* @__PURE__ */ new Date()).toISOString();
-}
-function isVerifiedAdminSession() {
-	return auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
 }
 async function getAuthHeaders() {
 	const headers = { "Content-Type": "application/json" };
@@ -750,7 +748,7 @@ async function toggleEquipInventoryItem(params) {
 }
 /**
 * ADMIN CRUD — Create or update a Store Product in Firestore + Backend API.
-* Strictly restricted to verified Lenzo Party Admin (`yaquoobe@gmail.com`).
+* Strictly restricted to verified Lenzo Party Admins.
 */
 async function adminSaveStoreProduct(product) {
 	if (!isVerifiedAdminSession()) return {

@@ -89,6 +89,8 @@ import {
   enforcePartyRoomSeatPolicy,
   isSeatLockedByHostLevel,
 } from './utils/partySeatRules';
+import { getOrCreateDeviceId, isAuthorizedAdminEmail } from './utils/adminAuth';
+import { BannedDeviceRecord, subscribeDeviceBanStatus } from './services/adminService';
 
 // Common Components
 import { BottomNav } from './components/common/BottomNav';
@@ -260,6 +262,9 @@ export default function App() {
     isBlockedByMe(userId) || isBlockedByTarget(userId);
 
   const [myModerators, setMyModerators] = useState<HostModeratorRecord[]>([]);
+  const [activeDeviceBan, setActiveDeviceBan] = useState<BannedDeviceRecord | null>(null);
+  const currentDeviceId = getOrCreateDeviceId();
+  const isAuthorizedAdmin = isAuthorizedAdminEmail(auth.currentUser?.email || currentUser?.email);
 
   // Subscribe to current user's blocked list, users who blocked current user, active party room kicks & lifetime moderators
   useEffect(() => {
@@ -904,6 +909,7 @@ export default function App() {
             const merged = {
               ...prev,
               ...mapped,
+              isAdmin: isAuthorizedAdminEmail(auth.currentUser?.email || mapped.email),
             };
             saveStoredUserProfile(merged);
             return merged;
@@ -914,6 +920,10 @@ export default function App() {
         console.warn('[Firestore] User profile listener notice:', err);
       }
     );
+
+    const unsubDeviceBan = subscribeDeviceBanStatus(currentDeviceId, (banRecord) => {
+      setActiveDeviceBan(banRecord);
+    });
 
     const unsubWallet = subscribeUserWallet(authenticatedUid, (wallet) => {
       setCurrentUser((prev) => {
@@ -1055,6 +1065,7 @@ export default function App() {
 
     return () => {
       unsubUserDoc();
+      unsubDeviceBan();
       unsubWallet();
       unsubEarnings();
       unsubWalletSettings();
@@ -1064,7 +1075,7 @@ export default function App() {
       unsubReels();
       unsubVideos();
     };
-  }, [authenticatedUid, refreshTick]);
+  }, [authenticatedUid, refreshTick, currentDeviceId]);
 
   // Global Pull-to-Refresh handler: wakes Firestore network, refreshes Solo Live, Party Rooms,
   // Rankings, User Profile/Wallet/Levels, and notifies the active screen to re-fetch fresh data.
@@ -1905,6 +1916,59 @@ export default function App() {
     );
   }
 
+  // Real-time Admin Enforcement Lockout (Device Ban, Permanent Account Block, or Active ID Suspension)
+  const isAccountBlocked = Boolean(currentUser.isBlocked || currentUser.accountStatus === 'blocked');
+  const isAccountSuspended = Boolean(
+    currentUser.accountStatus === 'suspended' &&
+      (!currentUser.suspendedUntil || currentUser.suspendedUntil > Date.now())
+  );
+  const isDeviceLocked = Boolean(activeDeviceBan || currentUser.isDeviceBanned);
+
+  if (!isAuthorizedAdmin && authenticatedUid && (isDeviceLocked || isAccountBlocked || isAccountSuspended)) {
+    const title = isDeviceLocked
+      ? 'Device Permanently Banned'
+      : isAccountBlocked
+        ? 'Account Permanently Blocked'
+        : 'Account Suspended';
+    const detailReason = isDeviceLocked
+      ? activeDeviceBan?.reason || 'This device has been permanently restricted by Lenzo Party Administration.'
+      : isAccountBlocked
+        ? currentUser.blockReason || 'Your account has been permanently blocked by Lenzo Party Administration.'
+        : currentUser.suspendReason || 'Your account ID has been suspended by Lenzo Party Administration.';
+    const expiryLabel =
+      isAccountSuspended && currentUser.suspendedUntil && currentUser.suspendedUntil > Date.now()
+        ? `Suspension ends: ${new Date(currentUser.suspendedUntil).toLocaleString()}`
+        : isAccountSuspended
+          ? 'Duration: Permanent until reviewed by Administration'
+          : null;
+
+    return (
+      <div className="min-h-dvh-screen w-full bg-[#090611] text-white flex items-center justify-center p-5">
+        <div className="w-full max-w-md rounded-3xl bg-[#160B2B] border border-rose-500/40 p-6 text-center space-y-4 shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center mx-auto text-rose-300 text-2xl font-black">
+            !
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-black text-white">{title}</h1>
+            <p className="text-xs text-rose-200 leading-relaxed">{detailReason}</p>
+            {expiryLabel && <p className="text-[11px] font-mono text-amber-300 pt-1">{expiryLabel}</p>}
+          </div>
+          <div className="p-3 rounded-xl bg-black/40 border border-white/10 text-[11px] font-mono text-[#B9AECF] space-y-1">
+            <div>ID: {currentUser.displayId || currentUser.id}</div>
+            <div>Device: {currentDeviceId}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black transition-all"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Full Screen Live Broadcast View
   if (currentScreen === 'live_active' && activeLiveStream) {
     return (
@@ -2173,6 +2237,8 @@ export default function App() {
               onOpenMicMenu={handleOpenMicMenu}
               onToggleFollow={handleToggleFollow}
               onSendMessage={handleSendMessageToUser}
+              isAdmin={isAuthorizedAdmin}
+              onOpenAdminPanel={() => setIsAdminProgressionOpen(true)}
             />
           )}
 
@@ -2419,7 +2485,7 @@ export default function App() {
                 onLogout={handleLogout}
                 onOpenWallet={() => setIsWalletOpen(true)}
                 onOpenAccountSwitcher={() => setIsAccountSwitcherOpen(true)}
-                isAdmin={Boolean(currentUser.isAdmin || currentUser.email?.toLowerCase() === 'yaquoobe@gmail.com')}
+                isAdmin={isAuthorizedAdmin}
                 onOpenAdminProgression={() => setIsAdminProgressionOpen(true)}
                 blockedUsers={blockedUsers}
                 onUnblockUser={handleUnblockUser}
@@ -2581,14 +2647,16 @@ export default function App() {
         }}
       />
 
-      {/* 5c. Admin-Only Progression Management Console */}
-      <Suspense fallback={null}>
-        <AdminProgressionModal
-          isOpen={isAdminProgressionOpen}
-          onClose={() => setIsAdminProgressionOpen(false)}
-          currentUserEmail={currentUser.email}
-        />
-      </Suspense>
+      {/* 5c. Admin-Only Administration Console (Strictly locked to authorized emails) */}
+      {isAuthorizedAdmin && (
+        <Suspense fallback={null}>
+          <AdminProgressionModal
+            isOpen={isAdminProgressionOpen}
+            onClose={() => setIsAdminProgressionOpen(false)}
+            currentUserEmail={auth.currentUser?.email || currentUser.email}
+          />
+        </Suspense>
+      )}
 
       {/* VIP Membership Privileges Modal */}
       <VIPModal

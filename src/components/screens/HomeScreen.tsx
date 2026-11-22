@@ -54,6 +54,8 @@ interface HomeScreenProps {
   onOpenMicMenu?: () => void;
   onToggleFollow?: (userId: string) => void;
   onSendMessage?: (user: UserProfile) => void;
+  isAdmin?: boolean;
+  onOpenAdminPanel?: () => void;
 }
 
 interface OriginalTopHostItem {
@@ -95,6 +97,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onToggleFollow,
   onSendMessage,
+  isAdmin = false,
+  onOpenAdminPanel,
 }) => {
   const [activeTab, setActiveTab] = useState<'foryou' | 'live' | 'following'>('foryou');
   const [streamCategoryTab, setStreamCategoryTab] = useState<'live_stream' | 'audio_party'>('live_stream');
@@ -321,6 +325,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {tab.label}
             </button>
           ))}
+          {isAdmin && onOpenAdminPanel && (
+            <button
+              type="button"
+              onClick={onOpenAdminPanel}
+              className="ml-auto px-3.5 py-1.5 rounded-full text-xs font-black whitespace-nowrap bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] shadow-md shadow-amber-500/25 flex items-center gap-1.5 shrink-0 active:scale-95 transition-all"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Admin</span>
+            </button>
+          )}
         </div>
 
         {/* ===================================================================== */}

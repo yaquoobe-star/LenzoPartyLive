@@ -27,6 +27,7 @@ import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { apiFetch, DEFAULT_BACKEND_API_ORIGIN, getApiBaseUrl } from '../utils/apiConfig';
 import { UserProfile } from '../types';
 import { rememberAuthenticatedAccount } from './accountSwitcherService';
+import { getDeviceSummaryLabel, getOrCreateDeviceId, isAuthorizedAdminEmail } from '../utils/adminAuth';
 
 interface NativeGoogleAuthDiagnostics {
   packageName?: string;
@@ -92,6 +93,17 @@ export interface FirestoreUserData {
   showAge?: boolean;
   showOnlineStatus?: boolean;
   equippedBadges?: string[];
+  isBlocked?: boolean;
+  blockReason?: string;
+  blockedAt?: string;
+  blockedBy?: string;
+  suspendedUntil?: number;
+  suspendReason?: string;
+  suspendedAt?: string;
+  suspendedBy?: string;
+  isDeviceBanned?: boolean;
+  lastDeviceId?: string;
+  lastDeviceInfo?: string;
   agencyId?: string;
   agencyName?: string;
   agencyCode?: string;
@@ -107,7 +119,7 @@ export interface FirestoreUserData {
   isVerified?: boolean;
   verificationTier?: 'none' | 'blue' | 'gold';
   verifiedTag?: string;
-  accountStatus: 'active' | 'suspended' | 'pending';
+  accountStatus: 'active' | 'suspended' | 'pending' | 'blocked';
   emailOtpVerified?: boolean;
 }
 
@@ -162,7 +174,15 @@ export function mapFirestoreUserToProfile(
     giftsSentCount: data.giftsSentCount ?? 0,
     pkWinsCount: data.pkWinsCount ?? 0,
     eventsWonCount: data.eventsWonCount ?? 0,
-    isAdmin: userEmail.toLowerCase() === 'yaquoobe@gmail.com',
+    isAdmin: isAuthorizedAdminEmail(userEmail),
+    accountStatus: data.accountStatus || 'active',
+    isBlocked: Boolean(data.isBlocked || data.accountStatus === 'blocked'),
+    blockReason: data.blockReason || '',
+    suspendedUntil: typeof data.suspendedUntil === 'number' ? data.suspendedUntil : 0,
+    suspendReason: data.suspendReason || '',
+    isDeviceBanned: Boolean(data.isDeviceBanned),
+    lastDeviceId: data.lastDeviceId || '',
+    lastDeviceInfo: data.lastDeviceInfo || '',
     fansCount: (data.followersCount || 0).toLocaleString(),
     followersCount: data.followersCount || 0,
     followingCount: data.followingCount || 0,
@@ -227,10 +247,14 @@ export async function syncUserInFirestore(
       const providerIds = Array.from(
         new Set(user.providerData.map((p) => p.providerId).filter(Boolean))
       );
+      const deviceId = getOrCreateDeviceId();
+      const deviceInfo = getDeviceSummaryLabel();
       const updatePayload: Partial<FirestoreUserData> = {
         lastLogin: now,
         lastActiveAt: now,
         isOnline: true,
+        lastDeviceId: deviceId,
+        lastDeviceInfo: deviceInfo,
         ...(providerIds.length > 0 ? { providerIds } : {}),
       };
 
@@ -289,6 +313,8 @@ export async function syncUserInFirestore(
         diamonds: 0,
         vipLevel: 0,
         accountStatus: 'active',
+        lastDeviceId: getOrCreateDeviceId(),
+        lastDeviceInfo: getDeviceSummaryLabel(),
       };
 
       await setDoc(userRef, newUserData);

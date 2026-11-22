@@ -1,8 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { Cn as require_react, Et as Gift, H as RefreshCw, Ht as Crown, Jt as Clock, O as SlidersVertical, Pt as Eye, W as Radio, c as Video, en as ChevronRight, f as UserPlus, h as Trophy, kt as Flame, p as UserCheck, r as X, rt as Mic, xn as ArrowLeft, zt as Earth } from "./vendor-icons-8ivBScnZ.js";
-import { r as auth } from "./firebase-zc-_OxQs.js";
-import { W as liveAndRoomService, b as LevelBadge, d as VerifiedTick, f as resolveVerificationStatus, it as profileService } from "./index-BNHhc6LD.js";
-import { i as require_jsx_runtime } from "./vendor-motion-DFP_D_jg.js";
+import { Et as Gift, H as RefreshCw, Ht as Crown, Jt as Clock, O as SlidersVertical, Pt as Eye, Sn as ArrowLeft, W as Radio, c as Video, f as UserPlus, h as Trophy, kt as Flame, p as UserCheck, r as X, rt as Mic, tn as ChevronRight, wn as require_react, zt as Earth } from "./vendor-icons-CKZC98wp.js";
+import { $ as liveAndRoomService, _t as isVerifiedAdminSession, d as VerifiedTick, f as resolveVerificationStatus, pt as profileService, y as LevelBadge } from "./index-C_n6rme9.js";
+import { i as require_jsx_runtime } from "./vendor-motion-BGGq0eX2.js";
 // src/components/screens/RankingsScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
@@ -129,7 +128,7 @@ var RankingsScreen = ({ currentUser, onNavigate, onSelectUser }) => {
 	const [savingWeights, setSavingWeights] = (0, import_react.useState)(false);
 	const [statusMessage, setStatusMessage] = (0, import_react.useState)(null);
 	const refreshTimerRef = (0, import_react.useRef)(null);
-	const isAdmin = auth.currentUser?.email?.toLowerCase() === "yaquoobe@gmail.com" && auth.currentUser?.emailVerified === true;
+	const isAdmin = isVerifiedAdminSession();
 	const loadRankings = (0, import_react.useCallback)(async (silent = false) => {
 		if (!silent) setIsLoading(true);
 		try {

@@ -1,5 +1,5 @@
 import { a as __toESM, i as __toCommonJS, n as __esmMin, r as __exportAll, t as __commonJSMin } from "./rolldown-runtime-DQp2zzRu.js";
-import { Cn as require_react } from "./vendor-icons-8ivBScnZ.js";
+import { wn as require_react } from "./vendor-icons-CKZC98wp.js";
 // node_modules/react/cjs/react-jsx-runtime.production.js
 /**
 * @license React

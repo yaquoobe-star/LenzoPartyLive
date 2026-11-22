@@ -17,6 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { isVerifiedAdminSession } from '../utils/adminAuth';
 import {
   UserWalletData,
   UserEarningsData,
@@ -140,12 +141,7 @@ const LEGACY_PLACEHOLDER_AGENCY_IDS = new Set([
   'agency_gulf_international',
 ]);
 
-function isVerifiedAdminSession(): boolean {
-  return (
-    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
-    auth.currentUser?.emailVerified === true
-  );
-}
+// Admin session check imported from ../utils/adminAuth
 
 /**
  * 1. SETTINGS & CONFIGURATION SERVICE

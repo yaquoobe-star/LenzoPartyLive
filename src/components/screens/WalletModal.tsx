@@ -72,6 +72,7 @@ import {
   DEFAULT_PAYOUT_METHODS
 } from '../../services/walletService';
 import { auth } from '../../firebase';
+import { isVerifiedAdminSession } from '../../utils/adminAuth';
 import { subscribeActiveAgencies, DualAgencyRecord } from '../../services/agencyService';
 
 function sanitizePhoneDigits(raw: string): string {
@@ -211,9 +212,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     setTimeout(() => setErrorMessage(null), 4000);
   };
 
-  const isAdminUser =
-    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
-    auth.currentUser?.emailVerified === true;
+  const isAdminUser = isVerifiedAdminSession();
 
   // Subscriptions to Real-Time Firestore Services
   useEffect(() => {

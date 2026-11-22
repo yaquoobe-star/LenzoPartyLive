@@ -1,6 +1,7 @@
 import React, { useId, useState } from 'react';
 import { X, CheckCircle2, Sparkles, Crown, ShieldCheck } from 'lucide-react';
 import { UserProfile, VerificationTier } from '../../types';
+import { isAuthorizedAdminEmail } from '../../utils/adminAuth';
 
 export interface ResolvedVerification {
   tier: VerificationTier;
@@ -24,9 +25,7 @@ export function resolveVerificationStatus(params: {
   const vipLevel = params.vipLevel ?? user?.vipLevel ?? 0;
   const superVipLevel = params.superVipLevel ?? user?.superVipLevel ?? 0;
   const followers = user?.followersCount ?? 0;
-  const isAdminAccount =
-    Boolean(user?.isAdmin) ||
-    (user?.email ? user.email.toLowerCase() === 'yaquoobe@gmail.com' : false);
+  const isAdminAccount = isAuthorizedAdminEmail(user?.email);
   const customTag = user?.verifiedTag?.trim();
 
   let tier: VerificationTier = 'none';

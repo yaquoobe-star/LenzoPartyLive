@@ -17,13 +17,15 @@ import {
 import {
   AgencyApplicationRecord,
   DualAgencyRecord,
-  adminAdjustAgencyCoinBalance,
   adminReviewAgencyApplication,
   adminSetAgencyStatus,
   buildWhatsAppUrl,
   subscribeAllAgenciesForAdmin,
   subscribeAllAgencyApplications,
 } from '../../services/agencyService';
+import { adminSendSystemCoinsToAgency } from '../../services/adminService';
+
+const AGENCY_COIN_PRESETS = [50_000, 100_000, 500_000, 1_000_000, 5_000_000];
 
 interface AdminAgenciesTabProps {
   onNotify: (msg: string) => void;
@@ -33,7 +35,7 @@ interface AdminAgenciesTabProps {
 export const AdminAgenciesTab: React.FC<AdminAgenciesTabProps> = ({ onNotify, onError }) => {
   const [applications, setApplications] = useState<AgencyApplicationRecord[]>([]);
   const [agencies, setAgencies] = useState<DualAgencyRecord[]>([]);
-  const [subTab, setSubTab] = useState<'applications' | 'active'>('applications');
+  const [subTab, setSubTab] = useState<'applications' | 'active'>('active');
   const [typeFilter, setTypeFilter] = useState<'all' | 'coin_seller' | 'host_agency'>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -102,11 +104,16 @@ export const AdminAgenciesTab: React.FC<AdminAgenciesTabProps> = ({ onNotify, on
       return;
     }
     setBusyId(agency.id);
-    const res = await adminAdjustAgencyCoinBalance(agency.id, sign * Math.floor(raw));
+    const res = await adminSendSystemCoinsToAgency({
+      agencyId: agency.id,
+      amount: Math.floor(raw),
+      direction: sign,
+      note: sign > 0 ? 'System-Generated Coins Sent by Admin' : 'Admin Agency Coin Deduction',
+    });
     setBusyId(null);
     if (res.success) {
       onNotify(
-        `${agency.name} balance updated to ${(res.newBalance ?? 0).toLocaleString()} coins.`
+        `${sign > 0 ? 'Sent' : 'Deducted'} ${Math.floor(raw).toLocaleString()} system coins (${agency.name}). New balance: ${(res.newBalance ?? 0).toLocaleString()} coins.`
       );
       setAdjustAmountMap((prev) => ({ ...prev, [agency.id]: '' }));
     } else {
@@ -444,73 +451,83 @@ export const AdminAgenciesTab: React.FC<AdminAgenciesTabProps> = ({ onNotify, on
                     </div>
                   </div>
 
-                  {/* Metrics & Coin Balance Top-Up for Coin Seller Agencies */}
-                  {isCoinSeller ? (
-                    <div className="p-3 rounded-xl bg-black/35 border border-amber-400/20 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-                        <div className="flex items-center gap-2">
-                          <Coins className="w-4 h-4 text-[#FFC84A]" />
-                          <span className="text-[#C5B9DE]">Agency Coin Balance:</span>
-                          <span className="font-mono font-black text-base text-[#FFC84A] tabular-nums">
-                            {(agency.coinBalance || 0).toLocaleString()}
-                          </span>
-                        </div>
+                  {/* System-Generated Coins Top-Up & Agency Metrics */}
+                  <div className="p-3 rounded-xl bg-black/35 border border-amber-400/20 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-[#FFC84A]" />
+                        <span className="text-[#C5B9DE]">Agency Coin Balance:</span>
+                        <span className="font-mono font-black text-base text-[#FFC84A] tabular-nums">
+                          {(agency.coinBalance || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      {isCoinSeller ? (
                         <span className="text-[11px] text-[#A59AB8] font-mono tabular-nums">
                           Sent: {(agency.totalTransferredCoins || 0).toLocaleString()} · PIN:{' '}
                           <strong className={agency.hasPin ? 'text-emerald-300' : 'text-amber-300'}>
                             {agency.hasPin ? 'Set' : 'Not Set'}
                           </strong>
                         </span>
-                      </div>
+                      ) : (
+                        <span className="text-[11px] text-fuchsia-300 font-semibold flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" />
+                          Hosts: {agency.totalHosts || 0} · {agency.isOnline ? 'Accepting' : 'Away'}
+                        </span>
+                      )}
+                    </div>
 
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={adjustAmountMap[agency.id] ?? ''}
-                          onChange={(e) =>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {AGENCY_COIN_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() =>
                             setAdjustAmountMap((prev) => ({
                               ...prev,
-                              [agency.id]: e.target.value,
+                              [agency.id]: String(preset),
                             }))
                           }
-                          placeholder="Coins amount (e.g. 50000)"
-                          className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white font-mono"
-                        />
-                        <button
-                          type="button"
-                          disabled={busyId === agency.id}
-                          onClick={() => void handleAdjustBalance(agency, 1)}
-                          className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1 shrink-0 disabled:opacity-50"
+                          className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-[10px] font-mono font-bold text-[#FFC84A]"
                         >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add Coins</span>
+                          +{preset >= 1_000_000 ? `${preset / 1_000_000}M` : `${preset / 1_000}K`}
                         </button>
-                        <button
-                          type="button"
-                          disabled={busyId === agency.id}
-                          onClick={() => void handleAdjustBalance(agency, -1)}
-                          className="px-3 py-2 rounded-xl bg-rose-600/30 hover:bg-rose-600/45 border border-rose-400/35 text-rose-200 text-xs font-black flex items-center gap-1 shrink-0 disabled:opacity-50"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                          <span>Deduct</span>
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-black/35 border border-fuchsia-400/20 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-fuchsia-300" />
-                        <span className="text-[#C5B9DE]">Total Active Hosts:</span>
-                        <span className="font-mono font-black text-white tabular-nums">
-                          {agency.totalHosts || 0}
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-[#A59AB8]">
-                        {agency.isOnline ? 'Accepting Host Requests' : 'Away'}
-                      </span>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={adjustAmountMap[agency.id] ?? ''}
+                        onChange={(e) =>
+                          setAdjustAmountMap((prev) => ({
+                            ...prev,
+                            [agency.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="System-generated coins (e.g. 500000)"
+                        className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white font-mono"
+                      />
+                      <button
+                        type="button"
+                        disabled={busyId === agency.id}
+                        onClick={() => void handleAdjustBalance(agency, 1)}
+                        className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1 shrink-0 disabled:opacity-50"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Send Coins</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === agency.id}
+                        onClick={() => void handleAdjustBalance(agency, -1)}
+                        className="px-3 py-2 rounded-xl bg-rose-600/30 hover:bg-rose-600/45 border border-rose-400/35 text-rose-200 text-xs font-black flex items-center gap-1 shrink-0 disabled:opacity-50"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                        <span>Deduct</span>
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })

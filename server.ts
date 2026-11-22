@@ -328,10 +328,16 @@ function formatCompactCount(num: number): string {
   return String(Math.floor(num));
 }
 
+const AUTHORIZED_ADMIN_EMAILS = new Set([
+  'saifkhokhar657@gmail.com',
+  'lenzopartyofficial@gmail.com',
+]);
+
 function isVerifiedAdmin(req: AuthenticatedRequest): boolean {
+  const email = req.firebaseUser?.email?.trim().toLowerCase() || '';
   return Boolean(
     req.firebaseUser &&
-    req.firebaseUser.email === 'yaquoobe@gmail.com' &&
+    AUTHORIZED_ADMIN_EMAILS.has(email) &&
     req.firebaseUser.emailVerified
   );
 }
@@ -3919,7 +3925,7 @@ app.delete('/api/reels/media/:reelId', async (req: AuthenticatedRequest, res: Re
   try {
     const rawMeta = await fs.promises.readFile(metaPath, 'utf8');
     const meta = JSON.parse(rawMeta);
-    const isAdminUser = req.firebaseUser.email?.toLowerCase() === 'yaquoobe@gmail.com' && req.firebaseUser.emailVerified;
+    const isAdminUser = isVerifiedAdmin(req);
     if (meta?.ownerId && meta.ownerId !== req.firebaseUser.uid && !isAdminUser) {
       return res.status(403).json({ error: 'Only the creator can delete this reel media.' });
     }
@@ -6687,7 +6693,7 @@ app.post('/api/admin/store/products', requireAdminMiddleware, (req: Authenticate
 
   appendAuditLog({
     actorId: req.firebaseUser?.uid || 'admin',
-    actorEmail: req.firebaseUser?.email || 'yaquoobe@gmail.com',
+    actorEmail: req.firebaseUser?.email || 'lenzopartyofficial@gmail.com',
     action: 'admin_store_product_saved',
     summary: `Admin saved Store product "${name}" (${categoryId}) — ${priceCoins.toLocaleString()} coins`,
     details: { id, categoryId, priceCoins, enabled: item.enabled, isFeatured: item.isFeatured },
@@ -6707,7 +6713,7 @@ app.delete('/api/admin/store/products/:id', requireAdminMiddleware, (req: Authen
 
   appendAuditLog({
     actorId: req.firebaseUser?.uid || 'admin',
-    actorEmail: req.firebaseUser?.email || 'yaquoobe@gmail.com',
+    actorEmail: req.firebaseUser?.email || 'lenzopartyofficial@gmail.com',
     action: 'admin_store_product_deleted',
     summary: `Admin deleted Store product "${removed.name}" (${id})`,
     details: { id, categoryId: removed.categoryId },

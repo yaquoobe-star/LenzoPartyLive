@@ -43,6 +43,7 @@ import { AvatarWithFrame, SuperVipTierBadge, VipTierBadge } from '../common/Avat
 import { LevelBadge } from '../common/LevelBadge';
 import { LevelEmblemBadge } from '../common/LevelEmblemBadge';
 import { VerifiedNameTag } from '../common/VerifiedBadge';
+import { isAuthorizedAdminEmail } from '../../utils/adminAuth';
 import { AchievementBadgeEmblem } from '../common/AchievementBadgeArt';
 import { getUserLevelProgress } from '../../utils/levelSystem';
 import {
@@ -1632,8 +1633,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </div>
             </div>
 
-            {/* Admin-Only Progression Console Card (Strictly Visible Only to Authorized Admin) */}
-            {isOwner && currentUser.isAdmin && onOpenAdminPanel && (
+            {/* Admin-Only Administration Console Card (Strictly Visible Only to Authorized Admins) */}
+            {isOwner && isAuthorizedAdminEmail(currentUser.email) && onOpenAdminPanel && (
               <button
                 type="button"
                 onClick={onOpenAdminPanel}
@@ -1644,9 +1645,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-white">Admin Progression Panel</p>
+                    <p className="text-xs font-black text-white">Lenzo Administration Panel</p>
                     <p className="text-[10px] text-[#C5B9DE] truncate">
-                      Manage 100 levels, 12 VIP, 6 Super VIP, achievements &amp; audit logs
+                      Live users, direct coins, agencies, block/suspend, device ban, level &amp; VIP
                     </p>
                   </div>
                 </div>

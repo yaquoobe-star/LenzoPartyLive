@@ -111,6 +111,14 @@ export interface UserProfile {
   pkWinsCount?: number;
   eventsWonCount?: number;
   isAdmin?: boolean;
+  accountStatus?: 'active' | 'suspended' | 'pending' | 'blocked';
+  isBlocked?: boolean;
+  blockReason?: string;
+  suspendedUntil?: number;
+  suspendReason?: string;
+  isDeviceBanned?: boolean;
+  lastDeviceId?: string;
+  lastDeviceInfo?: string;
   createdAt?: string;
 }
 

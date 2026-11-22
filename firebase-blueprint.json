@@ -129,7 +129,39 @@
         "accountStatus": {
           "type": "string",
           "description": "Status of the user account",
-          "enum": ["active", "suspended", "pending"]
+          "enum": ["active", "suspended", "pending", "blocked"]
+        },
+        "isBlocked": {
+          "type": "boolean",
+          "description": "Whether the account is permanently blocked by Administration"
+        },
+        "blockReason": {
+          "type": "string",
+          "description": "Admin reason for blocking the user",
+          "maxLength": 300
+        },
+        "suspendedUntil": {
+          "type": "number",
+          "description": "Epoch ms when temporary suspension expires (0 = permanent until unsuspended)"
+        },
+        "suspendReason": {
+          "type": "string",
+          "description": "Admin reason for suspending the user",
+          "maxLength": 300
+        },
+        "isDeviceBanned": {
+          "type": "boolean",
+          "description": "Whether the user's device is banned by Administration"
+        },
+        "lastDeviceId": {
+          "type": "string",
+          "description": "Last seen persistent device identifier for device-ban enforcement",
+          "maxLength": 128
+        },
+        "lastDeviceInfo": {
+          "type": "string",
+          "description": "Short platform/device summary label",
+          "maxLength": 200
         }
       },
       "required": ["uid", "fullName", "email", "authProvider", "accountStatus"]
@@ -974,6 +1006,22 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["agencyId", "agencyName", "agencyOwnerUid", "buyerUid", "buyerName", "coinsRequested", "paymentMethod", "status"]
+    },
+    "BannedDevice": {
+      "title": "BannedDevice",
+      "description": "Device permanently banned by Lenzo Party Administration",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string", "maxLength": 128 },
+        "targetUid": { "type": "string", "maxLength": 128 },
+        "targetUserName": { "type": "string", "maxLength": 80 },
+        "targetUserEmail": { "type": "string", "maxLength": 120 },
+        "reason": { "type": "string", "maxLength": 300 },
+        "bannedBy": { "type": "string", "maxLength": 120 },
+        "bannedAt": { "type": "string", "maxLength": 64 },
+        "active": { "type": "boolean" }
+      },
+      "required": ["deviceId", "reason", "bannedBy", "bannedAt", "active"]
     }
   },
   "firestore": {
@@ -1172,6 +1220,10 @@
     "/agency_coin_orders/{orderId}": {
       "schema": "AgencyCoinOrder",
       "description": "Buyer coin purchase orders with payment slip proof sent to active Coin Seller Agencies for PIN-confirmed coin delivery"
+    },
+    "/banned_devices/{deviceId}": {
+      "schema": "BannedDevice",
+      "description": "Admin-managed registry of banned device identifiers enforced in real time across the app"
     }
   }
 }

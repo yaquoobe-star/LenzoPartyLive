@@ -28,6 +28,7 @@ import {
   ScreenType,
 } from '../../types';
 import { auth } from '../../firebase';
+import { isVerifiedAdminSession } from '../../utils/adminAuth';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import { profileService } from '../../utils/profileService';
 import { LevelBadge } from '../common/LevelBadge';
@@ -132,9 +133,7 @@ export const RankingsScreen: React.FC<RankingsScreenProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isAdmin =
-    auth.currentUser?.email?.toLowerCase() === 'yaquoobe@gmail.com' &&
-    auth.currentUser?.emailVerified === true;
+  const isAdmin = isVerifiedAdminSession();
 
   const loadRankings = useCallback(
     async (silent = false) => {
