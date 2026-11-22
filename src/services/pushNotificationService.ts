@@ -984,9 +984,8 @@ export function subscribeGlobalPushAnnouncements(
   const seen = new Set<string>();
   const q = query(
     collection(db, 'push_announcements'),
-    where('active', '==', true),
     orderBy('createdAtMillis', 'desc'),
-    limit(10)
+    limit(20)
   );
 
   return onSnapshot(
@@ -994,6 +993,7 @@ export function subscribeGlobalPushAnnouncements(
     (snap) => {
       snap.docs.forEach((d) => {
         const data = d.data() as Record<string, any>;
+        if (data.active === false) return;
         if (!seen.has(d.id)) {
           seen.add(d.id);
           if (hydrated) {

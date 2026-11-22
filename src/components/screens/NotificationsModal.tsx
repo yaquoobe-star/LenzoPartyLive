@@ -69,11 +69,13 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
   const notifications = externalNotifications ?? internalNotifications;
 
+  const hasExternalNotifications = externalNotifications !== undefined;
+
   useEffect(() => {
     if (!isOpen) return;
     void getPushPermissionState().then(setPermissionState);
 
-    if (externalNotifications) return;
+    if (hasExternalNotifications) return;
     const uid = auth.currentUser?.uid;
     if (!uid) {
       setInternalNotifications([]);
@@ -84,7 +86,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
       setInternalNotifications(items);
     });
     return () => unsubscribe();
-  }, [isOpen, externalNotifications]);
+  }, [isOpen, hasExternalNotifications]);
 
   if (!isOpen) return null;
 

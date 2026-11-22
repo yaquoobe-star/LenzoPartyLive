@@ -1894,7 +1894,7 @@ function isVersionServiceProvider(provider) {
 	return provider.getComponent()?.type === "VERSION";
 }
 var name$r = "@firebase/app";
-var version$1$1 = "0.16.5";
+var version$1$1 = "0.16.7";
 /**
 * @license
 * Copyright 2019 Google LLC
@@ -1939,7 +1939,7 @@ var name$3$1 = "@firebase/firestore";
 var name$2$1 = "@firebase/ai";
 var name$1$1 = "@firebase/firestore-compat";
 var name$10 = "firebase";
-var version$5 = "13.2.0";
+var version$5 = "13.4.0";
 /**
 * @license
 * Copyright 2019 Google LLC
@@ -2600,6 +2600,102 @@ function registerCoreComponents(variant) {
 	registerVersion("fire-js", "");
 }
 /**
+* @license
+* Copyright 2026 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+/**
+* Name of the Trusted Types policy that Firebase SDKs use to load external
+* scripts. Apps that restrict policy names with the `trusted-types` CSP
+* directive must allow this name.
+*
+* @internal
+*/
+var _TRUSTED_TYPES_POLICY_NAME = "firebase-js-sdk-policy";
+/**
+* External scripts that Firebase SDKs are allowed to load. A script URL is
+* allowed if it is one of these URLs, optionally followed by a query string.
+*
+* - Analytics: Google tag (gtag.js)
+* - Auth: Google API loader (gapi), reCAPTCHA v2 and reCAPTCHA Enterprise
+* - App Check: reCAPTCHA v3 and reCAPTCHA Enterprise
+*/
+var ALLOWED_SCRIPT_URLS = [
+	"https://www.googletagmanager.com/gtag/js",
+	"https://apis.google.com/js/api.js",
+	"https://www.google.com/recaptcha/api.js",
+	"https://www.google.com/recaptcha/enterprise.js"
+];
+var trustedTypesPolicy;
+var trustedTypesPolicyBlocked = false;
+/**
+* Returns `url` if it is one of the allowed external scripts, and throws
+* otherwise. Used as the `createScriptURL` implementation of the Trusted Types
+* policy.
+*
+* @internal
+*/
+function _createTrustedScriptURL(url) {
+	if (!ALLOWED_SCRIPT_URLS.some((allowedUrl) => url.startsWith(allowedUrl) && (url.length === allowedUrl.length || url.charAt(allowedUrl.length) === "?"))) throw new TypeError(`Firebase: Refusing to load untrusted script URL: ${url}`);
+	return url;
+}
+/**
+* Lazily creates the Trusted Types policy. The policy is only created the first
+* time a script is loaded, so that pages that load more than one copy of
+* `@firebase/app` (for example the compat and modular CDN builds) only run
+* into a policy name collision if more than one copy loads a script.
+*/
+function getTrustedTypesPolicy() {
+	if (trustedTypesPolicy === void 0) {
+		trustedTypesPolicy = null;
+		const trustedTypes = typeof window !== "undefined" ? window.trustedTypes : void 0;
+		if (trustedTypes?.createPolicy) try {
+			trustedTypesPolicy = trustedTypes.createPolicy(_TRUSTED_TYPES_POLICY_NAME, { createScriptURL: _createTrustedScriptURL });
+		} catch {
+			trustedTypesPolicyBlocked = true;
+		}
+	}
+	return trustedTypesPolicy;
+}
+/**
+* Sets the `src` of a script element through the Firebase Trusted Types policy
+* when Trusted Types are supported, so that Firebase SDKs can load external
+* scripts on pages that enforce Trusted Types.
+*
+* Throws if `url` is not an allowed Firebase script URL, or if the browser
+* rejects the assignment.
+*
+* @param script - The script element to update.
+* @param url - The script URL. Must be an allowed Firebase script URL.
+*
+* @internal
+*/
+function _setTrustedScriptSrc(script, url) {
+	_createTrustedScriptURL(url);
+	const policy = getTrustedTypesPolicy();
+	if (policy) {
+		script.src = policy.createScriptURL(url);
+		return;
+	}
+	try {
+		script.src = url;
+	} catch (e) {
+		if (trustedTypesPolicyBlocked) logger$2.error(`Unable to load ${url} because this page requires Trusted Types for scripts but does not allow the "${_TRUSTED_TYPES_POLICY_NAME}" Trusted Types policy. To fix this, add "${_TRUSTED_TYPES_POLICY_NAME}" to the trusted-types directive of the page's Content-Security-Policy.`);
+		throw e;
+	}
+}
+/**
 * Firebase App
 *
 * @remarks This package coordinates the communication between the different Firebase components
@@ -2639,8 +2735,8 @@ registerCoreComponents("");
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-registerVersion("firebase", "13.2.0", "app");
-// node_modules/@firebase/auth/dist/esm/index-Bz2J43nW.js
+registerVersion("firebase", "13.4.0", "app");
+// node_modules/@firebase/auth/dist/esm/index-CI-XZ6Oy.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -4037,36 +4133,52 @@ var PersistenceUserManager = class PersistenceUserManager {
 	}
 	static async create(auth, persistenceHierarchy, userKey = "authUser") {
 		if (!persistenceHierarchy.length) return new PersistenceUserManager(_getInstance(inMemoryPersistence), auth, userKey);
+		const key = _persistenceKeyName(userKey, auth.config.apiKey, auth.name);
+		let foundUser = null;
+		let foundPersistence = null;
+		const unreadablePersistences = /* @__PURE__ */ new Set();
+		for (const persistence of persistenceHierarchy) {
+			let blob = null;
+			try {
+				blob = await persistence._get(key);
+			} catch {
+				unreadablePersistences.add(persistence);
+				continue;
+			}
+			try {
+				if (blob) {
+					let user;
+					if (typeof blob === "string") {
+						const response = await getAccountInfo(auth, { idToken: blob }).catch(() => void 0);
+						if (!response) break;
+						user = await UserImpl._fromGetAccountInfoResponse(auth, response, blob);
+					} else user = UserImpl._fromJSON(auth, blob);
+					foundUser = user;
+					foundPersistence = persistence;
+					break;
+				}
+			} catch {}
+		}
 		const availablePersistences = (await Promise.all(persistenceHierarchy.map(async (persistence) => {
 			try {
 				if (await persistence._isAvailable()) return persistence;
+				if (persistence._lastProbeTimedOut) unreadablePersistences.add(persistence);
 			} catch {
 				return;
 			}
 		}))).filter((persistence) => persistence);
 		let selectedPersistence = availablePersistences[0] || _getInstance(inMemoryPersistence);
-		const key = _persistenceKeyName(userKey, auth.config.apiKey, auth.name);
 		let userToMigrate = null;
-		for (const persistence of persistenceHierarchy) try {
-			const blob = await persistence._get(key);
-			if (blob) {
-				let user;
-				if (typeof blob === "string") {
-					const response = await getAccountInfo(auth, { idToken: blob }).catch(() => void 0);
-					if (!response) break;
-					user = await UserImpl._fromGetAccountInfoResponse(auth, response, blob);
-				} else user = UserImpl._fromJSON(auth, blob);
-				if (persistence !== selectedPersistence) userToMigrate = user;
-				selectedPersistence = persistence;
-				break;
-			}
-		} catch {}
+		if (foundPersistence && foundUser) {
+			if (foundPersistence !== selectedPersistence) userToMigrate = foundUser;
+			selectedPersistence = foundPersistence;
+		}
 		const migrationHierarchy = availablePersistences.filter((p) => p._shouldAllowMigration);
 		if (!selectedPersistence._shouldAllowMigration || !migrationHierarchy.length) return new PersistenceUserManager(selectedPersistence, auth, userKey);
 		selectedPersistence = migrationHierarchy[0];
 		if (userToMigrate) await selectedPersistence._set(key, userToMigrate.toJSON());
 		await Promise.all(persistenceHierarchy.map(async (persistence) => {
-			if (persistence !== selectedPersistence) try {
+			if (persistence !== selectedPersistence && !unreadablePersistences.has(persistence)) try {
 				await persistence._remove(key);
 			} catch {}
 		}));
@@ -4422,7 +4534,6 @@ var AuthImpl = class {
 				await this.initializeCurrentUser(popupRedirectResolver);
 			} catch (e) {
 				_logWarn(`Failed to initialize current user: ${e}`);
-				await this.directlySetCurrentUser(null).catch(() => {});
 			}
 			this.lastNotifiedUid = this.currentUser?.uid || null;
 			if (this._deleted) return;
@@ -7835,6 +7946,23 @@ var DB_NAME$1 = "firebaseLocalStorageDb";
 var DB_VERSION$1 = 1;
 var DB_OBJECTSTORE_NAME = "firebaseLocalStorage";
 var DB_DATA_KEYPATH = "fbase_key";
+var _POLLING_INTERVAL_MS = 800;
+var _TRANSACTION_RETRY_COUNT = 3;
+/**
+* Short timeout scoped to the `readwrite` availability probe in `_isAvailable()`.
+* Matches `_POLLING_INTERVAL_MS` so that if a background tab is suspended while
+* holding a `readonly` poll transaction that blocks `readwrite` transactions
+* (#10540), the startup probe fails fast and aborts its queued transaction in
+* under a second without blocking fallback or user loading.
+*/
+var _DB_PROBE_TIMEOUT_MS = 800;
+/**
+* Timeout for opening the database and regular IndexedDB read/write requests.
+* Kept at multiple seconds to accommodate cold `indexedDB.open()` or slow disk
+* I/O on low-end devices without premature timeouts.
+*/
+var _DB_TIMEOUT_MS = 2500;
+var DB_TIMEOUT_ERROR = "DB_TIMEOUT";
 /**
 * Promise wrapper for IDBRequest
 *
@@ -7845,13 +7973,31 @@ var DBPromise = class {
 	constructor(request) {
 		this.request = request;
 	}
-	toPromise() {
+	toPromise(timeoutMs = _DB_TIMEOUT_MS) {
 		return new Promise((resolve, reject) => {
+			let settled = false;
+			const timer = setTimeout(() => {
+				if (!settled) {
+					settled = true;
+					try {
+						this.request.transaction?.abort();
+					} catch {}
+					reject(/* @__PURE__ */ new Error(DB_TIMEOUT_ERROR));
+				}
+			}, timeoutMs);
 			this.request.addEventListener("success", () => {
-				resolve(this.request.result);
+				if (!settled) {
+					settled = true;
+					clearTimeout(timer);
+					resolve(this.request.result);
+				}
 			});
 			this.request.addEventListener("error", () => {
-				reject(this.request.error);
+				if (!settled) {
+					settled = true;
+					clearTimeout(timer);
+					reject(this.request.error);
+				}
 			});
 		});
 	}
@@ -7865,42 +8011,72 @@ function _deleteDatabase() {
 function _openDatabase() {
 	const request = indexedDB.open(DB_NAME$1, DB_VERSION$1);
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		const timer = setTimeout(() => {
+			if (!settled) {
+				settled = true;
+				reject(/* @__PURE__ */ new Error(DB_TIMEOUT_ERROR));
+			}
+		}, _DB_TIMEOUT_MS);
 		request.addEventListener("error", () => {
-			reject(request.error);
+			if (!settled) {
+				settled = true;
+				clearTimeout(timer);
+				reject(request.error);
+			}
 		});
 		request.addEventListener("upgradeneeded", () => {
 			const db = request.result;
 			try {
 				db.createObjectStore(DB_OBJECTSTORE_NAME, { keyPath: DB_DATA_KEYPATH });
 			} catch (e) {
-				reject(e);
+				if (!settled) {
+					settled = true;
+					clearTimeout(timer);
+					reject(e);
+				}
 			}
 		});
 		request.addEventListener("success", async () => {
 			const db = request.result;
+			if (settled) {
+				db.close();
+				return;
+			}
+			clearTimeout(timer);
 			if (!db.objectStoreNames.contains(DB_OBJECTSTORE_NAME)) {
 				db.close();
-				await _deleteDatabase();
-				resolve(await _openDatabase());
-			} else resolve(db);
+				try {
+					await _deleteDatabase();
+					const reopenedDb = await _openDatabase();
+					settled = true;
+					resolve(reopenedDb);
+				} catch (e) {
+					if (!settled) {
+						settled = true;
+						reject(e);
+					}
+				}
+			} else {
+				settled = true;
+				resolve(db);
+			}
 		});
 	});
 }
-async function _putObject(db, key, value) {
+async function _putObject(db, key, value, timeoutMs = _DB_TIMEOUT_MS) {
 	return new DBPromise(getObjectStore(db, true).put({
 		[DB_DATA_KEYPATH]: key,
 		value
-	})).toPromise();
+	})).toPromise(timeoutMs);
 }
 async function getObject(db, key) {
 	const data = await new DBPromise(getObjectStore(db, false).get(key)).toPromise();
 	return data === void 0 ? null : data.value;
 }
-function _deleteObject(db, key) {
-	return new DBPromise(getObjectStore(db, true).delete(key)).toPromise();
+function _deleteObject(db, key, timeoutMs = _DB_TIMEOUT_MS) {
+	return new DBPromise(getObjectStore(db, true).delete(key)).toPromise(timeoutMs);
 }
-var _POLLING_INTERVAL_MS = 800;
-var _TRANSACTION_RETRY_COUNT = 3;
 var IndexedDBLocalPersistence = class {
 	registerLifecycleListeners() {
 		if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
@@ -7923,6 +8099,7 @@ var IndexedDBLocalPersistence = class {
 		this.pollTimer = null;
 		this.isClosing = false;
 		this.pendingWrites = 0;
+		this._lastProbeTimedOut = false;
 		this.receiver = null;
 		this.sender = null;
 		this.serviceWorkerReceiverAvailable = false;
@@ -7945,24 +8122,35 @@ var IndexedDBLocalPersistence = class {
 	}
 	async _openDb() {
 		if (this.dbPromise) return this.dbPromise;
-		this.dbPromise = _openDatabase();
-		this.dbPromise.catch(() => {
-			this.dbPromise = null;
+		const dbPromise = _openDatabase();
+		this.dbPromise = dbPromise;
+		dbPromise.catch(() => {
+			if (this.dbPromise === dbPromise) this.dbPromise = null;
 		});
-		return this.dbPromise;
+		return dbPromise;
 	}
 	async _withRetries(op) {
 		let numAttempts = 0;
-		while (true) try {
-			return await op(await this._openDb());
-		} catch (e) {
-			if (numAttempts++ > _TRANSACTION_RETRY_COUNT) throw e;
-			if (this.dbPromise) {
-				const dbPromise = this.dbPromise;
-				this.dbPromise = null;
-				try {
-					(await dbPromise).close();
-				} catch {}
+		while (true) {
+			let db;
+			let dbPromiseBeforeOp = null;
+			try {
+				const openPromise = this._openDb();
+				dbPromiseBeforeOp = this.dbPromise;
+				db = await openPromise;
+				return await op(db);
+			} catch (e) {
+				if (db) {
+					db.close();
+					if (dbPromiseBeforeOp && this.dbPromise === dbPromiseBeforeOp) this.dbPromise = null;
+				} else if (this.dbPromise && this.dbPromise === dbPromiseBeforeOp) {
+					const currentDbPromise = this.dbPromise;
+					this.dbPromise = null;
+					try {
+						(await currentDbPromise).close();
+					} catch {}
+				}
+				if (e instanceof Error && e.message === DB_TIMEOUT_ERROR || numAttempts++ > _TRANSACTION_RETRY_COUNT) throw e;
 			}
 		}
 	}
@@ -8016,14 +8204,17 @@ var IndexedDBLocalPersistence = class {
 		} catch {}
 	}
 	async _isAvailable() {
+		this._lastProbeTimedOut = false;
 		try {
 			if (!indexedDB) return false;
 			await this._withRetries(async (db) => {
-				await _putObject(db, STORAGE_AVAILABLE_KEY, "1");
-				await _deleteObject(db, STORAGE_AVAILABLE_KEY);
+				await _putObject(db, STORAGE_AVAILABLE_KEY, "1", _DB_PROBE_TIMEOUT_MS);
+				await _deleteObject(db, STORAGE_AVAILABLE_KEY, _DB_PROBE_TIMEOUT_MS);
 			});
 			return true;
-		} catch {}
+		} catch (e) {
+			this._lastProbeTimedOut = e instanceof Error && e.message === DB_TIMEOUT_ERROR;
+		}
 		return false;
 	}
 	async _withPendingWrite(write) {
@@ -8042,9 +8233,14 @@ var IndexedDBLocalPersistence = class {
 		});
 	}
 	async _get(key) {
-		const obj = await this._withRetries((db) => getObject(db, key));
-		this.localCache[key] = obj;
-		return obj;
+		try {
+			const obj = await this._withRetries((db) => getObject(db, key));
+			this.localCache[key] = obj;
+			return obj;
+		} catch (e) {
+			if (e instanceof Error && e.message === DB_TIMEOUT_ERROR && this.localCache[key] != null) return this.localCache[key];
+			throw e;
+		}
 	}
 	async _remove(key) {
 		return this._withPendingWrite(async () => {
@@ -8103,7 +8299,7 @@ var IndexedDBLocalPersistence = class {
 		}
 		if (!this.listeners[key]) {
 			this.listeners[key] = /* @__PURE__ */ new Set();
-			this._get(key).catch(() => {});
+			if (!(key in this.localCache)) this._get(key).catch(() => {});
 		}
 		this.listeners[key].add(listener);
 	}
@@ -9747,7 +9943,7 @@ function _isEmptyString(input) {
 	return typeof input === "undefined" || input?.length === 0;
 }
 var name$4 = "@firebase/auth";
-var version$4 = "1.13.9";
+var version$4 = "1.13.11";
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -9860,6 +10056,52 @@ function registerAuth(clientPlatform) {
 }
 /**
 * @license
+* Copyright 2026 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+function getScriptParentElement() {
+	return document.getElementsByTagName("head")?.[0] ?? document;
+}
+/**
+* Loads an external script by inserting a script tag into the page. The script
+* URL is set through the Firebase Trusted Types policy when Trusted Types are
+* supported, so that this works on pages that enforce Trusted Types.
+*
+* @internal
+*/
+function _loadJSInBrowser(url) {
+	return new Promise((resolve, reject) => {
+		const el = document.createElement("script");
+		try {
+			_setTrustedScriptSrc(el, url);
+		} catch (e) {
+			reject(e);
+			return;
+		}
+		el.onload = resolve;
+		el.onerror = (e) => {
+			const error = _createError("internal-error");
+			error.customData = e;
+			reject(error);
+		};
+		el.type = "text/javascript";
+		el.charset = "UTF-8";
+		getScriptParentElement().appendChild(el);
+	});
+}
+/**
+* @license
 * Copyright 2021 Google LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -9920,25 +10162,8 @@ function getAuth(app = getApp()) {
 	if (authEmulatorHost) connectAuthEmulator(auth, `http://${authEmulatorHost}`);
 	return auth;
 }
-function getScriptParentElement() {
-	return document.getElementsByTagName("head")?.[0] ?? document;
-}
 _setExternalJSProvider({
-	loadJS(url) {
-		return new Promise((resolve, reject) => {
-			const el = document.createElement("script");
-			el.setAttribute("src", url);
-			el.onload = resolve;
-			el.onerror = (e) => {
-				const error = _createError("internal-error");
-				error.customData = e;
-				reject(error);
-			};
-			el.type = "text/javascript";
-			el.charset = "UTF-8";
-			getScriptParentElement().appendChild(el);
-		});
-	},
+	loadJS: _loadJSInBrowser,
 	gapiScript: "https://apis.google.com/js/api.js",
 	recaptchaV2Script: "https://www.google.com/recaptcha/api.js",
 	recaptchaEnterpriseScript: "https://www.google.com/recaptcha/enterprise.js?render="
@@ -19123,7 +19348,7 @@ var RE2JS = (_RE2JS = class RE2JS {
 		return this.flagsInput === other.flagsInput && this.patternInput === other.patternInput;
 	}
 }, _defineProperty(_RE2JS, "CASE_INSENSITIVE", PublicFlags.CASE_INSENSITIVE), _defineProperty(_RE2JS, "DOTALL", PublicFlags.DOTALL), _defineProperty(_RE2JS, "MULTILINE", PublicFlags.MULTILINE), _defineProperty(_RE2JS, "DISABLE_UNICODE_GROUPS", PublicFlags.DISABLE_UNICODE_GROUPS), _defineProperty(_RE2JS, "LONGEST_MATCH", PublicFlags.LONGEST_MATCH), _defineProperty(_RE2JS, "LOOKBEHINDS", PublicFlags.LOOKBEHINDS), _RE2JS);
-// node_modules/@firebase/firestore/dist/common-aOCKfaeU.esm.js
+// node_modules/@firebase/firestore/dist/common-C7fSmnBW.esm.js
 /**
 * @license
 * Copyright 2023 Google LLC
@@ -19157,7 +19382,7 @@ var RE2JS = (_RE2JS = class RE2JS {
 * limitations under the License.
 */
 /** The semver (www.semver.org) version of the SDK. */
-var xe = "13.2.0";
+var xe = "13.3.0";
 function __PRIVATE_setSDKVersion(e) {
 	xe = e;
 }
@@ -19744,7 +19969,7 @@ var SortedSetIterator = class {
 * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 * See the License for the specific language governing permissions and
 * limitations under the License.
-*/ var z = {
+*/ var K = {
 	/** Not an error; returned on success. */
 	OK: "ok",
 	/** The operation was cancelled (typically by the caller). */
@@ -19854,7 +20079,7 @@ var SortedSetIterator = class {
 	/** Unrecoverable data loss or corruption. */
 	DATA_LOSS: "data-loss"
 };
-/** An error returned by a Firestore operation. */ var Q = class extends FirebaseError {
+/** An error returned by a Firestore operation. */ var J = class extends FirebaseError {
 	/** @hideconstructor */
 	constructor(e, t) {
 		super(e, t), this.code = e, this.message = t, this.toString = () => `${this.name}: [code=${this.code}]: ${this.message}`;
@@ -19993,7 +20218,7 @@ var BasePath = class BasePath {
 	*/ static fromString(...e) {
 		const t = [];
 		for (const n of e) {
-			if (n.indexOf("//") >= 0) throw new Q(z.INVALID_ARGUMENT, `Invalid segment (${n}). Paths must not contain // in them.`);
+			if (n.indexOf("//") >= 0) throw new J(K.INVALID_ARGUMENT, `Invalid segment (${n}). Paths must not contain // in them.`);
 			t.push(...n.split("/").filter(((e) => e.length > 0)));
 		}
 		return new ResourcePath(t);
@@ -20045,20 +20270,20 @@ var Oe = /^[_a-zA-Z][_a-zA-Z0-9]*$/;
 		const t = [];
 		let n = "", r = 0;
 		const __PRIVATE_addCurrentSegment = () => {
-			if (0 === n.length) throw new Q(z.INVALID_ARGUMENT, `Invalid field path (${e}). Paths must not be empty, begin with '.', end with '.', or contain '..'`);
+			if (0 === n.length) throw new J(K.INVALID_ARGUMENT, `Invalid field path (${e}). Paths must not be empty, begin with '.', end with '.', or contain '..'`);
 			t.push(n), n = "";
 		};
 		let i = false;
 		for (; r < e.length;) {
 			const t = e[r];
 			if ("\\" === t) {
-				if (r + 1 === e.length) throw new Q(z.INVALID_ARGUMENT, "Path has trailing escape character: " + e);
+				if (r + 1 === e.length) throw new J(K.INVALID_ARGUMENT, "Path has trailing escape character: " + e);
 				const t = e[r + 1];
-				if ("\\" !== t && "." !== t && "`" !== t) throw new Q(z.INVALID_ARGUMENT, "Path has invalid escape sequence: " + e);
+				if ("\\" !== t && "." !== t && "`" !== t) throw new J(K.INVALID_ARGUMENT, "Path has invalid escape sequence: " + e);
 				n += t, r += 2;
 			} else "`" === t ? (i = !i, r++) : "." !== t || i ? (n += t, r++) : (__PRIVATE_addCurrentSegment(), r++);
 		}
-		if (__PRIVATE_addCurrentSegment(), i) throw new Q(z.INVALID_ARGUMENT, "Unterminated ` in path: " + e);
+		if (__PRIVATE_addCurrentSegment(), i) throw new J(K.INVALID_ARGUMENT, "Unterminated ` in path: " + e);
 		return new FieldPath(t);
 	}
 	static emptyPath() {
@@ -20231,30 +20456,30 @@ function isEmpty(e) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */ function __PRIVATE_validateNonEmptyArgument(e, t, n) {
-	if (!n) throw new Q(z.INVALID_ARGUMENT, `Function ${e}() cannot be called with an empty ${t}.`);
+	if (!n) throw new J(K.INVALID_ARGUMENT, `Function ${e}() cannot be called with an empty ${t}.`);
 }
 /**
 * Validates that two boolean options are not set at the same time.
 * @internal
 */ function __PRIVATE_validateIsNotUsedTogether(e, t, n, r) {
-	if (true === t && true === r) throw new Q(z.INVALID_ARGUMENT, `${e} and ${n} cannot be used together.`);
+	if (true === t && true === r) throw new J(K.INVALID_ARGUMENT, `${e} and ${n} cannot be used together.`);
 }
 /**
 * Validates that `path` refers to a document (indicated by the fact it contains
 * an even numbers of segments).
 */ function __PRIVATE_validateDocumentPath(e) {
-	if (!DocumentKey.isDocumentKey(e)) throw new Q(z.INVALID_ARGUMENT, `Invalid document reference. Document references must have an even number of segments, but ${e} has ${e.length}.`);
+	if (!DocumentKey.isDocumentKey(e)) throw new J(K.INVALID_ARGUMENT, `Invalid document reference. Document references must have an even number of segments, but ${e} has ${e.length}.`);
 }
 /**
 * Validates that `path` refers to a collection (indicated by the fact it
 * contains an odd numbers of segments).
 */ function __PRIVATE_validateCollectionPath(e) {
-	if (DocumentKey.isDocumentKey(e)) throw new Q(z.INVALID_ARGUMENT, `Invalid collection reference. Collection references must have an odd number of segments, but ${e} has ${e.length}.`);
+	if (DocumentKey.isDocumentKey(e)) throw new J(K.INVALID_ARGUMENT, `Invalid collection reference. Collection references must have an odd number of segments, but ${e} has ${e.length}.`);
 }
 /**
 * Returns true if it's a non-null object without a custom prototype
 * (i.e. excludes Array, Date, etc.).
-*/ function L(e) {
+*/ function W(e) {
 	return "object" == typeof e && null !== e && (Object.getPrototypeOf(e) === Object.prototype || null === Object.getPrototypeOf(e));
 }
 /** Returns a string describing the type / value of the provided input. */ function __PRIVATE_valueDescription(e) {
@@ -20274,18 +20499,18 @@ function isEmpty(e) {
 	}
 	return "function" == typeof e ? "a function" : fail(12329, { type: typeof e });
 }
-function ra(e, t) {
+function ua(e, t) {
 	if ("_delegate" in e && (e = e._delegate), !(e instanceof t)) {
-		if (t.name === e.constructor.name) throw new Q(z.INVALID_ARGUMENT, "Type does not match the expected instance. Did you pass a reference from a different Firestore SDK?");
+		if (t.name === e.constructor.name) throw new J(K.INVALID_ARGUMENT, "Type does not match the expected instance. Did you pass a reference from a different Firestore SDK?");
 		{
 			const n = __PRIVATE_valueDescription(e);
-			throw new Q(z.INVALID_ARGUMENT, `Expected type '${t.name}', but it was: ${n}`);
+			throw new J(K.INVALID_ARGUMENT, `Expected type '${t.name}', but it was: ${n}`);
 		}
 	}
 	return e;
 }
 function __PRIVATE_validatePositiveNumber(e, t) {
-	if (t <= 0) throw new Q(z.INVALID_ARGUMENT, `Function ${e}() requires a positive number, but it was: ${t}.`);
+	if (t <= 0) throw new J(K.INVALID_ARGUMENT, `Function ${e}() requires a positive number, but it was: ${t}.`);
 }
 /**
 * @license
@@ -20321,7 +20546,7 @@ function __PRIVATE_validatePositiveNumber(e, t) {
 * @param scheme - a {@link JsonSchema} that defines the properties to validate.
 * @returns true if the JSON schema exists within the object. Throws a FirestoreError otherwise.
 */ function __PRIVATE_validateJSON(e, t) {
-	if (!L(e)) throw new Q(z.INVALID_ARGUMENT, "JSON must be an object");
+	if (!W(e)) throw new J(K.INVALID_ARGUMENT, "JSON must be an object");
 	let n;
 	for (const r in t) if (t[r]) {
 		const i = t[r].typeString, s = "value" in t[r] ? { value: t[r].value } : void 0, _ = t[r].optional;
@@ -20340,7 +20565,7 @@ function __PRIVATE_validatePositiveNumber(e, t) {
 			break;
 		}
 	}
-	if (n) throw new Q(z.INVALID_ARGUMENT, n);
+	if (n) throw new J(K.INVALID_ARGUMENT, n);
 	return true;
 }
 /**
@@ -20411,7 +20636,7 @@ var Timestamp = class Timestamp {
 	* @returns A new `Timestamp` representing the same point in time as the given
 	*     instant.
 	*/ static fromInstant(e) {
-		if (!e || "bigint" != typeof e.t) throw new Q(z.INVALID_ARGUMENT, "Invalid Temporal.Instant object provided.");
+		if (!e || "bigint" != typeof e.t) throw new J(K.INVALID_ARGUMENT, "Invalid Temporal.Instant object provided.");
 		return Timestamp._fromEpochNanoseconds(e.t);
 	}
 	static _fromEpochNanoseconds(e) {
@@ -20434,10 +20659,10 @@ var Timestamp = class Timestamp {
 	*     non-negative nanoseconds values that count forward in time. Must be
 	*     from 0 to 999,999,999 inclusive.
 	*/ constructor(e, t) {
-		if (this.seconds = e, this.nanoseconds = t, t < 0) throw new Q(z.INVALID_ARGUMENT, "Timestamp nanoseconds out of range: " + t);
-		if (t >= 1e9) throw new Q(z.INVALID_ARGUMENT, "Timestamp nanoseconds out of range: " + t);
-		if (e < Ne) throw new Q(z.INVALID_ARGUMENT, "Timestamp seconds out of range: " + e);
-		if (e >= 253402300800) throw new Q(z.INVALID_ARGUMENT, "Timestamp seconds out of range: " + e);
+		if (this.seconds = e, this.nanoseconds = t, t < 0) throw new J(K.INVALID_ARGUMENT, "Timestamp nanoseconds out of range: " + t);
+		if (t >= 1e9) throw new J(K.INVALID_ARGUMENT, "Timestamp nanoseconds out of range: " + t);
+		if (e < Ne) throw new J(K.INVALID_ARGUMENT, "Timestamp seconds out of range: " + e);
+		if (e >= 253402300800) throw new J(K.INVALID_ARGUMENT, "Timestamp seconds out of range: " + e);
 	}
 	/**
 	* Converts a `Timestamp` to a JavaScript `Date` object. This conversion
@@ -20464,7 +20689,7 @@ var Timestamp = class Timestamp {
 	* @returns `Temporal.Instant` object representing the same point in time as
 	*     this `Timestamp`.
 	*/ toInstant() {
-		if ("undefined" == typeof Temporal || !Temporal.Instant) throw new Q(z.FAILED_PRECONDITION, "The Temporal object is not available in the current environment.");
+		if ("undefined" == typeof Temporal || !Temporal.Instant) throw new J(K.FAILED_PRECONDITION, "The Temporal object is not available in the current environment.");
 		const e = 1000000000n * BigInt(this.seconds) + BigInt(this.nanoseconds);
 		return Temporal.Instant.__PRIVATE_fromEpochNanoseconds(e);
 	}
@@ -20792,7 +21017,7 @@ function __PRIVATE_getPreviousValue(e) {
 	}
 };
 function __PRIVATE_databaseIdFromApp(e, t) {
-	if (!Object.prototype.hasOwnProperty.apply(e.options, ["projectId"])) throw new Q(z.INVALID_ARGUMENT, "\"projectId\" not provided in firebase.initializeApp.");
+	if (!Object.prototype.hasOwnProperty.apply(e.options, ["projectId"])) throw new J(K.INVALID_ARGUMENT, "\"projectId\" not provided in firebase.initializeApp.");
 	return new DatabaseId(e.options.projectId, t);
 }
 /**
@@ -21851,7 +22076,7 @@ function __PRIVATE_isInt32Value(e) {
 	const t = e.mapValue.fields;
 	return 1 === __PRIVATE_objectSize(t) && void 0 !== t[ot]?.integerValue;
 }
-/** Returns true if `value` is either an IntegerValue or a DoubleValue. */ function m(e) {
+/** Returns true if `value` is either an IntegerValue or a DoubleValue. */ function g(e) {
 	return __PRIVATE_isIntegerValue(e) || __PRIVATE_isDoubleValue(e) || !!e && __PRIVATE_isInt32Value(e) || !!e && __PRIVATE_isDecimal128Value(e);
 }
 /** Returns true if `value` is an ArrayValue. */ function isArray(e) {
@@ -22089,12 +22314,12 @@ function __PRIVATE_detectMapRepresentation(e) {
 		if (__PRIVATE_isInt32Value(n)) return __PRIVATE_isDoubleValue(e.xe) ? { doubleValue: r } : __PRIVATE_isIntegerValue(e.xe) ? { integerValue: r.toString() } : { mapValue: { fields: { [ot]: __PRIVATE_toInteger(r) } } };
 		return __PRIVATE_isIntegerValue(n) && (__PRIVATE_isIntegerValue(e.xe) || __PRIVATE_isInt32Value(e.xe)) ? __PRIVATE_toInteger(r) : __PRIVATE_toDouble(e.serializer, r);
 	}(e, t) : e instanceof __PRIVATE_NumericMinimumTransformOperation ? function __PRIVATE_applyNumericMinimumTransformOperationToLocalView(e, t) {
-		if (!m(t)) return e.xe;
+		if (!g(t)) return e.xe;
 		if (__PRIVATE_isNanValue(e.xe)) return e.xe;
 		if (__PRIVATE_isNanValue(t)) return t;
 		return __PRIVATE_compareNumbers(e.xe, t) < 0 ? e.xe : t;
 	}(e, t) : e instanceof __PRIVATE_NumericMaximumTransformOperation ? function __PRIVATE_applyNumericMaximumTransformOperationToLocalView(e, t) {
-		if (!m(t)) return e.xe;
+		if (!g(t)) return e.xe;
 		if (__PRIVATE_isNanValue(e.xe)) return e.xe;
 		if (__PRIVATE_isNanValue(t)) return t;
 		return __PRIVATE_compareNumbers(e.xe, t) > 0 ? e.xe : t;
@@ -22121,7 +22346,7 @@ function __PRIVATE_detectMapRepresentation(e) {
 * @returns a base value to store along with the mutation, or null for
 * idempotent transforms.
 */ function __PRIVATE_computeTransformOperationBaseValue(e, t) {
-	return e instanceof __PRIVATE_NumericIncrementTransformOperation ? m(t) ? t : { integerValue: 0 } : null;
+	return e instanceof __PRIVATE_NumericIncrementTransformOperation ? g(t) ? t : { integerValue: 0 } : null;
 }
 /** Transforms a value into a server-generated timestamp. */
 var __PRIVATE_ServerTimestampTransform = class extends TransformOperation {};
@@ -23231,23 +23456,23 @@ var vt;
 */
 function __PRIVATE_isPermanentError(e) {
 	switch (e) {
-		case z.OK: return fail(64938);
-		case z.CANCELLED:
-		case z.UNKNOWN:
-		case z.DEADLINE_EXCEEDED:
-		case z.RESOURCE_EXHAUSTED:
-		case z.INTERNAL:
-		case z.UNAVAILABLE:
-		case z.UNAUTHENTICATED: return false;
-		case z.INVALID_ARGUMENT:
-		case z.NOT_FOUND:
-		case z.ALREADY_EXISTS:
-		case z.PERMISSION_DENIED:
-		case z.FAILED_PRECONDITION:
-		case z.ABORTED:
-		case z.OUT_OF_RANGE:
-		case z.UNIMPLEMENTED:
-		case z.DATA_LOSS: return true;
+		case K.OK: return fail(64938);
+		case K.CANCELLED:
+		case K.UNKNOWN:
+		case K.DEADLINE_EXCEEDED:
+		case K.RESOURCE_EXHAUSTED:
+		case K.INTERNAL:
+		case K.UNAVAILABLE:
+		case K.UNAUTHENTICATED: return false;
+		case K.INVALID_ARGUMENT:
+		case K.NOT_FOUND:
+		case K.ALREADY_EXISTS:
+		case K.PERMISSION_DENIED:
+		case K.FAILED_PRECONDITION:
+		case K.ABORTED:
+		case K.OUT_OF_RANGE:
+		case K.UNIMPLEMENTED:
+		case K.DATA_LOSS: return true;
 		default: return fail(15467, { code: e });
 	}
 }
@@ -23271,25 +23496,25 @@ function __PRIVATE_isPermanentError(e) {
 *     is no match.
 */
 function __PRIVATE_mapCodeFromRpcCode(e) {
-	if (void 0 === e) return __PRIVATE_logError("GRPC error has no .code"), z.UNKNOWN;
+	if (void 0 === e) return __PRIVATE_logError("GRPC error has no .code"), K.UNKNOWN;
 	switch (e) {
-		case xt.OK: return z.OK;
-		case xt.CANCELLED: return z.CANCELLED;
-		case xt.UNKNOWN: return z.UNKNOWN;
-		case xt.DEADLINE_EXCEEDED: return z.DEADLINE_EXCEEDED;
-		case xt.RESOURCE_EXHAUSTED: return z.RESOURCE_EXHAUSTED;
-		case xt.INTERNAL: return z.INTERNAL;
-		case xt.UNAVAILABLE: return z.UNAVAILABLE;
-		case xt.UNAUTHENTICATED: return z.UNAUTHENTICATED;
-		case xt.INVALID_ARGUMENT: return z.INVALID_ARGUMENT;
-		case xt.NOT_FOUND: return z.NOT_FOUND;
-		case xt.ALREADY_EXISTS: return z.ALREADY_EXISTS;
-		case xt.PERMISSION_DENIED: return z.PERMISSION_DENIED;
-		case xt.FAILED_PRECONDITION: return z.FAILED_PRECONDITION;
-		case xt.ABORTED: return z.ABORTED;
-		case xt.OUT_OF_RANGE: return z.OUT_OF_RANGE;
-		case xt.UNIMPLEMENTED: return z.UNIMPLEMENTED;
-		case xt.DATA_LOSS: return z.DATA_LOSS;
+		case xt.OK: return K.OK;
+		case xt.CANCELLED: return K.CANCELLED;
+		case xt.UNKNOWN: return K.UNKNOWN;
+		case xt.DEADLINE_EXCEEDED: return K.DEADLINE_EXCEEDED;
+		case xt.RESOURCE_EXHAUSTED: return K.RESOURCE_EXHAUSTED;
+		case xt.INTERNAL: return K.INTERNAL;
+		case xt.UNAVAILABLE: return K.UNAVAILABLE;
+		case xt.UNAUTHENTICATED: return K.UNAUTHENTICATED;
+		case xt.INVALID_ARGUMENT: return K.INVALID_ARGUMENT;
+		case xt.NOT_FOUND: return K.NOT_FOUND;
+		case xt.ALREADY_EXISTS: return K.ALREADY_EXISTS;
+		case xt.PERMISSION_DENIED: return K.PERMISSION_DENIED;
+		case xt.FAILED_PRECONDITION: return K.FAILED_PRECONDITION;
+		case xt.ABORTED: return K.ABORTED;
+		case xt.OUT_OF_RANGE: return K.OUT_OF_RANGE;
+		case xt.UNIMPLEMENTED: return K.UNIMPLEMENTED;
+		case xt.DATA_LOSS: return K.DATA_LOSS;
 		default: return fail(39323, { code: e });
 	}
 }
@@ -23456,9 +23681,6 @@ function __PRIVATE_targetIdSet() {
 	return new TextEncoder();
 }
 /**
-* An instance of the Platform's 'TextDecoder' implementation.
-*/
-/**
 * @license
 * Copyright 2022 Google LLC
 *
@@ -23473,8 +23695,7 @@ function __PRIVATE_targetIdSet() {
 * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 * See the License for the specific language governing permissions and
 * limitations under the License.
-*/
-var Bt = new Integer([4294967295, 4294967295], 0);
+*/ var Bt = new Integer([4294967295, 4294967295], 0);
 function __PRIVATE_getMd5HashValue(e) {
 	const t = __PRIVATE_newTextEncoder().encode(e), n = new Md5();
 	return n.update(t), new Uint8Array(n.digest());
@@ -24067,8 +24288,8 @@ function __PRIVATE_toName(e, t) {
 }
 function fromName(e, t) {
 	const n = __PRIVATE_fromResourceName(t);
-	if (n.get(1) !== e.databaseId.projectId) throw new Q(z.INVALID_ARGUMENT, "Tried to deserialize key from different project: " + n.get(1) + " vs " + e.databaseId.projectId);
-	if (n.get(3) !== e.databaseId.database) throw new Q(z.INVALID_ARGUMENT, "Tried to deserialize key from different database: " + n.get(3) + " vs " + e.databaseId.database);
+	if (n.get(1) !== e.databaseId.projectId) throw new J(K.INVALID_ARGUMENT, "Tried to deserialize key from different project: " + n.get(1) + " vs " + e.databaseId.projectId);
+	if (n.get(3) !== e.databaseId.database) throw new J(K.INVALID_ARGUMENT, "Tried to deserialize key from different database: " + n.get(3) + " vs " + e.databaseId.database);
 	return new DocumentKey(__PRIVATE_extractLocalPathFromResourceName(n));
 }
 function __PRIVATE_toQueryPath(e, t) {
@@ -24116,7 +24337,7 @@ function __PRIVATE_fromWatchChange(e, t) {
 			return e.useProto3Json ? (__PRIVATE_hardAssert(void 0 === t || "string" == typeof t, 58123), ByteString.fromBase64String(t || "")) : (__PRIVATE_hardAssert(void 0 === t || t instanceof Buffer || t instanceof Uint8Array, 16193), ByteString.fromUint8Array(t || /* @__PURE__ */ new Uint8Array()));
 		}(e, t.targetChange.resumeToken), _ = t.targetChange.cause;
 		n = new __PRIVATE_WatchTargetChange(r, i, s, _ && function __PRIVATE_fromRpcStatus(e) {
-			return new Q(void 0 === e.code ? z.UNKNOWN : __PRIVATE_mapCodeFromRpcCode(e.code), e.message || "");
+			return new J(void 0 === e.code ? K.UNKNOWN : __PRIVATE_mapCodeFromRpcCode(e.code), e.message || "");
 		}(_) || null);
 	} else if ("documentChange" in t) {
 		t.documentChange;
@@ -24517,7 +24738,7 @@ function __PRIVATE_toStringValue(e) {
 */ var Bytes = class Bytes {
 	/** @hideconstructor */
 	constructor(e, t = 0) {
-		if (this.subtype = t, !Number.isInteger(t) || t < 0 || t > 255) throw new Q(z.INVALID_ARGUMENT, "The subtype for Bytes must be a value in the inclusive [0, 255] range.");
+		if (this.subtype = t, !Number.isInteger(t) || t < 0 || t > 255) throw new J(K.INVALID_ARGUMENT, "The subtype for Bytes must be a value in the inclusive [0, 255] range.");
 		this._byteString = e;
 	}
 	/**
@@ -24530,7 +24751,7 @@ function __PRIVATE_toStringValue(e) {
 		try {
 			return new Bytes(ByteString.fromBase64String(e), t);
 		} catch (e) {
-			throw new Q(z.INVALID_ARGUMENT, "Failed to construct data from Base64 string: " + e);
+			throw new J(K.INVALID_ARGUMENT, "Failed to construct data from Base64 string: " + e);
 		}
 	}
 	/**
@@ -24681,7 +24902,7 @@ var Decimal128Value = class {
 	* @param fieldNames - A list of field names.
 	*/
 	constructor(...e) {
-		for (let t = 0; t < e.length; ++t) if (0 === e[t].length) throw new Q(z.INVALID_ARGUMENT, "Invalid field name at argument $(i + 1). Field names must not be empty.");
+		for (let t = 0; t < e.length; ++t) if (0 === e[t].length) throw new J(K.INVALID_ARGUMENT, "Invalid field name at argument $(i + 1). Field names must not be empty.");
 		this._internalPath = new Me(e);
 	}
 	/**
@@ -24757,8 +24978,8 @@ var Decimal128Value = class {
 	* @param longitude - The longitude as number between -180 and 180.
 	*/
 	constructor(e, t) {
-		if (!isFinite(e) || e < -90 || e > 90) throw new Q(z.INVALID_ARGUMENT, "Latitude must be a number between -90 and 90, but was: " + e);
-		if (!isFinite(t) || t < -180 || t > 180) throw new Q(z.INVALID_ARGUMENT, "Longitude must be a number between -180 and 180, but was: " + t);
+		if (!isFinite(e) || e < -90 || e > 90) throw new J(K.INVALID_ARGUMENT, "Latitude must be a number between -90 and 90, but was: " + e);
+		if (!isFinite(t) || t < -180 || t > 180) throw new J(K.INVALID_ARGUMENT, "Longitude must be a number between -180 and 180, but was: " + t);
 		this._lat = e, this._long = t;
 	}
 	/**
@@ -25435,7 +25656,7 @@ var __PRIVATE_WebChannelConnection = class __PRIVATE_WebChannelConnection extend
 							__PRIVATE_logDebug(Gt, `XHR for RPC '${e}' ${s} received:`, JSON.stringify(t)), i(t);
 							break;
 						case ErrorCode$1.TIMEOUT:
-							__PRIVATE_logDebug(Gt, `RPC '${e}' ${s} timed out`), _(new Q(z.DEADLINE_EXCEEDED, "Request time out"));
+							__PRIVATE_logDebug(Gt, `RPC '${e}' ${s} timed out`), _(new J(K.DEADLINE_EXCEEDED, "Request time out"));
 							break;
 						case ErrorCode$1.HTTP_ERROR:
 							const n = o.getStatus();
@@ -25443,12 +25664,12 @@ var __PRIVATE_WebChannelConnection = class __PRIVATE_WebChannelConnection extend
 								let e = o.getResponseJson();
 								Array.isArray(e) && (e = e[0]);
 								const t = e?.error;
-								if (t && t.status && t.message) _(new Q(function __PRIVATE_mapCodeFromHttpResponseErrorStatus(e) {
+								if (t && t.status && t.message) _(new J(function __PRIVATE_mapCodeFromHttpResponseErrorStatus(e) {
 									const t = e.toLowerCase().replace(/_/g, "-");
-									return Object.values(z).indexOf(t) >= 0 ? t : z.UNKNOWN;
+									return Object.values(K).indexOf(t) >= 0 ? t : K.UNKNOWN;
 								}(t.status), t.message));
-								else _(new Q(z.UNKNOWN, "Server responded with status " + o.getStatus()));
-							} else _(new Q(z.UNAVAILABLE, "Connection failed."));
+								else _(new J(K.UNKNOWN, "Server responded with status " + o.getStatus()));
+							} else _(new J(K.UNAVAILABLE, "Connection failed."));
 							break;
 						default: fail(9055, {
 							Bn: e,
@@ -25500,7 +25721,7 @@ var __PRIVATE_WebChannelConnection = class __PRIVATE_WebChannelConnection extend
 		})), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.CLOSE, (() => {
 			l || (l = !0, __PRIVATE_logDebug(Gt, `RPC '${e}' stream ${r} transport closed`), E.Cn(), this.Qn(u));
 		})), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.ERROR, ((t) => {
-			l || (l = !0, __PRIVATE_logWarn(Gt, `RPC '${e}' stream ${r} transport errored. Name:`, t.name, "Message:", t.message), E.Cn(new Q(z.UNAVAILABLE, "The operation could not be completed")));
+			l || (l = !0, __PRIVATE_logWarn(Gt, `RPC '${e}' stream ${r} transport errored. Name:`, t.name, "Message:", t.message), E.Cn(new J(K.UNAVAILABLE, "The operation could not be completed")));
 		})), __PRIVATE_unguardedEventListen(u, WebChannel.EventType.MESSAGE, ((t) => {
 			if (!l) {
 				const n = t.data[0];
@@ -25513,7 +25734,7 @@ var __PRIVATE_WebChannelConnection = class __PRIVATE_WebChannelConnection extend
 						const t = xt[e];
 						if (void 0 !== t) return __PRIVATE_mapCodeFromRpcCode(t);
 					}(t), i = s.message;
-					"NOT_FOUND" === t && i.includes("database") && i.includes("does not exist") && i.includes(this.databaseId.database) && __PRIVATE_logWarn(`Database '${this.databaseId.database}' not found. Please check your project configuration.`), void 0 === n && (n = z.INTERNAL, i = "Unknown error status: " + t + " with message " + s.message), l = !0, E.Cn(new Q(n, i)), u.close();
+					"NOT_FOUND" === t && i.includes("database") && i.includes("does not exist") && i.includes(this.databaseId.database) && __PRIVATE_logWarn(`Database '${this.databaseId.database}' not found. Please check your project configuration.`), void 0 === n && (n = K.INTERNAL, i = "Unknown error status: " + t + " with message " + s.message), l = !0, E.Cn(new J(n, i)), u.close();
 				} else __PRIVATE_logDebug(Gt, `RPC '${e}' stream ${r} received:`, n), E.Fn(n);
 			}
 		})), __PRIVATE_WebChannelConnection.Mn(), setTimeout((() => {
@@ -25753,7 +25974,7 @@ var __PRIVATE_PersistentStream = class {
 	* @param finalState - the intended state of the stream after closing.
 	* @param error - the error the connection was closed with.
 	*/ async close(e, t) {
-		this.Pr(), this.Ir(), this._r.cancel(), this.nr++, 4 !== e ? this._r.reset() : t && t.code === z.RESOURCE_EXHAUSTED ? (__PRIVATE_logError(t.toString()), __PRIVATE_logError("Using maximum backoff delay to prevent overloading the backend."), this._r.Jn()) : t && t.code === z.UNAUTHENTICATED && 3 !== this.state && (this.authCredentialsProvider.invalidateToken(), this.appCheckCredentialsProvider.invalidateToken()), null !== this.stream && (this.Rr(), this.stream.close(), this.stream = null), this.state = e, await this.listener.bn(t);
+		this.Pr(), this.Ir(), this._r.cancel(), this.nr++, 4 !== e ? this._r.reset() : t && t.code === K.RESOURCE_EXHAUSTED ? (__PRIVATE_logError(t.toString()), __PRIVATE_logError("Using maximum backoff delay to prevent overloading the backend."), this._r.Jn()) : t && t.code === K.UNAUTHENTICATED && 3 !== this.state && (this.authCredentialsProvider.invalidateToken(), this.appCheckCredentialsProvider.invalidateToken()), null !== this.stream && (this.Rr(), this.stream.close(), this.stream = null), this.state = e, await this.listener.bn(t);
 	}
 	/**
 	* Can be overridden to perform additional cleanup before the stream is closed.
@@ -25766,7 +25987,7 @@ var __PRIVATE_PersistentStream = class {
 			this.nr === t && this.Vr(e, n);
 		}), ((t) => {
 			e((() => {
-				const e = new Q(z.UNKNOWN, "Fetching auth token failed: " + t.message);
+				const e = new J(K.UNKNOWN, "Fetching auth token failed: " + t.message);
 				return this.dr(e);
 			}));
 		}));
@@ -25947,16 +26168,16 @@ var __PRIVATE_PersistentStream = class {
 		super(), this.authCredentials = e, this.appCheckCredentials = t, this.connection = n, this.serializer = r, this.Fr = false;
 	}
 	Or() {
-		if (this.Fr) throw new Q(z.FAILED_PRECONDITION, "The client has already been terminated.");
+		if (this.Fr) throw new J(K.FAILED_PRECONDITION, "The client has already been terminated.");
 	}
 	/** Invokes the provided RPC with auth and AppCheck tokens. */ In(e, t, n, r) {
 		return this.Or(), Promise.all([this.authCredentials.getToken(), this.appCheckCredentials.getToken()]).then((([i, s]) => this.connection.In(e, __PRIVATE_toResourcePath(t, n), r, i, s))).catch(((e) => {
-			throw "FirebaseError" === e.name ? (e.code === z.UNAUTHENTICATED && (this.authCredentials.invalidateToken(), this.appCheckCredentials.invalidateToken()), e) : new Q(z.UNKNOWN, e.toString());
+			throw "FirebaseError" === e.name ? (e.code === K.UNAUTHENTICATED && (this.authCredentials.invalidateToken(), this.appCheckCredentials.invalidateToken()), e) : new J(K.UNKNOWN, e.toString());
 		}));
 	}
 	/** Invokes the provided RPC with streamed results with auth and AppCheck tokens. */ dn(e, t, n, r, i) {
 		return this.Or(), Promise.all([this.authCredentials.getToken(), this.appCheckCredentials.getToken()]).then((([s, _]) => this.connection.dn(e, __PRIVATE_toResourcePath(t, n), r, s, _, i))).catch(((e) => {
-			throw "FirebaseError" === e.name ? (e.code === z.UNAUTHENTICATED && (this.authCredentials.invalidateToken(), this.appCheckCredentials.invalidateToken()), e) : new Q(z.UNKNOWN, e.toString());
+			throw "FirebaseError" === e.name ? (e.code === K.UNAUTHENTICATED && (this.authCredentials.invalidateToken(), this.appCheckCredentials.invalidateToken()), e) : new J(K.UNKNOWN, e.toString());
 		}));
 	}
 	terminate() {
@@ -26117,7 +26338,7 @@ var Zt = "The current tab is not in the required state to perform this operation
 * @param err - An error returned by a LocalStore operation.
 * @returns A Promise that resolves after we recovered, or the original error.
 */ async function __PRIVATE_ignoreIfPrimaryLeaseLoss(e) {
-	if (e.code !== z.FAILED_PRECONDITION || e.message !== Zt) throw e;
+	if (e.code !== K.FAILED_PRECONDITION || e.message !== Zt) throw e;
 	__PRIVATE_logDebug("LocalStore", "Unexpectedly lost primary lease");
 }
 /**
@@ -26420,19 +26641,19 @@ var sn = true;
 var FirestoreSettingsImpl = class {
 	constructor(e) {
 		if (void 0 === e.host) {
-			if (void 0 !== e.ssl) throw new Q(z.INVALID_ARGUMENT, "Can't provide ssl option if host option is not set");
+			if (void 0 !== e.ssl) throw new J(K.INVALID_ARGUMENT, "Can't provide ssl option if host option is not set");
 			this.host = rn, this.ssl = sn;
 		} else this.host = e.host, this.ssl = e.ssl ?? sn;
 		if (this.isUsingEmulator = void 0 !== e.emulatorOptions, this.credentials = e.credentials, this.ignoreUndefinedProperties = !!e.ignoreUndefinedProperties, this.localCache = e.localCache, e._customHeaders && (this._customHeaders = { ...e._customHeaders }), void 0 === e.cacheSizeBytes) this.cacheSizeBytes = Yt;
 		else {
-			if (-1 !== e.cacheSizeBytes && e.cacheSizeBytes < nn) throw new Q(z.INVALID_ARGUMENT, "cacheSizeBytes must be at least 1048576");
+			if (-1 !== e.cacheSizeBytes && e.cacheSizeBytes < nn) throw new J(K.INVALID_ARGUMENT, "cacheSizeBytes must be at least 1048576");
 			this.cacheSizeBytes = e.cacheSizeBytes;
 		}
 		if (__PRIVATE_validateIsNotUsedTogether("experimentalForceLongPolling", e.experimentalForceLongPolling, "experimentalAutoDetectLongPolling", e.experimentalAutoDetectLongPolling), this.experimentalForceLongPolling = !!e.experimentalForceLongPolling, this.experimentalForceLongPolling ? this.experimentalAutoDetectLongPolling = false : void 0 === e.experimentalAutoDetectLongPolling ? this.experimentalAutoDetectLongPolling = true : this.experimentalAutoDetectLongPolling = !!e.experimentalAutoDetectLongPolling, this.experimentalLongPollingOptions = __PRIVATE_cloneLongPollingOptions(e.experimentalLongPollingOptions ?? {}), function __PRIVATE_validateLongPollingOptions(e) {
 			if (void 0 !== e.timeoutSeconds) {
-				if (isNaN(e.timeoutSeconds)) throw new Q(z.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (must not be NaN)`);
-				if (e.timeoutSeconds < 5) throw new Q(z.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (minimum allowed value is 5)`);
-				if (e.timeoutSeconds > 30) throw new Q(z.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (maximum allowed value is 30)`);
+				if (isNaN(e.timeoutSeconds)) throw new J(K.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (must not be NaN)`);
+				if (e.timeoutSeconds < 5) throw new J(K.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (minimum allowed value is 5)`);
+				if (e.timeoutSeconds > 30) throw new J(K.INVALID_ARGUMENT, `invalid long polling timeout: ${e.timeoutSeconds} (maximum allowed value is 30)`);
 			}
 		}(this.experimentalLongPollingOptions), this.useFetchStreams = !!e.useFetchStreams, void 0 !== e.grpcFlowControlWindow) {
 			/**
@@ -26451,7 +26672,7 @@ var FirestoreSettingsImpl = class {
 			* See the License for the specific language governing permissions and
 			* limitations under the License.
 			*/
-			if ("number" != typeof e.grpcFlowControlWindow || e.grpcFlowControlWindow <= 0 || e.grpcFlowControlWindow > 2147483647 || !Number.isInteger(e.grpcFlowControlWindow)) throw new Q(z.INVALID_ARGUMENT, "grpcFlowControlWindow must be a positive integer and cannot exceed 2147483647");
+			if ("number" != typeof e.grpcFlowControlWindow || e.grpcFlowControlWindow <= 0 || e.grpcFlowControlWindow > 2147483647 || !Number.isInteger(e.grpcFlowControlWindow)) throw new J(K.INVALID_ARGUMENT, "grpcFlowControlWindow must be a positive integer and cannot exceed 2147483647");
 			this.grpcFlowControlWindow = e.grpcFlowControlWindow;
 		}
 	}
@@ -26493,7 +26714,7 @@ var _n = class Firestore {
 	* The {@link @firebase/app#FirebaseApp} associated with this `Firestore` service
 	* instance.
 	*/ get app() {
-		if (!this._app) throw new Q(z.FAILED_PRECONDITION, "Firestore was not initialized using the Firebase SDK. 'app' is not available");
+		if (!this._app) throw new J(K.FAILED_PRECONDITION, "Firestore was not initialized using the Firebase SDK. 'app' is not available");
 		return this._app;
 	}
 	get _initialized() {
@@ -26503,13 +26724,13 @@ var _n = class Firestore {
 		return "notTerminated" !== this._terminateTask;
 	}
 	_setSettings(e) {
-		if (this._settingsFrozen) throw new Q(z.FAILED_PRECONDITION, "Firestore has already been started and its settings can no longer be changed. You can only modify settings before calling any other methods on a Firestore object.");
+		if (this._settingsFrozen) throw new J(K.FAILED_PRECONDITION, "Firestore has already been started and its settings can no longer be changed. You can only modify settings before calling any other methods on a Firestore object.");
 		this._settings = new FirestoreSettingsImpl(e), this._emulatorOptions = e.emulatorOptions || {}, void 0 !== e.credentials && (this._authCredentials = function __PRIVATE_makeAuthCredentialsProvider(e) {
 			if (!e) return new __PRIVATE_EmptyAuthCredentialsProvider();
 			switch (e.type) {
 				case "firstParty": return new __PRIVATE_FirstPartyAuthCredentialsProvider(e.sessionIndex || "0", e.iamToken || null, e.authTokenFactory || null);
 				case "provider": return e.client;
-				default: throw new Q(z.INVALID_ARGUMENT, "makeAuthCredentialsProvider failed due to invalid credential type");
+				default: throw new J(K.INVALID_ARGUMENT, "makeAuthCredentialsProvider failed due to invalid credential type");
 			}
 		}(e.credentials));
 	}
@@ -26565,7 +26786,7 @@ var _n = class Firestore {
 * @param options.mockUserToken - the mock auth token to use for unit testing
 * Security Rules.
 */ function connectFirestoreEmulator(e, t, n, r = {}) {
-	e = ra(e, _n);
+	e = ua(e, _n);
 	const i = isCloudWorkstation(t), s = e._getSettings(), _ = {
 		...s,
 		emulatorOptions: e._getEmulatorOptions()
@@ -26583,7 +26804,7 @@ var _n = class Firestore {
 		else {
 			t = createMockUserToken(r.mockUserToken, e._app?.options.projectId);
 			const i = r.mockUserToken.sub || r.mockUserToken.user_id;
-			if (!i) throw new Q(z.INVALID_ARGUMENT, "mockUserToken must contain 'sub' or 'user_id' field!");
+			if (!i) throw new J(K.INVALID_ARGUMENT, "mockUserToken must contain 'sub' or 'user_id' field!");
 			n = new User(i);
 		}
 		e._authCredentials = new __PRIVATE_EmulatorAuthCredentialsProvider(new __PRIVATE_OAuthToken(t, n));
@@ -26621,7 +26842,7 @@ var _n = class Firestore {
 * A `DocumentReference` refers to a document location in a Firestore database
 * and can be used to write, read, or listen to the location. The document at
 * the referenced location may or may not exist.
-*/ var aa = class aa {
+*/ var ta = class ta {
 	/** @hideconstructor */
 	constructor(e, t, n) {
 		this.converter = t, this._key = n, this.type = "document", this.firestore = e;
@@ -26643,10 +26864,10 @@ var _n = class Firestore {
 	/**
 	* The collection this `DocumentReference` belongs to.
 	*/ get parent() {
-		return new na(this.firestore, this.converter, this._key.path.popLast());
+		return new oa(this.firestore, this.converter, this._key.path.popLast());
 	}
 	withConverter(e) {
-		return new aa(this.firestore, e, this._key);
+		return new ta(this.firestore, e, this._key);
 	}
 	/**
 	* Returns a JSON-serializable representation of this `DocumentReference` instance.
@@ -26654,23 +26875,23 @@ var _n = class Firestore {
 	* @returns a JSON representation of this object.
 	*/ toJSON() {
 		return {
-			type: aa._jsonSchemaVersion,
+			type: ta._jsonSchemaVersion,
 			referencePath: this._key.toString()
 		};
 	}
 	static fromJSON(e, t, n) {
-		if (__PRIVATE_validateJSON(t, aa._jsonSchema)) return new aa(e, n || null, new DocumentKey(ResourcePath.fromString(t.referencePath)));
+		if (__PRIVATE_validateJSON(t, ta._jsonSchema)) return new ta(e, n || null, new DocumentKey(ResourcePath.fromString(t.referencePath)));
 	}
 };
-aa._jsonSchemaVersion = "firestore/documentReference/1.0", aa._jsonSchema = {
-	type: property("string", aa._jsonSchemaVersion),
+ta._jsonSchemaVersion = "firestore/documentReference/1.0", ta._jsonSchema = {
+	type: property("string", ta._jsonSchemaVersion),
 	referencePath: property("string")
 };
 /**
 * A `CollectionReference` object can be used for adding documents, getting
 * document references, and querying for documents (using {@link (query:1)}).
 */
-var na = class na extends Query {
+var oa = class oa extends Query {
 	/** @hideconstructor */
 	constructor(e, t, n) {
 		super(e, t, __PRIVATE_newQueryForPath(n)), this._path = n, this.type = "collection";
@@ -26689,32 +26910,32 @@ var na = class na extends Query {
 	* subcollection. If this isn't a subcollection, the reference is null.
 	*/ get parent() {
 		const e = this._path.popLast();
-		return e.isEmpty() ? null : new aa(this.firestore, null, new DocumentKey(e));
+		return e.isEmpty() ? null : new ta(this.firestore, null, new DocumentKey(e));
 	}
 	withConverter(e) {
-		return new na(this.firestore, e, this._path);
+		return new oa(this.firestore, e, this._path);
 	}
 };
 function collection(e, t, ...n) {
 	if (e = getModularInstance(e), __PRIVATE_validateNonEmptyArgument("collection", "path", t), e instanceof _n) {
 		const r = ResourcePath.fromString(t, ...n);
-		return __PRIVATE_validateCollectionPath(r), new na(e, null, r);
+		return __PRIVATE_validateCollectionPath(r), new oa(e, null, r);
 	}
 	{
-		if (!(e instanceof aa || e instanceof na)) throw new Q(z.INVALID_ARGUMENT, "Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore");
+		if (!(e instanceof ta || e instanceof oa)) throw new J(K.INVALID_ARGUMENT, "Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore");
 		const r = e._path.child(ResourcePath.fromString(t, ...n));
-		return __PRIVATE_validateCollectionPath(r), new na(e.firestore, null, r);
+		return __PRIVATE_validateCollectionPath(r), new oa(e.firestore, null, r);
 	}
 }
 function doc(e, t, ...n) {
 	if (e = getModularInstance(e), 1 === arguments.length && (t = __PRIVATE_AutoId.newId()), __PRIVATE_validateNonEmptyArgument("doc", "path", t), e instanceof _n) {
 		const r = ResourcePath.fromString(t, ...n);
-		return __PRIVATE_validateDocumentPath(r), new aa(e, null, new DocumentKey(r));
+		return __PRIVATE_validateDocumentPath(r), new ta(e, null, new DocumentKey(r));
 	}
 	{
-		if (!(e instanceof aa || e instanceof na)) throw new Q(z.INVALID_ARGUMENT, "Expected first argument to doc() to be a CollectionReference, a DocumentReference or FirebaseFirestore");
+		if (!(e instanceof ta || e instanceof oa)) throw new J(K.INVALID_ARGUMENT, "Expected first argument to doc() to be a CollectionReference, a DocumentReference or FirebaseFirestore");
 		const r = e._path.child(ResourcePath.fromString(t, ...n));
-		return __PRIVATE_validateDocumentPath(r), new aa(e.firestore, e instanceof na ? e.converter : null, new DocumentKey(r));
+		return __PRIVATE_validateDocumentPath(r), new ta(e.firestore, e instanceof oa ? e.converter : null, new DocumentKey(r));
 	}
 }
 /**
@@ -26856,7 +27077,7 @@ var VectorValue = class VectorValue {
 	*/ static fromJSON(e) {
 		if (__PRIVATE_validateJSON(e, VectorValue._jsonSchema)) {
 			if (Array.isArray(e.vectorValues) && e.vectorValues.every(((e) => "number" == typeof e))) return new VectorValue(e.vectorValues);
-			throw new Q(z.INVALID_ARGUMENT, "Expected 'vectorValues' field to be a number array");
+			throw new J(K.INVALID_ARGUMENT, "Expected 'vectorValues' field to be a number array");
 		}
 	}
 };
@@ -26993,7 +27214,7 @@ function __PRIVATE_isWrite(e) {
 		}, this.databaseId, this.serializer, this.ignoreUndefinedProperties);
 	}
 };
-function la(e) {
+function da(e) {
 	const t = e._freezeSettings(), n = __PRIVATE_newSerializer(e._databaseId);
 	return new UserDataReader(e._databaseId, !!t.ignoreUndefinedProperties, n);
 }
@@ -27006,8 +27227,8 @@ function la(e) {
 	else if (s.mergeFields) {
 		const e = [];
 		for (const r of s.mergeFields) {
-			const i = K(t, r, n);
-			if (!_.contains(i)) throw new Q(z.INVALID_ARGUMENT, `Field '${i}' is specified in your field mask but missing from your input data.`);
+			const i = X(t, r, n);
+			if (!_.contains(i)) throw new J(K.INVALID_ARGUMENT, `Field '${i}' is specified in your field mask but missing from your input data.`);
 			__PRIVATE_fieldMaskContains(e, i) || e.push(i);
 		}
 		a = new FieldMask(e), u = _.fieldTransforms.filter(((e) => a.covers(e.field)));
@@ -27060,9 +27281,9 @@ var __PRIVATE_NumericIncrementFieldValueImpl = class __PRIVATE_NumericIncrementF
 	return new ParsedUpdateData(_, new FieldMask(s), i.fieldTransforms);
 }
 /** Parse update data from a list of field/value arguments. */ function __PRIVATE_parseUpdateVarargs(e, t, n, r, i, s) {
-	const _ = e.createContext(1, t, n), o = [K(t, r, n)], a = [i];
-	if (s.length % 2 != 0) throw new Q(z.INVALID_ARGUMENT, `Function ${t}() needs to be called with an even number of arguments that alternate between field names and values.`);
-	for (let e = 0; e < s.length; e += 2) o.push(K(t, s[e])), a.push(s[e + 1]);
+	const _ = e.createContext(1, t, n), o = [X(t, r, n)], a = [i];
+	if (s.length % 2 != 0) throw new J(K.INVALID_ARGUMENT, `Function ${t}() needs to be called with an even number of arguments that alternate between field names and values.`);
+	for (let e = 0; e < s.length; e += 2) o.push(X(t, s[e])), a.push(s[e + 1]);
 	const u = [], c = ObjectValue.empty();
 	for (let e = o.length - 1; e >= 0; --e) if (!__PRIVATE_fieldMaskContains(u, o[e])) {
 		const t = o[e];
@@ -27150,7 +27371,7 @@ var __PRIVATE_NumericIncrementFieldValueImpl = class __PRIVATE_NumericIncrementF
 			r[0] = t.subtype, r.set(n, 1);
 			return { mapValue: { fields: { [Et]: { bytesValue: __PRIVATE_toBytes(e, ByteString.fromUint8Array(r)) } } } };
 		}(t.serializer, e);
-		if (e instanceof aa) {
+		if (e instanceof ta) {
 			const n = t.databaseId, r = e.firestore._databaseId;
 			if (!r.isEqual(n)) throw t.createError(`Document reference is for database ${r.projectId}/${r.database} but should be for database ${n.projectId}/${n.database}`);
 			return { referenceValue: __PRIVATE_toResourceName(e.firestore._databaseId || t.databaseId, e._key.path) };
@@ -27216,17 +27437,17 @@ function __PRIVATE_isTemporalInstant(e) {
 	return "Temporal.Instant" === t[Symbol.toStringTag] && "bigint" == typeof t.t;
 }
 function __PRIVATE_looksLikeJsonObject(e) {
-	return !("object" != typeof e || null === e || e instanceof Array || e instanceof Date || e instanceof Timestamp || e instanceof GeoPoint || e instanceof Bytes || e instanceof aa || e instanceof FieldValue || e instanceof VectorValue || e instanceof MinKey || e instanceof MaxKey || e instanceof Int32Value || e instanceof Decimal128Value || e instanceof RegexValue || e instanceof BsonObjectId || e instanceof BsonTimestamp || __PRIVATE_isTemporalInstant(e) || __PRIVATE_isProtoValueSerializable(e));
+	return !("object" != typeof e || null === e || e instanceof Array || e instanceof Date || e instanceof Timestamp || e instanceof GeoPoint || e instanceof Bytes || e instanceof ta || e instanceof FieldValue || e instanceof VectorValue || e instanceof MinKey || e instanceof MaxKey || e instanceof Int32Value || e instanceof Decimal128Value || e instanceof RegexValue || e instanceof BsonObjectId || e instanceof BsonTimestamp || __PRIVATE_isTemporalInstant(e) || __PRIVATE_isProtoValueSerializable(e));
 }
 function __PRIVATE_validatePlainObject(e, t, n) {
-	if (!__PRIVATE_looksLikeJsonObject(n) || !L(n)) {
+	if (!__PRIVATE_looksLikeJsonObject(n) || !W(n)) {
 		const r = __PRIVATE_valueDescription(n);
 		throw "an object" === r ? t.createError(e + " a custom object") : t.createError(e + " " + r);
 	}
 }
 /**
 * Helper that calls fromDotSeparatedString() but wraps any error thrown.
-*/ function K(e, t, n) {
+*/ function X(e, t, n) {
 	if ((t = getModularInstance(t)) instanceof FieldPath) return t._internalPath;
 	if ("string" == typeof t) return __PRIVATE_fieldPathFromDotSeparatedString(e, t);
 	throw createError("Field path arguments must be of type string or ", e, false, void 0, n);
@@ -27255,7 +27476,7 @@ function createError(e, t, n, r, i) {
 	let o = `Function ${t}() called with invalid data`;
 	n && (o += " (via `toFirestore()`)"), o += ". ";
 	let a = "";
-	return (s || _) && (a += " (found", s && (a += ` in field ${r}`), _ && (a += ` in document ${i}`), a += ")"), new Q(z.INVALID_ARGUMENT, o + e + a);
+	return (s || _) && (a += " (found", s && (a += ` in field ${r}`), _ && (a += ` in document ${i}`), a += ")"), new J(K.INVALID_ARGUMENT, o + e + a);
 }
 /** Checks `haystack` if FieldPath `needle` is present. Runs in O(n). */ function __PRIVATE_fieldMaskContains(e, t) {
 	return e.some(((e) => e.isEqual(t)));
@@ -27289,7 +27510,7 @@ function __PRIVATE_isUserData(e) {
 			if (r in e) {
 				const s = e[r];
 				let _;
-				if (i.nestedOptions && L(s)) _ = { mapValue: { fields: new OptionsUtil(i.nestedOptions).getOptionsProto(t, s) } };
+				if (i.nestedOptions && W(s)) _ = { mapValue: { fields: new OptionsUtil(i.nestedOptions).getOptionsProto(t, s) } };
 				else s && (_ = __PRIVATE_parseData(s, t) ?? void 0);
 				_ && n.set(Me.fromServerFormat(i.serverName), _);
 			}
@@ -27329,7 +27550,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	}(e.geoPointValue)) || "arrayValue" in e && (null === e.arrayValue || function __PRIVATE_isIArrayValue(e) {
 		return "object" == typeof e && null !== e && !(!("values" in e) || null !== e.values && !Array.isArray(e.values));
 	}(e.arrayValue)) || "mapValue" in e && (null === e.mapValue || function __PRIVATE_isIMapValue(e) {
-		return "object" == typeof e && null !== e && !(!("fields" in e) || null !== e.fields && !L(e.fields));
+		return "object" == typeof e && null !== e && !(!("fields" in e) || null !== e.fields && !W(e.fields));
 	}(e.mapValue)) || "fieldReferenceValue" in e && (null === e.fieldReferenceValue || "string" == typeof e.fieldReferenceValue) || "functionValue" in e && (null === e.functionValue || function __PRIVATE_isIFunction(e) {
 		return "object" == typeof e && null !== e && !(!("name" in e) || null !== e.name && "string" != typeof e.name || !("args" in e) || null !== e.args && !Array.isArray(e.args));
 	}(e.functionValue)) || "pipelineValue" in e && (null === e.pipelineValue || function __PRIVATE_isIPipeline(e) {
@@ -27397,7 +27618,7 @@ function __PRIVATE_isFirestoreValue(e) {
 * @param value
 */ function __PRIVATE_valueToDefaultExpr$1(e) {
 	let t;
-	return e instanceof C ? e : (t = L(e) ? __PRIVATE__map(e) : e instanceof Array ? array(e) : N(e, void 0), t);
+	return e instanceof $ ? e : (t = W(e) ? __PRIVATE__map(e) : e instanceof Array ? array(e) : U(e, void 0), t);
 }
 /**
 * Converts a value to an Expression, Returning either a Constant, MapFunction,
@@ -27407,7 +27628,7 @@ function __PRIVATE_isFirestoreValue(e) {
 * @internal
 * @param value
 */ function __PRIVATE_vectorToExpr$1(e) {
-	if (e instanceof C) return e;
+	if (e instanceof $) return e;
 	if (e instanceof VectorValue) return constant(e);
 	if (Array.isArray(e)) return constant(vector(e));
 	throw new Error("Unsupported value: " + typeof e);
@@ -27422,7 +27643,7 @@ function __PRIVATE_isFirestoreValue(e) {
 * @internal
 * @param value
 */ function __PRIVATE_fieldOrExpression$1(e) {
-	if (__PRIVATE_isString$1(e)) return i(e);
+	if (__PRIVATE_isString$1(e)) return l(e);
 	return __PRIVATE_valueToDefaultExpr$1(e);
 }
 /**
@@ -27439,7 +27660,7 @@ function __PRIVATE_isFirestoreValue(e) {
 *
 * The `Expression` class provides a fluent API for building expressions. You can chain together
 * method calls to create complex expressions.
-*/ var C = class {
+*/ var $ = class {
 	constructor() {
 		this._protoValueType = "ProtoValue";
 	}
@@ -27456,7 +27677,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param others - Optional additional expressions or literals to add to this expression.
 	* @returns A new `Expression` representing the addition operation.
 	*/ add(e) {
-		return new l("add", [this, __PRIVATE_valueToDefaultExpr$1(e)], "add");
+		return new p("add", [this, __PRIVATE_valueToDefaultExpr$1(e)], "add");
 	}
 	/**
 	* Wraps the expression in a [BooleanExpression].
@@ -27466,11 +27687,11 @@ function __PRIVATE_isFirestoreValue(e) {
 		if (this instanceof BooleanExpression) return this;
 		if (this instanceof Constant) return new __PRIVATE_BooleanConstant(this);
 		if (this instanceof Field) return new __PRIVATE_BooleanField(this);
-		if (this instanceof l) return new __PRIVATE_BooleanFunctionExpression(this);
-		throw new Q("invalid-argument", `Conversion of type ${typeof this} to BooleanExpression not supported.`);
+		if (this instanceof p) return new __PRIVATE_BooleanFunctionExpression(this);
+		throw new J("invalid-argument", `Conversion of type ${typeof this} to BooleanExpression not supported.`);
 	}
 	subtract(e) {
-		return new l("subtract", [this, __PRIVATE_valueToDefaultExpr$1(e)], "subtract");
+		return new p("subtract", [this, __PRIVATE_valueToDefaultExpr$1(e)], "subtract");
 	}
 	/**
 	* Creates an expression that multiplies this expression by another expression.
@@ -27485,31 +27706,31 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param others - Optional additional expressions or literals to multiply by.
 	* @returns A new `Expression` representing the multiplication operation.
 	*/ multiply(e) {
-		return new l("multiply", [this, __PRIVATE_valueToDefaultExpr$1(e)], "multiply");
+		return new p("multiply", [this, __PRIVATE_valueToDefaultExpr$1(e)], "multiply");
 	}
 	divide(e) {
-		return new l("divide", [this, __PRIVATE_valueToDefaultExpr$1(e)], "divide");
+		return new p("divide", [this, __PRIVATE_valueToDefaultExpr$1(e)], "divide");
 	}
 	mod(e) {
-		return new l("mod", [this, __PRIVATE_valueToDefaultExpr$1(e)], "mod");
+		return new p("mod", [this, __PRIVATE_valueToDefaultExpr$1(e)], "mod");
 	}
 	equal(e) {
-		return new l("equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "equal").asBoolean();
+		return new p("equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "equal").asBoolean();
 	}
 	notEqual(e) {
-		return new l("not_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "notEqual").asBoolean();
+		return new p("not_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "notEqual").asBoolean();
 	}
 	lessThan(e) {
-		return new l("less_than", [this, __PRIVATE_valueToDefaultExpr$1(e)], "lessThan").asBoolean();
+		return new p("less_than", [this, __PRIVATE_valueToDefaultExpr$1(e)], "lessThan").asBoolean();
 	}
 	lessThanOrEqual(e) {
-		return new l("less_than_or_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "lessThanOrEqual").asBoolean();
+		return new p("less_than_or_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "lessThanOrEqual").asBoolean();
 	}
 	greaterThan(e) {
-		return new l("greater_than", [this, __PRIVATE_valueToDefaultExpr$1(e)], "greaterThan").asBoolean();
+		return new p("greater_than", [this, __PRIVATE_valueToDefaultExpr$1(e)], "greaterThan").asBoolean();
 	}
 	greaterThanOrEqual(e) {
-		return new l("greater_than_or_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "greaterThanOrEqual").asBoolean();
+		return new p("greater_than_or_equal", [this, __PRIVATE_valueToDefaultExpr$1(e)], "greaterThanOrEqual").asBoolean();
 	}
 	/**
 	* Creates an expression that concatenates an array expression with one or more other arrays.
@@ -27524,18 +27745,18 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the concatenated array.
 	*/ arrayConcat(e, ...t) {
 		const n = [e, ...t].map(((e) => __PRIVATE_valueToDefaultExpr$1(e)));
-		return new l("array_concat", [this, ...n], "arrayConcat");
+		return new p("array_concat", [this, ...n], "arrayConcat");
 	}
 	arrayContains(e) {
-		return new l("array_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayContains").asBoolean();
+		return new p("array_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayContains").asBoolean();
 	}
 	arrayContainsAll(e) {
 		const t = Array.isArray(e) ? new __PRIVATE_ListOfExprs(e.map(__PRIVATE_valueToDefaultExpr$1), "arrayContainsAll") : e;
-		return new l("array_contains_all", [this, t], "arrayContainsAll").asBoolean();
+		return new p("array_contains_all", [this, t], "arrayContainsAll").asBoolean();
 	}
 	arrayContainsAny(e) {
 		const t = Array.isArray(e) ? new __PRIVATE_ListOfExprs(e.map(__PRIVATE_valueToDefaultExpr$1), "arrayContainsAny") : e;
-		return new l("array_contains_any", [this, t], "arrayContainsAny").asBoolean();
+		return new p("array_contains_any", [this, t], "arrayContainsAny").asBoolean();
 	}
 	/**
 	* Creates an expression that reverses an array.
@@ -27548,7 +27769,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the reversed array.
 	*/ arrayReverse() {
-		return new l("array_reverse", [this]);
+		return new p("array_reverse", [this]);
 	}
 	/**
 	* Creates an expression that calculates the length of an array.
@@ -27561,15 +27782,15 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the length of the array.
 	*/ arrayLength() {
-		return new l("array_length", [this], "arrayLength");
+		return new p("array_length", [this], "arrayLength");
 	}
 	equalAny(e) {
 		const t = Array.isArray(e) ? new __PRIVATE_ListOfExprs(e.map(__PRIVATE_valueToDefaultExpr$1), "equalAny") : e;
-		return new l("equal_any", [this, t], "equalAny").asBoolean();
+		return new p("equal_any", [this, t], "equalAny").asBoolean();
 	}
 	notEqualAny(e) {
 		const t = Array.isArray(e) ? new __PRIVATE_ListOfExprs(e.map(__PRIVATE_valueToDefaultExpr$1), "notEqualAny") : e;
-		return new l("not_equal_any", [this, t], "notEqualAny").asBoolean();
+		return new p("not_equal_any", [this, t], "notEqualAny").asBoolean();
 	}
 	/**
 	* Creates an expression that checks if a field exists in the document.
@@ -27582,7 +27803,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the 'exists' check.
 	*/ exists() {
-		return new l("exists", [this], "exists").asBoolean();
+		return new p("exists", [this], "exists").asBoolean();
 	}
 	/**
 	* Creates an expression that calculates the character length of a string in UTF-8.
@@ -27595,31 +27816,31 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the length of the string.
 	*/ charLength() {
-		return new l("char_length", [this], "charLength");
+		return new p("char_length", [this], "charLength");
 	}
 	like(e) {
-		return new l("like", [this, __PRIVATE_valueToDefaultExpr$1(e)], "like").asBoolean();
+		return new p("like", [this, __PRIVATE_valueToDefaultExpr$1(e)], "like").asBoolean();
 	}
 	regexContains(e) {
-		return new l("regex_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexContains").asBoolean();
+		return new p("regex_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexContains").asBoolean();
 	}
 	regexFind(e) {
-		return new l("regex_find", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexFind");
+		return new p("regex_find", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexFind");
 	}
 	regexFindAll(e) {
-		return new l("regex_find_all", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexFindAll");
+		return new p("regex_find_all", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexFindAll");
 	}
 	regexMatch(e) {
-		return new l("regex_match", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexMatch").asBoolean();
+		return new p("regex_match", [this, __PRIVATE_valueToDefaultExpr$1(e)], "regexMatch").asBoolean();
 	}
 	stringContains(e) {
-		return new l("string_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringContains").asBoolean();
+		return new p("string_contains", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringContains").asBoolean();
 	}
 	startsWith(e) {
-		return new l("starts_with", [this, __PRIVATE_valueToDefaultExpr$1(e)], "startsWith").asBoolean();
+		return new p("starts_with", [this, __PRIVATE_valueToDefaultExpr$1(e)], "startsWith").asBoolean();
 	}
 	endsWith(e) {
-		return new l("ends_with", [this, __PRIVATE_valueToDefaultExpr$1(e)], "endsWith").asBoolean();
+		return new p("ends_with", [this, __PRIVATE_valueToDefaultExpr$1(e)], "endsWith").asBoolean();
 	}
 	/**
 	* Creates an expression that converts a string to lowercase.
@@ -27632,7 +27853,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the lowercase string.
 	*/ toLower() {
-		return new l("to_lower", [this], "toLower");
+		return new p("to_lower", [this], "toLower");
 	}
 	/**
 	* Creates an expression that converts a string to uppercase.
@@ -27645,7 +27866,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the uppercase string.
 	*/ toUpper() {
-		return new l("to_upper", [this], "toUpper");
+		return new p("to_upper", [this], "toUpper");
 	}
 	/**
 	* Creates an expression that removes leading and trailing characters from a string or byte array.
@@ -27663,7 +27884,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the trimmed string or byte array.
 	*/ trim(e) {
 		const t = [this];
-		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new l("trim", t, "trim");
+		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new p("trim", t, "trim");
 	}
 	/**
 	* Trims whitespace or a specified set of characters/bytes from the beginning of a string or byte array.
@@ -27682,7 +27903,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the trimmed string.
 	*/ ltrim(e) {
 		const t = [this];
-		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new l("ltrim", t, "ltrim");
+		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new p("ltrim", t, "ltrim");
 	}
 	/**
 	* Trims whitespace or a specified set of characters/bytes from the end of a string or byte array.
@@ -27701,7 +27922,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the trimmed string or byte array.
 	*/ rtrim(e) {
 		const t = [this];
-		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new l("rtrim", t, "rtrim");
+		return e && t.push(__PRIVATE_valueToDefaultExpr$1(e)), new p("rtrim", t, "rtrim");
 	}
 	/**
 	* Creates an expression that returns the data type of this expression's result, as a string.
@@ -27722,7 +27943,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the data type.
 	*/ type() {
-		return new l("type", [this]);
+		return new p("type", [this]);
 	}
 	/**
 	* Creates an expression that checks if the result of this expression is of the given type.
@@ -27742,7 +27963,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param type - The type to check for.
 	* @returns A new `BooleanExpression` that evaluates to true if the expression's result is of the given type, false otherwise.
 	*/ isType(e) {
-		return new l("is_type", [this, constant(e)], "isType").asBoolean();
+		return new p("is_type", [this, constant(e)], "isType").asBoolean();
 	}
 	/**
 	* Creates an expression that concatenates string expressions together.
@@ -27758,7 +27979,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the concatenated string.
 	*/ stringConcat(e, ...t) {
 		const n = [e, ...t].map(__PRIVATE_valueToDefaultExpr$1);
-		return new l("string_concat", [this, ...n], "stringConcat");
+		return new p("string_concat", [this, ...n], "stringConcat");
 	}
 	/**
 	* Creates an expression that finds the index of the first occurrence of a substring or byte sequence.
@@ -27772,7 +27993,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param search - The substring or byte sequence to search for.
 	* @returns A new `Expression` representing the index of the first occurrence.
 	*/ stringIndexOf(e) {
-		return new l("string_index_of", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringIndexOf");
+		return new p("string_index_of", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringIndexOf");
 	}
 	/**
 	* Creates an expression that repeats a string or byte array a specified number of times.
@@ -27786,7 +28007,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param repetitions - The number of times to repeat the string or byte array.
 	* @returns A new `Expression` representing the repeated string or byte array.
 	*/ stringRepeat(e) {
-		return new l("string_repeat", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringRepeat");
+		return new p("string_repeat", [this, __PRIVATE_valueToDefaultExpr$1(e)], "stringRepeat");
 	}
 	/**
 	* Creates an expression that replaces all occurrences of a substring or byte sequence with a replacement.
@@ -27801,7 +28022,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param replacement - The replacement string or byte sequence.
 	* @returns A new `Expression` representing the string or byte array with replacements.
 	*/ stringReplaceAll(e, t) {
-		return new l("string_replace_all", [
+		return new p("string_replace_all", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t)
@@ -27820,7 +28041,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param replacement - The replacement string or byte sequence.
 	* @returns A new `Expression` representing the string or byte array with the replacement.
 	*/ stringReplaceOne(e, t) {
-		return new l("string_replace_one", [
+		return new p("string_replace_one", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t)
@@ -27840,7 +28061,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the concatenated value.
 	*/ concat(e, ...t) {
 		const n = [e, ...t].map(__PRIVATE_valueToDefaultExpr$1);
-		return new l("concat", [this, ...n], "concat");
+		return new p("concat", [this, ...n], "concat");
 	}
 	/**
 	* Creates an expression that reverses this string expression.
@@ -27853,7 +28074,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the reversed string.
 	*/ reverse() {
-		return new l("reverse", [this], "reverse");
+		return new p("reverse", [this], "reverse");
 	}
 	/**
 	* Filters the array using a provided alias and predicate expression.
@@ -27868,7 +28089,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param filter - The predicate boolean expression to filter by.
 	* @returns A new `Expression` representing the filtered array.
 	*/ arrayFilter(e, t) {
-		return new l("array_filter", [
+		return new p("array_filter", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			t
@@ -27887,7 +28108,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param transform - The lambda expression used to transform the elements.
 	* @returns A new `Expression` representing the arrayTransform operation.
 	*/ arrayTransform(e, t) {
-		return new l("array_transform", [
+		return new p("array_transform", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			t
@@ -27907,7 +28128,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param transform - The lambda expression used to transform the elements.
 	* @returns A new `Expression` representing the arrayTransformWithIndex operation.
 	*/ arrayTransformWithIndex(e, t, n) {
-		return new l("array_transform", [
+		return new p("array_transform", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t),
@@ -27931,7 +28152,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new `Expression` representing the sliced array.
 	*/ arraySlice(e, t) {
 		const n = [this, __PRIVATE_valueToDefaultExpr$1(e)];
-		return void 0 !== t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new l("array_slice", n, "arraySlice");
+		return void 0 !== t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new p("array_slice", n, "arraySlice");
 	}
 	/**
 	* Returns the first element of the array.
@@ -27944,10 +28165,10 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the first element.
 	*/ arrayFirst() {
-		return new l("array_first", [this], "arrayFirst");
+		return new p("array_first", [this], "arrayFirst");
 	}
 	arrayFirstN(e) {
-		return new l("array_first_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayFirstN");
+		return new p("array_first_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayFirstN");
 	}
 	/**
 	* Returns the last element of the array.
@@ -27960,10 +28181,10 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the last element.
 	*/ arrayLast() {
-		return new l("array_last", [this], "arrayLast");
+		return new p("array_last", [this], "arrayLast");
 	}
 	arrayLastN(e) {
-		return new l("array_last_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayLastN");
+		return new p("array_last_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayLastN");
 	}
 	/**
 	* Returns the maximum value in the array.
@@ -27976,10 +28197,10 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the maximum value.
 	*/ arrayMaximum() {
-		return new l("maximum", [this], "arrayMaximum");
+		return new p("maximum", [this], "arrayMaximum");
 	}
 	arrayMaximumN(e) {
-		return new l("maximum_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayMaximumN");
+		return new p("maximum_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayMaximumN");
 	}
 	/**
 	* Returns the minimum value in the array.
@@ -27992,27 +28213,27 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the minimum value.
 	*/ arrayMinimum() {
-		return new l("minimum", [this], "arrayMinimum");
+		return new p("minimum", [this], "arrayMinimum");
 	}
 	arrayMinimumN(e) {
-		return new l("minimum_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayMinimumN");
+		return new p("minimum_n", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayMinimumN");
 	}
 	arrayIndexOf(e) {
-		return new l("array_index_of", [
+		return new p("array_index_of", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1("first")
 		], "arrayIndexOf");
 	}
 	arrayLastIndexOf(e) {
-		return new l("array_index_of", [
+		return new p("array_index_of", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1("last")
 		], "arrayLastIndexOf");
 	}
 	arrayIndexOfAll(e) {
-		return new l("array_index_of_all", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayIndexOfAll");
+		return new p("array_index_of_all", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayIndexOfAll");
 	}
 	/**
 	* Creates an expression that calculates the length of this string expression in bytes.
@@ -28025,7 +28246,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the length of the string in bytes.
 	*/ byteLength() {
-		return new l("byte_length", [this], "byteLength");
+		return new p("byte_length", [this], "byteLength");
 	}
 	/**
 	* Creates an expression that computes the ceiling of a numeric value.
@@ -28038,7 +28259,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the ceiling of the numeric value.
 	*/ ceil() {
-		return new l("ceil", [this]);
+		return new p("ceil", [this]);
 	}
 	/**
 	* Creates an expression that computes the floor of a numeric value.
@@ -28051,7 +28272,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the floor of the numeric value.
 	*/ floor() {
-		return new l("floor", [this]);
+		return new p("floor", [this]);
 	}
 	/**
 	* Creates an expression that computes the absolute value of a numeric value.
@@ -28064,7 +28285,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the absolute value of the numeric value.
 	*/ abs() {
-		return new l("abs", [this]);
+		return new p("abs", [this]);
 	}
 	/**
 	* Creates an expression that computes e to the power of this expression.
@@ -28077,7 +28298,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the exp of the numeric value.
 	*/ exp() {
-		return new l("exp", [this]);
+		return new p("exp", [this]);
 	}
 	/**
 	* Accesses a value from a map (object) field using the provided key.
@@ -28091,7 +28312,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param subfield - The key to access in the map.
 	* @returns A new `Expression` representing the value associated with the given key in the map.
 	*/ mapGet(e) {
-		return new l("map_get", [this, constant(e)], "mapGet");
+		return new p("map_get", [this, constant(e)], "mapGet");
 	}
 	/**
 	* Creates an expression that returns a new map with the specified entries added or updated.
@@ -28111,7 +28332,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param moreKeyValues - Additional key-value pairs to set.
 	* @returns A new `Expression` representing the map with the entries set.
 	*/ mapSet(e, t, ...n) {
-		return new l("map_set", [
+		return new p("map_set", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t),
@@ -28133,7 +28354,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the keys of the map.
 	*/ mapKeys() {
-		return new l("map_keys", [this], "mapKeys");
+		return new p("map_keys", [this], "mapKeys");
 	}
 	/**
 	* Creates an expression that returns the values of a map.
@@ -28150,7 +28371,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the values of the map.
 	*/ mapValues() {
-		return new l("map_values", [this], "mapValues");
+		return new p("map_values", [this], "mapValues");
 	}
 	/**
 	* Creates an expression that returns the entries of a map as an array of maps,
@@ -28165,7 +28386,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the entries of the map.
 	*/ mapEntries() {
-		return new l("map_entries", [this], "mapEntries");
+		return new p("map_entries", [this], "mapEntries");
 	}
 	/**
 	* @public
@@ -28180,7 +28401,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param key The field to access in the document.
 	* @returns A new `Expression` representing the value of the field in the document.
 	*/ getField(e) {
-		return new l("get_field", [this, __PRIVATE_valueToDefaultExpr$1(e)], "get_field");
+		return new p("get_field", [this, __PRIVATE_valueToDefaultExpr$1(e)], "get_field");
 	}
 	/**
 	* Creates an aggregation that counts the number of stage inputs with valid evaluations of the
@@ -28194,7 +28415,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'count' aggregation.
 	*/ count() {
-		return _._create("count", [this], "count");
+		return N._create("count", [this], "count");
 	}
 	/**
 	* Creates an aggregation that calculates the sum of a numeric field across multiple stage inputs.
@@ -28207,7 +28428,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'sum' aggregation.
 	*/ sum() {
-		return _._create("sum", [this], "sum");
+		return N._create("sum", [this], "sum");
 	}
 	/**
 	* Creates an aggregation that calculates the average (mean) of a numeric field across multiple
@@ -28221,7 +28442,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'average' aggregation.
 	*/ average() {
-		return _._create("average", [this], "average");
+		return N._create("average", [this], "average");
 	}
 	/**
 	* Creates an aggregation that finds the minimum value of a field across multiple stage inputs.
@@ -28234,7 +28455,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'minimum' aggregation.
 	*/ minimum() {
-		return _._create("minimum", [this], "minimum");
+		return N._create("minimum", [this], "minimum");
 	}
 	/**
 	* Creates an aggregation that finds the maximum value of a field across multiple stage inputs.
@@ -28247,7 +28468,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'maximum' aggregation.
 	*/ maximum() {
-		return _._create("maximum", [this], "maximum");
+		return N._create("maximum", [this], "maximum");
 	}
 	/**
 	* Creates an aggregation that finds the first value of an expression across multiple stage inputs.
@@ -28260,7 +28481,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'first' aggregation.
 	*/ first() {
-		return _._create("first", [this], "first");
+		return N._create("first", [this], "first");
 	}
 	/**
 	* Creates an aggregation that finds the last value of an expression across multiple stage inputs.
@@ -28273,7 +28494,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'last' aggregation.
 	*/ last() {
-		return _._create("last", [this], "last");
+		return N._create("last", [this], "last");
 	}
 	/**
 	* Creates an aggregation that collects all values of an expression across multiple stage inputs
@@ -28291,7 +28512,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'array_agg' aggregation.
 	*/ arrayAgg() {
-		return _._create("array_agg", [this], "arrayAgg");
+		return N._create("array_agg", [this], "arrayAgg");
 	}
 	/**
 	* Creates an aggregation that collects all distinct values of an expression across multiple stage
@@ -28309,7 +28530,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'array_agg_distinct' aggregation.
 	*/ arrayAggDistinct() {
-		return _._create("array_agg_distinct", [this], "arrayAggDistinct");
+		return N._create("array_agg_distinct", [this], "arrayAggDistinct");
 	}
 	/**
 	* Creates an aggregation that counts the number of distinct values of the expression or field.
@@ -28322,7 +28543,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `AggregateFunction` representing the 'count_distinct' aggregation.
 	*/ countDistinct() {
-		return _._create("count_distinct", [this], "countDistinct");
+		return N._create("count_distinct", [this], "countDistinct");
 	}
 	/**
 	* Creates an expression that returns the larger value between this expression and another expression, based on Firestore's value type ordering.
@@ -28338,7 +28559,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the logical maximum operation.
 	*/ logicalMaximum(e, ...t) {
 		const n = [e, ...t];
-		return new l("maximum", [this, ...n.map(__PRIVATE_valueToDefaultExpr$1)], "logicalMaximum");
+		return new p("maximum", [this, ...n.map(__PRIVATE_valueToDefaultExpr$1)], "logicalMaximum");
 	}
 	/**
 	* Creates an expression that returns the smaller value between this expression and another expression, based on Firestore's value type ordering.
@@ -28354,7 +28575,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the logical minimum operation.
 	*/ logicalMinimum(e, ...t) {
 		const n = [e, ...t];
-		return new l("minimum", [this, ...n.map(__PRIVATE_valueToDefaultExpr$1)], "minimum");
+		return new p("minimum", [this, ...n.map(__PRIVATE_valueToDefaultExpr$1)], "minimum");
 	}
 	/**
 	* Creates an expression that calculates the length (number of dimensions) of this Firestore Vector expression.
@@ -28367,16 +28588,16 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the length of the vector.
 	*/ vectorLength() {
-		return new l("vector_length", [this], "vectorLength");
+		return new p("vector_length", [this], "vectorLength");
 	}
 	cosineDistance(e) {
-		return new l("cosine_distance", [this, __PRIVATE_vectorToExpr$1(e)], "cosineDistance");
+		return new p("cosine_distance", [this, __PRIVATE_vectorToExpr$1(e)], "cosineDistance");
 	}
 	dotProduct(e) {
-		return new l("dot_product", [this, __PRIVATE_vectorToExpr$1(e)], "dotProduct");
+		return new p("dot_product", [this, __PRIVATE_vectorToExpr$1(e)], "dotProduct");
 	}
 	euclideanDistance(e) {
-		return new l("euclidean_distance", [this, __PRIVATE_vectorToExpr$1(e)], "euclideanDistance");
+		return new p("euclidean_distance", [this, __PRIVATE_vectorToExpr$1(e)], "euclideanDistance");
 	}
 	/**
 	* Creates an expression that interprets this expression as the number of microseconds since the Unix epoch (1970-01-01 00:00:00 UTC)
@@ -28390,7 +28611,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the timestamp.
 	*/ unixMicrosToTimestamp() {
-		return new l("unix_micros_to_timestamp", [this], "unixMicrosToTimestamp");
+		return new p("unix_micros_to_timestamp", [this], "unixMicrosToTimestamp");
 	}
 	/**
 	* Creates an expression that converts this timestamp expression to the number of microseconds since the Unix epoch (1970-01-01 00:00:00 UTC).
@@ -28403,7 +28624,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the number of microseconds since epoch.
 	*/ timestampToUnixMicros() {
-		return new l("timestamp_to_unix_micros", [this], "timestampToUnixMicros");
+		return new p("timestamp_to_unix_micros", [this], "timestampToUnixMicros");
 	}
 	/**
 	* Creates an expression that interprets this expression as the number of milliseconds since the Unix epoch (1970-01-01 00:00:00 UTC)
@@ -28417,7 +28638,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the timestamp.
 	*/ unixMillisToTimestamp() {
-		return new l("unix_millis_to_timestamp", [this], "unixMillisToTimestamp");
+		return new p("unix_millis_to_timestamp", [this], "unixMillisToTimestamp");
 	}
 	/**
 	* Creates an expression that converts this timestamp expression to the number of milliseconds since the Unix epoch (1970-01-01 00:00:00 UTC).
@@ -28430,7 +28651,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the number of milliseconds since epoch.
 	*/ timestampToUnixMillis() {
-		return new l("timestamp_to_unix_millis", [this], "timestampToUnixMillis");
+		return new p("timestamp_to_unix_millis", [this], "timestampToUnixMillis");
 	}
 	/**
 	* Creates an expression that interprets this expression as the number of seconds since the Unix epoch (1970-01-01 00:00:00 UTC)
@@ -28444,7 +28665,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the timestamp.
 	*/ unixSecondsToTimestamp() {
-		return new l("unix_seconds_to_timestamp", [this], "unixSecondsToTimestamp");
+		return new p("unix_seconds_to_timestamp", [this], "unixSecondsToTimestamp");
 	}
 	/**
 	* Creates an expression that converts this timestamp expression to the number of seconds since the Unix epoch (1970-01-01 00:00:00 UTC).
@@ -28457,24 +28678,24 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the number of seconds since epoch.
 	*/ timestampToUnixSeconds() {
-		return new l("timestamp_to_unix_seconds", [this], "timestampToUnixSeconds");
+		return new p("timestamp_to_unix_seconds", [this], "timestampToUnixSeconds");
 	}
 	timestampAdd(e, t) {
-		return new l("timestamp_add", [
+		return new p("timestamp_add", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t)
 		], "timestampAdd");
 	}
 	timestampSubtract(e, t) {
-		return new l("timestamp_subtract", [
+		return new p("timestamp_subtract", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t)
 		], "timestampSubtract");
 	}
 	timestampDiff(e, t) {
-		return new l("timestamp_diff", [
+		return new p("timestamp_diff", [
 			this,
 			__PRIVATE_fieldOrExpression$1(e),
 			__PRIVATE_valueToDefaultExpr$1(t)
@@ -28482,7 +28703,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	}
 	timestampExtract(e, t) {
 		const n = [this, __PRIVATE_valueToDefaultExpr$1(e)];
-		return t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new l("timestamp_extract", n, "timestampExtract");
+		return t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new p("timestamp_extract", n, "timestampExtract");
 	}
 	/**
 	*
@@ -28496,7 +28717,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the documentId operation.
 	*/ documentId() {
-		return new l("document_id", [this], "documentId");
+		return new p("document_id", [this], "documentId");
 	}
 	/**
 	*
@@ -28510,18 +28731,18 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the parent operation.
 	*/ parent() {
-		return new l("parent", [this], "parent");
+		return new p("parent", [this], "parent");
 	}
 	substring(e, t) {
 		const n = __PRIVATE_valueToDefaultExpr$1(e);
-		return new l("substring", void 0 === t ? [this, n] : [
+		return new p("substring", void 0 === t ? [this, n] : [
 			this,
 			n,
 			__PRIVATE_valueToDefaultExpr$1(t)
 		], "substring");
 	}
 	arrayGet(e) {
-		return new l("array_get", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayGet");
+		return new p("array_get", [this, __PRIVATE_valueToDefaultExpr$1(e)], "arrayGet");
 	}
 	/**
 	*
@@ -28535,10 +28756,10 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#BooleanExpression} representing the 'isError' check.
 	*/ isError() {
-		return new l("is_error", [this], "isError").asBoolean();
+		return new p("is_error", [this], "isError").asBoolean();
 	}
 	ifError(e) {
-		const t = new l("if_error", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifError");
+		const t = new p("if_error", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifError");
 		return e instanceof BooleanExpression ? t.asBoolean() : t;
 	}
 	/**
@@ -28554,10 +28775,10 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#BooleanExpression} representing the 'isAbsent' check.
 	*/ isAbsent() {
-		return new l("is_absent", [this], "isAbsent").asBoolean();
+		return new p("is_absent", [this], "isAbsent").asBoolean();
 	}
 	mapRemove(e) {
-		return new l("map_remove", [this, __PRIVATE_valueToDefaultExpr$1(e)], "mapRemove");
+		return new p("map_remove", [this, __PRIVATE_valueToDefaultExpr$1(e)], "mapRemove");
 	}
 	/**
 	*
@@ -28578,20 +28799,20 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the 'mapMerge' operation.
 	*/ mapMerge(e, ...t) {
 		const n = __PRIVATE_valueToDefaultExpr$1(e), r = t.map(__PRIVATE_valueToDefaultExpr$1);
-		return new l("map_merge", [
+		return new p("map_merge", [
 			this,
 			n,
 			...r
 		], "mapMerge");
 	}
 	pow(e) {
-		return new l("pow", [this, __PRIVATE_valueToDefaultExpr$1(e)]);
+		return new p("pow", [this, __PRIVATE_valueToDefaultExpr$1(e)]);
 	}
 	trunc(e) {
-		return void 0 === e ? new l("trunc", [this]) : new l("trunc", [this, __PRIVATE_valueToDefaultExpr$1(e)], "trunc");
+		return void 0 === e ? new p("trunc", [this]) : new p("trunc", [this, __PRIVATE_valueToDefaultExpr$1(e)], "trunc");
 	}
 	round(e) {
-		return void 0 === e ? new l("round", [this]) : new l("round", [this, __PRIVATE_valueToDefaultExpr$1(e)], "round");
+		return void 0 === e ? new p("round", [this]) : new p("round", [this, __PRIVATE_valueToDefaultExpr$1(e)], "round");
 	}
 	/**
 	* Creates an expression that returns the collection ID from a path.
@@ -28604,7 +28825,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the collectionId operation.
 	*/ collectionId() {
-		return new l("collection_id", [this]);
+		return new p("collection_id", [this]);
 	}
 	/**
 	* Creates an expression that calculates the length of a string, array, map, vector, or bytes.
@@ -28620,7 +28841,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new `Expression` representing the length of the string, array, map, vector, or bytes.
 	*/ length() {
-		return new l("length", [this]);
+		return new p("length", [this]);
 	}
 	/**
 	* Creates an expression that computes the natural logarithm of a numeric value.
@@ -28633,7 +28854,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the natural logarithm of the numeric value.
 	*/ ln() {
-		return new l("ln", [this]);
+		return new p("ln", [this]);
 	}
 	/**
 	* Creates an expression that computes the square root of a numeric value.
@@ -28646,7 +28867,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the square root of the numeric value.
 	*/ sqrt() {
-		return new l("sqrt", [this]);
+		return new p("sqrt", [this]);
 	}
 	/**
 	* Creates an expression that reverses a string.
@@ -28659,13 +28880,13 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the reversed string.
 	*/ stringReverse() {
-		return new l("string_reverse", [this]);
+		return new p("string_reverse", [this]);
 	}
 	ifAbsent(e) {
-		return new l("if_absent", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifAbsent");
+		return new p("if_absent", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifAbsent");
 	}
 	ifNull(e) {
-		return new l("if_null", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifNull");
+		return new p("if_null", [this, __PRIVATE_valueToDefaultExpr$1(e)], "ifNull");
 	}
 	/**
 	* Creates an expression that returns the first non-null, non-absent argument, without evaluating
@@ -28682,14 +28903,14 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @param others - Optional additional values to check if previous values are null.
 	* @returns A new `Expression` representing the coalesce operation.
 	*/ coalesce(e, ...t) {
-		return new l("coalesce", [
+		return new p("coalesce", [
 			this,
 			__PRIVATE_valueToDefaultExpr$1(e),
 			...t.map(__PRIVATE_valueToDefaultExpr$1)
 		], "coalesce");
 	}
 	join(e) {
-		return new l("join", [this, __PRIVATE_valueToDefaultExpr$1(e)], "join");
+		return new p("join", [this, __PRIVATE_valueToDefaultExpr$1(e)], "join");
 	}
 	/**
 	* Creates an expression that computes the base-10 logarithm of a numeric value.
@@ -28702,7 +28923,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the base-10 logarithm of the numeric value.
 	*/ log10() {
-		return new l("log10", [this]);
+		return new p("log10", [this]);
 	}
 	/**
 	* Creates an expression that computes the sum of the elements in an array.
@@ -28715,14 +28936,14 @@ function __PRIVATE_isFirestoreValue(e) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the sum of the elements in the array.
 	*/ arraySum() {
-		return new l("sum", [this]);
+		return new p("sum", [this]);
 	}
 	split(e) {
-		return new l("split", [this, __PRIVATE_valueToDefaultExpr$1(e)]);
+		return new p("split", [this, __PRIVATE_valueToDefaultExpr$1(e)]);
 	}
 	timestampTruncate(e, t) {
 		const n = [this, __PRIVATE_valueToDefaultExpr$1(e)];
-		return t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new l("timestamp_trunc", n);
+		return t && n.push(__PRIVATE_valueToDefaultExpr$1(t)), new p("timestamp_trunc", n);
 	}
 	/**
 	* Creates an {@link @firebase/firestore/pipelines#Ordering} that sorts documents in ascending order based on this expression.
@@ -28776,7 +28997,7 @@ function __PRIVATE_isFirestoreValue(e) {
 /**
 *
 * A class that represents an aggregate function.
-*/ var _ = class _ {
+*/ var N = class N {
 	constructor(e, t) {
 		this.name = e, this.params = t, this.exprType = "AggregateFunction", this._protoValueType = "ProtoValue";
 	}
@@ -28784,7 +29005,7 @@ function __PRIVATE_isFirestoreValue(e) {
 	* @internal
 	* @private
 	*/ static _create(e, t, n) {
-		const r = new _(e, t);
+		const r = new N(e, t);
 		return r._methodName = n, r;
 	}
 	/**
@@ -28803,6 +29024,67 @@ function __PRIVATE_isFirestoreValue(e) {
 	*     AggregateFunction and associates it with the provided alias.
 	*/ as(e) {
 		return new AliasedAggregate(this, e, "as");
+	}
+	/**
+	* @beta
+	*
+	* Evaluates this aggregate function over a specific window frame, rather than
+	* over the window frame defined by the enclosing
+	* {@link @firebase/firestore/pipelines#Pipeline.(addWindowFields:1)} stage.
+	*
+	* Window Functions SDK features are in preview until the backend feature launches. Look for launch announcement at: https://docs.cloud.google.com/firestore/docs/release-notes
+	*
+	* The backend only accepts a frame (`documents` or `range`) here, and
+	* rejects `partition` and `sort`, which must be specified on the enclosing
+	* `addWindowFields()` stage.
+	*
+	* - In a `documents` frame, bounds are document offsets relative to the
+	*   current document's position (`'current'` refers strictly to the current
+	*   document's position; tied documents are not included). For `preceding`,
+	*   a positive integer (e.g. `2`) includes up to that many documents before
+	*   the current document, and a negative integer (e.g. `-1`) indicates a
+	*   boundary following the current document, enabling frames that start after
+	*   the current document. For `following`, a positive integer (e.g. `2`)
+	*   includes up to that many documents after the current document, and a
+	*   negative integer (e.g. `-1`) indicates a boundary preceding the current
+	*   document, enabling frames that end before the current document (e.g.
+	*   excluding the current document).
+	* - In a `range` frame, bounds are value or time offsets relative to the
+	*   current document's sort value(s) (`'current'` is peer-inclusive and
+	*   includes all documents tied with the current document's sort value(s),
+	*   equivalent to an offset of `0`). For `preceding`, a positive offset
+	*   subtracts from the current document's sort value (looking into the past),
+	*   and a negative offset adds to the current document's sort value (shifting
+	*   the lower boundary past the current document). For `following`, a
+	*   positive offset adds to the current document's sort value (looking into
+	*   the future), and a negative offset subtracts from the current document's
+	*   sort value (shifting the upper boundary before the current document).
+	*   Range frames with numeric or time-unit offsets require a single numeric
+	*   or timestamp `sort` ordering on the enclosing stage, whereas range frames
+	*   bounded only by `'current'` and `'unbounded'` support multiple `sort`
+	*   orderings and non-numeric sort values.
+	*
+	* @example
+	* ```typescript
+	* firestore.pipeline().collection("sales")
+	*   .addWindowFields(
+	*     { sort: ascending('date') },
+	*     // Cumulative sum up to the current date (including tied peers).
+	*     sum('amount')
+	*       .over({ range: { preceding: 'unbounded', following: 'current' } })
+	*       .as('runningTotal'),
+	*     // 3-document moving window centered on the current document.
+	*     average('amount')
+	*       .over({ documents: { preceding: 1, following: 1 } })
+	*       .as('movingAverage')
+	*   );
+	* ```
+	*
+	* @param frame - The `documents` or `range` window frame to evaluate this
+	*     aggregate over.
+	* @returns A new {@link @firebase/firestore/pipelines#WindowFunction}.
+	*/ over(e) {
+		return new WindowFunction(this.name, this.params, new i(e), "over");
 	}
 	/**
 	* @private
@@ -28847,7 +29129,7 @@ var AliasedExpression = class {
 };
 /**
 * @internal
-*/ var __PRIVATE_ListOfExprs = class extends C {
+*/ var __PRIVATE_ListOfExprs = class extends $ {
 	constructor(e, t) {
 		super(), this.di = e, this._methodName = t, this.expressionType = "ListOfExpressions";
 	}
@@ -28881,7 +29163,7 @@ var AliasedExpression = class {
 * // Create a Field instance for a nested field 'address.city'
 * const cityField = field("address.city");
 * ```
-*/ var Field = class extends C {
+*/ var Field = class extends $ {
 	/**
 	* @internal
 	* @private
@@ -28912,7 +29194,7 @@ var AliasedExpression = class {
 	* @param location - Compute distance to this GeoPoint.
 	*/
 	geoDistance(e) {
-		return new l("geo_distance", [this, __PRIVATE_valueToDefaultExpr$1(e)], "geoDistance");
+		return new p("geo_distance", [this, __PRIVATE_valueToDefaultExpr$1(e)], "geoDistance");
 	}
 	/**
 	* @private
@@ -28925,11 +29207,11 @@ var AliasedExpression = class {
 	* @internal
 	*/ _readUserData(e) {}
 };
-function i(e) {
-	return O(e, "field");
+function l(e) {
+	return _(e, "field");
 }
-function O(e, t) {
-	return new Field("string" == typeof e ? Fe === e ? documentId$1()._internalPath : K("field", e) : e._internalPath, t);
+function _(e, t) {
+	return new Field("string" == typeof e ? Fe === e ? documentId$1()._internalPath : X("field", e) : e._internalPath, t);
 }
 /**
 * @internal
@@ -28946,7 +29228,7 @@ function O(e, t) {
 * // Create a Constant instance for the string "hello"
 * const hello = constant("hello");
 * ```
-*/ var Constant = class Constant extends C {
+*/ var Constant = class Constant extends $ {
 	/**
 	* @private
 	* @internal
@@ -28980,14 +29262,14 @@ function O(e, t) {
 	}
 };
 function constant(e, t) {
-	return N(e, "constant");
+	return U(e, "constant");
 }
 /**
 * @internal
 * @private
 * @param value
 * @param methodName
-*/ function N(e, t) {
+*/ function U(e, t) {
 	const n = new Constant(e, t);
 	return "boolean" == typeof e ? new __PRIVATE_BooleanConstant(n) : n;
 }
@@ -28998,7 +29280,7 @@ function constant(e, t) {
 *
 * Typically, you would not use this class or its children directly. Use either the functions like {@link @firebase/firestore/pipelines#and}, {@link @firebase/firestore/pipelines#(equal:1)},
 * or the methods on {@link @firebase/firestore/pipelines#Expression} ({@link @firebase/firestore/pipelines#Expression.(equal:1)}, {@link @firebase/firestore/pipelines#Expression.(lessThan:1)}, etc.) to construct new Function instances.
-*/ var l = class extends C {
+*/ var p = class extends $ {
 	/**
 	* @hideconstructor
 	*/
@@ -29031,7 +29313,7 @@ function constant(e, t) {
 /**
 *
 * An interface that represents a filter condition.
-*/ var BooleanExpression = class BooleanExpression extends C {
+*/ var BooleanExpression = class BooleanExpression extends $ {
 	get _methodName() {
 		return this._expr._methodName;
 	}
@@ -29047,7 +29329,7 @@ function constant(e, t) {
 	*
 	* @returns A new `AggregateFunction` representing the 'countIf' aggregation.
 	*/ countIf() {
-		return _._create("count_if", [this], "countIf");
+		return N._create("count_if", [this], "countIf");
 	}
 	/**
 	* Creates an expression that negates this boolean expression.
@@ -29060,7 +29342,7 @@ function constant(e, t) {
 	*
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the negated filter condition.
 	*/ not() {
-		return new l("not", [this], "not").asBoolean();
+		return new p("not", [this], "not").asBoolean();
 	}
 	/**
 	* Creates a conditional expression that evaluates to the 'then' expression
@@ -29077,14 +29359,14 @@ function constant(e, t) {
 	* @param elseExpr - The expression to evaluate if the condition is false.
 	* @returns A new {@link @firebase/firestore/pipelines#Expression} representing the conditional expression.
 	*/ conditional(e, t) {
-		return new l("conditional", [
+		return new p("conditional", [
 			this,
 			e,
 			t
 		], "conditional");
 	}
 	ifError(e) {
-		const t = __PRIVATE_valueToDefaultExpr$1(e), n = new l("if_error", [this, t], "ifError");
+		const t = __PRIVATE_valueToDefaultExpr$1(e), n = new p("if_error", [this, t], "ifError");
 		return t instanceof BooleanExpression ? n.asBoolean() : n;
 	}
 	/**
@@ -29124,7 +29406,7 @@ function __PRIVATE__map(e, t) {
 		const r = e[t];
 		n.push(constant(t)), n.push(__PRIVATE_valueToDefaultExpr$1(r));
 	}
-	return new l("map", n, "map");
+	return new p("map", n, "map");
 }
 /**
 *
@@ -29140,7 +29422,7 @@ function __PRIVATE__map(e, t) {
 * @returns A new {@link @firebase/firestore/pipelines#Expression} representing the array function.
 */ function array(e) {
 	return function __PRIVATE__array(e, t) {
-		return new l("array", e.map(((e) => __PRIVATE_valueToDefaultExpr$1(e))), t);
+		return new p("array", e.map(((e) => __PRIVATE_valueToDefaultExpr$1(e))), t);
 	}(e, "array");
 }
 function ascending(e) {
@@ -29172,6 +29454,183 @@ function descending(e) {
 	* @internal
 	*/ _readUserData(e) {
 		this.expr._readUserData(e);
+	}
+};
+/**
+* Returns `true` if the given value is an
+* {@link @firebase/firestore/pipelines#AliasedWindowFunction}.
+*
+* @internal
+* @private
+*/ function I(e) {
+	return e instanceof $;
+}
+/**
+* The normalized internal representation of a {@link WindowSpec}.
+*
+* This mirrors the wire format one-to-one: `partition` and `sort` are
+* normalized to expressions and orderings, while `documents` and `range` are
+* carried through verbatim. Combinations that the backend rejects (such as
+* specifying both `documents` and `range`) are deliberately representable
+* here so that the backend, rather than the SDK, owns validation.
+*
+* The same serialization is used for the first argument of the
+* `add_window_fields` stage and for the second argument of an accumulator
+* level `over()` clause.
+*
+* @internal
+* @private
+*/ var i = class {
+	constructor(e) {
+		this._protoValueType = "ProtoValue";
+		const t = e.sort;
+		this.partition = (e.partition ?? []).map(__PRIVATE_fieldOrExpression$1), this.sort = void 0 === t ? [] : Array.isArray(t) ? t : [t], this.documents = e.documents, this.range = e.range;
+	}
+	/**
+	* @private
+	* @internal
+	*/ _toProto(e) {
+		const t = {};
+		return this.partition.length > 0 && (t.partition = { arrayValue: { values: this.partition.map(((t) => t._toProto(e))) } }), this.sort.length > 0 && (t.sort = { arrayValue: { values: this.sort.map(((t) => t._toProto(e))) } }), void 0 !== this.documents && (t.documents = this.frameToProto(e, this.documents)), void 0 !== this.range && (t.range = this.frameToProto(e, this.range)), { mapValue: { fields: t } };
+	}
+	/**
+	* @private
+	* @internal
+	*/ _readUserData(e) {
+		this.partition.forEach(((t) => t._readUserData(e))), this.sort.forEach(((t) => t._readUserData(e)));
+		for (const t of [this.documents, this.range]) {
+			if (void 0 === t) continue;
+			I(t.preceding) && t.preceding._readUserData(e), I(t.following) && t.following._readUserData(e);
+			const n = t.unit;
+			void 0 !== n && I(n) && n._readUserData(e);
+		}
+	}
+	/**
+	* Serializes a window frame, i.e. the value keyed by `documents` or `range`
+	* in a window specification.
+	*/ frameToProto(e, t) {
+		const n = {};
+		void 0 !== t.preceding && (n.preceding = this.frameBoundToProto(e, t.preceding, "preceding")), void 0 !== t.following && (n.following = this.frameBoundToProto(e, t.following, "following"));
+		const r = t.unit;
+		return void 0 !== r && (n.unit = __PRIVATE_isString$1(r) ? __PRIVATE_toStringValue(r) : r._toProto(e)), { mapValue: { fields: n } };
+	}
+	/**
+	* Serializes a single window frame bound.
+	*/ frameBoundToProto(e, t, n) {
+		if ("number" == typeof t) return toNumber(e, t);
+		if (__PRIVATE_isString$1(t)) return __PRIVATE_toStringValue(t);
+		if (I(t)) return t._toProto(e);
+		throw new J("invalid-argument", `Invalid window frame bound: '${n}'. Expected a number, 'current', 'unbounded', or an Expression.`);
+	}
+};
+/**
+* @beta
+*
+* A function that is evaluated over a window frame of documents, as part of an
+* {@link @firebase/firestore/pipelines#Pipeline.(addWindowFields:1)} stage.
+*
+* Window Functions SDK features are in preview until the backend feature launches. Look for launch announcement at: https://docs.cloud.google.com/firestore/docs/release-notes
+*
+* A `WindowFunction` is created either by one of the dedicated window function
+* factories (such as {@link @firebase/firestore/pipelines#rank}), or by calling
+* `over()` on an {@link @firebase/firestore/pipelines#AggregateFunction}.
+*/ var WindowFunction = class WindowFunction {
+	constructor(e, t = [], n, r) {
+		this.name = e, this.params = t, this.window = n, this._methodName = r, this.exprType = "WindowFunction", this._protoValueType = "ProtoValue";
+	}
+	/**
+	* @beta
+	*
+	* Evaluates this window function over a specific window frame, rather than
+	* over the window frame defined by the enclosing
+	* {@link @firebase/firestore/pipelines#Pipeline.(addWindowFields:1)} stage.
+	*
+	* Window Functions SDK features are in preview until the backend feature launches. Look for launch announcement at: https://docs.cloud.google.com/firestore/docs/release-notes
+	*
+	* The backend only accepts a frame (`documents` or `range`) here, and
+	* rejects `partition` and `sort`, which must be specified on the enclosing
+	* `addWindowFields()` stage.
+	*
+	* - In a `documents` frame, bounds are document offsets relative to the
+	*   current document's position (`'current'` refers strictly to the current
+	*   document's position; tied documents are not included). For `preceding`,
+	*   a positive integer (e.g. `2`) includes up to that many documents before
+	*   the current document, and a negative integer (e.g. `-1`) indicates a
+	*   boundary following the current document, enabling frames that start after
+	*   the current document. For `following`, a positive integer (e.g. `2`)
+	*   includes up to that many documents after the current document, and a
+	*   negative integer (e.g. `-1`) indicates a boundary preceding the current
+	*   document, enabling frames that end before the current document (e.g.
+	*   excluding the current document).
+	* - In a `range` frame, bounds are value or time offsets relative to the
+	*   current document's sort value(s) (`'current'` is peer-inclusive and
+	*   includes all documents tied with the current document's sort value(s),
+	*   equivalent to an offset of `0`). For `preceding`, a positive offset
+	*   subtracts from the current document's sort value (looking into the past),
+	*   and a negative offset adds to the current document's sort value (shifting
+	*   the lower boundary past the current document). For `following`, a
+	*   positive offset adds to the current document's sort value (looking into
+	*   the future), and a negative offset subtracts from the current document's
+	*   sort value (shifting the upper boundary before the current document).
+	*   Range frames with numeric or time-unit offsets require a single numeric
+	*   or timestamp `sort` ordering on the enclosing stage, whereas range frames
+	*   bounded only by `'current'` and `'unbounded'` support multiple `sort`
+	*   orderings and non-numeric sort values.
+	*
+	* @param frame - The `documents` or `range` window frame to evaluate this
+	*     function over.
+	* @returns A new {@link @firebase/firestore/pipelines#WindowFunction}.
+	*/ over(e) {
+		return new WindowFunction(this.name, this.params, new i(e), this._methodName ?? "over");
+	}
+	/**
+	* @beta
+	*
+	* Assigns an alias to this `WindowFunction`. The alias specifies the name that
+	* the computed value will have in the output document.
+	*
+	* Window Functions SDK features are in preview until the backend feature launches. Look for launch announcement at: https://docs.cloud.google.com/firestore/docs/release-notes
+	*
+	* @param name - The alias to assign to this `WindowFunction`.
+	* @returns A new {@link @firebase/firestore/pipelines#AliasedWindowFunction}.
+	*/ as(e) {
+		return new AliasedWindowFunction(this, e, "as");
+	}
+	/**
+	* @private
+	* @internal
+	*/ _toProto(e) {
+		const t = { functionValue: {
+			name: this.name,
+			args: this.params.map(((t) => t._toProto(e)))
+		} };
+		return void 0 === this.window ? t : { functionValue: {
+			name: "over",
+			args: [t, this.window._toProto(e)]
+		} };
+	}
+	/**
+	* @private
+	* @internal
+	*/ _readUserData(e) {
+		e = this._methodName ? e.contextWith({ methodName: this._methodName }) : e, this.params.forEach(((t) => t._readUserData(e))), this.window?._readUserData(e);
+	}
+};
+/**
+* @beta
+*
+* A {@link @firebase/firestore/pipelines#WindowFunction} with an alias.
+*
+* Window Functions SDK features are in preview until the backend feature launches. Look for launch announcement at: https://docs.cloud.google.com/firestore/docs/release-notes
+*/ var AliasedWindowFunction = class {
+	constructor(e, t, n) {
+		this.windowFunction = e, this.alias = t, this._methodName = n;
+	}
+	/**
+	* @private
+	* @internal
+	*/ _readUserData(e) {
+		this.windowFunction._readUserData(e);
 	}
 };
 /**
@@ -29246,7 +29705,7 @@ var e = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.fields, e);
 	}
 };
-var x = class extends Stage {
+var v = class extends Stage {
 	get _name() {
 		return "aggregate";
 	}
@@ -29269,7 +29728,7 @@ var x = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.groups, e), __PRIVATE_readUserDataHelper(this.accumulators, e);
 	}
 };
-var f = class extends Stage {
+var P = class extends Stage {
 	get _name() {
 		return "distinct";
 	}
@@ -29292,7 +29751,7 @@ var f = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.groups, e);
 	}
 };
-var X = class extends Stage {
+var aa = class extends Stage {
 	get _name() {
 		return "collection";
 	}
@@ -29315,7 +29774,7 @@ var X = class extends Stage {
 		super._readUserData(e);
 	}
 };
-var Y = class extends Stage {
+var sa = class extends Stage {
 	get _name() {
 		return "collection_group";
 	}
@@ -29338,7 +29797,7 @@ var Y = class extends Stage {
 		super._readUserData(e);
 	}
 };
-var Z = class extends Stage {
+var ea = class extends Stage {
 	get _name() {
 		return "database";
 	}
@@ -29355,7 +29814,7 @@ var Z = class extends Stage {
 		super._readUserData(e);
 	}
 };
-var sa = class extends Stage {
+var na = class extends Stage {
 	get _name() {
 		return "documents";
 	}
@@ -29363,9 +29822,9 @@ var sa = class extends Stage {
 		return new OptionsUtil({});
 	}
 	constructor(e, t) {
-		if (super(t), !e || 0 === e.length) throw new Q(z.INVALID_ARGUMENT, "Empty document paths are not allowed in DocumentsSource");
+		if (super(t), !e || 0 === e.length) throw new J(K.INVALID_ARGUMENT, "Empty document paths are not allowed in DocumentsSource");
 		const n = e.map(((e) => e.startsWith("/") ? e : "/" + e)), r = new Set(n);
-		if (r.size !== n.length) throw new Q(z.INVALID_ARGUMENT, "Duplicate document paths are not allowed in DocumentsSource");
+		if (r.size !== n.length) throw new J(K.INVALID_ARGUMENT, "Duplicate document paths are not allowed in DocumentsSource");
 		this.gi = n, this.yi = r;
 	}
 	/**
@@ -29381,7 +29840,7 @@ var sa = class extends Stage {
 		super._readUserData(e);
 	}
 };
-var p = class extends Stage {
+var f = class extends Stage {
 	get _name() {
 		return "where";
 	}
@@ -29404,7 +29863,7 @@ var p = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.condition, e);
 	}
 };
-var w = class extends Stage {
+var x = class extends Stage {
 	get _name() {
 		return "limit";
 	}
@@ -29424,7 +29883,7 @@ var w = class extends Stage {
 		};
 	}
 };
-var b = class extends Stage {
+var y = class extends Stage {
 	get _name() {
 		return "offset";
 	}
@@ -29444,7 +29903,7 @@ var b = class extends Stage {
 		};
 	}
 };
-var h = class extends Stage {
+var b = class extends Stage {
 	get _name() {
 		return "select";
 	}
@@ -29467,7 +29926,7 @@ var h = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.selections, e);
 	}
 };
-var F = class extends Stage {
+var M = class extends Stage {
 	get _name() {
 		return "sort";
 	}
@@ -29490,7 +29949,7 @@ var F = class extends Stage {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.orderings, e);
 	}
 };
-var I = class I extends Stage {
+var O = class O extends Stage {
 	get _name() {
 		return "replace_with";
 	}
@@ -29503,14 +29962,14 @@ var I = class I extends Stage {
 	_toProto(e) {
 		return {
 			...super._toProto(e),
-			args: [this.map._toProto(e), __PRIVATE_toStringValue(I.bi)]
+			args: [this.map._toProto(e), __PRIVATE_toStringValue(O.bi)]
 		};
 	}
 	_readUserData(e) {
 		super._readUserData(e), __PRIVATE_readUserDataHelper(this.map, e);
 	}
 };
-I.bi = "full_replace";
+O.bi = "full_replace";
 function __PRIVATE_normalizeCollectionPath(e) {
 	const t = "string" == typeof e ? e : e.path;
 	return t.startsWith("/") ? t : "/" + t;
@@ -29600,15 +30059,15 @@ var __PRIVATE_RealtimePipeline = class __PRIVATE_RealtimePipeline {
 	}
 	where(e) {
 		const t = this.stages.map(((e) => e));
-		return this.Ci("where", e), t.push(new p(e, {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, t);
+		return this.Ci("where", e), t.push(new f(e, {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, t);
 	}
 	limit(e) {
 		const t = this.stages.map(((e) => e));
-		return t.push(new w(e, {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, t);
+		return t.push(new x(e, {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, t);
 	}
 	sort(e, ...t) {
 		const n = this.stages.map(((e) => e));
-		return "orderings" in e ? n.push(new F(this.Ci("sort", e.orderings), {})) : n.push(new F(this.Ci("sort", [e, ...t]), {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, n);
+		return "orderings" in e ? n.push(new M(this.Ci("sort", e.orderings), {})) : n.push(new M(this.Ci("sort", [e, ...t]), {})), new __PRIVATE_RealtimePipeline(this._db, this.userDataReader, this._userDataWriter, n);
 	}
 	/**
 	* @internal
@@ -29638,7 +30097,7 @@ var CorePipeline = class {
 		return function getPipelineFlavor(t) {
 			let n = "exact";
 			return t.stages.forEach(((r, i) => {
-				r._name !== f.name && r._name !== x.name || (n = "keyless"), r._name === h.name && "exact" === n && (n = "augmented"), r._name === e.name && i < t.stages.length - 1 && "exact" === n && (n = "augmented");
+				r._name !== P.name && r._name !== v.name || (n = "keyless"), r._name === b.name && "exact" === n && (n = "augmented"), r._name === e.name && i < t.stages.length - 1 && "exact" === n && (n = "augmented");
 			})), n;
 		}(this);
 		// Copyright 2024 Google LLC* @license
@@ -29649,7 +30108,7 @@ var CorePipeline = class {
 };
 function getPipelineSourceType(e) {
 	const t = e.stages[0];
-	return t instanceof X || t instanceof Y || t instanceof Z || t instanceof sa ? t._name : "unknown";
+	return t instanceof aa || t instanceof sa || t instanceof ea || t instanceof na ? t._name : "unknown";
 }
 function getPipelineCollection(e) {
 	if ("collection" === getPipelineSourceType(e)) return e.stages[0].pi;
@@ -29708,7 +30167,7 @@ function __PRIVATE_toEvaluable(e) {
 	if ((e = __PRIVATE_unwrapExpression(e)) instanceof Field) return new __PRIVATE_CoreField(e);
 	if (e instanceof Constant) return new __PRIVATE_CoreConstant(e);
 	if (e instanceof __PRIVATE_ListOfExprs) return new __PRIVATE_CoreListOfExprs(e);
-	if (e instanceof l) {
+	if (e instanceof p) {
 		if ("add" === e.name) return new __PRIVATE_CoreAdd(e);
 		if ("subtract" === e.name) return new __PRIVATE_CoreSubtract(e);
 		if ("multiply" === e.name) return new __PRIVATE_CoreMultiply(e);
@@ -30070,7 +30529,7 @@ var __PRIVATE_CoreNotEqAny = class {
 		this.expr = e;
 	}
 	evaluate(e, t) {
-		return new __PRIVATE_CoreNot(new l("not", [new l("equal_any", this.expr.params)])).evaluate(e, t);
+		return new __PRIVATE_CoreNot(new p("not", [new p("equal_any", this.expr.params)])).evaluate(e, t);
 	}
 };
 var __PRIVATE_CoreIsNan = class {
@@ -30094,7 +30553,7 @@ var __PRIVATE_CoreIsNotNan = class {
 	}
 	evaluate(e, t) {
 		__PRIVATE_hardAssert(1 === this.expr.params.length, 50406);
-		return new __PRIVATE_CoreNot(new l("not", [new l("is_nan", this.expr.params)])).evaluate(e, t);
+		return new __PRIVATE_CoreNot(new p("not", [new p("is_nan", this.expr.params)])).evaluate(e, t);
 	}
 };
 var __PRIVATE_CoreIsNull = class {
@@ -30117,7 +30576,7 @@ var __PRIVATE_CoreIsNotNull = class {
 	}
 	evaluate(e, t) {
 		__PRIVATE_hardAssert(1 === this.expr.params.length, 23167);
-		return new __PRIVATE_CoreNot(new l("not", [new l("is_null", this.expr.params)])).evaluate(e, t);
+		return new __PRIVATE_CoreNot(new p("not", [new p("is_null", this.expr.params)])).evaluate(e, t);
 	}
 };
 var __PRIVATE_CoreIsError = class {
@@ -30306,7 +30765,7 @@ var __PRIVATE_CoreArrayContains = class {
 		this.expr = e;
 	}
 	evaluate(e, t) {
-		return __PRIVATE_hardAssert(2 === this.expr.params.length, 52884), new __PRIVATE_CoreEqAny(new l("eq_any", [this.expr.params[1], this.expr.params[0]])).evaluate(e, t);
+		return __PRIVATE_hardAssert(2 === this.expr.params.length, 52884), new __PRIVATE_CoreEqAny(new p("eq_any", [this.expr.params[1], this.expr.params[0]])).evaluate(e, t);
 	}
 };
 var __PRIVATE_CoreArrayContainsAll = class {
@@ -30753,7 +31212,7 @@ var __PRIVATE_CoreCosineDistance = class extends __PRIVATE_DistanceBase {
 		if (0 === n.length) return;
 		let i = 0, s = 0, _ = 0;
 		for (let e = 0; e < n.length; e++) {
-			if (!m(n[e]) || !m(r[e])) return;
+			if (!g(n[e]) || !g(r[e])) return;
 			const t = __PRIVATE_asDouble(n[e]), o = __PRIVATE_asDouble(r[e]);
 			i += t * o, s += t * t, _ += o * o;
 		}
@@ -30768,7 +31227,7 @@ var __PRIVATE_CoreDotProduct = class extends __PRIVATE_DistanceBase {
 		if (0 === n.length) return 0;
 		let i = 0;
 		for (let e = 0; e < n.length; e++) {
-			if (!m(n[e]) || !m(r[e])) return;
+			if (!g(n[e]) || !g(r[e])) return;
 			i += __PRIVATE_asDouble(n[e]) * __PRIVATE_asDouble(r[e]);
 		}
 		return i;
@@ -30780,7 +31239,7 @@ var __PRIVATE_CoreEuclideanDistance = class extends __PRIVATE_DistanceBase {
 		if (0 === n.length) return 0;
 		let i = 0;
 		for (let e = 0; e < n.length; e++) {
-			if (!m(n[e]) || !m(r[e])) return;
+			if (!g(n[e]) || !g(r[e])) return;
 			const t = __PRIVATE_asDouble(n[e]), s = __PRIVATE_asDouble(r[e]);
 			i += Math.pow(t - s, 2);
 		}
@@ -31039,26 +31498,26 @@ var __PRIVATE_CoreTimestampSub = class extends __PRIVATE_TimestampArithmetic {
 function __PRIVATE_canonifyExpr(e) {
 	if ((e = __PRIVATE_unwrapExpression(e)) instanceof Field) return `fld(${e.fieldName})`;
 	if (e instanceof Constant) return `cst(${function __PRIVATE_canonifyConstantValue(e) {
-		return null === e ? "null" : "number" == typeof e ? e.toString() : "string" == typeof e ? `"${e}"` : e instanceof aa ? `ref(${e.path})` : e instanceof VectorValue ? `vec(${JSON.stringify(e)})` : JSON.stringify(e);
+		return null === e ? "null" : "number" == typeof e ? e.toString() : "string" == typeof e ? `"${e}"` : e instanceof ta ? `ref(${e.path})` : e instanceof VectorValue ? `vec(${JSON.stringify(e)})` : JSON.stringify(e);
 	}(e.value)})`;
-	if (e instanceof l) return `fn(${e.name},[${e.params.map(__PRIVATE_canonifyExpr).join(",")}])`;
+	if (e instanceof p) return `fn(${e.name},[${e.params.map(__PRIVATE_canonifyExpr).join(",")}])`;
 	if ("ListOfExpressions" === e.expressionType) return `list([${e.di.map(__PRIVATE_canonifyExpr).join(",")}])`;
 	throw new Error(`Unrecognized expr ${JSON.stringify(e, null, 2)}`);
 }
 function __PRIVATE_canonifyStage(t) {
 	if (t instanceof e) return `${t._name}(${__PRIVATE_canonifyExprMap(t.fields)})`;
-	if (t instanceof x) {
+	if (t instanceof v) {
 		let e = `${t._name}(${__PRIVATE_canonifyExprMap(t.accumulators)})`;
 		return t.groups.size > 0 && (e += `grouping(${__PRIVATE_canonifyExprMap(t.groups)})`), e;
 	}
-	if (t instanceof f) return `${t._name}(${__PRIVATE_canonifyExprMap(t.groups)})`;
-	if (t instanceof X) return `${t._name}(${t.pi})`;
-	if (t instanceof Y) return `${t._name}(${t.collectionId})`;
-	if (t instanceof Z) return `${t._name}()`;
-	if (t instanceof sa) return `${t._name}(${t.gi.sort()})`;
-	if (t instanceof p) return `${t._name}(${__PRIVATE_canonifyExpr(t.condition)})`;
-	if (t instanceof w) return `${t._name}(${t.limit})`;
-	if (t instanceof F) return `${t._name}(${function __PRIVATE_canonifySortOrderings(e) {
+	if (t instanceof P) return `${t._name}(${__PRIVATE_canonifyExprMap(t.groups)})`;
+	if (t instanceof aa) return `${t._name}(${t.pi})`;
+	if (t instanceof sa) return `${t._name}(${t.collectionId})`;
+	if (t instanceof ea) return `${t._name}()`;
+	if (t instanceof na) return `${t._name}(${t.gi.sort()})`;
+	if (t instanceof f) return `${t._name}(${__PRIVATE_canonifyExpr(t.condition)})`;
+	if (t instanceof x) return `${t._name}(${t.limit})`;
+	if (t instanceof M) return `${t._name}(${function __PRIVATE_canonifySortOrderings(e) {
 		return e.map(((e) => `${__PRIVATE_canonifyExpr(e.expr)}${e.direction}`)).join(",");
 	}(t.orderings)})`;
 	throw new Error(`Unrecognized stage ${t._name}`);
@@ -31096,13 +31555,13 @@ function __PRIVATE_toCorePipeline(e, t) {
 	const n = function __PRIVATE_rewriteStages(e) {
 		let t = false;
 		const n = [];
-		for (const r of e) if (r instanceof F) if (t = true, r.orderings.some(((e) => e.expr instanceof Field && e.expr.fieldName === Fe))) n.push(r);
+		for (const r of e) if (r instanceof M) if (t = true, r.orderings.some(((e) => e.expr instanceof Field && e.expr.fieldName === Fe))) n.push(r);
 		else {
 			const e = r.orderings.map(((e) => e));
-			e.push(i(Fe).ascending()), n.push(new F(e, {}));
+			e.push(l(Fe).ascending()), n.push(new M(e, {}));
 		}
-		else r instanceof w ? (t || (n.push(new F([i(Fe).ascending()], {})), t = true), n.push(r)) : n.push(r);
-		return t || n.push(new F([i(Fe).ascending()], {})), n;
+		else r instanceof x ? (t || (n.push(new M([l(Fe).ascending()], {})), t = true), n.push(r)) : n.push(r);
+		return t || n.push(new M([l(Fe).ascending()], {})), n;
 	}(e.stages);
 	if (e.userDataReader) {
 		const t = e.userDataReader.createContext(3, "toCorePipeline");
@@ -31879,28 +32338,28 @@ function __PRIVATE_queryOrPipelineMatches(e, t) {
 	return __PRIVATE_isPipeline(e) ? __PRIVATE_pipelineMatches(e, t) : __PRIVATE_queryMatches(e, t);
 }
 function evaluate(e, t, n) {
-	if (t instanceof X) return function __PRIVATE_evaluateCollection(e, t, n) {
+	if (t instanceof aa) return function __PRIVATE_evaluateCollection(e, t, n) {
 		return n.filter(((e) => e.isFoundDocument() && `/${e.key.getCollectionPath().canonicalString()}` === t.pi));
 	}(0, t, n);
-	if (t instanceof p) return function __PRIVATE_evaluateWhere(e, t, n) {
+	if (t instanceof f) return function __PRIVATE_evaluateWhere(e, t, n) {
 		return n.filter(((n) => {
 			const r = __PRIVATE_valueOrUndefined(__PRIVATE_toEvaluable(t.condition).evaluate(e, n));
 			return void 0 !== r && __PRIVATE_valueEquals$1(r, wt);
 		}));
 	}(e, t, n);
-	if (t instanceof Y) return function __PRIVATE_evaluateCollectionGroup(e, t, n) {
+	if (t instanceof sa) return function __PRIVATE_evaluateCollectionGroup(e, t, n) {
 		return n.filter(((e) => e.isFoundDocument() && e.key.getCollectionPath().lastSegment() === t.collectionId));
 	}(0, t, n);
-	if (t instanceof Z) return function __PRIVATE_evaluateDatabase(e, t, n) {
+	if (t instanceof ea) return function __PRIVATE_evaluateDatabase(e, t, n) {
 		return n.filter(((e) => e.isFoundDocument()));
 	}(0, 0, n);
-	if (t instanceof sa) return function __PRIVATE_evaluateDocuments(e, t, n) {
+	if (t instanceof na) return function __PRIVATE_evaluateDocuments(e, t, n) {
 		return n.filter(((e) => e.isFoundDocument() && t.yi.has(e.key.path.toStringWithLeadingSlash())));
 	}(0, t, n);
-	if (t instanceof w) return function __PRIVATE_evaluateLimit(e, t, n) {
+	if (t instanceof x) return function __PRIVATE_evaluateLimit(e, t, n) {
 		return n.slice(0, t.limit);
 	}(0, t, n);
-	if (t instanceof F) return function __PRIVATE_evaluateSort(e, t, n) {
+	if (t instanceof M) return function __PRIVATE_evaluateSort(e, t, n) {
 		const r = t.orderings.map(((e) => ({
 			eo: __PRIVATE_toEvaluable(e.expr),
 			direction: e.direction
@@ -31919,7 +32378,7 @@ function __PRIVATE_newPipelineComparator(e) {
 	const t = function __PRIVATE_lastEffectiveSort(e) {
 		for (let t = e.stages.length - 1; t >= 0; t--) {
 			const n = e.stages[t];
-			if (n instanceof F) return n.orderings;
+			if (n instanceof M) return n.orderings;
 		}
 		throw new Error("Pipeline must contain at least one Sort stage");
 	}(e);
@@ -31934,7 +32393,7 @@ function __PRIVATE_newPipelineComparator(e) {
 function __PRIVATE_getLastEffectiveLimit(e) {
 	for (let t = e.stages.length - 1; t >= 0; t--) {
 		const n = e.stages[t];
-		if (n instanceof w) return { limit: n.limit };
+		if (n instanceof x) return { limit: n.limit };
 	}
 }
 /**
@@ -32306,7 +32765,7 @@ var OverlayedDocument = class {
 			let s = documentMap();
 			return this.indexManager.getCollectionParents(e, i).next(((_) => PersistencePromise.forEach(_, ((_) => {
 				const o = function __PRIVATE_asCollectionPipelineAtPath(e, t) {
-					const n = e.stages.map(((e) => e instanceof Y ? new X(t.canonicalString(), {}) : e));
+					const n = e.stages.map(((e) => e instanceof sa ? new aa(t.canonicalString(), {}) : e));
 					return new CorePipeline(e.serializer, n);
 				}(t, _.child(i));
 				return this.getDocumentsMatchingPipeline(e, o, n, r).next(((e) => {
@@ -32326,7 +32785,7 @@ var OverlayedDocument = class {
 						for (const e of getPipelineDocuments(t)) s = s.add(DocumentKey.fromPath(e));
 						return this.remoteDocumentCache.getEntries(e, s);
 					case "database": return this.remoteDocumentCache.getAllEntries(e);
-					default: throw new Q("invalid-argument", `Invalid pipeline source to execute offline: ${__PRIVATE_canonifyPipeline(t)}`);
+					default: throw new J("invalid-argument", `Invalid pipeline source to execute offline: ${__PRIVATE_canonifyPipeline(t)}`);
 				}
 			})).next(((e) => this.retrieveMatchingLocalDocuments(i, e, ((e) => __PRIVATE_pipelineMatches(t, e)))));
 		}
@@ -32345,10 +32804,10 @@ var OverlayedDocument = class {
 	getOverlaysForPipeline(e, t, n) {
 		switch (getPipelineSourceType(t)) {
 			case "collection": return this.documentOverlayCache.getOverlaysForCollection(e, ResourcePath.fromString(getPipelineCollection(t)), n);
-			case "collection_group": throw new Q("invalid-argument", `Unexpected collection group pipeline: ${__PRIVATE_canonifyPipeline(t)}`);
+			case "collection_group": throw new J("invalid-argument", `Unexpected collection group pipeline: ${__PRIVATE_canonifyPipeline(t)}`);
 			case "documents": return this.documentOverlayCache.getOverlays(e, getPipelineDocuments(t).map(((e) => DocumentKey.fromPath(e))));
 			case "database": return this.documentOverlayCache.getAllOverlays(e, n);
-			default: throw new Q("invalid-argument", `Failed to get overlays for pipeline: ${__PRIVATE_canonifyPipeline(t)}`);
+			default: throw new J("invalid-argument", `Failed to get overlays for pipeline: ${__PRIVATE_canonifyPipeline(t)}`);
 		}
 	}
 };
@@ -33366,8 +33825,8 @@ var __PRIVATE_QueryEngine = class {
 	*/ za(e, t, n, r) {
 		return (__PRIVATE_isPipeline(t) ? function __PRIVATE_pipelineMatchesAllDocuments(e) {
 			for (const t of e.stages) {
-				if (t instanceof w || t instanceof b) return false;
-				if (t instanceof p) {
+				if (t instanceof x || t instanceof y) return false;
+				if (t instanceof f) {
 					if (t.condition instanceof __PRIVATE_BooleanFunctionExpression && "exists" === t.condition._expr.name && t.condition._expr.params[0] instanceof Field && t.condition._expr.params[0].fieldName === Fe) continue;
 					return false;
 				}
@@ -33397,7 +33856,7 @@ var __PRIVATE_QueryEngine = class {
 	* query was last synchronized.
 	*/ Za(e, t, n, r) {
 		if (__PRIVATE_isPipeline(e)) return function __PRIVATE_pipelineHasRanges(e) {
-			return e.stages.some(((e) => e instanceof w || e instanceof b));
+			return e.stages.some(((e) => e instanceof x || e instanceof y));
 		}(e);
 		if (null === e.limit) return false;
 		if (n.size !== t.size) return true;
@@ -34026,7 +34485,7 @@ async function __PRIVATE_onMutationResult(e, t, n) {
 async function __PRIVATE_onWriteStreamClose(e, t) {
 	t && __PRIVATE_ensureWriteStream(e).br && await async function __PRIVATE_handleWriteError(e, t) {
 		if (function __PRIVATE_isPermanentWriteError(e) {
-			return __PRIVATE_isPermanentError(e) && e !== z.ABORTED;
+			return __PRIVATE_isPermanentError(e) && e !== K.ABORTED;
 		}(t.code)) {
 			const n = e.pu.shift();
 			__PRIVATE_ensureWriteStream(e).lr(), await __PRIVATE_executeWithRecovery(e, (() => e.remoteSyncer.rejectFailedWrite(n.batchId, t))), await __PRIVATE_fillWritePipeline(e);
@@ -34191,7 +34650,7 @@ var DelayedOperation = class DelayedOperation {
 	* As long as the operation has not yet been run, calling cancel() provides a
 	* guarantee that the operation will not be run.
 	*/ cancel(e) {
-		null !== this.timerHandle && (this.clearTimeout(), this.deferred.reject(new Q(z.CANCELLED, "Operation cancelled" + (e ? ": " + e : ""))));
+		null !== this.timerHandle && (this.clearTimeout(), this.deferred.reject(new J(K.CANCELLED, "Operation cancelled" + (e ? ": " + e : ""))));
 	}
 	handleDelayElapsed() {
 		this.asyncQueue.enqueueAndForget((() => null !== this.timerHandle ? (this.clearTimeout(), this.op().then(((e) => this.deferred.resolve(e)))) : Promise.resolve()));
@@ -34204,28 +34663,12 @@ var DelayedOperation = class DelayedOperation {
 * Returns a FirestoreError that can be surfaced to the user if the provided
 * error is an IndexedDbTransactionError. Re-throws the error otherwise.
 */ function __PRIVATE_wrapInUserErrorIfRecoverable(e, t) {
-	if (__PRIVATE_logError("AsyncQueue", `${t}: ${e}`), __PRIVATE_isIndexedDbTransactionError(e)) return new Q(z.UNAVAILABLE, `${t}: ${e}`);
+	if (__PRIVATE_logError("AsyncQueue", `${t}: ${e}`), __PRIVATE_isIndexedDbTransactionError(e)) return new J(K.UNAVAILABLE, `${t}: ${e}`);
 	throw e;
 }
 /**
 * @license
 * Copyright 2020 Google LLC
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*   http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
-/**
-* @license
-* Copyright 2025 Google LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34559,7 +35002,7 @@ var __PRIVATE_EventManagerImpl = class {
 			n.queries = __PRIVATE_newQueriesObjectMap(), r.forEach(((e, n) => {
 				for (const e of n.jc) e.onError(t);
 			}));
-		})(this, new Q(z.ABORTED, "Firestore shutting down"));
+		})(this, new J(K.ABORTED, "Firestore shutting down"));
 	}
 };
 function __PRIVATE_newQueriesObjectMap() {
@@ -35276,7 +35719,7 @@ async function __PRIVATE_syncEngineHandleCredentialChange(e, t) {
 		n.currentUser = t, function __PRIVATE_rejectOutstandingPendingWritesCallbacks(e, t) {
 			e.Ul.forEach(((e) => {
 				e.forEach(((e) => {
-					e.reject(new Q(z.CANCELLED, t));
+					e.reject(new J(K.CANCELLED, t));
 				}));
 			})), e.Ul.clear();
 		}(n, "'waitForPendingWrites' promise is rejected due to a user change."), n.sharedClientState.handleUserChange(t, e.removedBatchIds, e.addedBatchIds), await __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore(n, e._u);
@@ -35439,7 +35882,7 @@ var Transaction$1 = class {
 		this.datastore = e, this.readVersions = /* @__PURE__ */ new Map(), this.mutations = [], this.committed = false, this.lastTransactionError = null, this.writtenDocs = /* @__PURE__ */ new Set();
 	}
 	async lookup(e) {
-		if (this.ensureCommitNotCalled(), this.mutations.length > 0) throw this.lastTransactionError = new Q(z.INVALID_ARGUMENT, "Firestore transactions require all reads to be executed before all writes."), this.lastTransactionError;
+		if (this.ensureCommitNotCalled(), this.mutations.length > 0) throw this.lastTransactionError = new J(K.INVALID_ARGUMENT, "Firestore transactions require all reads to be executed before all writes."), this.lastTransactionError;
 		const t = await async function __PRIVATE_invokeBatchGetDocumentsRpc(e, t) {
 			const n = __PRIVATE_debugCast(e), r = { documents: t.map(((e) => __PRIVATE_toName(n.serializer, e))) }, i = await n.dn("BatchGetDocuments", n.serializer.databaseId, ResourcePath.emptyPath(), r, t.length), s = /* @__PURE__ */ new Map();
 			i.forEach(((e) => {
@@ -35490,7 +35933,7 @@ var Transaction$1 = class {
 		}
 		const n = this.readVersions.get(e.key.toString());
 		if (n) {
-			if (!t.isEqual(n)) throw new Q(z.ABORTED, "Document version changed between two reads.");
+			if (!t.isEqual(n)) throw new J(K.ABORTED, "Document version changed between two reads.");
 		} else this.readVersions.set(e.key.toString(), t);
 	}
 	/**
@@ -35505,7 +35948,7 @@ var Transaction$1 = class {
 	*/ preconditionForUpdate(e) {
 		const t = this.readVersions.get(e.toString());
 		if (!this.writtenDocs.has(e.toString()) && t) {
-			if (t.isEqual(SnapshotVersion.min())) throw new Q(z.INVALID_ARGUMENT, "Can't update a document that doesn't exist.");
+			if (t.isEqual(SnapshotVersion.min())) throw new J(K.INVALID_ARGUMENT, "Can't update a document that doesn't exist.");
 			return Precondition.updateTime(t);
 		}
 		return Precondition.exists(true);
@@ -35656,7 +36099,7 @@ async function __PRIVATE_setOnlineComponentProvider(e, t) {
 		} catch (t) {
 			const n = t;
 			if (!function __PRIVATE_canFallbackFromIndexedDbError(e) {
-				return "FirebaseError" === e.name ? e.code === z.FAILED_PRECONDITION || e.code === z.UNIMPLEMENTED : !("undefined" != typeof DOMException && e instanceof DOMException) || 22 === e.code || 20 === e.code || 11 === e.code;
+				return "FirebaseError" === e.name ? e.code === K.FAILED_PRECONDITION || e.code === K.UNIMPLEMENTED : !("undefined" != typeof DOMException && e instanceof DOMException) || 22 === e.code || 20 === e.code || 11 === e.code;
 			}(n)) throw n;
 			__PRIVATE_logWarn("Error using user provided cache. Falling back to memory cache: " + n), await __PRIVATE_setOfflineComponentProvider(e, new __PRIVATE_MemoryOfflineComponentProvider());
 		}
@@ -35665,12 +36108,6 @@ async function __PRIVATE_setOnlineComponentProvider(e, t) {
 }
 async function __PRIVATE_ensureOnlineComponents(e) {
 	return e._onlineComponents || (e._uninitializedComponentsProvider ? (__PRIVATE_logDebug(Jr, "Using user provided OnlineComponentProvider"), await __PRIVATE_setOnlineComponentProvider(e, e._uninitializedComponentsProvider._online)) : (__PRIVATE_logDebug(Jr, "Using default OnlineComponentProvider"), await __PRIVATE_setOnlineComponentProvider(e, new OnlineComponentProvider()))), e._onlineComponents;
-}
-function __PRIVATE_getPersistence(e) {
-	return __PRIVATE_ensureOfflineComponents(e).then(((e) => e.persistence));
-}
-function __PRIVATE_getRemoteStore(e) {
-	return __PRIVATE_ensureOnlineComponents(e).then(((e) => e.remoteStore));
 }
 function __PRIVATE_getSyncEngine(e) {
 	return __PRIVATE_ensureOnlineComponents(e).then(((e) => e.syncEngine));
@@ -35681,15 +36118,6 @@ function __PRIVATE_getDatastore(e) {
 async function __PRIVATE_getEventManager(e) {
 	const t = await __PRIVATE_ensureOnlineComponents(e), n = t.eventManager;
 	return n.onListen = __PRIVATE_syncEngineListen.bind(null, t.syncEngine), n.onUnlisten = __PRIVATE_syncEngineUnlisten.bind(null, t.syncEngine), n.onFirstRemoteStoreListen = __PRIVATE_triggerRemoteStoreListen.bind(null, t.syncEngine), n.onLastRemoteStoreUnlisten = __PRIVATE_triggerRemoteStoreUnlisten.bind(null, t.syncEngine), n;
-}
-/** Enables the network connection and re-enqueues all pending operations. */ function __PRIVATE_firestoreClientEnableNetwork(e) {
-	return e.asyncQueue.enqueue((async () => {
-		const t = await __PRIVATE_getPersistence(e), n = await __PRIVATE_getRemoteStore(e);
-		return t.setNetworkEnabled(true), function __PRIVATE_remoteStoreEnableNetwork(e) {
-			const t = __PRIVATE_debugCast(e);
-			return t.xu.delete(0), __PRIVATE_enableNetworkInternal(t);
-		}(n);
-	}));
 }
 /**
 * Returns a Promise that resolves when all writes that were pending at the time
@@ -35708,7 +36136,7 @@ function __PRIVATE_firestoreClientGetDocumentViaSnapshotListener(e, t, n = {}) {
 			next: (o) => {
 				s.Bu(), t.enqueueAndForget((() => __PRIVATE_eventManagerUnlisten(e, _)));
 				const a = o.docs.has(n);
-				!a && o.fromCache ? i.reject(new Q(z.UNAVAILABLE, "Failed to get document because the client is offline.")) : a && o.fromCache && r && "server" === r.source ? i.reject(new Q(z.UNAVAILABLE, "Failed to get document from server. (However, this document does exist in the local cache. Run again without setting source to \"server\" to retrieve the cached document.)")) : i.resolve(o);
+				!a && o.fromCache ? i.reject(new J(K.UNAVAILABLE, "Failed to get document because the client is offline.")) : a && o.fromCache && r && "server" === r.source ? i.reject(new J(K.UNAVAILABLE, "Failed to get document from server. (However, this document does exist in the local cache. Run again without setting source to \"server\" to retrieve the cached document.)")) : i.resolve(o);
 			},
 			error: (e) => i.reject(e)
 		}), _ = new __PRIVATE_QueryListener(__PRIVATE_newQueryForPath(n.path), s, {
@@ -35723,7 +36151,7 @@ function __PRIVATE_firestoreClientGetDocumentsViaSnapshotListener(e, t, n = {}) 
 	return e.asyncQueue.enqueueAndForget((async () => function __PRIVATE_executeQueryViaSnapshotListener(e, t, n, r, i) {
 		const s = new __PRIVATE_AsyncObserver({
 			next: (n) => {
-				s.Bu(), t.enqueueAndForget((() => __PRIVATE_eventManagerUnlisten(e, _))), n.fromCache && "server" === r.source ? i.reject(new Q(z.UNAVAILABLE, "Failed to get documents from server. (However, these documents may exist in the local cache. Run again without setting source to \"server\" to retrieve the cached documents.)")) : i.resolve(n);
+				s.Bu(), t.enqueueAndForget((() => __PRIVATE_eventManagerUnlisten(e, _))), n.fromCache && "server" === r.source ? i.reject(new J(K.UNAVAILABLE, "Failed to get documents from server. (However, these documents may exist in the local cache. Run again without setting source to \"server\" to retrieve the cached documents.)")) : i.resolve(n);
 			},
 			error: (e) => i.reject(e)
 		}), _ = new __PRIVATE_QueryListener(n instanceof __PRIVATE_RealtimePipeline ? __PRIVATE_toCorePipeline(n) : n, s, {
@@ -35758,6 +36186,22 @@ function __PRIVATE_firestoreClientWrite(e, t) {
 		new __PRIVATE_TransactionRunner(e.asyncQueue, i, n, t, r).tE();
 	})), r.promise;
 }
+/**
+* @license
+* Copyright 2025 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -35809,7 +36253,7 @@ function __PRIVATE_firestoreClientWrite(e, t) {
 	/**
 	* The `DocumentReference` for the document included in the `DocumentSnapshot`.
 	*/ get ref() {
-		return new aa(this._firestore, this._converter, this._key);
+		return new ta(this._firestore, this._converter, this._key);
 	}
 	/**
 	* Signals whether or not the document at the snapshot's location exists.
@@ -35856,7 +36300,7 @@ function __PRIVATE_firestoreClientWrite(e, t) {
 	*/
 	get(e) {
 		if (this._document) {
-			const t = this._document.data.field(K("DocumentSnapshot.get", e));
+			const t = this._document.data.field(X("DocumentSnapshot.get", e));
 			if (null !== t) return this._userDataWriter.convertValue(t);
 		}
 	}
@@ -36037,7 +36481,7 @@ var __PRIVATE_LiteUserDataWriter = class extends AbstractUserDataWriter {
 	}
 	convertReference(e) {
 		const t = this.convertDocumentKey(e, this.firestore._databaseId);
-		return new aa(this.firestore, null, t);
+		return new ta(this.firestore, null, t);
 	}
 };
 /**
@@ -36205,7 +36649,7 @@ var __PRIVATE_AsyncQueueImpl = class {
 * The Cloud Firestore service interface.
 *
 * Do not call this constructor directly. Instead, use {@link (getFirestore:1)}.
-*/ var pa = class extends _n {
+*/ var fa = class extends _n {
 	/** @hideconstructor */
 	constructor(e, t, n, r) {
 		super(e, t, n, r), this.type = "firestore", this._queue = new __PRIVATE_AsyncQueueImpl(), this._persistenceKey = r?.name || "[DEFAULT]";
@@ -36234,10 +36678,10 @@ var __PRIVATE_AsyncQueueImpl = class {
 	if (r.isInitialized(n)) {
 		const e = r.getImmediate({ identifier: n });
 		if (deepEqual(r.getOptions(n), t)) return e;
-		throw new Q(z.FAILED_PRECONDITION, "initializeFirestore() has already been called with different options. To avoid this error, call initializeFirestore() with the same options as when it was originally called, or call getFirestore() to return the already initialized instance.");
+		throw new J(K.FAILED_PRECONDITION, "initializeFirestore() has already been called with different options. To avoid this error, call initializeFirestore() with the same options as when it was originally called, or call getFirestore() to return the already initialized instance.");
 	}
-	if (void 0 !== t.cacheSizeBytes && void 0 !== t.localCache) throw new Q(z.INVALID_ARGUMENT, "cache and cacheSizeBytes cannot be specified at the same time as cacheSizeBytes willbe deprecated. Instead, specify the cache size in the cache object");
-	if (void 0 !== t.cacheSizeBytes && -1 !== t.cacheSizeBytes && t.cacheSizeBytes < nn) throw new Q(z.INVALID_ARGUMENT, "cacheSizeBytes must be at least 1048576");
+	if (void 0 !== t.cacheSizeBytes && void 0 !== t.localCache) throw new J(K.INVALID_ARGUMENT, "cache and cacheSizeBytes cannot be specified at the same time as cacheSizeBytes willbe deprecated. Instead, specify the cache size in the cache object");
+	if (void 0 !== t.cacheSizeBytes && -1 !== t.cacheSizeBytes && t.cacheSizeBytes < nn) throw new J(K.INVALID_ARGUMENT, "cacheSizeBytes must be at least 1048576");
 	return t.host && isCloudWorkstation(t.host) && pingServer(t.host), r.initialize({
 		options: t,
 		instanceIdentifier: n
@@ -36253,8 +36697,8 @@ function getFirestore(e, t) {
 }
 /**
 * @internal
-*/ function oa(e) {
-	if (e._terminated) throw new Q(z.FAILED_PRECONDITION, "The client has already been terminated.");
+*/ function ha(e) {
+	if (e._terminated) throw new J(K.FAILED_PRECONDITION, "The client has already been terminated.");
 	return e._firestoreClient || __PRIVATE_configureFirestore(e), e._firestoreClient;
 }
 function __PRIVATE_configureFirestore(e) {
@@ -36271,14 +36715,6 @@ function __PRIVATE_configureFirestore(e) {
 	}(e._componentsProvider));
 }
 /**
-* Re-enables use of the network for this {@link Firestore} instance after a prior
-* call to {@link disableNetwork}.
-*
-* @returns A `Promise` that is resolved once the network has been enabled.
-*/ function enableNetwork(e) {
-	return __PRIVATE_firestoreClientEnableNetwork(oa(e = ra(e, pa)));
-}
-/**
 * @license
 * Copyright 2024 Google LLC
 *
@@ -36293,7 +36729,7 @@ function __PRIVATE_configureFirestore(e) {
 * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 * See the License for the specific language governing permissions and
 * limitations under the License.
-*/ var ua = class extends AbstractUserDataWriter {
+*/ var pa = class extends AbstractUserDataWriter {
 	constructor(e) {
 		super(), this.firestore = e;
 	}
@@ -36302,7 +36738,7 @@ function __PRIVATE_configureFirestore(e) {
 	}
 	convertReference(e) {
 		const t = this.convertDocumentKey(e, this.firestore._databaseId);
-		return new aa(this.firestore, null, t);
+		return new ta(this.firestore, null, t);
 	}
 };
 /**
@@ -36411,7 +36847,7 @@ function __PRIVATE_configureFirestore(e) {
 	*/
 	get(e, t = {}) {
 		if (this._document) {
-			const n = this._document.data.field(K("DocumentSnapshot.get", e));
+			const n = this._document.data.field(X("DocumentSnapshot.get", e));
 			if (null !== n) return this._userDataWriter.convertValue(n, t.serverTimestamps);
 		}
 	}
@@ -36421,7 +36857,7 @@ function __PRIVATE_configureFirestore(e) {
 	* @returns a JSON representation of this object.  Throws a {@link FirestoreError} if this
 	* `DocumentSnapshot` has pending writes.
 	*/ toJSON() {
-		if (this.metadata.hasPendingWrites) throw new Q(z.FAILED_PRECONDITION, "DocumentSnapshot.toJSON() attempted to serialize a document with pending writes. Await waitForPendingWrites() before invoking toJSON().");
+		if (this.metadata.hasPendingWrites) throw new J(K.FAILED_PRECONDITION, "DocumentSnapshot.toJSON() attempted to serialize a document with pending writes. Await waitForPendingWrites() before invoking toJSON().");
 		const e = this._document, t = {};
 		if (t.type = DocumentSnapshot._jsonSchemaVersion, t.bundle = "", t.bundleSource = "DocumentSnapshot", t.bundleName = this._key.toString(), !e || !e.isValidDocument() || !e.isFoundDocument()) return t;
 		this._userDataWriter.convertObjectMap(e.data.value.mapValue.fields, "previous");
@@ -36504,7 +36940,7 @@ var QueryDocumentSnapshot = class extends DocumentSnapshot {
 	* snapshot events.
 	*/ docChanges(e = {}) {
 		const t = !!e.includeMetadataChanges;
-		if (t && this._snapshot.excludesMetadataChanges) throw new Q(z.INVALID_ARGUMENT, "To include metadata changes with your document changes, you must also pass { includeMetadataChanges:true } to onSnapshot().");
+		if (t && this._snapshot.excludesMetadataChanges) throw new J(K.INVALID_ARGUMENT, "To include metadata changes with your document changes, you must also pass { includeMetadataChanges:true } to onSnapshot().");
 		return this._cachedChanges && this._cachedChangesIncludeMetadataChanges === t || (this._cachedChanges = function __PRIVATE_changesFromSnapshot(e, t) {
 			if (e._snapshot.oldDocs.isEmpty()) {
 				let t = 0;
@@ -36540,7 +36976,7 @@ var QueryDocumentSnapshot = class extends DocumentSnapshot {
 	* @returns a JSON representation of this object. Throws a {@link FirestoreError} if this
 	* `QuerySnapshot` has pending writes.
 	*/ toJSON() {
-		if (this.metadata.hasPendingWrites) throw new Q(z.FAILED_PRECONDITION, "QuerySnapshot.toJSON() attempted to serialize a document with pending writes. Await waitForPendingWrites() before invoking toJSON().");
+		if (this.metadata.hasPendingWrites) throw new J(K.FAILED_PRECONDITION, "QuerySnapshot.toJSON() attempted to serialize a document with pending writes. Await waitForPendingWrites() before invoking toJSON().");
 		const e = {};
 		e.type = QuerySnapshot._jsonSchemaVersion, e.bundleSource = "QuerySnapshot", e.bundleName = __PRIVATE_AutoId.newId(), this._firestore._databaseId.database, this._firestore._databaseId.projectId;
 		const t = [], n = [], r = [];
@@ -36628,7 +37064,7 @@ function __PRIVATE_resultChangeType(e) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */ function __PRIVATE_validateHasExplicitOrderByForLimitToLast(e) {
-	if ("L" === e.limitType && 0 === e.explicitOrderBy.length) throw new Q(z.UNIMPLEMENTED, "limitToLast() queries require specifying at least one orderBy() clause");
+	if ("L" === e.limitType && 0 === e.explicitOrderBy.length) throw new J(K.UNIMPLEMENTED, "limitToLast() queries require specifying at least one orderBy() clause");
 }
 /**
 * An `AppliableConstraint` is an abstraction of a constraint that can be applied
@@ -36646,7 +37082,7 @@ function query(e, t, ...n) {
 	let r = [];
 	t instanceof AppliableConstraint && r.push(t), r = r.concat(n), function __PRIVATE_validateQueryConstraintArray(e) {
 		const t = e.filter(((e) => e instanceof QueryCompositeFilterConstraint)).length, n = e.filter(((e) => e instanceof QueryFieldFilterConstraint)).length;
-		if (t > 1 || t > 0 && n > 0) throw new Q(z.INVALID_ARGUMENT, "InvalidQuery. When using composite filters, you cannot use more than one filter at the top level. Consider nesting the multiple filters within an `and(...)` statement. For example: change `query(query, where(...), or(...))` to `query(query, and(where(...), or(...)))`.");
+		if (t > 1 || t > 0 && n > 0) throw new J(K.INVALID_ARGUMENT, "InvalidQuery. When using composite filters, you cannot use more than one filter at the top level. Consider nesting the multiple filters within an `and(...)` statement. For example: change `query(query, where(...), or(...))` to `query(query, and(where(...), or(...)))`.");
 	}(r);
 	/**
 	* @license
@@ -36688,14 +37124,14 @@ function query(e, t, ...n) {
 		return __PRIVATE_validateNewFieldFilter(e._query, t), new Query(e.firestore, e.converter, __PRIVATE_queryWithAddedFilter(e._query, t));
 	}
 	_parse(e) {
-		const t = la(e.firestore);
+		const t = da(e.firestore);
 		return function __PRIVATE_newQueryFilter(e, t, n, r, s, a, o) {
 			let i;
 			if (function __PRIVATE_validateQueryOperator(e, t) {
 				if ("number" == typeof e && isNaN(e) && "==" !== t && "!=" !== t && "array-contains" !== t) throw new Error("Invalid query. You can only perform '==' and '!=' comparisons on NaN.");
 				if (null === e && "==" !== t && "!=" !== t && "array-contains" !== t) throw new Error("Invalid query. You can only perform '==' and '!=' comparisons on Null.");
 			}(o, a), s.isKeyField()) {
-				if ("array-contains" === a || "array-contains-any" === a) throw new Q(z.INVALID_ARGUMENT, `Invalid Query. You can't perform '${a}' queries on documentId().`);
+				if ("array-contains" === a || "array-contains-any" === a) throw new J(K.INVALID_ARGUMENT, `Invalid Query. You can't perform '${a}' queries on documentId().`);
 				if ("in" === a || "not-in" === a) {
 					__PRIVATE_validateDisjunctiveFilterElements(o, a);
 					const t = [];
@@ -36718,7 +37154,7 @@ function query(e, t, ...n) {
 * @param value - The value for comparison
 * @returns The created {@link QueryFieldFilterConstraint}.
 */ function where(e, t, n) {
-	const r = t, s = K("where", e);
+	const r = t, s = X("where", e);
 	return QueryFieldFilterConstraint._create(s, r, n);
 }
 /**
@@ -36777,8 +37213,8 @@ function query(e, t, ...n) {
 	}
 	_apply(e) {
 		const t = function __PRIVATE_newQueryOrderBy(e, t, n) {
-			if (null !== e.startAt) throw new Q(z.INVALID_ARGUMENT, "Invalid query. You must not call startAt() or startAfter() before calling orderBy().");
-			if (null !== e.endAt) throw new Q(z.INVALID_ARGUMENT, "Invalid query. You must not call endAt() or endBefore() before calling orderBy().");
+			if (null !== e.startAt) throw new J(K.INVALID_ARGUMENT, "Invalid query. You must not call startAt() or startAfter() before calling orderBy().");
+			if (null !== e.endAt) throw new J(K.INVALID_ARGUMENT, "Invalid query. You must not call endAt() or endBefore() before calling orderBy().");
 			return new OrderBy(t, n);
 		}(e._query, this._field, this._direction);
 		return new Query(e.firestore, e.converter, __PRIVATE_queryWithAddedOrderBy(e._query, t));
@@ -36796,7 +37232,7 @@ function query(e, t, ...n) {
 * not specified, order will be ascending.
 * @returns The created {@link QueryOrderByConstraint}.
 */ function orderBy(e, t = "asc") {
-	const n = t, r = K("orderBy", e);
+	const n = t, r = X("orderBy", e);
 	return QueryOrderByConstraint._create(r, n);
 }
 /**
@@ -36854,33 +37290,33 @@ function startAfter(...e) {
 }
 /** Helper function to create a bound from a document or fields */ function __PRIVATE_newQueryBoundFromDocOrFields(e, t, n, r) {
 	if (n[0] = getModularInstance(n[0]), n[0] instanceof Yr) return function __PRIVATE_newQueryBoundFromDocument(e, t, n, r, s) {
-		if (!r) throw new Q(z.NOT_FOUND, `Can't use a DocumentSnapshot that doesn't exist for ${n}().`);
+		if (!r) throw new J(K.NOT_FOUND, `Can't use a DocumentSnapshot that doesn't exist for ${n}().`);
 		const a = [];
 		for (const n of __PRIVATE_queryNormalizedOrderBy(e)) if (n.field.isKeyField()) a.push(__PRIVATE_refValue(t, r.key));
 		else {
 			const e = r.data.field(n.field);
-			if (__PRIVATE_isServerTimestamp(e)) throw new Q(z.INVALID_ARGUMENT, "Invalid query. You are trying to start or end a query using a document for which the field \"" + n.field + "\" is an uncommitted server timestamp. (Since the value of this field is unknown, you cannot start/end a query with it.)");
+			if (__PRIVATE_isServerTimestamp(e)) throw new J(K.INVALID_ARGUMENT, "Invalid query. You are trying to start or end a query using a document for which the field \"" + n.field + "\" is an uncommitted server timestamp. (Since the value of this field is unknown, you cannot start/end a query with it.)");
 			if (null === e) {
 				const e = n.field.canonicalString();
-				throw new Q(z.INVALID_ARGUMENT, `Invalid query. You are trying to start or end a query using a document for which the field '${e}' (used as the orderBy) does not exist.`);
+				throw new J(K.INVALID_ARGUMENT, `Invalid query. You are trying to start or end a query using a document for which the field '${e}' (used as the orderBy) does not exist.`);
 			}
 			a.push(e);
 		}
 		return new Bound(a, s);
 	}(e._query, e.firestore._databaseId, t, n[0]._document, r);
 	{
-		const s = la(e.firestore);
+		const s = da(e.firestore);
 		return function __PRIVATE_newQueryBoundFromFields(e, t, n, r, s, a) {
 			const o = e.explicitOrderBy;
-			if (s.length > o.length) throw new Q(z.INVALID_ARGUMENT, `Too many arguments provided to ${r}(). The number of arguments must be less than or equal to the number of orderBy() clauses`);
+			if (s.length > o.length) throw new J(K.INVALID_ARGUMENT, `Too many arguments provided to ${r}(). The number of arguments must be less than or equal to the number of orderBy() clauses`);
 			const i = [];
 			for (let a = 0; a < s.length; a++) {
 				const c = s[a];
 				if (o[a].field.isKeyField()) {
-					if ("string" != typeof c) throw new Q(z.INVALID_ARGUMENT, `Invalid query. Expected a string for document ID in ${r}(), but got a ${typeof c}`);
-					if (!__PRIVATE_isCollectionGroupQuery(e) && -1 !== c.indexOf("/")) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection and ordering by documentId(), the value passed to ${r}() must be a plain document ID, but '${c}' contains a slash.`);
+					if ("string" != typeof c) throw new J(K.INVALID_ARGUMENT, `Invalid query. Expected a string for document ID in ${r}(), but got a ${typeof c}`);
+					if (!__PRIVATE_isCollectionGroupQuery(e) && -1 !== c.indexOf("/")) throw new J(K.INVALID_ARGUMENT, `Invalid query. When querying a collection and ordering by documentId(), the value passed to ${r}() must be a plain document ID, but '${c}' contains a slash.`);
 					const n = e.path.child(ResourcePath.fromString(c));
-					if (!DocumentKey.isDocumentKey(n)) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection group and ordering by documentId(), the value passed to ${r}() must result in a valid document path, but '${n}' is not because it contains an odd number of segments.`);
+					if (!DocumentKey.isDocumentKey(n)) throw new J(K.INVALID_ARGUMENT, `Invalid query. When querying a collection group and ordering by documentId(), the value passed to ${r}() must result in a valid document path, but '${n}' is not because it contains an odd number of segments.`);
 					const s = new DocumentKey(n);
 					i.push(__PRIVATE_refValue(t, s));
 				} else {
@@ -36894,20 +37330,20 @@ function startAfter(...e) {
 }
 function __PRIVATE_parseDocumentIdValue(e, t, n) {
 	if ("string" == typeof (n = getModularInstance(n))) {
-		if ("" === n) throw new Q(z.INVALID_ARGUMENT, "Invalid query. When querying with documentId(), you must provide a valid document ID, but it was an empty string.");
-		if (!__PRIVATE_isCollectionGroupQuery(t) && -1 !== n.indexOf("/")) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection by documentId(), you must provide a plain document ID, but '${n}' contains a '/' character.`);
+		if ("" === n) throw new J(K.INVALID_ARGUMENT, "Invalid query. When querying with documentId(), you must provide a valid document ID, but it was an empty string.");
+		if (!__PRIVATE_isCollectionGroupQuery(t) && -1 !== n.indexOf("/")) throw new J(K.INVALID_ARGUMENT, `Invalid query. When querying a collection by documentId(), you must provide a plain document ID, but '${n}' contains a '/' character.`);
 		const r = t.path.child(ResourcePath.fromString(n));
-		if (!DocumentKey.isDocumentKey(r)) throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying a collection group by documentId(), the value provided must result in a valid document path, but '${r}' is not because it has an odd number of segments (${r.length}).`);
+		if (!DocumentKey.isDocumentKey(r)) throw new J(K.INVALID_ARGUMENT, `Invalid query. When querying a collection group by documentId(), the value provided must result in a valid document path, but '${r}' is not because it has an odd number of segments (${r.length}).`);
 		return __PRIVATE_refValue(e, new DocumentKey(r));
 	}
-	if (n instanceof aa) return __PRIVATE_refValue(e, n._key);
-	throw new Q(z.INVALID_ARGUMENT, `Invalid query. When querying with documentId(), you must provide a valid string or a DocumentReference, but it was: ${__PRIVATE_valueDescription(n)}.`);
+	if (n instanceof ta) return __PRIVATE_refValue(e, n._key);
+	throw new J(K.INVALID_ARGUMENT, `Invalid query. When querying with documentId(), you must provide a valid string or a DocumentReference, but it was: ${__PRIVATE_valueDescription(n)}.`);
 }
 /**
 * Validates that the value passed into a disjunctive filter satisfies all
 * array requirements.
 */ function __PRIVATE_validateDisjunctiveFilterElements(e, t) {
-	if (!Array.isArray(e) || 0 === e.length) throw new Q(z.INVALID_ARGUMENT, `Invalid Query. A non-empty array is required for '${t.toString()}' filters.`);
+	if (!Array.isArray(e) || 0 === e.length) throw new J(K.INVALID_ARGUMENT, `Invalid Query. A non-empty array is required for '${t.toString()}' filters.`);
 }
 function __PRIVATE_validateNewFieldFilter(e, t) {
 	const n = function __PRIVATE_findOpInsideFilters(e, t) {
@@ -36927,7 +37363,7 @@ function __PRIVATE_validateNewFieldFilter(e, t) {
 			default: return [];
 		}
 	}(t.op));
-	if (null !== n) throw n === t.op ? new Q(z.INVALID_ARGUMENT, `Invalid query. You cannot use more than one '${t.op.toString()}' filter.`) : new Q(z.INVALID_ARGUMENT, `Invalid query. You cannot use '${t.op.toString()}' filters with '${n.toString()}' filters.`);
+	if (null !== n) throw n === t.op ? new J(K.INVALID_ARGUMENT, `Invalid query. You cannot use more than one '${t.op.toString()}' filter.`) : new J(K.INVALID_ARGUMENT, `Invalid query. You cannot use '${t.op.toString()}' filters with '${n.toString()}' filters.`);
 }
 /**
 * @license
@@ -36992,6 +37428,20 @@ function __PRIVATE_validateNewFieldFilter(e, t) {
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+var __PRIVATE_MemoryLocalCacheImpl = class {
+	constructor(e) {
+		this.kind = "memory", this._onlineComponentProvider = OnlineComponentProvider.provider, this._offlineComponentProvider = e?.garbageCollector ? e.garbageCollector._offlineComponentProvider : { build: () => new __PRIVATE_LruGcMemoryOfflineComponentProvider(void 0) };
+	}
+	toJSON() {
+		return { kind: this.kind };
+	}
+};
+/**
+* Creates an instance of `MemoryLocalCache`. The instance can be set to
+* `FirestoreSettings.cache` to tell the SDK which cache layer to use.
+*/ function memoryLocalCache(e) {
+	return new __PRIVATE_MemoryLocalCacheImpl(e);
+}
 /**
 * @license
 * Copyright 2022 Google LLC
@@ -37035,7 +37485,7 @@ function __PRIVATE_validateNewFieldFilter(e, t) {
 var WriteBatch = class {
 	/** @hideconstructor */
 	constructor(e, t) {
-		this._firestore = e, this._commitHandler = t, this._mutations = [], this._committed = false, this._dataReader = la(e);
+		this._firestore = e, this._commitHandler = t, this._mutations = [], this._committed = false, this._dataReader = da(e);
 	}
 	set(e, t, n) {
 		this._verifyNotCommitted();
@@ -37073,11 +37523,11 @@ var WriteBatch = class {
 		return this._verifyNotCommitted(), this._committed = true, this._mutations.length > 0 ? this._commitHandler(this._mutations) : Promise.resolve();
 	}
 	_verifyNotCommitted() {
-		if (this._committed) throw new Q(z.FAILED_PRECONDITION, "A write batch can no longer be used after commit() has been called.");
+		if (this._committed) throw new J(K.FAILED_PRECONDITION, "A write batch can no longer be used after commit() has been called.");
 	}
 };
 function __PRIVATE_validateReference(e, t) {
-	if ((e = getModularInstance(e)).firestore !== t) throw new Q(z.INVALID_ARGUMENT, "Provided document reference is from a different Firestore instance.");
+	if ((e = getModularInstance(e)).firestore !== t) throw new J(K.INVALID_ARGUMENT, "Provided document reference is from a different Firestore instance.");
 	return e;
 }
 /**
@@ -37105,7 +37555,7 @@ function __PRIVATE_validateReference(e, t) {
 */ var Qe = class Transaction {
 	/** @hideconstructor */
 	constructor(e, t) {
-		this._firestore = e, this._transaction = t, this._dataReader = la(e);
+		this._firestore = e, this._transaction = t, this._dataReader = da(e);
 	}
 	/**
 	* Reads the document referenced by the provided {@link DocumentReference}.
@@ -37174,7 +37624,7 @@ function __PRIVATE_validateReference(e, t) {
 	* @param documentRef - A reference to the document to be read.
 	* @returns A `DocumentSnapshot` with the read data.
 	*/ get(e) {
-		const t = __PRIVATE_validateReference(e, this._firestore), n = new ua(this._firestore);
+		const t = __PRIVATE_validateReference(e, this._firestore), n = new pa(this._firestore);
 		return super.get(e).then(((e) => new DocumentSnapshot(this._firestore, n, t._key, e._document, new SnapshotMetadata(false, false), t.converter)));
 	}
 };
@@ -37197,15 +37647,15 @@ function __PRIVATE_validateReference(e, t) {
 * `updateFunction `is returned here. Otherwise, if the transaction failed, a
 * rejected promise with the corresponding failure error is returned.
 */ function runTransaction(e, t, n) {
-	e = ra(e, pa);
+	e = ua(e, fa);
 	const r = {
 		...Se,
 		...n
 	};
 	(function __PRIVATE_validateTransactionOptions(e) {
-		if (e.maxAttempts < 1) throw new Q(z.INVALID_ARGUMENT, "Max attempts must be at least 1");
+		if (e.maxAttempts < 1) throw new J(K.INVALID_ARGUMENT, "Max attempts must be at least 1");
 	})(r);
-	return __PRIVATE_firestoreClientTransaction(oa(e), ((n) => t(new Transaction(e, n))), r);
+	return __PRIVATE_firestoreClientTransaction(ha(e), ((n) => t(new Transaction(e, n))), r);
 }
 /**
 * @license
@@ -37235,9 +37685,9 @@ function __PRIVATE_validateReference(e, t) {
 * @returns A `Promise` that resolves with a `DocumentSnapshot` containing the
 * document contents.
 */ function getDoc(e) {
-	e = ra(e, aa);
-	const t = ra(e.firestore, pa);
-	return __PRIVATE_firestoreClientGetDocumentViaSnapshotListener(oa(t), e._key).then(((n) => __PRIVATE_convertToDocSnapshot(t, e, n)));
+	e = ua(e, ta);
+	const t = ua(e.firestore, fa);
+	return __PRIVATE_firestoreClientGetDocumentViaSnapshotListener(ha(t), e._key).then(((n) => __PRIVATE_convertToDocSnapshot(t, e, n)));
 }
 /**
 * Reads the document referred to by this `DocumentReference` from the server.
@@ -37246,23 +37696,23 @@ function __PRIVATE_validateReference(e, t) {
 * @returns A `Promise` that resolves with a `DocumentSnapshot` containing the
 * document contents.
 */ function getDocFromServer(e) {
-	e = ra(e, aa);
-	const t = ra(e.firestore, pa);
-	return __PRIVATE_firestoreClientGetDocumentViaSnapshotListener(oa(t), e._key, { source: "server" }).then(((n) => __PRIVATE_convertToDocSnapshot(t, e, n)));
+	e = ua(e, ta);
+	const t = ua(e.firestore, fa);
+	return __PRIVATE_firestoreClientGetDocumentViaSnapshotListener(ha(t), e._key, { source: "server" }).then(((n) => __PRIVATE_convertToDocSnapshot(t, e, n)));
 }
 function getDocs(e) {
-	e = ra(e, Query);
-	const t = ra(e.firestore, pa), n = oa(t), r = new ua(t);
+	e = ua(e, Query);
+	const t = ua(e.firestore, fa), n = ha(t), r = new pa(t);
 	return __PRIVATE_validateHasExplicitOrderByForLimitToLast(e._query), __PRIVATE_firestoreClientGetDocumentsViaSnapshotListener(n, e._query).then(((n) => new QuerySnapshot(t, r, e, n)));
 }
 function setDoc(e, t, n) {
-	e = ra(e, aa);
-	const r = ra(e.firestore, pa), s = __PRIVATE_applyFirestoreDataConverter(e.converter, t, n);
-	return executeWrite(r, [__PRIVATE_parseSetData(la(r), "setDoc", e._key, s, null !== e.converter, n).toMutation(e._key, Precondition.none())]);
+	e = ua(e, ta);
+	const r = ua(e.firestore, fa), s = __PRIVATE_applyFirestoreDataConverter(e.converter, t, n);
+	return executeWrite(r, [__PRIVATE_parseSetData(da(r), "setDoc", e._key, s, null !== e.converter, n).toMutation(e._key, Precondition.none())]);
 }
 function updateDoc(e, t, n, ...r) {
-	e = ra(e, aa);
-	const s = ra(e.firestore, pa), a = la(s);
+	e = ua(e, ta);
+	const s = ua(e.firestore, fa), a = da(s);
 	let o;
 	o = "string" == typeof (t = getModularInstance(t)) || t instanceof FieldPath ? __PRIVATE_parseUpdateVarargs(a, "updateDoc", e._key, t, n, r) : __PRIVATE_parseUpdateData(a, "updateDoc", e._key, t);
 	return executeWrite(s, [o.toMutation(e._key, Precondition.exists(true))]);
@@ -37290,7 +37740,7 @@ function updateDoc(e, t, n, ...r) {
 * deleted from the backend or rejects once the backend reports an error
 * deleting the document.
 */ function deleteDoc(e) {
-	return executeWrite(ra(e.firestore, pa), [new __PRIVATE_DeleteMutation(e._key, Precondition.none())]);
+	return executeWrite(ua(e.firestore, fa), [new __PRIVATE_DeleteMutation(e._key, Precondition.none())]);
 }
 /**
 * Add a new document to specified `CollectionReference` with the given data,
@@ -37317,8 +37767,8 @@ function updateDoc(e, t, n, ...r) {
 * created in the backend or rejects once the backend reports an error creating
 * the document.
 */ function addDoc(e, t) {
-	const n = ra(e.firestore, pa), r = doc(e), s = __PRIVATE_applyFirestoreDataConverter(e.converter, t);
-	return executeWrite(n, [__PRIVATE_parseSetData(la(e.firestore), "addDoc", r._key, s, null !== e.converter, {}).toMutation(r._key, Precondition.exists(false))]).then((() => r));
+	const n = ua(e.firestore, fa), r = doc(e), s = __PRIVATE_applyFirestoreDataConverter(e.converter, t);
+	return executeWrite(n, [__PRIVATE_parseSetData(da(e.firestore), "addDoc", r._key, s, null !== e.converter, {}).toMutation(r._key, Precondition.exists(false))]).then((() => r));
 }
 function onSnapshot(e, ...t) {
 	e = getModularInstance(e);
@@ -37336,7 +37786,7 @@ function onSnapshot(e, ...t) {
 		t[r] = e.next?.bind(e), t[r + 1] = e.error?.bind(e), t[r + 2] = e.complete?.bind(e);
 	}
 	let a, i, c;
-	if (e instanceof aa) i = ra(e.firestore, pa), c = __PRIVATE_newQueryForPath(e._key.path), a = {
+	if (e instanceof ta) i = ua(e.firestore, fa), c = __PRIVATE_newQueryForPath(e._key.path), a = {
 		next: (n) => {
 			t[r] && t[r](__PRIVATE_convertToDocSnapshot(i, e, n));
 		},
@@ -37344,9 +37794,9 @@ function onSnapshot(e, ...t) {
 		complete: t[r + 2]
 	};
 	else {
-		const n = ra(e, Query);
-		i = ra(n.firestore, pa), c = n._query;
-		const s = new ua(i);
+		const n = ua(e, Query);
+		i = ua(n.firestore, fa), c = n._query;
+		const s = new pa(i);
 		a = {
 			next: (e) => {
 				t[r] && t[r](new QuerySnapshot(i, s, n, e));
@@ -37355,7 +37805,7 @@ function onSnapshot(e, ...t) {
 			complete: t[r + 2]
 		}, __PRIVATE_validateHasExplicitOrderByForLimitToLast(e._query);
 	}
-	return __PRIVATE_firestoreClientListen(oa(i), c, s, a);
+	return __PRIVATE_firestoreClientListen(ha(i), c, s, a);
 }
 /**
 * @license
@@ -37377,17 +37827,17 @@ function onSnapshot(e, ...t) {
 * Locally writes `mutations` on the async queue.
 * @internal
 */ function executeWrite(e, t) {
-	return __PRIVATE_firestoreClientWrite(oa(e), t);
+	return __PRIVATE_firestoreClientWrite(ha(e), t);
 }
 /**
 * Converts a {@link ViewSnapshot} that contains the single document specified by `ref`
 * to a {@link DocumentSnapshot}.
 */ function __PRIVATE_convertToDocSnapshot(e, t, n) {
 	const r = n.docs.get(t._key);
-	return new DocumentSnapshot(e, new ua(e), t._key, r, new SnapshotMetadata(n.hasPendingWrites, n.fromCache), t.converter);
+	return new DocumentSnapshot(e, new pa(e), t._key, r, new SnapshotMetadata(n.hasPendingWrites, n.fromCache), t.converter);
 }
 function writeBatch(e) {
-	return e = ra(e, pa), oa(e), new WriteBatch(e, ((t) => executeWrite(e, t)));
+	return e = ua(e, fa), ha(e), new WriteBatch(e, ((t) => executeWrite(e, t)));
 }
 /**
 * @license
@@ -37438,7 +37888,7 @@ function writeBatch(e) {
 * limitations under the License.
 */
 var qe = "@firebase/firestore";
-var Be = "4.19.1";
+var Be = "4.20.0";
 /**
 * Cloud Firestore
 *
@@ -37462,7 +37912,7 @@ var Be = "4.19.1";
 	* limitations under the License.
 	*/
 	__PRIVATE_setSDKVersion(SDK_VERSION), _registerComponent(new Component("firestore", ((e, { instanceIdentifier: t, options: n }) => {
-		const r = e.getProvider("app").getImmediate(), s = new pa(new __PRIVATE_FirebaseAuthCredentialsProvider(e.getProvider("auth-internal")), new __PRIVATE_FirebaseAppCheckTokenProvider(r, e.getProvider("app-check-internal")), __PRIVATE_databaseIdFromApp(r, t), r);
+		const r = e.getProvider("app").getImmediate(), s = new fa(new __PRIVATE_FirebaseAuthCredentialsProvider(e.getProvider("auth-internal")), new __PRIVATE_FirebaseAppCheckTokenProvider(r, e.getProvider("app-check-internal")), __PRIVATE_databaseIdFromApp(r, t), r);
 		return n = {
 			useFetchStreams: a,
 			...n
@@ -40840,7 +41290,7 @@ function internalFactory$1(appCheck) {
 	};
 }
 var name$2 = "@firebase/app-check";
-var version$2 = "0.13.1";
+var version$2 = "0.13.2";
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -40941,13 +41391,13 @@ function renderInvisibleWidget(app, siteKey, grecaptcha, container) {
 }
 function loadReCAPTCHAV3Script(onload) {
 	const script = document.createElement("script");
-	script.src = RECAPTCHA_URL;
+	_setTrustedScriptSrc(script, RECAPTCHA_URL);
 	script.onload = onload;
 	document.head.appendChild(script);
 }
 function loadReCAPTCHAEnterpriseScript(onload) {
 	const script = document.createElement("script");
-	script.src = "https://www.google.com/recaptcha/enterprise.js?render=explicit";
+	_setTrustedScriptSrc(script, "https://www.google.com/recaptcha/enterprise.js?render=explicit");
 	script.onload = onload;
 	document.head.appendChild(script);
 }
@@ -42188,47 +42638,6 @@ var logger = new Logger("@firebase/analytics");
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-var ERROR_FACTORY = new ErrorFactory("analytics", "Analytics", {
-	["already-exists"]: "A Firebase Analytics instance with the appId {$id}  already exists. Only one Firebase Analytics instance can be created for each appId.",
-	["already-initialized"]: "initializeAnalytics() cannot be called again with different options than those it was initially called with. It can be called again with the same options to return the existing instance, or getAnalytics() can be used to get a reference to the already-initialized instance.",
-	["already-initialized-settings"]: "Firebase Analytics has already been initialized.settings() must be called before initializing any Analytics instanceor it will have no effect.",
-	["interop-component-reg-failed"]: "Firebase Analytics Interop Component failed to instantiate: {$reason}",
-	["invalid-analytics-context"]: "Firebase Analytics is not supported in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
-	["indexeddb-unavailable"]: "IndexedDB unavailable or restricted in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
-	["fetch-throttle"]: "The config fetch request timed out while in an exponential backoff state. Unix timestamp in milliseconds when fetch request throttling ends: {$throttleEndTimeMillis}.",
-	["config-fetch-failed"]: "Dynamic config fetch failed: [{$httpStatus}] {$responseMessage}",
-	["no-api-key"]: "The \"apiKey\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid API key.",
-	["no-app-id"]: "The \"appId\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid app ID.",
-	["no-client-id"]: "The \"client_id\" field is empty.",
-	["invalid-gtag-resource"]: "Trusted Types detected an invalid gtag resource: {$gtagURL}."
-});
-/**
-* @license
-* Copyright 2019 Google LLC
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*   http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
-/**
-* Verifies and creates a TrustedScriptURL.
-*/
-function createGtagTrustedTypesScriptURL(url) {
-	if (!url.startsWith(GTAG_URL)) {
-		const err = ERROR_FACTORY.create("invalid-gtag-resource", { gtagURL: url });
-		logger.warn(err.message);
-		return "";
-	}
-	return url;
-}
 /**
 * Makeshift polyfill for Promise.allSettled(). Resolves when all promises
 * have either resolved or rejected.
@@ -42239,26 +42648,12 @@ function promiseAllSettled(promises) {
 	return Promise.all(promises.map((promise) => promise.catch((e) => e)));
 }
 /**
-* Creates a TrustedTypePolicy object that implements the rules passed as policyOptions.
-*
-* @param policyName A string containing the name of the policy
-* @param policyOptions Object containing implementations of instance methods for TrustedTypesPolicy, see {@link https://developer.mozilla.org/en-US/docs/Web/API/TrustedTypePolicy#instance_methods
-* | the TrustedTypePolicy reference documentation}.
-*/
-function createTrustedTypesPolicy(policyName, policyOptions) {
-	let trustedTypesPolicy;
-	if (window.trustedTypes) trustedTypesPolicy = window.trustedTypes.createPolicy(policyName, policyOptions);
-	return trustedTypesPolicy;
-}
-/**
 * Inserts gtag script tag into the page to asynchronously download gtag.
 * @param dataLayerName Name of datalayer (most often the default, "_dataLayer").
 */
 function insertScriptTag(dataLayerName, measurementId) {
-	const trustedTypesPolicy = createTrustedTypesPolicy("firebase-js-sdk-policy", { createScriptURL: createGtagTrustedTypesScriptURL });
 	const script = document.createElement("script");
-	const gtagScriptURL = `${GTAG_URL}?l=${dataLayerName}&id=${measurementId}`;
-	script.src = trustedTypesPolicy ? trustedTypesPolicy?.createScriptURL(gtagScriptURL) : gtagScriptURL;
+	_setTrustedScriptSrc(script, `${GTAG_URL}?l=${dataLayerName}&id=${measurementId}`);
 	script.async = true;
 	document.head.appendChild(script);
 }
@@ -42399,6 +42794,35 @@ function findGtagScriptOnPage(dataLayerName) {
 	for (const tag of Object.values(scriptTags)) if (tag.src && tag.src.includes(GTAG_URL) && tag.src.includes(dataLayerName)) return tag;
 	return null;
 }
+/**
+* @license
+* Copyright 2019 Google LLC
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+var ERROR_FACTORY = new ErrorFactory("analytics", "Analytics", {
+	["already-exists"]: "A Firebase Analytics instance with the appId {$id}  already exists. Only one Firebase Analytics instance can be created for each appId.",
+	["already-initialized"]: "initializeAnalytics() cannot be called again with different options than those it was initially called with. It can be called again with the same options to return the existing instance, or getAnalytics() can be used to get a reference to the already-initialized instance.",
+	["already-initialized-settings"]: "Firebase Analytics has already been initialized.settings() must be called before initializing any Analytics instanceor it will have no effect.",
+	["interop-component-reg-failed"]: "Firebase Analytics Interop Component failed to instantiate: {$reason}",
+	["invalid-analytics-context"]: "Firebase Analytics is not supported in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
+	["indexeddb-unavailable"]: "IndexedDB unavailable or restricted in this environment. Wrap initialization of analytics in analytics.isSupported() to prevent initialization in unsupported environments. Details: {$errorInfo}",
+	["fetch-throttle"]: "The config fetch request timed out while in an exponential backoff state. Unix timestamp in milliseconds when fetch request throttling ends: {$throttleEndTimeMillis}.",
+	["config-fetch-failed"]: "Dynamic config fetch failed: [{$httpStatus}] {$responseMessage}",
+	["no-api-key"]: "The \"apiKey\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid API key.",
+	["no-app-id"]: "The \"appId\" field is empty in the local Firebase config. Firebase Analytics requires this field tocontain a valid app ID.",
+	["no-client-id"]: "The \"client_id\" field is empty."
+});
 /**
 * @license
 * Copyright 2020 Google LLC
@@ -42950,7 +43374,7 @@ function logEvent(analyticsInstance, eventName, eventParams, options) {
 	logEvent$1(wrappedGtagFunction, initializationPromisesMap[analyticsInstance.app.options.appId], eventName, eventParams, options).catch((e) => logger.error(e));
 }
 var name = "@firebase/analytics";
-var version = "0.10.25";
+var version = "0.10.26";
 /**
 * The Firebase Analytics Web SDK.
 * This SDK does not work in a Node.js environment.
@@ -42993,4 +43417,4 @@ function registerAnalytics() {
 	}
 }
 registerAnalytics();
-export { initializeApp as $, getFirestore as A, linkWithPopup as B, updateDoc as C, collection as D, Timestamp as E, browserLocalPersistence as F, signInWithCredential as G, sendEmailVerification as H, browserSessionPersistence as I, signInWithRedirect as J, signInWithEmailAndPassword as K, createUserWithEmailAndPassword as L, initializeFirestore as M, serverTimestamp as N, doc as O, GoogleAuthProvider as P, getApps as Q, getAuth as R, startAfter as S, writeBatch as T, sendPasswordResetEmail as U, onAuthStateChanged as V, setPersistence as W, updateProfile as X, signOut as Y, getApp as Z, onSnapshot as _, initializeAppCheck as a, runTransaction as b, getStorage as c, addDoc as d, deleteDoc as f, limit as g, getDocs as h, ReCaptchaV3Provider as i, increment as j, enableNetwork as k, ref as l, getDocFromServer as m, isSupported as n, deleteObject as o, getDoc as p, signInWithPopup as q, ReCaptchaEnterpriseProvider as r, getDownloadURL as s, getAnalytics as t, uploadBytesResumable as u, orderBy as v, where as w, setDoc as x, query as y, getRedirectResult as z };
+export { initializeApp as $, getFirestore as A, linkWithPopup as B, startAfter as C, Timestamp as D, writeBatch as E, browserLocalPersistence as F, signInWithCredential as G, sendEmailVerification as H, browserSessionPersistence as I, signInWithRedirect as J, signInWithEmailAndPassword as K, createUserWithEmailAndPassword as L, initializeFirestore as M, serverTimestamp as N, collection as O, GoogleAuthProvider as P, getApps as Q, getAuth as R, setDoc as S, where as T, sendPasswordResetEmail as U, onAuthStateChanged as V, setPersistence as W, updateProfile as X, signOut as Y, getApp as Z, memoryLocalCache as _, initializeAppCheck as a, query as b, getStorage as c, addDoc as d, deleteDoc as f, limit as g, getDocs as h, ReCaptchaV3Provider as i, increment as j, doc as k, ref as l, getDocFromServer as m, isSupported as n, deleteObject as o, getDoc as p, signInWithPopup as q, ReCaptchaEnterpriseProvider as r, getDownloadURL as s, getAnalytics as t, uploadBytesResumable as u, onSnapshot as v, updateDoc as w, runTransaction as x, orderBy as y, getRedirectResult as z };

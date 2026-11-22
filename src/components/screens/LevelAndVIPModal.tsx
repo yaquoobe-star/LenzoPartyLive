@@ -101,10 +101,13 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
     }
   }, [isOpen, initialTab]);
 
+  const initialBaselineCoinsRef = React.useRef(initialBaselineCoins);
+  initialBaselineCoinsRef.current = initialBaselineCoins;
+
   useEffect(() => {
     if (!isOpen || !currentUser.id) return;
 
-    const unsub = subscribeUserLevelProgression(currentUser.id, initialBaselineCoins, (prog) => {
+    const unsub = subscribeUserLevelProgression(currentUser.id, initialBaselineCoinsRef.current, (prog) => {
       setProgression(prog);
     });
 
@@ -120,7 +123,7 @@ export const LevelAndVIPModal: React.FC<LevelAndVIPModalProps> = ({
       .catch(() => {});
 
     return () => unsub();
-  }, [isOpen, currentUser.id, initialBaselineCoins]);
+  }, [isOpen, currentUser.id]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });

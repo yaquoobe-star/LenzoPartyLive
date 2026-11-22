@@ -31,7 +31,6 @@ import {
   doc,
   getDoc,
   getDocFromServer,
-  enableNetwork,
   updateDoc,
   onSnapshot,
   QueryDocumentSnapshot,
@@ -302,9 +301,11 @@ export default function App() {
   const currentDeviceId = getOrCreateDeviceId();
   const isAuthorizedAdmin = isAuthorizedAdminEmail(auth.currentUser?.email || currentUser?.email);
 
+  const [authenticatedUid, setAuthenticatedUid] = useState<string | null>(auth.currentUser?.uid || null);
+
   // Subscribe to current user's blocked list, users who blocked current user, active party room kicks & lifetime moderators
   useEffect(() => {
-    const uid = currentUser?.id;
+    const uid = authenticatedUid;
     if (!uid) {
       setBlockedUsers([]);
       setBlockedByUserIds([]);
@@ -344,7 +345,7 @@ export default function App() {
       unsubMyMods();
       unsubWsBlocks();
     };
-  }, [currentUser?.id]);
+  }, [authenticatedUid]);
 
   // Universal Deep-Link Action Handler when user taps a Push Banner, Notification Center item, or OS Push
   const handleNotificationDeepAction = useCallback(
@@ -493,7 +494,7 @@ export default function App() {
 
   // Real-Time Push Notification Subscriptions (Firestore + Settings + WebSocket + Global Broadcasts + Device Push)
   useEffect(() => {
-    const uid = auth.currentUser?.uid || (currentUser?.id !== 'user_current_01' ? currentUser?.id : '');
+    const uid = authenticatedUid;
     if (!uid) {
       setNotifications([]);
       return;
@@ -566,7 +567,7 @@ export default function App() {
       unsubGlobal();
       unsubWsPush();
     };
-  }, [currentUser?.id, presentIncomingPush]);
+  }, [authenticatedUid, presentIncomingPush]);
 
   // Listen for OS Push Notification Taps (Service Worker postMessage + Native Android LocalNotifications + URL params)
   useEffect(() => {
@@ -926,8 +927,6 @@ export default function App() {
   ]);
 
   // Firebase Persistent Authentication Session Listener & Strict Multi-Account State Isolation
-  const [authenticatedUid, setAuthenticatedUid] = useState<string | null>(auth.currentUser?.uid || null);
-
   const resetUserScopedTransientState = () => {
     setBlockedUsers([]);
     setBlockedByUserIds([]);
@@ -1367,20 +1366,18 @@ export default function App() {
       unsubReels();
       unsubVideos();
     };
-  }, [authenticatedUid, refreshTick, currentDeviceId]);
+  }, [authenticatedUid, currentDeviceId]);
 
-  // Global Pull-to-Refresh handler: wakes Firestore network, refreshes Solo Live, Party Rooms,
-  // Rankings, User Profile/Wallet/Levels, and notifies the active screen to re-fetch fresh data.
+  // Global Pull-to-Refresh handler: refreshes Solo Live, Party Rooms,
+  // Rankings, User Profile/Wallet/Levels, and notifies the active screen to re-fetch fresh data
+  // without tearing down active Firestore onSnapshot streams.
   const handleGlobalAppRefresh = useCallback(async (): Promise<PullToRefreshResult> => {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return { offline: true, message: 'No internet connection' };
     }
 
     try {
-      // 1. Recover Firestore network transport in case mobile/Wi-Fi briefly stalled
-      await enableNetwork(db).catch(() => {});
-
-      // 2. Refresh real-time backend live streams, party rooms & rankings in parallel
+      // 1. Refresh real-time backend live streams, party rooms & rankings in parallel
       const [streams, rooms, rankings] = await Promise.all([
         liveAndRoomService.fetchActiveStreams().catch(() => null),
         liveAndRoomService.fetchActiveRooms().catch(() => null),

@@ -494,16 +494,14 @@ export function subscribeActiveAgencies(
   onUpdate: (agencies: DualAgencyRecord[]) => void
 ) {
   const collRef = collection(db, 'agencies');
-  const q =
-    agencyType === 'all'
-      ? query(collRef, where('status', '==', 'active'))
-      : query(collRef, where('agencyType', '==', agencyType), where('status', '==', 'active'));
+  const q = query(collRef, where('status', '==', 'active'));
 
   return onSnapshot(
     q,
     (snap) => {
       const list = snap.docs
         .map((d) => ({ id: d.id, ...d.data() } as DualAgencyRecord))
+        .filter((a) => agencyType === 'all' || a.agencyType === agencyType)
         .sort((a, b) => {
           if (agencyType === 'all' && a.agencyType !== b.agencyType) {
             return a.agencyType === 'coin_seller' ? -1 : 1;

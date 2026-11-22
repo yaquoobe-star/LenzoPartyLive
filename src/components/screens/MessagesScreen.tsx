@@ -160,15 +160,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setShowAgencyCoinTray(true);
   }, [initialActiveUser?.id, currentUser.id]);
 
+  const initialConversationsRef = useRef(initialConversations);
+  initialConversationsRef.current = initialConversations;
+
   // Real-time subscription to Active Coin Seller Agencies & User's Direct Conversations
   useEffect(() => {
+    if (!currentUser?.id || currentUser.id === 'user_current_01') return;
     const unsubAgencies = subscribeActiveAgencies('coin_seller', setCoinSellerAgencies);
     const unsubDirectConvs = subscribeUserDirectConversations(currentUser.id, (liveConvs) => {
       setConversationsList((prev) => {
         const groupConvs = prev.filter((c) => c.type === 'group');
         const map = new Map<string, Conversation>();
         liveConvs.forEach((c) => map.set(c.id, c));
-        initialConversations.forEach((c) => {
+        initialConversationsRef.current.forEach((c) => {
           const normalizedId =
             c.type === 'group' ? c.id : buildDirectChatId(currentUser.id, c.user.id);
           if (!map.has(normalizedId) && c.type !== 'group') {
@@ -183,7 +187,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
       unsubAgencies();
       unsubDirectConvs();
     };
-  }, [currentUser.id, initialConversations]);
+  }, [currentUser.id]);
 
   // Search in conversation list & messages
   const [searchQuery, setSearchQuery] = useState('');

@@ -1,8 +1,8 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { Dn as ArrowLeft, Kt as Crown, Lt as Eye, Rt as EyeOff, T as Sparkles, bt as Image, cn as Check, dn as Camera, ft as Lock, h as Upload, kn as require_react, mt as LoaderCircle, u as Users } from "./vendor-icons-sqDS8tFw.js";
-import { r as auth } from "./firebase-zc-_OxQs.js";
+import { r as auth } from "./firebase-CcEQ85aw.js";
 import { a as getActiveSeatCapacity, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, o as getAllowedSeatTierForLevel, t as PARTY_SEAT_TIERS } from "./partySeatRules-C6_w_6jH.js";
-import { Ct as uploadPartyBackgroundImage, Tt as uploadUserImage, c as PARTY_BACKGROUND_PRESETS, l as resolvePartyBackgroundImageUrl, s as DEFAULT_PARTY_BACKGROUND_ID, u as resolvePartyRoomBackground } from "./index-DTa1xr8z.js";
+import { Ct as uploadPartyBackgroundImage, Tt as uploadUserImage, c as PARTY_BACKGROUND_PRESETS, l as resolvePartyBackgroundImageUrl, s as DEFAULT_PARTY_BACKGROUND_ID, u as resolvePartyRoomBackground } from "./index-Boa81RVF.js";
 import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/CreateRoomScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);

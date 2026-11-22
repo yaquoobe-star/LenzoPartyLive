@@ -1421,14 +1421,15 @@ export function subscribeTransactions(
   const q = query(
     collection(db, collName),
     where('userId', '==', userId),
-    orderBy('timestampMillis', 'desc'),
     limit(100)
   );
 
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as FinancialTransaction));
+      const items = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as FinancialTransaction))
+        .sort((a, b) => Number(b.timestampMillis || 0) - Number(a.timestampMillis || 0));
       onUpdate(items);
     },
     (err) => {
@@ -1444,13 +1445,14 @@ export function subscribeUserWithdrawalRequests(
   const q = query(
     collection(db, 'withdrawal_requests'),
     where('userId', '==', userId),
-    orderBy('requestedAtMillis', 'desc'),
     limit(50)
   );
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() } as WithdrawalRequest));
+      const items = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as WithdrawalRequest))
+        .sort((a, b) => Number(b.requestedAtMillis || 0) - Number(a.requestedAtMillis || 0));
       onUpdate(items);
     },
     (err) => {

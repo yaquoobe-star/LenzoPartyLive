@@ -3,7 +3,7 @@ import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
   initializeFirestore,
-  enableNetwork,
+  memoryLocalCache,
   doc,
   getDocFromServer,
   type Firestore,
@@ -22,15 +22,17 @@ import firebaseConfig from '../firebase-applet-config.json';
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // CRITICAL: Initialize Firestore using the specific provisioned database ID from config.
-// Force long-polling transport to prevent 10-second WebChannel streaming stalls behind
-// proxies, Cloud Run preview iframes, VPNs, and Android WebViews.
+// Use auto-detect long polling + clean memory cache so WebChannel stays fast where supported,
+// falls back cleanly behind proxies/WebViews, and avoids forced-long-polling watch stream races
+// (e.g. Firestore internal assertion ID: ca9 / b815).
 function createFirestoreInstance(): Firestore {
   const databaseId = firebaseConfig.firestoreDatabaseId;
   try {
     return initializeFirestore(
       app,
       {
-        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
+        localCache: memoryLocalCache(),
         ignoreUndefinedProperties: true,
       },
       databaseId
@@ -104,15 +106,44 @@ export const FIREBASE_RUNTIME_INFO = {
   analyticsConfigured: Boolean(firebaseConfig.measurementId),
 };
 
-// Automatically reconnect Firestore if browser/device connectivity recovers
+// Guard against fatal Firestore SDK internal assertion crashes (e.g. ca9 / b815) so a poisoned
+// watch stream never leaves the app frozen; performs at most one clean reload per 30 seconds.
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    void enableNetwork(db).catch(() => {});
+  const handleFirestoreInternalAssertion = (rawMessage: string) => {
+    if (
+      !rawMessage.includes('INTERNAL ASSERTION FAILED') ||
+      !rawMessage.includes('FIRESTORE')
+    ) {
+      return;
+    }
+    try {
+      const storageKey = 'lenzo_firestore_assertion_recover_at';
+      const lastRecover = Number(window.sessionStorage.getItem(storageKey) || '0');
+      const now = Date.now();
+      if (!lastRecover || now - lastRecover > 30_000) {
+        window.sessionStorage.setItem(storageKey, String(now));
+        console.warn('[Firebase] Recovering from Firestore stream assertion...');
+        window.location.reload();
+      }
+    } catch {
+      // ignore storage restrictions
+    }
+  };
+
+  window.addEventListener('error', (event) => {
+    const msg = String(event?.message || event?.error?.message || '');
+    if (msg) handleFirestoreInternalAssertion(msg);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = reason instanceof Error ? reason.message : String(reason || '');
+    if (msg) handleFirestoreInternalAssertion(msg);
   });
 }
 
 // Test connection on boot per Firebase skill guidelines
-async function testConnection(retryAttempt = 0) {
+async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log(
@@ -129,15 +160,8 @@ async function testConnection(retryAttempt = 0) {
     }
 
     if (message.includes('the client is offline') || code === 'unavailable') {
-      if (retryAttempt < 1) {
-        await enableNetwork(db).catch(() => {});
-        setTimeout(() => {
-          void testConnection(retryAttempt + 1);
-        }, 2500);
-        return;
-      }
       console.warn(
-        '[Firebase] Firestore backend temporarily unreachable; operating with offline cache until network recovers.'
+        '[Firebase] Firestore backend temporarily unreachable; waiting for automatic network recovery.'
       );
     }
   }

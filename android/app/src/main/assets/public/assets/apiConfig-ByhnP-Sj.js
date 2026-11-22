@@ -1,5 +1,5 @@
 import { t as Capacitor } from "./dist-BtMCkNml.js";
-import { r as auth } from "./firebase-zc-_OxQs.js";
+import { r as auth } from "./firebase-CcEQ85aw.js";
 // src/utils/apiConfig.ts
 var DEFAULT_BACKEND_API_ORIGIN = "https://api.lenzoparty.com";
 var FRONTEND_PRODUCTION_HOSTS = /* @__PURE__ */ new Set(["lenzoparty.com", "www.lenzoparty.com"]);

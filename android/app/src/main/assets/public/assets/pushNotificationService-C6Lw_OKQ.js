@@ -1,9 +1,9 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js"])))=>i.map(i=>d[i]);
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
-import { C as updateDoc, D as collection, N as serverTimestamp, O as doc, T as writeBatch, _ as onSnapshot, f as deleteDoc, g as limit, h as getDocs, v as orderBy, w as where, x as setDoc, y as query } from "./vendor-firebase-pU_0pKhI.js";
-import { i as db, r as auth } from "./firebase-zc-_OxQs.js";
-import { n as apiFetch } from "./apiConfig-CPEwW-gN.js";
-import { i as isVerifiedAdminSession } from "./adminAuth-D6F5ZQ0I.js";
+import { E as writeBatch, N as serverTimestamp, O as collection, S as setDoc, T as where, b as query, f as deleteDoc, g as limit, h as getDocs, k as doc, v as onSnapshot, w as updateDoc, y as orderBy } from "./vendor-firebase-BXfD3et1.js";
+import { i as db, r as auth } from "./firebase-CcEQ85aw.js";
+import { n as apiFetch } from "./apiConfig-ByhnP-Sj.js";
+import { i as isVerifiedAdminSession } from "./adminAuth-CSEij6hU.js";
 // src/types/index.ts
 var DEFAULT_NOTIFICATION_PREFERENCES = {
 	messages: true,
@@ -828,10 +828,11 @@ function subscribeRealTimeNotifications(userId, onUpdate) {
 function subscribeGlobalPushAnnouncements(onAnnouncement) {
 	let hydrated = false;
 	const seen = /* @__PURE__ */ new Set();
-	const q = query(collection(db, "push_announcements"), where("active", "==", true), orderBy("createdAtMillis", "desc"), limit(10));
+	const q = query(collection(db, "push_announcements"), orderBy("createdAtMillis", "desc"), limit(20));
 	return onSnapshot(q, (snap) => {
 		snap.docs.forEach((d) => {
 			const data = d.data();
+			if (data.active === false) return;
 			if (!seen.has(d.id)) {
 				seen.add(d.id);
 				if (hydrated) onAnnouncement({

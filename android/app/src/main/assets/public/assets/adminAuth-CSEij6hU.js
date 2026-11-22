@@ -1,4 +1,4 @@
-import { r as auth } from "./firebase-zc-_OxQs.js";
+import { r as auth } from "./firebase-CcEQ85aw.js";
 var AUTHORIZED_ADMIN_EMAIL_SET = /* @__PURE__ */ new Set([
 	"saifkhokhar657@gmail.com",
 	"lenzopartyofficial@gmail.com",

@@ -1,13 +1,13 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BBV4fSnl.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-zc-_OxQs.js","assets/vendor-firebase-pU_0pKhI.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-BJVFKOyV.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-ZiIyZ9BI.js","assets/adminAuth-D6F5ZQ0I.js","assets/StoreScreen-CwxKTsjx.js","assets/StoreAssetPreview-BVP15Xng.js","assets/pushNotificationService-C9mUqIr0.js","assets/apiConfig-CPEwW-gN.js","assets/SettingsScreen-CN14glx2.js","assets/UploadVideoScreen-CjSJOs2S.js","assets/WalletModal-Cpn0p6YT.js","assets/LevelAndVIPModal-FUctg_p3.js","assets/AdminProgressionModal-D1dknAnf.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CcSBBgpJ.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CcEQ85aw.js","assets/vendor-firebase-BXfD3et1.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-BNKOJcIr.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-D03ekv_w.js","assets/adminAuth-CSEij6hU.js","assets/StoreScreen-C5okPuSO.js","assets/StoreAssetPreview-DapRaNl4.js","assets/pushNotificationService-C6Lw_OKQ.js","assets/apiConfig-ByhnP-Sj.js","assets/SettingsScreen-C-kBVeFy.js","assets/UploadVideoScreen-DsCk7_U8.js","assets/WalletModal-DIq5fzk7.js","assets/LevelAndVIPModal-B-d6ljXx.js","assets/AdminProgressionModal-BjIwpCxB.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
 import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
-import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-C9mUqIr0.js";
-import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CPEwW-gN.js";
-import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-zc-_OxQs.js";
-import { B as linkWithPopup, C as updateDoc, D as collection, E as Timestamp, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as doc, P as GoogleAuthProvider, S as startAfter, T as writeBatch, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, _ as onSnapshot, b as runTransaction, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as enableNetwork, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as orderBy, w as where, x as setDoc, y as query, z as getRedirectResult } from "./vendor-firebase-pU_0pKhI.js";
+import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-C6Lw_OKQ.js";
+import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-ByhnP-Sj.js";
+import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CcEQ85aw.js";
+import { B as linkWithPopup, C as startAfter, D as Timestamp, E as writeBatch, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as collection, P as GoogleAuthProvider, S as setDoc, T as where, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, b as query, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as doc, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as onSnapshot, w as updateDoc, x as runTransaction, y as orderBy, z as getRedirectResult } from "./vendor-firebase-BXfD3et1.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
-import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-D6F5ZQ0I.js";
+import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-CSEij6hU.js";
 import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
 import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CI-970bO.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
@@ -4994,11 +4994,18 @@ function subscribeReelsFeed(viewerUid, pageSize = 12, onUpdate) {
 			hasMore: snap.docs.length >= pageSize
 		});
 	};
+	let fallbackAttached = false;
 	activeUnsub = onSnapshot(q, (snap) => {
 		handleSnap(snap);
 	}, (err) => {
-		console.warn("[Firestore] subscribeReelsFeed primary query notice, falling back to createdAt:", err);
-		if (!active) return;
+		console.warn("[Firestore] subscribeReelsFeed primary query notice:", err?.code || err);
+		if (!active || fallbackAttached || err?.code !== "failed-precondition") return;
+		fallbackAttached = true;
+		const prevUnsub = activeUnsub;
+		activeUnsub = null;
+		try {
+			prevUnsub?.();
+		} catch {}
 		const fallbackQ = query(collection(db, "reels"), orderBy("createdAt", "desc"), limit(pageSize));
 		activeUnsub = onSnapshot(fallbackQ, (snap) => {
 			handleSnap(snap);
@@ -5009,6 +5016,7 @@ function subscribeReelsFeed(viewerUid, pageSize = 12, onUpdate) {
 	return () => {
 		active = false;
 		activeUnsub?.();
+		activeUnsub = null;
 	};
 }
 /**
@@ -7734,23 +7742,23 @@ async function adminUpdateWithdrawalStatus(request, newStatus, adminRemarks = ""
 * 10. REAL-TIME TRANSACTIONS & USER WITHDRAWALS LISTENERS
 */
 function subscribeTransactions(userId, balanceType, onUpdate) {
-	const q = query(collection(db, balanceType === "wallet" ? "wallet_transactions" : "earnings_transactions"), where("userId", "==", userId), orderBy("timestampMillis", "desc"), limit(100));
+	const q = query(collection(db, balanceType === "wallet" ? "wallet_transactions" : "earnings_transactions"), where("userId", "==", userId), limit(100));
 	return onSnapshot(q, (snap) => {
 		onUpdate(snap.docs.map((d) => ({
 			id: d.id,
 			...d.data()
-		})));
+		})).sort((a, b) => Number(b.timestampMillis || 0) - Number(a.timestampMillis || 0)));
 	}, (err) => {
 		console.warn(`Transactions (${balanceType}) listener notice:`, err);
 	});
 }
 function subscribeUserWithdrawalRequests(userId, onUpdate) {
-	const q = query(collection(db, "withdrawal_requests"), where("userId", "==", userId), orderBy("requestedAtMillis", "desc"), limit(50));
+	const q = query(collection(db, "withdrawal_requests"), where("userId", "==", userId), limit(50));
 	return onSnapshot(q, (snap) => {
 		onUpdate(snap.docs.map((d) => ({
 			id: d.id,
 			...d.data()
-		})));
+		})).sort((a, b) => Number(b.requestedAtMillis || 0) - Number(a.requestedAtMillis || 0)));
 	}, (err) => {
 		console.warn("User withdrawal requests listener notice:", err);
 	});
@@ -14162,12 +14170,12 @@ async function adminReviewAgencyApplication(params) {
 }
 function subscribeActiveAgencies(agencyType, onUpdate) {
 	const collRef = collection(db, "agencies");
-	const q = agencyType === "all" ? query(collRef, where("status", "==", "active")) : query(collRef, where("agencyType", "==", agencyType), where("status", "==", "active"));
+	const q = query(collRef, where("status", "==", "active"));
 	return onSnapshot(q, (snap) => {
 		onUpdate(snap.docs.map((d) => ({
 			id: d.id,
 			...d.data()
-		})).sort((a, b) => {
+		})).filter((a) => agencyType === "all" || a.agencyType === agencyType).sort((a, b) => {
 			if (agencyType === "all" && a.agencyType !== b.agencyType) return a.agencyType === "coin_seller" ? -1 : 1;
 			if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
 			return (b.updatedAt || "").localeCompare(a.updatedAt || "");
@@ -27357,14 +27365,17 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 		});
 		setShowAgencyCoinTray(true);
 	}, [initialActiveUser?.id, currentUser.id]);
+	const initialConversationsRef = (0, import_react.useRef)(initialConversations);
+	initialConversationsRef.current = initialConversations;
 	(0, import_react.useEffect)(() => {
+		if (!currentUser?.id || currentUser.id === "user_current_01") return;
 		const unsubAgencies = subscribeActiveAgencies("coin_seller", setCoinSellerAgencies);
 		const unsubDirectConvs = subscribeUserDirectConversations(currentUser.id, (liveConvs) => {
 			setConversationsList((prev) => {
 				const groupConvs = prev.filter((c) => c.type === "group");
 				const map = /* @__PURE__ */ new Map();
 				liveConvs.forEach((c) => map.set(c.id, c));
-				initialConversations.forEach((c) => {
+				initialConversationsRef.current.forEach((c) => {
 					const normalizedId = c.type === "group" ? c.id : buildDirectChatId(currentUser.id, c.user.id);
 					if (!map.has(normalizedId) && c.type !== "group") map.set(normalizedId, {
 						...c,
@@ -27379,7 +27390,7 @@ var MessagesScreen = ({ currentUser, conversations: initialConversations, onNavi
 			unsubAgencies();
 			unsubDirectConvs();
 		};
-	}, [currentUser.id, initialConversations]);
+	}, [currentUser.id]);
 	const [searchQuery, setSearchQuery] = (0, import_react.useState)("");
 	const [messages, setMessages] = (0, import_react.useState)([]);
 	(0, import_react.useEffect)(() => {
@@ -38873,10 +38884,11 @@ var NotificationsModal = ({ isOpen, onClose, onMarkAllRead, notifications: exter
 	const [permissionState, setPermissionState] = (0, import_react.useState)("default");
 	const [enablingPush, setEnablingPush] = (0, import_react.useState)(false);
 	const notifications = externalNotifications ?? internalNotifications;
+	const hasExternalNotifications = externalNotifications !== void 0;
 	(0, import_react.useEffect)(() => {
 		if (!isOpen) return;
 		getPushPermissionState().then(setPermissionState);
-		if (externalNotifications) return;
+		if (hasExternalNotifications) return;
 		const uid = auth.currentUser?.uid;
 		if (!uid) {
 			setInternalNotifications([]);
@@ -38886,7 +38898,7 @@ var NotificationsModal = ({ isOpen, onClose, onMarkAllRead, notifications: exter
 			setInternalNotifications(items);
 		});
 		return () => unsubscribe();
-	}, [isOpen, externalNotifications]);
+	}, [isOpen, hasExternalNotifications]);
 	if (!isOpen) return null;
 	const unreadCount = notifications.filter((n) => !n.isRead).length;
 	const filteredNotifs = notifications.filter((n) => {
@@ -39301,15 +39313,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BBV4fSnl.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BJVFKOyV.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-ZiIyZ9BI.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CwxKTsjx.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CN14glx2.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-CjSJOs2S.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-Cpn0p6YT.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-FUctg_p3.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-D1dknAnf.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CcSBBgpJ.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BNKOJcIr.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-D03ekv_w.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-C5okPuSO.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C-kBVeFy.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DsCk7_U8.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DIq5fzk7.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-B-d6ljXx.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BjIwpCxB.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -39393,8 +39405,9 @@ function App() {
 	const [activeDeviceBan, setActiveDeviceBan] = (0, import_react.useState)(null);
 	const currentDeviceId = getOrCreateDeviceId();
 	const isAuthorizedAdmin = isAuthorizedAdminEmail(auth.currentUser?.email || currentUser?.email);
+	const [authenticatedUid, setAuthenticatedUid] = (0, import_react.useState)(auth.currentUser?.uid || null);
 	(0, import_react.useEffect)(() => {
-		const uid = currentUser?.id;
+		const uid = authenticatedUid;
 		if (!uid) {
 			setBlockedUsers([]);
 			setBlockedByUserIds([]);
@@ -39425,7 +39438,7 @@ function App() {
 			unsubMyMods();
 			unsubWsBlocks();
 		};
-	}, [currentUser?.id]);
+	}, [authenticatedUid]);
 	const handleNotificationDeepAction = (0, import_react.useCallback)((payload) => {
 		setIsNotificationsOpen(false);
 		setActivePushBanner(null);
@@ -39529,7 +39542,7 @@ function App() {
 		deliverOsDeviceNotification(payload, prefs);
 	}, []);
 	(0, import_react.useEffect)(() => {
-		const uid = auth.currentUser?.uid || (currentUser?.id !== "user_current_01" ? currentUser?.id : "");
+		const uid = authenticatedUid;
 		if (!uid) {
 			setNotifications([]);
 			return;
@@ -39586,7 +39599,7 @@ function App() {
 			unsubGlobal();
 			unsubWsPush();
 		};
-	}, [currentUser?.id, presentIncomingPush]);
+	}, [authenticatedUid, presentIncomingPush]);
 	(0, import_react.useEffect)(() => {
 		const unbind = bindNotificationClickListener((payload) => {
 			handleNotificationDeepAction(payload);
@@ -39926,7 +39939,6 @@ function App() {
 		activeChatUser,
 		currentScreen
 	]);
-	const [authenticatedUid, setAuthenticatedUid] = (0, import_react.useState)(auth.currentUser?.uid || null);
 	const resetUserScopedTransientState = () => {
 		setBlockedUsers([]);
 		setBlockedByUserIds([]);
@@ -40281,18 +40293,13 @@ function App() {
 			unsubReels();
 			unsubVideos();
 		};
-	}, [
-		authenticatedUid,
-		refreshTick,
-		currentDeviceId
-	]);
+	}, [authenticatedUid, currentDeviceId]);
 	const handleGlobalAppRefresh = (0, import_react.useCallback)(async () => {
 		if (typeof navigator !== "undefined" && navigator.onLine === false) return {
 			offline: true,
 			message: "No internet connection"
 		};
 		try {
-			await enableNetwork(db).catch(() => {});
 			const [streams, rooms, rankings] = await Promise.all([
 				liveAndRoomService.fetchActiveStreams().catch(() => null),
 				liveAndRoomService.fetchActiveRooms().catch(() => null),

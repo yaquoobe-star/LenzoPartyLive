@@ -286,14 +286,23 @@ export function subscribeReelsFeed(
     });
   };
 
+  let fallbackAttached = false;
   activeUnsub = onSnapshot(
     q,
     (snap) => {
       void handleSnap(snap);
     },
-    (err) => {
-      console.warn('[Firestore] subscribeReelsFeed primary query notice, falling back to createdAt:', err);
-      if (!active) return;
+    (err: any) => {
+      console.warn('[Firestore] subscribeReelsFeed primary query notice:', err?.code || err);
+      if (!active || fallbackAttached || err?.code !== 'failed-precondition') return;
+      fallbackAttached = true;
+      const prevUnsub = activeUnsub;
+      activeUnsub = null;
+      try {
+        prevUnsub?.();
+      } catch {
+        // already stopped
+      }
       const fallbackQ = query(collection(db, 'reels'), orderBy('createdAt', 'desc'), limit(pageSize));
       activeUnsub = onSnapshot(
         fallbackQ,
@@ -310,6 +319,7 @@ export function subscribeReelsFeed(
   return () => {
     active = false;
     activeUnsub?.();
+    activeUnsub = null;
   };
 }
 
