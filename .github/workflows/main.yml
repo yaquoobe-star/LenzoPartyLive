@@ -134,11 +134,14 @@ jobs:
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
             echo "Applied freshly configured android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
-          else
+          elif [ -f android/app/google-services.json ]; then
             echo "Using repository android/app/google-services.json (GOOGLE_SERVICES_JSON secret not set)."
+          elif [ -f firebase-android-config.json ]; then
+            cp firebase-android-config.json android/app/google-services.json
+            echo "Applied verified repository firebase-android-config.json to android/app/google-services.json."
           fi
           if [ ! -f android/app/google-services.json ]; then
-            echo "::error::Missing android/app/google-services.json. Do not generate a partial Firebase config from firebase-applet-config.json because it omits Android OAuth certificate clients."
+            echo "::error::Missing android/app/google-services.json and firebase-android-config.json. Set the GOOGLE_SERVICES_JSON secret or commit the full Firebase Android config."
             exit 1
           fi
           node -e '
