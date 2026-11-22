@@ -28,12 +28,22 @@ import { apiFetch } from '../utils/apiConfig';
 import { UserProfile } from '../types';
 import { rememberAuthenticatedAccount } from './accountSwitcherService';
 
+interface NativeGoogleAuthDiagnostics {
+  packageName?: string;
+  versionName?: string;
+  versionCode?: number;
+  webClientIdSource?: string;
+  webClientIdMasked?: string;
+  installedSigningSha1?: string;
+}
+
 interface NativeGoogleAuthPlugin {
   signIn(): Promise<{
     idToken: string;
     email?: string;
     displayName?: string;
     photoUrl?: string;
+    diagnostics?: NativeGoogleAuthDiagnostics;
   }>;
   signOut(): Promise<void>;
 }
@@ -240,6 +250,9 @@ export async function syncUserInFirestore(
       if (extra?.profileImage && !existingData.profileImage) {
         updatePayload.profileImage = extra.profileImage;
       }
+      if (extra?.emailOtpVerified === true && !existingData.emailOtpVerified) {
+        updatePayload.emailOtpVerified = true;
+      }
 
       await updateDoc(userRef, updatePayload);
       return {
@@ -370,16 +383,40 @@ export async function signInWithGoogle(options?: {
 
     // 1. Native Android (Capacitor): use Google Play Services Native Account Picker -> Firebase signInWithCredential
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      let stage: 'native_plugin' | 'firebase_credential' | 'firestore_sync' = 'native_plugin';
       try {
+        console.info('[Google Auth][Android] Starting native Google Sign-In flow', {
+          projectId: auth.app.options.projectId,
+          platform: Capacitor.getPlatform(),
+        });
+
         const nativeRes = await NativeGoogleAuth.signIn();
-        if (!nativeRes?.idToken) {
-          throw new Error('Google Sign-In did not return an ID token.');
+        const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
+        const jwtSegments = idToken ? idToken.split('.').length : 0;
+
+        console.info('[Google Auth][Android] Native plugin returned result', {
+          idTokenPresent: Boolean(idToken),
+          jwtValidFormat: jwtSegments === 3,
+          diagnostics: nativeRes?.diagnostics || null,
+        });
+
+        if (!idToken || jwtSegments !== 3) {
+          throw new Error('Google Sign-In did not return a valid ID token.');
         }
 
-        const credential = GoogleAuthProvider.credential(nativeRes.idToken);
+        stage = 'firebase_credential';
+        const credential = GoogleAuthProvider.credential(idToken);
         const result = await signInWithCredential(auth, credential);
         const user = result.user;
 
+        console.info('[Google Auth][Android] Firebase Auth signInWithCredential succeeded', {
+          projectId: auth.app.options.projectId,
+          uidPrefix: user.uid ? user.uid.slice(0, 6) : 'unknown',
+          emailVerified: user.emailVerified,
+          providers: user.providerData.map((p) => p.providerId),
+        });
+
+        stage = 'firestore_sync';
         const firestoreData = await syncUserInFirestore(user, 'google', {
           fullName: nativeRes.displayName || user.displayName || undefined,
           profileImage: nativeRes.photoUrl || user.photoURL || undefined,
@@ -390,16 +427,28 @@ export async function signInWithGoogle(options?: {
         rememberAuthenticatedAccount(profile, 'google');
         return { user, profile };
       } catch (nativeErr: any) {
+        const rawCode = typeof nativeErr?.code === 'string' ? nativeErr.code : '';
         const rawMsg = String(nativeErr?.message || nativeErr || '');
+        console.error('[Google Auth][Android] Sign-In failed', {
+          stage,
+          code: rawCode || 'unknown',
+          message: rawMsg,
+        });
+
         if (rawMsg.includes('CANCELLED') || rawMsg.includes('12501')) {
           throw new Error('Google Sign-In was cancelled.');
         }
         if (rawMsg.includes('DEVELOPER_ERROR') || rawMsg.includes('status code: 10') || rawMsg.includes('code=10')) {
-          // Do not display a hard-coded SHA-1 here: the installed Play build may be signed
-          // with a different certificate than the local/upload build. Preserve the real
-          // Google Play Services status so support can diagnose the installed artifact.
+          throw new Error(rawMsg);
+        }
+        if (rawCode === 'auth/operation-not-allowed') {
           throw new Error(
-            'Google Sign-In failed with Android DEVELOPER_ERROR (status code 10) for package com.lenzoparty.app. The app is still receiving an OAuth configuration error. Verify that the installed Play release uses the latest google-services.json, that the Play App Signing SHA-1 is registered on this exact Firebase Android app, and that Google provider is enabled in Firebase Authentication. Original error: ' + rawMsg
+            'Firebase Authentication rejected Google Sign-In (auth/operation-not-allowed). Enable the Google sign-in provider in Firebase Console -> Authentication -> Sign-in method for project confident-drake-3bcxw.'
+          );
+        }
+        if (rawCode === 'auth/invalid-credential') {
+          throw new Error(
+            'Firebase Authentication rejected the Google ID token (auth/invalid-credential). Verify that the Web OAuth Client ID in Firebase Console matches default_web_client_id in google-services.json.'
           );
         }
         throw nativeErr;
@@ -473,29 +522,118 @@ export async function signInWithGoogle(options?: {
  * Send a short-lived 6-digit email OTP through the Lenzo backend (Resend).
  * The backend returns a signed challenge; the OTP itself is never stored client-side.
  */
-export async function sendEmailOtp(email: string): Promise<{ challenge: string; expiresIn: number }> {
+export async function sendEmailOtp(email: string): Promise<{
+  challenge: string;
+  expiresIn: number;
+  cooldownSeconds: number;
+  messageId?: string;
+}> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+    throw new Error('Please enter a valid email address.');
+  }
+
   const response = await apiFetch('/api/auth/email/send-otp', {
     method: 'POST',
-    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    skipAuth: true,
+    body: JSON.stringify({ email: cleanEmail }),
     timeoutMs: 20000,
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data?.success || !data?.challenge) {
-    throw new Error(data?.error || `Could not send verification code (HTTP ${response.status}).`);
+
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const rawText = await response.text().catch(() => '');
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
   }
-  return { challenge: String(data.challenge), expiresIn: Number(data.expiresIn || 600) };
+
+  const looksLikeHtml =
+    contentType.includes('text/html') ||
+    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+
+  if (!response.ok || !data?.success || !data?.challenge) {
+    if (looksLikeHtml) {
+      const targetInfo = response.url || '/api/auth/email/send-otp';
+      throw new Error(
+        `Email API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Please open the app directly on https://lenzoparty.com and ensure the Railway backend (https://api.lenzoparty.com) is online and deployed.`
+      );
+    }
+    if (response.status >= 502 && !data?.error) {
+      throw new Error(
+        `Lenzo backend email service is temporarily unreachable (HTTP ${response.status}). Please check Railway deployment for https://api.lenzoparty.com.`
+      );
+    }
+    const err: any = new Error(
+      data?.error || `Could not send verification code (HTTP ${response.status}).`
+    );
+    if (data?.code) err.code = data.code;
+    if (typeof data?.retryAfterSeconds === 'number') {
+      err.retryAfterSeconds = data.retryAfterSeconds;
+    }
+    throw err;
+  }
+
+  return {
+    challenge: String(data.challenge),
+    expiresIn: Number(data.expiresIn || 600),
+    cooldownSeconds: Number(data.cooldownSeconds || 60),
+    messageId: typeof data.messageId === 'string' ? data.messageId : undefined,
+  };
 }
 
-/** Verify the OTP challenge before creating a Firebase email/password account. */
+/** Verify the 6-digit OTP challenge before completing Firebase email/password registration. */
 export async function verifyEmailOtp(email: string, otp: string, challenge: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = otp.replace(/\D/g, '');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+    throw new Error('Please enter a valid email address.');
+  }
+  if (!/^\d{6}$/.test(cleanOtp)) {
+    throw new Error('Enter the 6-digit verification code sent to your email.');
+  }
+  if (!challenge || !challenge.trim()) {
+    throw new Error('Verification session expired. Please request a new code.');
+  }
+
   const response = await apiFetch('/api/auth/email/verify-otp', {
     method: 'POST',
-    body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim(), challenge }),
+    skipAuth: true,
+    body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, challenge: challenge.trim() }),
     timeoutMs: 15000,
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data?.verified) {
-    throw new Error(data?.error || `Email verification failed (HTTP ${response.status}).`);
+
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  const rawText = await response.text().catch(() => '');
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
+  }
+
+  const looksLikeHtml =
+    contentType.includes('text/html') ||
+    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+
+  if (!response.ok || !data?.success || !data?.verified) {
+    if (looksLikeHtml) {
+      const targetInfo = response.url || '/api/auth/email/verify-otp';
+      throw new Error(
+        `Email verification API returned an HTML page (HTTP ${response.status}) instead of JSON from ${targetInfo}. Ensure the Railway backend (https://api.lenzoparty.com) is online and deployed.`
+      );
+    }
+    if (response.status >= 502 && !data?.error) {
+      throw new Error(
+        `Lenzo backend verification service is temporarily unreachable (HTTP ${response.status}). Please check Railway deployment for https://api.lenzoparty.com.`
+      );
+    }
+    const err: any = new Error(
+      data?.error || `Email verification failed (HTTP ${response.status}).`
+    );
+    if (data?.code) err.code = data.code;
+    throw err;
   }
 }
 
@@ -507,15 +645,17 @@ export async function registerWithEmail(params: {
   emailOtpVerified?: boolean;
 }): Promise<{ user: FirebaseUser; profile: UserProfile }> {
   try {
+    const cleanEmail = params.email.trim().toLowerCase();
+    const cleanName = params.fullName.trim();
     await setPersistence(auth, browserLocalPersistence);
 
-    const credential = await createUserWithEmailAndPassword(auth, params.email, params.password);
+    const credential = await createUserWithEmailAndPassword(auth, cleanEmail, params.password);
     const user = credential.user;
 
     // Update Firebase Auth user display name and avatar
     const chosenAvatar = params.profileImage || DEFAULT_AVATARS[0];
     await updateProfile(user, {
-      displayName: params.fullName,
+      displayName: cleanName,
       photoURL: chosenAvatar,
     }).catch((e) => console.warn('Could not update Auth display name:', e));
 
@@ -531,7 +671,7 @@ export async function registerWithEmail(params: {
 
     // Create Firestore document
     const firestoreData = await syncUserInFirestore(user, 'password', {
-      fullName: params.fullName,
+      fullName: cleanName,
       profileImage: chosenAvatar,
       emailOtpVerified: params.emailOtpVerified === true,
     });
@@ -543,7 +683,9 @@ export async function registerWithEmail(params: {
   } catch (error: any) {
     console.error('[Email Register Error]:', error);
     if (error.code === 'auth/email-already-in-use') {
-      throw new Error('An account with this email address already exists. Please log in instead.');
+      const existsErr: any = new Error('An account with this email address already exists. Please log in instead.');
+      existsErr.code = 'auth/email-already-in-use';
+      throw existsErr;
     } else if (error.code === 'auth/weak-password') {
       throw new Error('Password should be at least 6 characters.');
     } else if (error.code === 'auth/invalid-email') {
@@ -566,12 +708,13 @@ export async function loginWithEmail(
   rememberMe: boolean = true
 ): Promise<{ user: FirebaseUser; profile: UserProfile }> {
   try {
+    const cleanEmail = email.trim().toLowerCase();
     await setPersistence(
       auth,
       rememberMe ? browserLocalPersistence : browserSessionPersistence
     );
 
-    const credential = await signInWithEmailAndPassword(auth, email, pass);
+    const credential = await signInWithEmailAndPassword(auth, cleanEmail, pass);
     const user = credential.user;
 
     // Sync lastLogin in Firestore

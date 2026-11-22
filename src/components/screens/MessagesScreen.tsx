@@ -35,7 +35,13 @@ import {
   Sparkles, 
   Radio, 
   Share2,
-  ChevronDown
+  ChevronDown,
+  Coins,
+  BadgeCheck,
+  ShieldCheck,
+  MessageCircle,
+  Receipt,
+  Loader2,
 } from 'lucide-react';
 import { 
   Conversation, 
@@ -46,6 +52,8 @@ import {
   MessageReplyPreview 
 } from '../../types';
 import { 
+  buildDirectChatId,
+  subscribeUserDirectConversations,
   subscribeChatMessages, 
   sendChatMessage, 
   editChatMessage, 
@@ -55,6 +63,13 @@ import {
   starChatMessage 
 } from '../../services/firestoreService';
 import { BlockedUserRecord, blockedRecordToUserProfile } from '../../services/blockService';
+import {
+  DualAgencyRecord,
+  buildWhatsAppUrl,
+  subscribeActiveAgencies,
+} from '../../services/agencyService';
+import { uploadUserImage } from '../../services/storageService';
+import { CoinSlipOrderModal } from '../agency/CoinSlipOrderModal';
 
 interface MessagesScreenProps {
   currentUser: UserProfile;
@@ -73,6 +88,7 @@ interface MessagesScreenProps {
 type TabKey = 'all' | 'personal' | 'groups' | 'requests' | 'archived' | 'blocked';
 
 const QUICK_EMOJIS = ['❤️', '👍', '🔥', '😂', '😮', '😢', '🙏'];
+const AGENCY_COIN_CARDS = [1000, 5000, 10000, 25000, 50000, 100000];
 
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   currentUser,
@@ -94,11 +110,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     initialConversations.map((c) => ({ ...c, type: c.type || 'direct' }))
   );
 
-  // Selected Conversation State
+  // Active Coin Seller Agencies (for Verified Agency Inbox + Coin Cards + WhatsApp)
+  const [coinSellerAgencies, setCoinSellerAgencies] = useState<DualAgencyRecord[]>([]);
+  const [showAgencyCoinTray, setShowAgencyCoinTray] = useState(true);
+  const [customCoinInput, setCustomCoinInput] = useState('');
+  const [isSendingCoinCard, setIsSendingCoinCard] = useState(false);
+  const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
+  const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
+  const [imageLightboxUrl, setImageLightboxUrl] = useState<string | null>(null);
+  const chatImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Selected Conversation State (deterministic symmetric chatId for real-time 2-way messaging)
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(() => {
     if (initialActiveUser) {
       return {
-        id: `conv_${initialActiveUser.id}`,
+        id: buildDirectChatId(currentUser.id, initialActiveUser.id),
         user: initialActiveUser,
         lastMessage: 'Started conversation',
         timestamp: 'Just now',
@@ -109,6 +135,47 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     }
     return null;
   });
+
+  // Sync selected conversation if initialActiveUser prop updates (e.g. tapping a different agency card)
+  useEffect(() => {
+    if (!initialActiveUser) return;
+    const chatId = buildDirectChatId(currentUser.id, initialActiveUser.id);
+    setSelectedConversation({
+      id: chatId,
+      user: initialActiveUser,
+      lastMessage: 'Direct Inbox',
+      timestamp: 'Just now',
+      unreadCount: 0,
+      isOnline: true,
+      type: 'direct',
+    });
+    setShowAgencyCoinTray(true);
+  }, [initialActiveUser?.id, currentUser.id]);
+
+  // Real-time subscription to Active Coin Seller Agencies & User's Direct Conversations
+  useEffect(() => {
+    const unsubAgencies = subscribeActiveAgencies('coin_seller', setCoinSellerAgencies);
+    const unsubDirectConvs = subscribeUserDirectConversations(currentUser.id, (liveConvs) => {
+      setConversationsList((prev) => {
+        const groupConvs = prev.filter((c) => c.type === 'group');
+        const map = new Map<string, Conversation>();
+        liveConvs.forEach((c) => map.set(c.id, c));
+        initialConversations.forEach((c) => {
+          const normalizedId =
+            c.type === 'group' ? c.id : buildDirectChatId(currentUser.id, c.user.id);
+          if (!map.has(normalizedId) && c.type !== 'group') {
+            map.set(normalizedId, { ...c, id: normalizedId, type: 'direct' });
+          }
+        });
+        return [...Array.from(map.values()), ...groupConvs];
+      });
+    });
+
+    return () => {
+      unsubAgencies();
+      unsubDirectConvs();
+    };
+  }, [currentUser.id, initialConversations]);
 
   // Search in conversation list & messages
   const [searchQuery, setSearchQuery] = useState('');
@@ -171,6 +238,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
   const isSelectedBlockedMe = Boolean(activeDirectUserId && blockedByIdSet.has(activeDirectUserId));
   const isSelectedChatBlocked = isSelectedBlockedByMe || isSelectedBlockedMe;
 
+  // Detect if current chat partner is an Active Verified Coin Seller Agency
+  const activeChatAgency =
+    selectedConversation && selectedConversation.type !== 'group'
+      ? coinSellerAgencies.find((a) => a.ownerUid === selectedConversation.user.id) || null
+      : null;
+
+  // Detect if the logged-in user owns an active Coin Seller Agency (for replying to buyers)
+  const myOwnedCoinAgency =
+    coinSellerAgencies.find((a) => a.ownerUid === currentUser.id) || null;
+
+  const activeAgencyWaHref = activeChatAgency
+    ? buildWhatsAppUrl(
+        activeChatAgency.whatsappNumber,
+        `Salam ${activeChatAgency.name} (${activeChatAgency.agencyCode})! I am contacting you from Lenzo Party In-App Inbox. My Name: ${currentUser.name} | Lenzo ID: ${currentUser.displayId || currentUser.id.slice(0, 8)}. I want to buy Lenzo Coins.`
+      )
+    : '';
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom of chat
@@ -231,14 +315,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
     setInputText('');
     setReplyingTo(null);
 
-    // Save to Firestore backend (with recipientId for direct-chat security rule enforcement)
+    // Save to Firestore backend (with symmetric participant metadata so BOTH buyer & agency see inbox live!)
     await sendChatMessage(selectedConversation.id, {
       text: newMsg.text,
       senderId: currentUser.id,
       senderName: currentUser.name,
       senderAvatar: currentUser.avatar,
+      senderDisplayId: currentUser.displayId || currentUser.id.slice(0, 8),
       senderVip: currentUser.vipLevel,
       recipientId: activeDirectUserId || undefined,
+      recipientName: activeChatAgency?.name || selectedConversation.user.name,
+      recipientAvatar: activeChatAgency?.ownerAvatar || selectedConversation.user.avatar,
+      recipientDisplayId: selectedConversation.user.displayId || selectedConversation.user.id.slice(0, 8),
       type: 'text',
       replyTo: replyingTo || undefined,
     });
@@ -251,6 +339,123 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
           : c
       )
     );
+  };
+
+  // Send Structured Coin Purchase Request Card directly inside the Agency Inbox
+  const handleSendCoinRequestCard = async (coinsCount: number, customNote?: string) => {
+    if (!selectedConversation || !activeChatAgency || isSelectedChatBlocked) return;
+    const cleanCoins = Math.floor(Number(coinsCount));
+    if (!Number.isFinite(cleanCoins) || cleanCoins <= 0) {
+      setCallToast('Please enter a valid number of coins.');
+      setTimeout(() => setCallToast(null), 2200);
+      return;
+    }
+
+    const buyerIdLabel = currentUser.displayId || currentUser.id.slice(0, 8);
+    const noteText =
+      (customNote || '').trim() ||
+      `Salam ${activeChatAgency.name}! Mujhe ${cleanCoins.toLocaleString()} coins chahiye. Please share payment details.`;
+
+    const cardPayload = {
+      coins: cleanCoins,
+      agencyId: activeChatAgency.id,
+      agencyName: activeChatAgency.name,
+      agencyCode: activeChatAgency.agencyCode,
+      buyerDisplayId: buyerIdLabel,
+      note: noteText,
+    };
+
+    const tempMsg: ChatMessage = {
+      id: `coin_${Date.now()}`,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      senderVip: currentUser.vipLevel,
+      text: noteText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAtMillis: Date.now(),
+      status: 'sent',
+      type: 'coin_request',
+      coinRequest: cardPayload,
+    };
+
+    setIsSendingCoinCard(true);
+    setMessages((prev) => [...prev, tempMsg]);
+
+    await sendChatMessage(selectedConversation.id, {
+      text: noteText,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      senderDisplayId: buyerIdLabel,
+      senderVip: currentUser.vipLevel,
+      recipientId: activeChatAgency.ownerUid,
+      recipientName: activeChatAgency.name,
+      recipientAvatar: activeChatAgency.ownerAvatar || selectedConversation.user.avatar,
+      recipientDisplayId: activeChatAgency.ownerDisplayId || activeChatAgency.agencyCode,
+      type: 'coin_request',
+      coinRequest: cardPayload,
+    });
+
+    setCustomCoinInput('');
+    setIsSendingCoinCard(false);
+    setCallToast(`Coin request card (${cleanCoins.toLocaleString()} coins) sent to ${activeChatAgency.name}!`);
+    setTimeout(() => setCallToast(null), 2600);
+  };
+
+  // Upload real Payment Slip / Gallery Photo directly in chat
+  const handleChatImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedConversation || isSelectedChatBlocked) return;
+    if (!file.type.startsWith('image/')) {
+      setCallToast('Please select an image file (JPG, PNG, WebP).');
+      setTimeout(() => setCallToast(null), 2400);
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setCallToast('Image must be smaller than 12 MB.');
+      setTimeout(() => setCallToast(null), 2400);
+      return;
+    }
+
+    setIsUploadingChatImage(true);
+    setIsAttachmentOpen(false);
+    try {
+      const uploadedUrl = await uploadUserImage(file, 'payment_slips');
+      const caption = activeChatAgency ? '📷 Payment Slip Screenshot' : '📷 Photo';
+      const msg: ChatMessage = {
+        id: `img_${Date.now()}`,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        text: caption,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAtMillis: Date.now(),
+        status: 'sent',
+        type: 'image',
+        mediaUrl: uploadedUrl,
+      };
+      setMessages((prev) => [...prev, msg]);
+      await sendChatMessage(selectedConversation.id, {
+        text: caption,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        senderDisplayId: currentUser.displayId || currentUser.id.slice(0, 8),
+        recipientId: activeDirectUserId || undefined,
+        recipientName: activeChatAgency?.name || selectedConversation.user.name,
+        recipientAvatar: activeChatAgency?.ownerAvatar || selectedConversation.user.avatar,
+        recipientDisplayId: selectedConversation.user.displayId || selectedConversation.user.id.slice(0, 8),
+        type: 'image',
+        mediaUrl: uploadedUrl,
+      });
+    } catch (err: any) {
+      setCallToast(err?.message || 'Failed to upload image. Please try again.');
+      setTimeout(() => setCallToast(null), 2800);
+    } finally {
+      setIsUploadingChatImage(false);
+      if (chatImageInputRef.current) chatImageInputRef.current.value = '';
+    }
   };
 
   // Voice Note Handlers
@@ -674,23 +879,55 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate flex items-center gap-1.5">
-                      <span className="truncate">{selectedConversation.type === 'group' ? selectedConversation.group?.name : selectedConversation.user.name}</span>
-                      {selectedConversation.user.isVIP && (
+                      <span className="truncate">
+                        {selectedConversation.type === 'group'
+                          ? selectedConversation.group?.name
+                          : activeChatAgency?.name || selectedConversation.user.name}
+                      </span>
+                      {activeChatAgency && (
+                        <BadgeCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                      )}
+                      {!activeChatAgency && selectedConversation.user.isVIP && (
                         <span className="text-[10px] text-amber-400 font-extrabold shrink-0">👑</span>
                       )}
                     </h2>
-                    <p className="text-[10px] text-[#A59AB8] truncate">
-                      {selectedConversation.type === 'group' 
-                        ? `${selectedConversation.group?.membersCount || 10} members` 
-                        : (selectedConversation.isOnline ? 'Online • In Party Room' : 'Last seen recently')}
-                    </p>
+                    {activeChatAgency ? (
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-[#FFC84A] text-[9px] font-black uppercase">
+                          Official Coin Seller
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-300 font-bold">
+                          {activeChatAgency.agencyCode}
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-[#A59AB8] truncate">
+                        {selectedConversation.type === 'group'
+                          ? `${selectedConversation.group?.membersCount || 10} members`
+                          : selectedConversation.isOnline
+                            ? 'Online • Lenzo Direct Inbox'
+                            : 'Last seen recently'}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Chat Header Actions */}
-              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                {!isSelectedChatBlocked && (
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {activeChatAgency && activeAgencyWaHref && (
+                  <a
+                    href={activeAgencyWaHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051B0E] text-[11px] font-black flex items-center gap-1 shadow-md transition-all"
+                    title="Contact Agency on WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden xs:inline">WhatsApp</span>
+                  </a>
+                )}
+                {!isSelectedChatBlocked && !activeChatAgency && (
                   <>
                     <button 
                       onClick={() => onOpenGiftShop(selectedConversation.user)}
@@ -936,14 +1173,68 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                           </div>
                         )}
 
-                        {/* Image Media View */}
+                        {/* Image Media View (tap to zoom full payment slip / photo) */}
                         {msg.type === 'image' && msg.mediaUrl && (
                           <div className="rounded-xl overflow-hidden mb-1.5">
                             <img
                               src={msg.mediaUrl}
-                              alt="attachment"
-                              className="w-full max-h-60 object-cover rounded-xl"
+                              alt={msg.text || 'attachment'}
+                              onClick={() => setImageLightboxUrl(msg.mediaUrl || null)}
+                              className="w-full max-h-60 object-cover rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
                             />
+                            {msg.text && (
+                              <p className="text-[11px] text-white/85 mt-1">{msg.text}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Official Coin Purchase Request Card Bubble */}
+                        {msg.type === 'coin_request' && msg.coinRequest && (
+                          <div className="p-3 rounded-2xl bg-gradient-to-br from-[#2B1749] via-[#1B0D33] to-[#2F1538] border border-amber-400/55 space-y-2 min-w-[215px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/25 border border-amber-400/45 text-[#FFC84A] text-[9px] font-black uppercase tracking-wider">
+                                <Coins className="w-3 h-3" />
+                                Coin Request Card
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-emerald-300">
+                                {msg.coinRequest.agencyCode}
+                              </span>
+                            </div>
+
+                            <div className="py-1">
+                              <div className="text-xl font-black font-mono text-[#FFC84A] tabular-nums leading-none">
+                                {Number(msg.coinRequest.coins || 0).toLocaleString()} Coins
+                              </div>
+                              <p className="text-[10px] text-[#D8CEE8] mt-1 font-mono">
+                                Buyer ID: <strong className="text-white">{msg.coinRequest.buyerDisplayId}</strong>
+                              </p>
+                            </div>
+
+                            <p className="text-[11px] text-white/90 leading-snug">
+                              {msg.coinRequest.note || msg.text}
+                            </p>
+
+                            {activeChatAgency && isMe && (
+                              <button
+                                type="button"
+                                onClick={() => setIsSlipModalOpen(true)}
+                                className="w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>Send Payment Slip</span>
+                              </button>
+                            )}
+
+                            {myOwnedCoinAgency && !isMe && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigate('profile')}
+                                className="w-full py-1.5 px-2.5 rounded-xl bg-emerald-500 text-black text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-transform"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>Open Agency Panel to Send Coins</span>
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -1057,20 +1348,120 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               </div>
             )}
 
+            {/* Hidden Real Image / Payment Slip File Input */}
+            <input
+              ref={chatImageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleChatImageFileSelected}
+              className="hidden"
+            />
+
+            {/* A5b. IN-APP COIN PURCHASING BAR (When chatting directly with an Active Coin Seller Agency) */}
+            {activeChatAgency && !isSelectedChatBlocked && (
+              <div className="bg-[#180C2E] border-t border-amber-400/30 px-3 py-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAgencyCoinTray((prev) => !prev)}
+                    className="flex items-center gap-1.5 text-[11px] font-black text-[#FFC84A]"
+                  >
+                    <Coins className="w-3.5 h-3.5 shrink-0" />
+                    <span>In-App Coin Purchase Cards</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${
+                        showAgencyCoinTray ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsSlipModalOpen(true)}
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#090611] text-[10px] font-black flex items-center gap-1 shadow"
+                    >
+                      <Receipt className="w-3 h-3" />
+                      <span>Send Slip</span>
+                    </button>
+                    {activeAgencyWaHref && (
+                      <a
+                        href={activeAgencyWaHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-black flex items-center gap-1"
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                        <span>WA</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {showAgencyCoinTray && (
+                  <div className="space-y-2">
+                    {/* Tap-to-Send Coin Request Cards */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                      {AGENCY_COIN_CARDS.map((coinsAmt) => (
+                        <button
+                          key={coinsAmt}
+                          type="button"
+                          disabled={isSendingCoinCard}
+                          onClick={() => void handleSendCoinRequestCard(coinsAmt)}
+                          className="shrink-0 px-2.5 py-1.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-[#8B20FF]/25 hover:from-amber-500/35 hover:to-[#F328D5]/35 border border-amber-400/40 text-left active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          <span className="block text-[11px] font-mono font-black text-[#FFC84A] leading-tight">
+                            🪙 {coinsAmt.toLocaleString()}
+                          </span>
+                          <span className="block text-[9px] text-[#E5D4FA] font-bold">
+                            Tap to Request
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Coin Amount Quick Card Sender */}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        value={customCoinInput}
+                        onChange={(e) => setCustomCoinInput(e.target.value)}
+                        placeholder="Custom coins (e.g. 7500)..."
+                        className="flex-1 min-w-0 bg-black/40 border border-white/15 focus:border-[#FFC84A] rounded-xl px-3 py-1.5 text-[11px] font-mono text-white placeholder-[#9B8DB5] outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSendingCoinCard || !customCoinInput.trim()}
+                        onClick={() => void handleSendCoinRequestCard(Number(customCoinInput))}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-black shrink-0 disabled:opacity-45 active:scale-95 transition-all"
+                      >
+                        Request Coins
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* A5. Attachment Action Sheet */}
             {isAttachmentOpen && (
               <div className="p-3 bg-[#1d1033] border-t border-white/10 grid grid-cols-4 gap-2 animate-in slide-in-from-bottom-2">
                 <button
-                  onClick={() => handleSendMedia('image')}
+                  type="button"
+                  onClick={() => chatImageInputRef.current?.click()}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center">
                     <ImageIcon className="w-5 h-5 text-white" />
                   </div>
-                  <span className="text-[10px] font-semibold">Gallery</span>
+                  <span className="text-[10px] font-semibold">
+                    {activeChatAgency ? 'Slip Photo' : 'Gallery'}
+                  </span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleSendMedia('room_invite')}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 >
@@ -1081,6 +1472,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleSendMedia('file')}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 >
@@ -1091,13 +1483,22 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onOpenGiftShop(selectedConversation.user)}
+                  type="button"
+                  onClick={() =>
+                    activeChatAgency ? setIsSlipModalOpen(true) : onOpenGiftShop(selectedConversation.user)
+                  }
                   className="flex flex-col items-center gap-1.5 p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-500 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" />
+                    {activeChatAgency ? (
+                      <Receipt className="w-5 h-5 text-black" />
+                    ) : (
+                      <Sparkles className="w-5 h-5 text-white" />
+                    )}
                   </div>
-                  <span className="text-[10px] font-semibold">Virtual Gift</span>
+                  <span className="text-[10px] font-semibold">
+                    {activeChatAgency ? 'Slip Form' : 'Virtual Gift'}
+                  </span>
                 </button>
               </div>
             )}
@@ -1152,10 +1553,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                   // Standard Chat Text Input Form
                   <>
                     <button
+                      type="button"
                       onClick={() => setIsAttachmentOpen(!isAttachmentOpen)}
                       className="p-2 rounded-full hover:bg-white/10 text-[#A59AB8] hover:text-white transition-colors"
+                      title="Attachments / Slip Photo"
                     >
-                      <Paperclip className="w-5 h-5" />
+                      {isUploadingChatImage ? (
+                        <Loader2 className="w-5 h-5 text-[#FFC84A] animate-spin" />
+                      ) : (
+                        <Paperclip className="w-5 h-5" />
+                      )}
                     </button>
 
                     <form onSubmit={handleSendMessage} className="flex-1 flex items-center relative">
@@ -1163,7 +1570,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                         type="text"
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        placeholder="Type a message..."
+                        placeholder={
+                          activeChatAgency
+                            ? `Write to ${activeChatAgency.name} (e.g. Mujhe 10,000 coins chahiye)...`
+                            : 'Type a message...'
+                        }
                         className="w-full bg-[#201337] border border-white/10 rounded-2xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-[#786c8f] focus:outline-none focus:border-[#F328D5] transition-colors"
                       />
                       <button
@@ -1177,6 +1588,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
                     {inputText.trim() ? (
                       <button
+                        type="button"
                         onClick={() => handleSendMessage()}
                         className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"
                       >
@@ -1184,6 +1596,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                       </button>
                     ) : (
                       <button
+                        type="button"
                         onClick={handleStartVoiceRecord}
                         className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-[#F328D5] transition-colors"
                         title="Hold to record voice message"
@@ -1315,8 +1728,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
                 ) : (
                   getFilteredConversations().map((conv) => {
                     const isGroup = conv.type === 'group';
-                    const title = isGroup ? conv.group?.name : conv.user.name;
-                    const avatar = isGroup ? conv.group?.avatar : conv.user.avatar;
+                    const matchedAgency = !isGroup
+                      ? coinSellerAgencies.find((a) => a.ownerUid === conv.user.id) || null
+                      : null;
+                    const title = isGroup ? conv.group?.name : matchedAgency?.name || conv.user.name;
+                    const avatar = isGroup
+                      ? conv.group?.avatar
+                      : matchedAgency?.ownerAvatar || conv.user.avatar;
 
                     return (
                       <div
@@ -1344,10 +1762,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
 
                           {/* Message snippet */}
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <h3 className="text-sm font-bold text-white group-hover:text-[#F328D5] transition-colors truncate">
                                 {title}
                               </h3>
+                              {matchedAgency && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/40 text-[#FFC84A] text-[9px] font-black uppercase shrink-0">
+                                  Coin Seller
+                                </span>
+                              )}
                               {conv.isPinned && <Pin className="w-3 h-3 text-[#F328D5]" />}
                               {conv.isMuted && <BellOff className="w-3 h-3 text-gray-400" />}
                             </div>
@@ -1498,6 +1921,39 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({
               Create Group Now
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 5. IN-INBOX PAYMENT SLIP MODAL FOR ACTIVE COIN SELLER AGENCY */}
+      {activeChatAgency && (
+        <CoinSlipOrderModal
+          isOpen={isSlipModalOpen}
+          onClose={() => setIsSlipModalOpen(false)}
+          agency={activeChatAgency}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* 6. FULLSCREEN CHAT IMAGE / PAYMENT SLIP LIGHTBOX */}
+      {imageLightboxUrl && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4"
+          onClick={() => setImageLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setImageLightboxUrl(null)}
+            aria-label="Close Image Preview"
+            className="absolute top-6 right-5 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={imageLightboxUrl}
+            alt="Chat Attachment Preview"
+            className="max-w-full max-h-[84vh] rounded-2xl object-contain border border-white/15 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

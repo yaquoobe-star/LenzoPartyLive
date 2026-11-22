@@ -17,9 +17,17 @@ const FRONTEND_PRODUCTION_HOSTS = new Set([
 export function getApiBaseUrl(): string {
   const railwayUrl = import.meta.env.VITE_RAILWAY_API_URL;
   const legacyBase = import.meta.env.VITE_API_BASE_URL;
-  const envBase = railwayUrl || legacyBase;
-  if (envBase && envBase.trim().length > 0) {
-    return envBase.trim().replace(/\/+$/, '');
+  const envBase = (railwayUrl || legacyBase || '').trim().replace(/\/+$/, '');
+  if (envBase.length > 0) {
+    try {
+      const parsed = new URL(envBase);
+      if (FRONTEND_PRODUCTION_HOSTS.has(parsed.hostname.toLowerCase())) {
+        return DEFAULT_BACKEND_API_ORIGIN;
+      }
+    } catch {
+      // keep envBase as-is if relative
+    }
+    return envBase;
   }
 
   if (typeof window !== 'undefined') {
@@ -28,7 +36,7 @@ export function getApiBaseUrl(): string {
     }
 
     const host = window.location.hostname.toLowerCase();
-    if (FRONTEND_PRODUCTION_HOSTS.has(host)) {
+    if (FRONTEND_PRODUCTION_HOSTS.has(host) || host.endsWith('.pages.dev')) {
       return DEFAULT_BACKEND_API_ORIGIN;
     }
   }
@@ -76,9 +84,9 @@ export function resolveMediaUrl(url?: string | null): string {
  */
 export async function apiFetch(
   path: string,
-  init: RequestInit & { timeoutMs?: number } = {}
+  init: RequestInit & { timeoutMs?: number; skipAuth?: boolean } = {}
 ): Promise<Response> {
-  const { timeoutMs = 12000, ...fetchInit } = init;
+  const { timeoutMs = 12000, skipAuth = false, ...fetchInit } = init;
   const headers = new Headers(fetchInit.headers || {});
   if (fetchInit.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -87,16 +95,18 @@ export async function apiFetch(
     headers.set('X-Platform', 'android');
   }
 
-  try {
-    const user = auth.currentUser;
-    if (user && !headers.has('Authorization')) {
-      const idToken = await user.getIdToken();
-      if (idToken) {
-        headers.set('Authorization', `Bearer ${idToken}`);
+  if (!skipAuth) {
+    try {
+      const user = auth.currentUser;
+      if (user && !headers.has('Authorization')) {
+        const idToken = await user.getIdToken();
+        if (idToken) {
+          headers.set('Authorization', `Bearer ${idToken}`);
+        }
       }
+    } catch (e) {
+      console.warn('[API] Could not attach Firebase ID token:', e);
     }
-  } catch (e) {
-    console.warn('[API] Could not attach Firebase ID token:', e);
   }
 
   const targetUrl = apiUrl(path);
@@ -128,11 +138,14 @@ export async function apiFetch(
     }
   }
 
+  const isSameOriginRequest = !getApiBaseUrl();
+
   try {
     return await fetch(targetUrl, {
       ...fetchInit,
       headers,
       signal,
+      ...(isSameOriginRequest && !fetchInit.credentials ? { credentials: 'include' as RequestCredentials } : {}),
     });
   } catch (err: any) {
     if (callerSignal?.aborted && !didTimeout) {

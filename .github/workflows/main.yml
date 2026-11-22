@@ -113,13 +113,13 @@ jobs:
           import re, sys
           p = Path("android/app/build.gradle")
           s = p.read_text()
-          s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 6', s, count=1, flags=re.M)
-          s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.5"', s, count=1, flags=re.M)
-          if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+6\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.5"\s*$', s, re.M):
-              print("::error::Could not enforce Android versionCode 6 / versionName 1.0.5")
+          s, c1 = re.subn(r'^\s*versionCode\s+\d+\s*$', '        versionCode 7', s, count=1, flags=re.M)
+          s, c2 = re.subn(r'^\s*versionName\s+"[^"]+"\s*$', '        versionName "1.0.6"', s, count=1, flags=re.M)
+          if c1 != 1 or c2 != 1 or not re.search(r'^\s*versionCode\s+7\s*$', s, re.M) or not re.search(r'^\s*versionName\s+"1\.0\.6"\s*$', s, re.M):
+              print("::error::Could not enforce Android versionCode 7 / versionName 1.0.6")
               sys.exit(1)
           p.write_text(s)
-          print("Enforced Android versionName 1.0.5 and versionCode 6.")
+          print("Enforced Android versionName 1.0.6 and versionCode 7.")
           PY
 
       - name: Configure Android SDK & Gradle for CI
@@ -131,9 +131,11 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           sed -i 's/compileSdkVersion = 35/compileSdkVersion = 36/g' android/variables.gradle || true
           sed -i 's/targetSdkVersion = 35/targetSdkVersion = 36/g' android/variables.gradle || true
-          if [ ! -f android/app/google-services.json ] && [ -n "$GOOGLE_SERVICES_JSON" ]; then
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-            echo "Restored android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
+            echo "Applied freshly configured android/app/google-services.json from GOOGLE_SERVICES_JSON secret."
+          else
+            echo "Using repository android/app/google-services.json (GOOGLE_SERVICES_JSON secret not set)."
           fi
           if [ ! -f android/app/google-services.json ]; then
             echo "::error::Missing android/app/google-services.json. Do not generate a partial Firebase config from firebase-applet-config.json because it omits Android OAuth certificate clients."
@@ -143,25 +145,48 @@ jobs:
             const fs = require("fs");
             const cfg = JSON.parse(fs.readFileSync("android/app/google-services.json", "utf8"));
             const pkg = "com.lenzoparty.app";
-            const expected = [
-              "68b8c557bf1cf2dcf1da692bf6d3ee6a1fc9c70b",
-              "4f75d184db6f6637368f1a4173ae4bddb8cf093d"
+            const expectedProjectId = "confident-drake-3bcxw";
+            const expectedProjectNum = "238539539886";
+            const expectedMobileAppId = "1:238539539886:android:16b058b5f0154c3d1df43f";
+            const expectedWebClientId = "238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com";
+            const expectedSha1s = [
+              "68b8c557bf1cf2dcf1da692bf6d3ee6a1fc9c70b", // Upload Key SHA-1
+              "4f75d184db6f6637368f1a4173ae4bddb8cf093d"  // Play App Signing SHA-1
             ];
             const clients = (cfg.client || []).filter(c =>
               c.client_info?.android_client_info?.package_name === pkg
             );
+            const mobileAppMatch = clients.some(c => c.client_info?.mobilesdk_app_id === expectedMobileAppId);
             const androidHashes = clients.flatMap(c => (c.oauth_client || [])
               .filter(o => o.client_type === 1 && o.android_info?.package_name === pkg)
               .map(o => String(o.android_info.certificate_hash || "").replace(/:/g, "").toLowerCase()));
-            const hasWeb = clients.some(c => (c.oauth_client || []).some(o => o.client_type === 3 && o.client_id));
-            const missing = expected.filter(h => !androidHashes.includes(h));
-            if (cfg.project_info?.project_id !== "confident-drake-3bcxw" || clients.length === 0 || missing.length || !hasWeb) {
-              console.error("Firebase OAuth configuration is incomplete for " + pkg);
-              console.error("Missing Android SHA-1 entries: " + (missing.join(", ") || "none"));
-              console.error("Web OAuth client present: " + hasWeb);
+            const webClientIds = clients.flatMap(c => (c.oauth_client || [])
+              .filter(o => o.client_type === 3 && o.client_id)
+              .map(o => String(o.client_id).trim()));
+            const hasExpectedWeb = webClientIds.includes(expectedWebClientId);
+            const missing = expectedSha1s.filter(h => !androidHashes.includes(h));
+            const keystoreSha1Hex = String(process.env.KEYSTORE_SHA1_HEX || "").toLowerCase();
+            const keystoreRegistered = !keystoreSha1Hex || androidHashes.includes(keystoreSha1Hex);
+
+            if (
+              cfg.project_info?.project_id !== expectedProjectId ||
+              String(cfg.project_info?.project_number || "") !== expectedProjectNum ||
+              clients.length === 0 ||
+              !mobileAppMatch ||
+              missing.length > 0 ||
+              !hasExpectedWeb ||
+              !keystoreRegistered
+            ) {
+              console.error("Firebase OAuth configuration validation failed for " + pkg);
+              console.error("Project ID:", cfg.project_info?.project_id, "(expected " + expectedProjectId + ")");
+              console.error("Project Number:", cfg.project_info?.project_number, "(expected " + expectedProjectNum + ")");
+              console.error("Mobile SDK App ID match:", mobileAppMatch);
+              console.error("Missing Android SHA-1 entries:", missing.join(", ") || "none");
+              console.error("Expected Web OAuth client present:", hasExpectedWeb);
+              console.error("Upload keystore SHA-1 registered in google-services.json:", keystoreRegistered);
               process.exit(1);
             }
-            console.log("Firebase config verified: package, Play App Signing SHA-1, upload SHA-1, and Web OAuth client are present.");
+            console.log("Firebase config verified: project, appId, Play App Signing SHA-1, Upload Key SHA-1, keystore match, and exact Web OAuth client are present.");
           '
           chmod +x android/gradlew
 
@@ -186,11 +211,21 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
           AAPT2="$ANDROID_HOME/build-tools/36.0.0/aapt2"
 
-          echo "=== 0. Verify Firebase google-services.json ==="
+          echo "=== 0. Verify Firebase google-services.json & Generated default_web_client_id ==="
           if [ ! -f android/app/google-services.json ]; then
             echo "::error::android/app/google-services.json is missing!"
             exit 1
           fi
+          GS_VALUES_XML="android/app/build/generated/res/google-services/release/values/values.xml"
+          if [ ! -f "$GS_VALUES_XML" ]; then
+            echo "::error::Google Services plugin did not generate $GS_VALUES_XML for release build!"
+            exit 1
+          fi
+          if ! grep -Fq 'name="default_web_client_id"' "$GS_VALUES_XML" || ! grep -Fq '238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com' "$GS_VALUES_XML"; then
+            echo "::error::Generated release values.xml is missing the expected default_web_client_id!"
+            exit 1
+          fi
+          echo "Confirmed: Gradle google-services plugin compiled exact default_web_client_id into release resources."
 
           echo "=== 1. Verify APK Signature (apksigner) ==="
           "$APKSIGNER" verify --verbose --print-certs dist-android/app-release.apk > apk_verify.txt
@@ -227,8 +262,8 @@ jobs:
             echo "::error::Unexpected package name '$PKG_NAME' (expected com.lenzoparty.app)."
             exit 1
           fi
-          if [ "$VER_CODE" != "6" ] || [ "$VER_NAME" != "1.0.5" ]; then
-            echo "::error::APK version mismatch: expected versionName 1.0.5 and versionCode 6; got $VER_NAME / $VER_CODE."
+          if [ "$VER_CODE" != "7" ] || [ "$VER_NAME" != "1.0.6" ]; then
+            echo "::error::APK version mismatch: expected versionName 1.0.6 and versionCode 7; got $VER_NAME / $VER_CODE."
             exit 1
           fi
 
@@ -267,8 +302,8 @@ jobs:
           java -jar "${{ runner.temp }}/bundletool.jar" validate --bundle=dist-android/app-release.aab
           java -jar "${{ runner.temp }}/bundletool.jar" dump manifest --bundle=dist-android/app-release.aab > aab_manifest.txt
           grep -E "package=|versionCode=|versionName=" aab_manifest.txt
-          if ! grep -Eq 'versionCode="6"' aab_manifest.txt || ! grep -Eq 'versionName="1.0.5"' aab_manifest.txt; then
-            echo "::error::AAB manifest version mismatch: expected versionName 1.0.5 and versionCode 6."
+          if ! grep -Eq 'versionCode="7"' aab_manifest.txt || ! grep -Eq 'versionName="1.0.6"' aab_manifest.txt; then
+            echo "::error::AAB manifest version mismatch: expected versionName 1.0.6 and versionCode 7."
             exit 1
           fi
 

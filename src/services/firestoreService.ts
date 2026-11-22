@@ -746,6 +746,84 @@ export function subscribeUserNotifications(
 /**
  * 6. REAL MESSAGING & WHATSAPP-STYLE FIRESTORE SERVICE
  */
+export function buildDirectChatId(uidA: string, uidB: string): string {
+  const a = String(uidA || '').trim();
+  const b = String(uidB || '').trim();
+  if (!a || !b) return `conv_${b || a}`;
+  const sorted = [a, b].sort();
+  return `dm_${sorted[0]}_${sorted[1]}`;
+}
+
+export function subscribeUserDirectConversations(
+  currentUserId: string,
+  onUpdate: (conversations: Conversation[]) => void
+) {
+  if (!currentUserId) {
+    onUpdate([]);
+    return () => {};
+  }
+  const q = query(
+    collection(db, 'chats'),
+    where('participantIds', 'array-contains', currentUserId)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const list: Conversation[] = snap.docs
+        .map((d) => {
+          const data = d.data() as any;
+          const participantIds: string[] = Array.isArray(data.participantIds) ? data.participantIds : [];
+          const otherUid = participantIds.find((uid) => uid !== currentUserId) || data.lastMessageSenderId || d.id;
+          const participantsMap = data.participants && typeof data.participants === 'object' ? data.participants : {};
+          const otherMeta = participantsMap[otherUid] || {};
+          const updatedAtMillis = Number(data.updatedAtMillis || 0);
+          const formattedTime = updatedAtMillis
+            ? new Date(updatedAtMillis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'Recent';
+
+          const otherUser: UserProfile = {
+            id: otherUid,
+            displayId: String(otherMeta.displayId || otherUid.slice(0, 8)),
+            name: String(otherMeta.name || 'Lenzo User'),
+            username: String(otherMeta.username || `@${String(otherMeta.displayId || otherUid.slice(0, 6)).toLowerCase()}`),
+            avatar:
+              String(otherMeta.avatar || '') ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(String(otherMeta.name || 'User'))}&background=8B20FF&color=fff`,
+            bio: '',
+            level: Number(otherMeta.level || 1),
+            vipLevel: Number(otherMeta.vipLevel || 0),
+            isVIP: Number(otherMeta.vipLevel || 0) > 0,
+            coins: 0,
+            diamonds: 0,
+            followersCount: 0,
+            followingCount: 0,
+            fansCount: '0',
+            likesCount: '0',
+          };
+
+          return {
+            id: d.id,
+            user: otherUser,
+            lastMessage: String(data.lastMessage || 'Started conversation'),
+            timestamp: formattedTime,
+            unreadCount: data.lastMessageSenderId && data.lastMessageSenderId !== currentUserId ? 1 : 0,
+            isOnline: true,
+            type: 'direct' as const,
+            _updatedAtMillis: updatedAtMillis,
+          };
+        })
+        .sort((a: any, b: any) => (b._updatedAtMillis || 0) - (a._updatedAtMillis || 0))
+        .map(({ _updatedAtMillis: _ignored, ...conv }: any) => conv as Conversation);
+
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Direct conversations subscription notice:', err);
+      onUpdate([]);
+    }
+  );
+}
+
 export function subscribeChatMessages(
   chatId: string,
   onUpdate: (messages: ChatMessage[]) => void
@@ -784,6 +862,7 @@ export function subscribeChatMessages(
           deletedForEveryone: data.deletedForEveryone || false,
           deletedForUsers: data.deletedForUsers || [],
           roomInvite: data.roomInvite,
+          coinRequest: data.coinRequest,
           gift: data.gift,
         } as ChatMessage;
       });
@@ -802,9 +881,13 @@ export async function sendChatMessage(
     senderId: string;
     senderName: string;
     senderAvatar: string;
+    senderDisplayId?: string;
     senderVip?: number;
     recipientId?: string;
-    type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite';
+    recipientName?: string;
+    recipientAvatar?: string;
+    recipientDisplayId?: string;
+    type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'coin_request';
     mediaUrl?: string;
     mediaName?: string;
     mediaSize?: string;
@@ -812,6 +895,14 @@ export async function sendChatMessage(
     voiceWaveform?: number[];
     replyTo?: any;
     roomInvite?: any;
+    coinRequest?: {
+      coins: number;
+      agencyId: string;
+      agencyName: string;
+      agencyCode: string;
+      buyerDisplayId: string;
+      note?: string;
+    };
   }
 ): Promise<string> {
   const collPath = `chats/${chatId}/messages`;
@@ -829,18 +920,54 @@ export async function sendChatMessage(
     if (!cleanPayload.recipientId) {
       delete cleanPayload.recipientId;
     }
+    delete cleanPayload.recipientName;
+    delete cleanPayload.recipientAvatar;
+    delete cleanPayload.recipientDisplayId;
+    delete cleanPayload.senderDisplayId;
+    if (!cleanPayload.coinRequest) {
+      delete cleanPayload.coinRequest;
+    }
     const docRef = await addDoc(collection(db, collPath), cleanPayload);
 
-    // Update conversation metadata
+    // Update conversation metadata (including symmetric participantIds so BOTH sides see inbox live!)
     const chatRef = doc(db, 'chats', chatId);
-    await setDoc(chatRef, {
-      lastMessage: message.type === 'voice' ? '🎤 Voice message' : (message.type === 'image' ? '📷 Photo' : (message.type === 'room_invite' ? '🎉 Room invitation' : message.text)),
+    const chatMeta: Record<string, any> = {
+      lastMessage:
+        message.type === 'voice'
+          ? '🎤 Voice message'
+          : message.type === 'image'
+            ? '📷 Payment Slip / Photo'
+            : message.type === 'room_invite'
+              ? '🎉 Room invitation'
+              : message.type === 'coin_request' && message.coinRequest
+                ? `🪙 Coin Request: ${message.coinRequest.coins.toLocaleString()} Coins`
+                : message.text,
       lastMessageType: message.type || 'text',
       lastMessageStatus: 'sent',
       lastMessageSenderId: message.senderId,
       updatedAt: serverTimestamp(),
       updatedAtMillis: Date.now(),
-    }, { merge: true });
+    };
+
+    if (message.recipientId) {
+      chatMeta.participantIds = Array.from(new Set([message.senderId, message.recipientId]));
+      chatMeta.participants = {
+        [message.senderId]: {
+          id: message.senderId,
+          name: message.senderName || 'User',
+          avatar: message.senderAvatar || '',
+          displayId: message.senderDisplayId || message.senderId.slice(0, 8),
+        },
+        [message.recipientId]: {
+          id: message.recipientId,
+          name: message.recipientName || 'User',
+          avatar: message.recipientAvatar || '',
+          displayId: message.recipientDisplayId || message.recipientId.slice(0, 8),
+        },
+      };
+    }
+
+    await setDoc(chatRef, chatMeta, { merge: true });
 
     return docRef.id;
   } catch (err) {

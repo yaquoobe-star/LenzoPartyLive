@@ -105,6 +105,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [emailOtpChallenge, setEmailOtpChallenge] = useState('');
   const [emailOtpCode, setEmailOtpCode] = useState('');
   const [emailOtpVerified, setEmailOtpVerified] = useState(false);
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (otpResendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setOtpResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpResendCooldown]);
 
   useEffect(() => {
     setSavedAccounts(getSavedDeviceAccounts());
@@ -217,7 +226,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setSuccessMessage(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
@@ -230,9 +239,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setEmailOtpChallenge(result.challenge);
       setEmailOtpCode('');
       setEmailOtpVerified(false);
-      setSuccessMessage('Verification code sent. Check your inbox.');
+      setOtpResendCooldown(result.cooldownSeconds || 60);
+      setSuccessMessage('Verification code sent. Check your inbox (and spam folder).');
       setSubScreen('email_otp');
     } catch (err: any) {
+      if (typeof err?.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0) {
+        setOtpResendCooldown(err.retryAfterSeconds);
+      }
       setErrorMessage(err.message || 'Could not send verification code.');
     } finally {
       setIsLoading(false);
@@ -280,6 +293,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setSuccessMessage(`Email verified. Welcome to Lenzo Party Live, ${profile.name}!`);
       setTimeout(() => onSuccess(profile), 450);
     } catch (err: any) {
+      if (err?.code === 'auth/email-already-in-use') {
+        setEmail(cleanEmail);
+        setPassword('');
+        setConfirmPassword('');
+        setSubScreen('login');
+        setErrorMessage('An account with this email already exists. Please log in with your password.');
+        return;
+      }
       setErrorMessage(err.message || 'Account creation failed.');
     } finally {
       setIsLoading(false);
@@ -289,19 +310,50 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleVerifyEmailOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
     const cleanEmail = (registeredEmail || email).trim().toLowerCase();
-    if (!/^\d{6}$/.test(emailOtpCode.trim())) {
+    const cleanOtp = emailOtpCode.replace(/\D/g, '').slice(0, 6);
+
+    if (!emailOtpChallenge) {
+      setErrorMessage('Verification session expired. Please request a new code.');
+      return;
+    }
+    if (!/^\d{6}$/.test(cleanOtp)) {
       setErrorMessage('Enter the 6-digit code sent to your email.');
       return;
     }
     setIsLoading(true);
     try {
-      await verifyEmailOtp(cleanEmail, emailOtpCode, emailOtpChallenge);
+      await verifyEmailOtp(cleanEmail, cleanOtp, emailOtpChallenge);
+      setEmailOtpCode(cleanOtp);
       setEmailOtpVerified(true);
       setSuccessMessage('Email verified. Now complete your profile.');
       setSubScreen('complete_profile');
     } catch (err: any) {
       setErrorMessage(err.message || 'Email verification failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendEmailOtp = async () => {
+    const cleanEmail = (registeredEmail || email).trim().toLowerCase();
+    if (!cleanEmail || otpResendCooldown > 0 || isLoading) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsLoading(true);
+    try {
+      const r = await sendEmailOtp(cleanEmail);
+      setEmailOtpChallenge(r.challenge);
+      setEmailOtpCode('');
+      setEmailOtpVerified(false);
+      setOtpResendCooldown(r.cooldownSeconds || 60);
+      setSuccessMessage('A new 6-digit verification code has been sent.');
+    } catch (err: any) {
+      if (typeof err?.retryAfterSeconds === 'number' && err.retryAfterSeconds > 0) {
+        setOtpResendCooldown(err.retryAfterSeconds);
+      }
+      setErrorMessage(err.message || 'Could not resend code.');
     } finally {
       setIsLoading(false);
     }
@@ -313,8 +365,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
       setErrorMessage('Please enter a valid email address.');
       return;
     }
@@ -343,8 +395,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
       setErrorMessage('Please enter the email address linked to your account.');
       return;
     }
@@ -1040,21 +1092,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 pattern="[0-9]{6}"
                 required
                 value={emailOtpCode}
-                onChange={(e) => setEmailOtpCode(e.target.value.replace(/\\D/g, '').slice(0, 6))}
+                onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="000000"
                 className="w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl px-4 py-4 text-center tracking-[0.5em] text-xl font-bold text-white outline-none"
               />
-              <button type="submit" disabled={isLoading} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={isLoading || emailOtpCode.length !== 6}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-sm disabled:opacity-60"
+              >
                 {isLoading ? 'Verifying...' : 'Verify Email'}
               </button>
             </form>
-            <button type="button" disabled={isLoading} onClick={async () => {
-              setErrorMessage(null); setIsLoading(true);
-              try { const r = await sendEmailOtp(registeredEmail); setEmailOtpChallenge(r.challenge); setEmailOtpCode(''); setSuccessMessage('A new code has been sent.'); }
-              catch (err: any) { setErrorMessage(err.message || 'Could not resend code.'); }
-              finally { setIsLoading(false); }
-            }} className="mt-4 text-xs text-[#F328D5] font-semibold disabled:opacity-50">Resend Code</button>
-            <button type="button" onClick={() => navigateTo('signup')} className="mt-4 text-xs text-[#B9AECF]">Change email address</button>
+            <button
+              type="button"
+              disabled={isLoading || otpResendCooldown > 0}
+              onClick={handleResendEmailOtp}
+              className="mt-4 text-xs text-[#F328D5] font-semibold disabled:opacity-50"
+            >
+              {otpResendCooldown > 0 ? `Resend Code in ${otpResendCooldown}s` : 'Resend Code'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmailOtpChallenge('');
+                setEmailOtpCode('');
+                setEmailOtpVerified(false);
+                navigateTo('signup');
+              }}
+              className="mt-4 text-xs text-[#B9AECF]"
+            >
+              Change email address
+            </button>
           </div>
         )}
 

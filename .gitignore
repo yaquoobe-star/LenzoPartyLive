@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+.lenzo_email_otp_store.json
+

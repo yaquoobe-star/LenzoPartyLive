@@ -1869,6 +1869,7 @@ export default function App() {
           onClose={() => setIsWalletOpen(false)}
           currentUser={currentUser}
           onRechargeSuccess={handleRechargeSuccess}
+          onSendMessage={handleSendMessageToUser}
         />
         {appToast && (
           <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
@@ -1957,6 +1958,7 @@ export default function App() {
           onClose={() => setIsWalletOpen(false)}
           currentUser={currentUser}
           onRechargeSuccess={handleRechargeSuccess}
+          onSendMessage={handleSendMessageToUser}
         />
         {appToast && (
           <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
@@ -2290,6 +2292,7 @@ export default function App() {
         onClose={() => setIsWalletOpen(false)}
         currentUser={currentUser}
         onRechargeSuccess={handleRechargeSuccess}
+        onSendMessage={handleSendMessageToUser}
       />
 
       {/* 5. 100-LEVEL, 12-VIP, 6-SUPER-VIP & ACHIEVEMENT VAULT MODAL */}

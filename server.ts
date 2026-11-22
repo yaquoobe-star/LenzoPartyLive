@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import http from 'http';
 import fs from 'fs';
@@ -189,8 +190,14 @@ interface AuthenticatedRequest extends Request {
 }
 
 // Reject invalid or expired Firebase ID tokens anywhere on /api/*
+const PUBLIC_AUTH_OTP_PATHS = new Set([
+  '/health',
+  '/auth/email/send-otp',
+  '/auth/email/verify-otp',
+]);
+
 app.use('/api', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  if (req.path === '/health') {
+  if (PUBLIC_AUTH_OTP_PATHS.has(req.path)) {
     return next();
   }
   const authHeader = req.headers.authorization;
@@ -1161,96 +1168,573 @@ setInterval(() => {
 // REST API Endpoints
 
 // 0. Health & Ecosystem Verification Endpoint
-// Resend email OTP challenge for email/password login.
-// Requires RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET.
-const emailOtpLastSent = new Map<string, number>();
-const emailOtpSecret = process.env.EMAIL_OTP_SECRET || '';
-const emailOtpTtlSeconds = 10 * 60;
+// Resend email OTP challenge for email verification, registration & login.
+// Requires RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET in Railway / backend env.
+const EMAIL_OTP_TTL_SECONDS = 10 * 60;
+const EMAIL_OTP_RESEND_COOLDOWN_MS = 60_000;
+const EMAIL_OTP_MAX_VERIFY_ATTEMPTS = 5;
+const EMAIL_OTP_IP_WINDOW_MS = 15 * 60_000;
+const EMAIL_OTP_IP_MAX_REQUESTS = 15;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EMAIL_OTP_STORE_PATH = path.join(process.cwd(), '.lenzo_email_otp_store.json');
 
-function makeEmailOtpChallenge(email: string, otp: string, expiresAt: number): string {
-  const payload = Buffer.from(JSON.stringify({
-    email,
-    otpHash: crypto.createHash('sha256').update(otp).digest('hex'),
-    exp: expiresAt,
-  })).toString('base64url');
-  const signature = crypto.createHmac('sha256', emailOtpSecret).update(payload).digest('base64url');
-  return `${payload}.${signature}`;
+interface EmailOtpStateStore {
+  latestJtiByEmail: Record<string, { jti: string; exp: number; issuedAt: number }>;
+  usedJtis: Record<string, number>;
+  failedAttemptsByJti: Record<string, { count: number; exp: number }>;
+  lastSentByEmail: Record<string, number>;
 }
 
-function verifyEmailOtpChallenge(email: string, otp: string, challenge: string): boolean {
-  if (!emailOtpSecret || !challenge || !challenge.includes('.')) return false;
-  const [payload, signature] = challenge.split('.');
-  const expected = crypto.createHmac('sha256', emailOtpSecret).update(payload).digest();
-  let supplied: Buffer;
-  try { supplied = Buffer.from(signature, 'base64url'); } catch { return false; }
-  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) return false;
+const emailOtpState: EmailOtpStateStore = {
+  latestJtiByEmail: {},
+  usedJtis: {},
+  failedAttemptsByJti: {},
+  lastSentByEmail: {},
+};
+const emailOtpIpRequests = new Map<string, number[]>();
+
+function maskEmailForLog(email: string): string {
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const [local, domain] = parts;
+  const visible = local.length <= 2 ? local.slice(0, 1) : local.slice(0, 2);
+  return `${visible}***@${domain}`;
+}
+
+function parseFromEmailAddress(rawFrom: string): { valid: boolean; address: string; domain: string | null } {
+  const trimmed = rawFrom.trim();
+  if (!trimmed) return { valid: false, address: '', domain: null };
+  // Supports either "noreply@lenzoparty.com" or "Lenzo Party Live <noreply@lenzoparty.com>"
+  const angleMatch = trimmed.match(/<([^<>]+)>$/);
+  const address = (angleMatch ? angleMatch[1] : trimmed).trim().toLowerCase();
+  if (!EMAIL_REGEX.test(address)) {
+    return { valid: false, address: '', domain: null };
+  }
+  const domain = address.split('@')[1] || null;
+  return { valid: true, address, domain };
+}
+
+function getEmailOtpConfig() {
+  const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
+  const resendFromEmail = (process.env.RESEND_FROM_EMAIL || '').trim();
+  const emailOtpSecret = (process.env.EMAIL_OTP_SECRET || '').trim();
+  const parsedFrom = parseFromEmailAddress(resendFromEmail);
+  const missingVars: string[] = [];
+  if (!resendApiKey) missingVars.push('RESEND_API_KEY');
+  if (!resendFromEmail) missingVars.push('RESEND_FROM_EMAIL');
+  if (!emailOtpSecret) missingVars.push('EMAIL_OTP_SECRET');
+
+  return {
+    resendApiKey,
+    resendFromEmail,
+    emailOtpSecret,
+    resendApiKeyConfigured: Boolean(resendApiKey),
+    resendFromEmailConfigured: Boolean(resendFromEmail),
+    resendFromEmailValid: parsedFrom.valid,
+    resendFromDomain: parsedFrom.domain,
+    emailOtpSecretConfigured: Boolean(emailOtpSecret),
+    emailOtpSecretStrong: emailOtpSecret.length >= 16,
+    missingVars,
+    configured: Boolean(resendApiKey && parsedFrom.valid && emailOtpSecret),
+  };
+}
+
+function pruneEmailOtpState() {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const nowMs = Date.now();
+  for (const [email, rec] of Object.entries(emailOtpState.latestJtiByEmail)) {
+    if (!rec || rec.exp <= nowSec) {
+      delete emailOtpState.latestJtiByEmail[email];
+    }
+  }
+  for (const [jti, exp] of Object.entries(emailOtpState.usedJtis)) {
+    if (!exp || exp <= nowSec) {
+      delete emailOtpState.usedJtis[jti];
+    }
+  }
+  for (const [jti, rec] of Object.entries(emailOtpState.failedAttemptsByJti)) {
+    if (!rec || rec.exp <= nowSec) {
+      delete emailOtpState.failedAttemptsByJti[jti];
+    }
+  }
+  for (const [email, sentAt] of Object.entries(emailOtpState.lastSentByEmail)) {
+    if (!sentAt || nowMs - sentAt > EMAIL_OTP_RESEND_COOLDOWN_MS * 2) {
+      delete emailOtpState.lastSentByEmail[email];
+    }
+  }
+}
+
+function loadEmailOtpStateFromDisk() {
   try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    const hash = crypto.createHash('sha256').update(otp).digest('hex');
-    return data.email === email && Number(data.exp) > Math.floor(Date.now() / 1000) &&
-      typeof data.otpHash === 'string' &&
-      crypto.timingSafeEqual(Buffer.from(data.otpHash, 'hex'), Buffer.from(hash, 'hex'));
-  } catch { return false; }
+    if (!fs.existsSync(EMAIL_OTP_STORE_PATH)) return;
+    const raw = JSON.parse(fs.readFileSync(EMAIL_OTP_STORE_PATH, 'utf8'));
+    if (raw && typeof raw === 'object') {
+      if (raw.latestJtiByEmail && typeof raw.latestJtiByEmail === 'object') {
+        Object.assign(emailOtpState.latestJtiByEmail, raw.latestJtiByEmail);
+      }
+      if (raw.usedJtis && typeof raw.usedJtis === 'object') {
+        Object.assign(emailOtpState.usedJtis, raw.usedJtis);
+      }
+      if (raw.failedAttemptsByJti && typeof raw.failedAttemptsByJti === 'object') {
+        Object.assign(emailOtpState.failedAttemptsByJti, raw.failedAttemptsByJti);
+      }
+      if (raw.lastSentByEmail && typeof raw.lastSentByEmail === 'object') {
+        Object.assign(emailOtpState.lastSentByEmail, raw.lastSentByEmail);
+      }
+    }
+    pruneEmailOtpState();
+  } catch (err) {
+    console.warn('[Resend OTP] Could not hydrate OTP challenge state from disk:', (err as Error)?.message || err);
+  }
+}
+
+function persistEmailOtpStateToDisk() {
+  try {
+    pruneEmailOtpState();
+    // Stores ONLY non-secret challenge metadata (jti, expiry, attempt counters); never stores plaintext OTPs or secrets.
+    fs.writeFileSync(EMAIL_OTP_STORE_PATH, JSON.stringify(emailOtpState), 'utf8');
+  } catch {
+    // Non-fatal on ephemeral filesystems; HMAC challenge verification remains stateless-compatible across restarts.
+  }
+}
+
+loadEmailOtpStateFromDisk();
+
+function computeSaltedOtpHash(secret: string, jti: string, email: string, salt: string, otp: string): string {
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${jti}:${email}:${salt}:${otp}`)
+    .digest('hex');
+}
+
+function makeEmailOtpChallenge(email: string, otp: string, expiresAt: number, secret: string): { challenge: string; jti: string } {
+  const jti = crypto.randomBytes(16).toString('hex');
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iat = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(
+    JSON.stringify({
+      v: 2,
+      jti,
+      email,
+      salt,
+      otpHash: computeSaltedOtpHash(secret, jti, email, salt, otp),
+      iat,
+      exp: expiresAt,
+    })
+  ).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return { challenge: `${payload}.${signature}`, jti };
+}
+
+type OtpVerifyResult =
+  | { ok: true; jti: string; exp: number }
+  | { ok: false; code: string; status: number; error: string };
+
+function verifyEmailOtpChallenge(email: string, otp: string, challenge: string, secret: string): OtpVerifyResult {
+  if (!secret) {
+    return {
+      ok: false,
+      code: 'OTP_NOT_CONFIGURED',
+      status: 503,
+      error: 'Email verification service is not configured on the server.',
+    };
+  }
+  if (!challenge || typeof challenge !== 'string') {
+    return {
+      ok: false,
+      code: 'OTP_MALFORMED',
+      status: 400,
+      error: 'Missing verification session. Please request a new code.',
+    };
+  }
+  const dotParts = challenge.trim().split('.');
+  if (dotParts.length !== 2 || !dotParts[0] || !dotParts[1]) {
+    return {
+      ok: false,
+      code: 'OTP_MALFORMED',
+      status: 400,
+      error: 'Invalid verification session. Please request a new code.',
+    };
+  }
+
+  const [payload, signature] = dotParts;
+  const expectedSig = crypto.createHmac('sha256', secret).update(payload).digest();
+  let suppliedSig: Buffer;
+  try {
+    suppliedSig = Buffer.from(signature, 'base64url');
+  } catch {
+    return {
+      ok: false,
+      code: 'OTP_MALFORMED',
+      status: 400,
+      error: 'Invalid verification signature. Please request a new code.',
+    };
+  }
+
+  if (suppliedSig.length !== expectedSig.length || !crypto.timingSafeEqual(suppliedSig, expectedSig)) {
+    return {
+      ok: false,
+      code: 'OTP_SIGNATURE_INVALID',
+      status: 400,
+      error: 'Verification session is invalid. Please request a new code.',
+    };
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch {
+    return {
+      ok: false,
+      code: 'OTP_MALFORMED',
+      status: 400,
+      error: 'Corrupted verification session. Please request a new code.',
+    };
+  }
+
+  if (!data || typeof data !== 'object' || String(data.email || '').toLowerCase() !== email) {
+    return {
+      ok: false,
+      code: 'OTP_EMAIL_MISMATCH',
+      status: 400,
+      error: 'This verification code does not match the entered email address.',
+    };
+  }
+
+  const exp = Number(data.exp || 0);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(exp) || exp <= nowSec) {
+    return {
+      ok: false,
+      code: 'OTP_EXPIRED',
+      status: 400,
+      error: 'This verification code has expired. Please request a new code.',
+    };
+  }
+
+  const jti = typeof data.jti === 'string' && data.jti ? data.jti : `legacy_${payload.slice(0, 24)}`;
+
+  pruneEmailOtpState();
+
+  if (emailOtpState.usedJtis[jti]) {
+    return {
+      ok: false,
+      code: 'OTP_ALREADY_USED',
+      status: 400,
+      error: 'This verification code has already been used. Please request a new code.',
+    };
+  }
+
+  const latestRecord = emailOtpState.latestJtiByEmail[email];
+  if (latestRecord && latestRecord.jti !== jti) {
+    return {
+      ok: false,
+      code: 'OTP_SUPERSEDED',
+      status: 400,
+      error: 'A newer verification code was sent to your email. Please enter the latest code.',
+    };
+  }
+
+  const failedRec = emailOtpState.failedAttemptsByJti[jti];
+  if (failedRec && failedRec.count >= EMAIL_OTP_MAX_VERIFY_ATTEMPTS) {
+    return {
+      ok: false,
+      code: 'OTP_TOO_MANY_ATTEMPTS',
+      status: 429,
+      error: 'Too many incorrect code attempts. Please request a new verification code.',
+    };
+  }
+
+  const expectedHashHex =
+    data.v === 2 && typeof data.salt === 'string' && data.salt
+      ? computeSaltedOtpHash(secret, jti, email, data.salt, otp)
+      : crypto.createHash('sha256').update(otp).digest('hex');
+
+  if (typeof data.otpHash !== 'string' || !/^[0-9a-f]{64}$/i.test(data.otpHash)) {
+    return {
+      ok: false,
+      code: 'OTP_MALFORMED',
+      status: 400,
+      error: 'Invalid verification session. Please request a new code.',
+    };
+  }
+
+  const storedHashBuf = Buffer.from(data.otpHash, 'hex');
+  const computedHashBuf = Buffer.from(expectedHashHex, 'hex');
+  if (storedHashBuf.length !== computedHashBuf.length || !crypto.timingSafeEqual(storedHashBuf, computedHashBuf)) {
+    const nextCount = (failedRec?.count || 0) + 1;
+    emailOtpState.failedAttemptsByJti[jti] = { count: nextCount, exp };
+    persistEmailOtpStateToDisk();
+    const remaining = Math.max(0, EMAIL_OTP_MAX_VERIFY_ATTEMPTS - nextCount);
+    return {
+      ok: false,
+      code: 'OTP_INVALID',
+      status: 400,
+      error:
+        remaining > 0
+          ? `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Too many incorrect code attempts. Please request a new verification code.',
+    };
+  }
+
+  // Mark challenge single-use upon successful verification
+  emailOtpState.usedJtis[jti] = exp;
+  delete emailOtpState.failedAttemptsByJti[jti];
+  persistEmailOtpStateToDisk();
+
+  return { ok: true, jti, exp };
+}
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || 'unknown';
 }
 
 app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
+  const rawEmail = typeof req.body?.email === 'string' ? req.body.email : '';
+  const email = rawEmail.trim().toLowerCase();
+  const maskedEmail = email ? maskEmailForLog(email) : '<empty>';
+  const cfg = getEmailOtpConfig();
+
+  console.info('[Resend OTP] send-otp request received', {
+    email: maskedEmail,
+    configured: cfg.configured,
+    fromDomain: cfg.resendFromDomain,
+  });
+
   try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ success: false, error: 'Enter a valid email address.' });
-    }
-    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL || !emailOtpSecret) {
-      return res.status(503).json({
+    if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
+      console.warn('[Resend OTP] Email validation failed', { email: maskedEmail });
+      return res.status(400).json({
         success: false,
-        error: 'Email OTP is not configured. Set RESEND_API_KEY, RESEND_FROM_EMAIL and EMAIL_OTP_SECRET.',
+        code: 'INVALID_EMAIL',
+        error: 'Enter a valid email address.',
       });
     }
+
+    if (!cfg.configured) {
+      const reason =
+        cfg.missingVars.length > 0
+          ? `Missing required server environment variables: ${cfg.missingVars.join(', ')}.`
+          : 'RESEND_FROM_EMAIL is not a valid sender address format.';
+      console.error('[Resend OTP] Backend configuration incomplete', {
+        missingVars: cfg.missingVars,
+        resendFromEmailValid: cfg.resendFromEmailValid,
+      });
+      return res.status(503).json({
+        success: false,
+        code: 'EMAIL_PROVIDER_NOT_CONFIGURED',
+        error: `Email OTP is not configured on the backend. ${reason}`,
+      });
+    }
+
     const now = Date.now();
-    const lastSent = emailOtpLastSent.get(email) || 0;
-    if (now - lastSent < 60_000) {
-      return res.status(429).json({ success: false, error: 'Please wait 60 seconds before requesting another code.' });
+    pruneEmailOtpState();
+
+    // Per-IP sliding window protection
+    const clientIp = getClientIp(req);
+    const ipTimestamps = (emailOtpIpRequests.get(clientIp) || []).filter(
+      (ts) => now - ts < EMAIL_OTP_IP_WINDOW_MS
+    );
+    if (ipTimestamps.length >= EMAIL_OTP_IP_MAX_REQUESTS) {
+      console.warn('[Resend OTP] IP rate limit reached', { email: maskedEmail });
+      return res.status(429).json({
+        success: false,
+        code: 'RATE_LIMITED',
+        error: 'Too many verification code requests. Please wait a few minutes and try again.',
+      });
     }
+
+    // Per-email 60-second resend cooldown
+    const lastSent = emailOtpState.lastSentByEmail[email] || 0;
+    const elapsedMs = now - lastSent;
+    if (lastSent > 0 && elapsedMs < EMAIL_OTP_RESEND_COOLDOWN_MS) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((EMAIL_OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000));
+      console.warn('[Resend OTP] Cooldown active', { email: maskedEmail, retryAfterSeconds });
+      return res.status(429).json({
+        success: false,
+        code: 'COOLDOWN_ACTIVE',
+        retryAfterSeconds,
+        error: `Please wait ${retryAfterSeconds} seconds before requesting another code.`,
+      });
+    }
+
     const otp = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-    const expiresAt = Math.floor(now / 1000) + emailOtpTtlSeconds;
-    const challenge = makeEmailOtpChallenge(email, otp, expiresAt);
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL,
-        to: [email],
-        subject: 'Your Lenzo Party login code',
-        html: `<div style="font-family:Arial,sans-serif"><h2>Lenzo Party Login</h2><p>Your verification code is:</p><p style="font-size:30px;font-weight:bold;letter-spacing:8px">${otp}</p><p>This code expires in 10 minutes. Do not share it with anyone.</p></div>`,
-      }),
-    });
-    const result: any = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error('[Resend OTP] Provider error:', result);
-      return res.status(502).json({ success: false, error: 'Email provider could not send the login code.' });
+    const expiresAt = Math.floor(now / 1000) + EMAIL_OTP_TTL_SECONDS;
+    const { challenge, jti } = makeEmailOtpChallenge(email, otp, expiresAt, cfg.emailOtpSecret);
+
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 15_000);
+
+    let response: globalThis.Response;
+    try {
+      response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${cfg.resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: cfg.resendFromEmail,
+          to: [email],
+          subject: 'Your Lenzo Party Live verification code',
+          text: `Lenzo Party Live\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`,
+          html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#120820;color:#ffffff;border-radius:16px"><h2 style="margin:0 0 12px;color:#ffffff">Lenzo Party Live</h2><p style="margin:0 0 16px;color:#d6cce8">Use the 6-digit verification code below to verify your email address:</p><div style="font-size:32px;font-weight:bold;letter-spacing:10px;text-align:center;padding:16px;background:#211333;border-radius:12px;color:#FFC84A">${otp}</div><p style="margin:16px 0 0;font-size:13px;color:#b9aecf">This code expires in 10 minutes. If you did not request it, you can safely ignore this email.</p></div>`,
+        }),
+        signal: abortController.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
     }
-    emailOtpLastSent.set(email, now);
-    return res.json({ success: true, challenge, expiresIn: emailOtpTtlSeconds });
+
+    const rawBody = await response.text().catch(() => '');
+    let result: any = {};
+    try {
+      result = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      result = { message: rawBody.slice(0, 200) };
+    }
+
+    if (!response.ok || !result?.id) {
+      const providerName = typeof result?.name === 'string' ? result.name : 'resend_error';
+      const providerMsg = typeof result?.message === 'string' ? result.message : `HTTP ${response.status}`;
+      console.error('[Resend OTP] Provider rejected email request', {
+        email: maskedEmail,
+        httpStatus: response.status,
+        providerName,
+        providerMessage: providerMsg,
+        fromDomain: cfg.resendFromDomain,
+      });
+
+      if (response.status === 401) {
+        return res.status(502).json({
+          success: false,
+          code: 'RESEND_AUTH_ERROR',
+          error: 'Email service authentication failed. Verify RESEND_API_KEY in Railway backend settings.',
+        });
+      }
+      if (response.status === 403 || response.status === 422) {
+        return res.status(502).json({
+          success: false,
+          code: 'RESEND_DOMAIN_OR_RECIPIENT_ERROR',
+          error: `Email could not be delivered: ${providerMsg}`,
+        });
+      }
+      if (response.status === 429) {
+        return res.status(429).json({
+          success: false,
+          code: 'RESEND_RATE_LIMIT',
+          error: 'Email provider rate limit reached. Please wait a moment and try again.',
+        });
+      }
+      return res.status(502).json({
+        success: false,
+        code: 'RESEND_DELIVERY_FAILED',
+        error: 'Email provider could not send the verification code. Please try again.',
+      });
+    }
+
+    // Resend accepted the message: supersede any previous active OTP for this email & record cooldown
+    emailOtpState.latestJtiByEmail[email] = { jti, exp: expiresAt, issuedAt: now };
+    emailOtpState.lastSentByEmail[email] = now;
+    ipTimestamps.push(now);
+    emailOtpIpRequests.set(clientIp, ipTimestamps);
+    persistEmailOtpStateToDisk();
+
+    console.info('[Resend OTP] Email accepted by Resend', {
+      email: maskedEmail,
+      messageId: String(result.id),
+      jtiPrefix: jti.slice(0, 8),
+      expiresIn: EMAIL_OTP_TTL_SECONDS,
+      fromDomain: cfg.resendFromDomain,
+    });
+
+    return res.json({
+      success: true,
+      challenge,
+      expiresIn: EMAIL_OTP_TTL_SECONDS,
+      cooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
+      messageId: String(result.id),
+    });
   } catch (error: any) {
-    console.error('[Resend OTP] Send failed:', error);
-    return res.status(500).json({ success: false, error: 'Could not send login code.' });
+    const isAbort = error?.name === 'AbortError';
+    console.error('[Resend OTP] Send request failed', {
+      email: maskedEmail,
+      timeout: isAbort,
+      message: error?.message || String(error),
+    });
+    return res.status(isAbort ? 504 : 500).json({
+      success: false,
+      code: isAbort ? 'RESEND_TIMEOUT' : 'OTP_SEND_ERROR',
+      error: isAbort
+        ? 'Email provider timed out while sending your code. Please try again.'
+        : 'Could not send verification code. Please try again.',
+    });
   }
 });
 
 app.post('/api/auth/email/verify-otp', (req: Request, res: Response) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
-  const otp = String(req.body?.otp || '').trim();
-  const challenge = String(req.body?.challenge || '');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(otp) ||
-      !verifyEmailOtpChallenge(email, otp, challenge)) {
-    return res.status(400).json({ success: false, verified: false, error: 'Invalid or expired verification code.' });
+  const otp = String(req.body?.otp || '').replace(/\D/g, '');
+  const challenge = String(req.body?.challenge || '').trim();
+  const maskedEmail = email ? maskEmailForLog(email) : '<empty>';
+  const cfg = getEmailOtpConfig();
+
+  if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
+    console.warn('[Resend OTP] Verify rejected: invalid email', { email: maskedEmail });
+    return res.status(400).json({
+      success: false,
+      verified: false,
+      code: 'INVALID_EMAIL',
+      error: 'Enter a valid email address.',
+    });
   }
-  return res.json({ success: true, verified: true, email });
+
+  if (!/^\d{6}$/.test(otp)) {
+    console.warn('[Resend OTP] Verify rejected: invalid OTP format', {
+      email: maskedEmail,
+      otpLength: otp.length,
+    });
+    return res.status(400).json({
+      success: false,
+      verified: false,
+      code: 'INVALID_OTP_FORMAT',
+      error: 'Enter the exact 6-digit verification code sent to your email.',
+    });
+  }
+
+  const verification = verifyEmailOtpChallenge(email, otp, challenge, cfg.emailOtpSecret);
+  if (!verification.ok) {
+    console.warn('[Resend OTP] Verification failed', {
+      email: maskedEmail,
+      code: verification.code,
+    });
+    return res.status(verification.status).json({
+      success: false,
+      verified: false,
+      code: verification.code,
+      error: verification.error,
+    });
+  }
+
+  console.info('[Resend OTP] Verification succeeded', {
+    email: maskedEmail,
+    jtiPrefix: verification.jti.slice(0, 8),
+  });
+
+  return res.json({
+    success: true,
+    verified: true,
+    email,
+    verifiedAt: new Date().toISOString(),
+  });
 });
 
 app.get('/api/health', (_req: Request, res: Response) => {
+  const emailOtpCfg = getEmailOtpConfig();
   res.json({
     status: 'ok',
     service: 'lenzo-party-live-backend',
@@ -1262,6 +1746,19 @@ app.get('/api/health', (_req: Request, res: Response) => {
     firebaseAndroidAppId: FIREBASE_ANDROID_APP_ID,
     firebaseWebAppId: FIREBASE_WEB_APP_ID,
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
+    emailOtp: {
+      configured: emailOtpCfg.configured,
+      provider: 'resend',
+      resendApiKeyConfigured: emailOtpCfg.resendApiKeyConfigured,
+      resendFromEmailConfigured: emailOtpCfg.resendFromEmailConfigured,
+      resendFromEmailValid: emailOtpCfg.resendFromEmailValid,
+      resendFromDomain: emailOtpCfg.resendFromDomain,
+      emailOtpSecretConfigured: emailOtpCfg.emailOtpSecretConfigured,
+      emailOtpSecretStrong: emailOtpCfg.emailOtpSecretStrong,
+      missingVars: emailOtpCfg.missingVars,
+      otpTtlSeconds: EMAIL_OTP_TTL_SECONDS,
+      resendCooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
+    },
     activeWebSocketClients: pkWss.clients.size,
     activeLiveStreams: liveStreamsMap.size,
     activePartyRooms: partyRoomsMap.size,

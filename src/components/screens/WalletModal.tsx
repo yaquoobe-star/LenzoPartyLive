@@ -97,6 +97,7 @@ interface WalletModalProps {
   currentUser: UserProfile;
   onRechargeSuccess?: (addedCoins: number) => void;
   initialTab?: 'wallet' | 'earnings';
+  onSendMessage?: (user: UserProfile) => void;
 }
 
 export const WalletModal: React.FC<WalletModalProps> = ({
@@ -105,6 +106,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   currentUser,
   onRechargeSuccess,
   initialTab = 'wallet',
+  onSendMessage,
 }) => {
   // Main Dashboard Tab: 'wallet' (Purchased Coins) vs 'earnings' (Creator Revenue)
   const [activeMainTab, setActiveMainTab] = useState<'wallet' | 'earnings'>(initialTab);
@@ -1543,11 +1545,46 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                       : `Assalam-o-Alaikum ${agency.name} (${agency.agencyCode}), I want to purchase Lenzo Party Coins. My Lenzo Name: ${currentUser.name}, Lenzo ID: ${userDisplayId}.`;
                     const waUrl = buildSafeWhatsAppUrl(agency.whatsapp, waMessage);
                     const telUrl = buildSafeTelUrl(agency.phone || agency.whatsapp);
+                    const matchedDual = approvedDualCoinSellers.find((d) => d.id === agency.id) || null;
+                    const canOpenInbox = Boolean(
+                      onSendMessage && matchedDual && matchedDual.ownerUid !== currentUser.id
+                    );
+
+                    const openAgencyInboxFromWallet = () => {
+                      if (!onSendMessage || !matchedDual) return;
+                      const ownerProfile: UserProfile = {
+                        id: matchedDual.ownerUid,
+                        displayId: matchedDual.ownerDisplayId || matchedDual.ownerUid.slice(0, 8),
+                        name: matchedDual.name || matchedDual.ownerName || 'Coin Seller Agency',
+                        username: matchedDual.ownerUsername || `@${matchedDual.agencyCode.toLowerCase()}`,
+                        avatar:
+                          matchedDual.ownerAvatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(matchedDual.name || 'Agency')}&background=8B20FF&color=fff`,
+                        bio: matchedDual.description || 'Official Verified Lenzo Coin Seller Agency',
+                        level: 1,
+                        vipLevel: 0,
+                        isVIP: false,
+                        coins: 0,
+                        diamonds: 0,
+                        followersCount: 0,
+                        followingCount: 0,
+                        fansCount: '0',
+                        likesCount: '0',
+                      };
+                      setIsAgencyDirectoryOpen(false);
+                      onClose();
+                      onSendMessage(ownerProfile);
+                    };
 
                     return (
                       <div
                         key={agency.id}
-                        className="p-4 rounded-2xl bg-[#160b29] border border-white/10 hover:border-emerald-400/35 transition-all space-y-3 shadow-lg"
+                        onClick={() => {
+                          if (canOpenInbox) openAgencyInboxFromWallet();
+                        }}
+                        className={`p-4 rounded-2xl bg-[#160b29] border border-white/10 hover:border-emerald-400/35 transition-all space-y-3 shadow-lg ${
+                          canOpenInbox ? 'cursor-pointer' : ''
+                        }`}
                       >
                         {/* Top Header */}
                         <div className="flex items-start justify-between gap-2">
@@ -1628,33 +1665,54 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                         </div>
 
                         {/* Contact Action Buttons */}
-                        <div className="grid grid-cols-3 gap-2 pt-1">
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="col-span-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-500 hover:brightness-110 text-white text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-all"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>WhatsApp</span>
-                          </a>
+                        <div className="space-y-2 pt-1">
+                          {canOpenInbox && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAgencyInboxFromWallet();
+                              }}
+                              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F97316] text-[#090611] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              <span>Open In-App Agency Inbox (Buy Coins)</span>
+                            </button>
+                          )}
 
-                          <a
-                            href={telUrl}
-                            className="col-span-1 py-2.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/35 text-sky-200 text-[11px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            <span>Call</span>
-                          </a>
+                          <div className="grid grid-cols-3 gap-2">
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="col-span-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-500 hover:brightness-110 text-white text-[11px] font-black flex items-center justify-center gap-1.5 shadow active:scale-95 transition-all"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </a>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(agency.whatsapp || agency.phone, 'Agency Number')}
-                            className="col-span-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy No.</span>
-                          </button>
+                            <a
+                              href={telUrl}
+                              onClick={(e) => e.stopPropagation()}
+                              className="col-span-1 py-2.5 rounded-xl bg-sky-600/25 hover:bg-sky-600/40 border border-sky-400/35 text-sky-200 text-[11px] font-black flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                            >
+                              <Phone className="w-3.5 h-3.5" />
+                              <span>Call</span>
+                            </a>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyText(agency.whatsapp || agency.phone, 'Agency Number');
+                              }}
+                              className="col-span-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy No.</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

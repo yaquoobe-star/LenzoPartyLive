@@ -106,6 +106,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [slipModalAgency, setSlipModalAgency] = useState<DualAgencyRecord | null>(null);
   const touchStartXRef = useRef<number | null>(null);
+  const didSwipeCarouselRef = useRef<boolean>(false);
 
   useEffect(() => {
     const unsub = subscribeActiveAgencies('coin_seller', (list) => {
@@ -145,6 +146,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const handleCarouselTouchStart = (e: React.TouchEvent) => {
     touchStartXRef.current = e.touches[0]?.clientX ?? null;
+    didSwipeCarouselRef.current = false;
     setIsCarouselPaused(true);
   };
 
@@ -155,9 +157,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setIsCarouselPaused(false);
     if (startX === null || endX === null) return;
     const delta = startX - endX;
-    if (Math.abs(delta) > 42) {
+    if (Math.abs(delta) > 36) {
+      didSwipeCarouselRef.current = true;
       if (delta > 0) goToNextAgency();
       else goToPrevAgency();
+      window.setTimeout(() => {
+        didSwipeCarouselRef.current = false;
+      }, 250);
     }
   };
 
@@ -409,7 +415,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                   return (
                     <div key={agency.id} className="w-full shrink-0">
-                      <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#261242] via-[#190B2E] to-[#3B144A] border border-amber-400/45 p-4 sm:p-5 shadow-xl shadow-[#8B20FF]/20">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (didSwipeCarouselRef.current) return;
+                          handleInAppAgencyChat(agency);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleInAppAgencyChat(agency);
+                          }
+                        }}
+                        className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#261242] via-[#190B2E] to-[#3B144A] border border-amber-400/45 hover:border-amber-300/75 p-4 sm:p-5 shadow-xl shadow-[#8B20FF]/20 cursor-pointer transition-all group"
+                      >
                         {/* Subtle ambient sheen */}
                         <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-amber-400/10 blur-2xl pointer-events-none" />
                         <div className="absolute -bottom-12 -left-10 w-44 h-44 rounded-full bg-[#F328D5]/15 blur-2xl pointer-events-none" />
@@ -470,34 +490,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <h3 className="text-base sm:text-xl font-black text-white font-display leading-tight truncate">
+                              <h3 className="text-base sm:text-xl font-black text-white group-hover:text-[#FFC84A] transition-colors font-display leading-tight truncate">
                                 {agency.name}
                               </h3>
                               <p className="text-[11px] text-[#D8CEE8] truncate mt-0.5">
-                                Holder: <strong className="text-white">{agency.ownerName}</strong> · Instant PIN Coin Delivery
+                                Holder: <strong className="text-white">{agency.ownerName}</strong> · Tap card to open In-App Coin Inbox
                               </p>
                               <p className="text-[11px] text-[#B9AECF] line-clamp-1 mt-0.5">
                                 {agency.description ||
-                                  'Contact in-app or on WhatsApp, send your payment slip & receive verified Lenzo Coins directly.'}
+                                  'Tap to open agency inbox, send a coin request card or message & buy coins directly.'}
                               </p>
                             </div>
                           </div>
 
-                          {/* Direct Actions: Send Payment Slip (In-App), WhatsApp Contact, In-App Chat */}
+                          {/* Direct Actions: Open Agency Inbox (Primary), WhatsApp Contact, Send Slip */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
                             <button
                               type="button"
-                              onClick={() => {
-                                if (currentUser) {
-                                  setSlipModalAgency(agency);
-                                } else {
-                                  onNavigate('profile');
-                                }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleInAppAgencyChat(agency);
                               }}
                               className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FFC84A] via-[#F59E0B] to-[#F97316] text-[#090611] text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-transform"
                             >
-                              <Receipt className="w-4 h-4 shrink-0" />
-                              <span className="truncate">Send Payment Slip</span>
+                              <MessageSquare className="w-4 h-4 shrink-0" />
+                              <span className="truncate">Open Agency Inbox</span>
                             </button>
 
                             <div className="grid grid-cols-2 sm:contents gap-2">
@@ -506,6 +523,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                                   href={waHref}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
                                   className="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#051B0E] text-xs font-black flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all"
                                 >
                                   <MessageCircle className="w-4 h-4 shrink-0" />
@@ -519,11 +537,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                               <button
                                 type="button"
-                                onClick={() => handleInAppAgencyChat(agency)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (currentUser) {
+                                    setSlipModalAgency(agency);
+                                  } else {
+                                    onNavigate('profile');
+                                  }
+                                }}
                                 className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-black flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
                               >
-                                <MessageSquare className="w-4 h-4 text-[#F328D5] shrink-0" />
-                                <span className="truncate">In-App Chat</span>
+                                <Receipt className="w-4 h-4 text-[#FFC84A] shrink-0" />
+                                <span className="truncate">Send Slip</span>
                               </button>
                             </div>
                           </div>

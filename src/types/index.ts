@@ -291,7 +291,7 @@ export interface MessageReplyPreview {
   id: string;
   senderName: string;
   text: string;
-  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share';
+  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share' | 'coin_request';
 }
 
 
@@ -307,7 +307,7 @@ export interface ChatMessage {
   timestamp: string;
   createdAtMillis?: number;
   status?: 'sending' | 'sent' | 'delivered' | 'read';
-  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share';
+  type?: 'text' | 'voice' | 'image' | 'video' | 'file' | 'room_invite' | 'profile_share' | 'post_share' | 'coin_request';
   mediaUrl?: string;
   mediaName?: string;
   mediaSize?: string;
@@ -328,6 +328,14 @@ export interface ChatMessage {
     category: string;
     hostName: string;
     hostAvatar: string;
+  };
+  coinRequest?: {
+    coins: number;
+    agencyId: string;
+    agencyName: string;
+    agencyCode: string;
+    buyerDisplayId: string;
+    note?: string;
   };
   gift?: {
     name: string;
