@@ -429,15 +429,18 @@ export async function signInWithGoogle(options?: {
       } catch (nativeErr: any) {
         const rawCode = typeof nativeErr?.code === 'string' ? nativeErr.code : '';
         const rawMsg = String(nativeErr?.message || nativeErr || '');
+
+        if (rawMsg.includes('CANCELLED') || rawMsg.includes('12501')) {
+          console.info('[Google Auth][Android] Sign-In cancelled by user.');
+          return null;
+        }
+
         console.error('[Google Auth][Android] Sign-In failed', {
           stage,
           code: rawCode || 'unknown',
           message: rawMsg,
         });
 
-        if (rawMsg.includes('CANCELLED') || rawMsg.includes('12501')) {
-          throw new Error('Google Sign-In was cancelled.');
-        }
         if (rawMsg.includes('DEVELOPER_ERROR') || rawMsg.includes('status code: 10') || rawMsg.includes('code=10')) {
           throw new Error(rawMsg);
         }
@@ -480,6 +483,10 @@ export async function signInWithGoogle(options?: {
       rememberAuthenticatedAccount(profile, 'google');
       return { user, profile };
     } catch (popupError: any) {
+      if (popupError?.code === 'auth/popup-closed-by-user') {
+        console.info('[Google Auth] Sign-In popup closed by user.');
+        return null;
+      }
       if (
         popupError.code === 'auth/popup-blocked' ||
         popupError.code === 'auth/cancelled-popup-request' ||
@@ -493,10 +500,12 @@ export async function signInWithGoogle(options?: {
       throw popupError;
     }
   } catch (error: any) {
+    if (error?.code === 'auth/popup-closed-by-user') {
+      console.info('[Google Auth] Sign-In popup closed by user.');
+      return null;
+    }
     console.error('[Google Auth Error]:', error);
-    if (error.code === 'auth/popup-closed-by-user') {
-      throw new Error('Google Sign-In was cancelled.');
-    } else if (error.code === 'auth/unauthorized-domain') {
+    if (error.code === 'auth/unauthorized-domain') {
       const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'lenzoparty.com';
       const domainError: any = new Error(
         `Google Sign-In blocked on "${currentHost}". Add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains, or sign in with Email below.`
