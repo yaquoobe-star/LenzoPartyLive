@@ -42,6 +42,7 @@ import {
   signInWithGoogle,
   fetchCurrentFirestoreProfile,
   mapFirestoreUserToProfile,
+  needsGooglePasswordRegistration,
   FirestoreUserData,
 } from './services/authService';
 import {
@@ -183,6 +184,7 @@ import {
 import { SearchModal } from './components/screens/SearchModal';
 import { NotificationsModal } from './components/screens/NotificationsModal';
 import { AccountSwitcherModal } from './components/profile/AccountSwitcherModal';
+import { SecureAccountPasswordCard } from './components/auth/SecureAccountPasswordCard';
 
 export default function App() {
   // Navigation & Screen State
@@ -243,6 +245,8 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState(false);
+  const [showSecurePasswordModal, setShowSecurePasswordModal] = useState(false);
+  const dismissedPasswordPromptUidsRef = useRef<Set<string>>(new Set());
   const [authScreenMode, setAuthScreenMode] = useState<'login' | 'add_account'>('login');
   const [authPrefillEmail, setAuthPrefillEmail] = useState<string | undefined>(undefined);
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
@@ -868,6 +872,11 @@ export default function App() {
 
     const unregisterBack = androidBridge.registerBackHandler(() => {
       // 1. Close open sheets & modals first
+      if (showSecurePasswordModal) {
+        if (authenticatedUid) dismissedPasswordPromptUidsRef.current.add(authenticatedUid);
+        setShowSecurePasswordModal(false);
+        return true;
+      }
       if (levelUpData) { setLevelUpData(null); return true; }
       if (pkWinnerSession) { setPkWinnerSession(null); return true; }
       if (isGiftShopOpen) { setIsGiftShopOpen(false); return true; }
@@ -921,13 +930,29 @@ export default function App() {
 
     return () => unregisterBack();
   }, [
-    levelUpData, pkWinnerSession, isGiftShopOpen, isWalletOpen, isLevelVIPOpen, isVIPOpen,
+    showSecurePasswordModal, authenticatedUid, levelUpData, pkWinnerSession, isGiftShopOpen, isWalletOpen, isLevelVIPOpen, isVIPOpen,
     isSearchOpen, isNotificationsOpen, isPKModalOpen, isPKInviteModalOpen, isMicSelectionOpen,
     isVideoSourceModalOpen, isCameraRecorderOpen, viewingProfileUser, activeChatUser, currentScreen
   ]);
 
+  const maybePromptGooglePasswordLink = useCallback(
+    (firebaseUser: typeof auth.currentUser, profile?: UserProfile | null) => {
+      if (
+        firebaseUser &&
+        !dismissedPasswordPromptUidsRef.current.has(firebaseUser.uid) &&
+        needsGooglePasswordRegistration(firebaseUser, profile)
+      ) {
+        setShowSecurePasswordModal(true);
+      } else {
+        setShowSecurePasswordModal(false);
+      }
+    },
+    []
+  );
+
   // Firebase Persistent Authentication Session Listener & Strict Multi-Account State Isolation
   const resetUserScopedTransientState = () => {
+    setShowSecurePasswordModal(false);
     setBlockedUsers([]);
     setBlockedByUserIds([]);
     setConversations([]);
@@ -968,17 +993,21 @@ export default function App() {
             const isGoogleProvider = firebaseUser.providerData.some((p) => p.providerId === 'google.com');
             rememberAuthenticatedAccount(profile, isGoogleProvider ? 'google' : 'password');
             liveAndRoomService.syncUser(profile);
+            maybePromptGooglePasswordLink(firebaseUser, profile);
+          } else {
+            maybePromptGooglePasswordLink(firebaseUser, null);
           }
         } catch (e) {
           console.warn('[Firebase Auth] Profile sync notice:', e);
         }
       } else {
+        setShowSecurePasswordModal(false);
         liveAndRoomService.setCurrentUser(null);
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [maybePromptGooglePasswordLink]);
 
   // Real-Time Backend Discovery & WebSocket Broadcast Sync
   useEffect(() => {
@@ -1538,6 +1567,7 @@ export default function App() {
     liveAndRoomService.setCurrentUser(profile.id);
     liveAndRoomService.syncUser(profile);
     setCurrentScreen('home');
+    maybePromptGooglePasswordLink(auth.currentUser, profile);
   };
 
   // Handler: Logout (preserves device saved accounts for Welcome Back & Account Switcher; clears active session state)
@@ -1548,6 +1578,7 @@ export default function App() {
       console.warn('Logout notice:', e);
     }
     resetUserScopedTransientState();
+    dismissedPasswordPromptUidsRef.current.clear();
     setAuthenticatedUid(null);
     liveAndRoomService.setCurrentUser(null);
     setCurrentUser(CURRENT_USER);
@@ -2848,6 +2879,10 @@ export default function App() {
                 onUnblockUser={handleUnblockUser}
                 moderators={myModerators}
                 onRemoveModerator={handleRemoveModerator}
+                onUpdateProfile={(updated) => {
+                  setCurrentUser(updated);
+                  saveStoredUserProfile(updated);
+                }}
               />
             </Suspense>
           )}
@@ -3110,6 +3145,34 @@ export default function App() {
         onSwitchAccount={handleSwitchAccount}
         onAddAccount={handleAddAccount}
       />
+
+      {/* 12. One-Time "Secure Your Account" Email/Password Linking Card for Google Users */}
+      {showSecurePasswordModal && authenticatedUid && auth.currentUser?.email && (
+        <SecureAccountPasswordCard
+          email={auth.currentUser.email}
+          userName={currentUser.name}
+          onSuccess={({ providerIds, profile }) => {
+            setCurrentUser((prev) => {
+              const next: UserProfile = {
+                ...prev,
+                ...(profile || {}),
+                providerIds,
+                passwordRegistered: true,
+              };
+              saveStoredUserProfile(next);
+              return next;
+            });
+            setShowSecurePasswordModal(false);
+            showAppToast('Password registered! You can now log in with Email & Password or Google.');
+          }}
+          onLater={() => {
+            if (authenticatedUid) {
+              dismissedPasswordPromptUidsRef.current.add(authenticatedUid);
+            }
+            setShowSecurePasswordModal(false);
+          }}
+        />
+      )}
 
       {/* Global Toast Feedback Banner */}
       {appToast && (

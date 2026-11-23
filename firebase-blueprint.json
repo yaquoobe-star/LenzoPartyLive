@@ -39,8 +39,22 @@
         },
         "authProvider": {
           "type": "string",
-          "description": "Authentication method used (google or password)",
+          "description": "Initial authentication method used (google or password)",
           "enum": ["google", "password"]
+        },
+        "providerIds": {
+          "type": "array",
+          "description": "Linked Firebase Auth provider IDs for this single UID (e.g. google.com, password)",
+          "items": { "type": "string" }
+        },
+        "passwordRegistered": {
+          "type": "boolean",
+          "description": "Whether Email & Password authentication is linked to this Firebase UID"
+        },
+        "passwordLinkedAt": {
+          "type": "string",
+          "description": "ISO timestamp when Email & Password credential was linked to this account",
+          "maxLength": 64
         },
         "createdAt": {
           "type": "string",

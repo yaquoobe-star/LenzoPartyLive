@@ -1,13 +1,13 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BCx9ihdS.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CcEQ85aw.js","assets/vendor-firebase-BXfD3et1.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-B8LEV8kd.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-DtdIKgnw.js","assets/adminAuth-CSEij6hU.js","assets/StoreScreen-Di4vIlg3.js","assets/StoreAssetPreview-DapRaNl4.js","assets/pushNotificationService-C6Lw_OKQ.js","assets/apiConfig-ByhnP-Sj.js","assets/SettingsScreen-BGyXa1TP.js","assets/UploadVideoScreen-Cc7SlupJ.js","assets/WalletModal-DJy85-yv.js","assets/LevelAndVIPModal-C9k7XCVM.js","assets/AdminProgressionModal-S4nJUVKX.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-C45jdL02.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-mfpq7ZDa.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-BAw7AUBw.js","assets/adminAuth-CrRhZSFU.js","assets/StoreScreen-CduOvxGr.js","assets/StoreAssetPreview-DUAqjh-H.js","assets/pushNotificationService-Bs8cZsF9.js","assets/apiConfig-CqMIuGjJ.js","assets/SettingsScreen-Bza-lPvh.js","assets/UploadVideoScreen-Q63gYsUG.js","assets/WalletModal-CkloEjaa.js","assets/LevelAndVIPModal-5eGB-JmF.js","assets/AdminProgressionModal-Mt13j3a6.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
 import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
-import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-C6Lw_OKQ.js";
-import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-ByhnP-Sj.js";
-import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CcEQ85aw.js";
-import { B as linkWithPopup, C as startAfter, D as Timestamp, E as writeBatch, F as browserLocalPersistence, G as signInWithCredential, H as sendEmailVerification, I as browserSessionPersistence, J as signInWithRedirect, K as signInWithEmailAndPassword, L as createUserWithEmailAndPassword, N as serverTimestamp, O as collection, P as GoogleAuthProvider, S as setDoc, T as where, U as sendPasswordResetEmail, V as onAuthStateChanged, W as setPersistence, X as updateProfile, Y as signOut, b as query, d as addDoc, f as deleteDoc, g as limit, h as getDocs, j as increment, k as doc, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as signInWithPopup, s as getDownloadURL, u as uploadBytesResumable, v as onSnapshot, w as updateDoc, x as runTransaction, y as orderBy, z as getRedirectResult } from "./vendor-firebase-BXfD3et1.js";
+import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-Bs8cZsF9.js";
+import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CqMIuGjJ.js";
+import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CIREZBAE.js";
+import { $ as signOut, B as getRedirectResult, C as startAfter, D as Timestamp, E as writeBatch, F as GoogleAuthProvider, G as reauthenticateWithPopup, H as linkWithPopup, I as browserLocalPersistence, J as setPersistence, K as sendEmailVerification, L as browserSessionPersistence, N as serverTimestamp, O as collection, P as EmailAuthProvider, Q as signInWithRedirect, R as createUserWithEmailAndPassword, S as setDoc, T as where, U as onAuthStateChanged, V as linkWithCredential, W as reauthenticateWithCredential, X as signInWithEmailAndPassword, Y as signInWithCredential, Z as signInWithPopup, b as query, d as addDoc, et as updateProfile, f as deleteDoc, g as limit, h as getDocs, j as increment, k as doc, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as sendPasswordResetEmail, s as getDownloadURL, u as uploadBytesResumable, v as onSnapshot, w as updateDoc, x as runTransaction, y as orderBy } from "./vendor-firebase-AVvshUH2.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
-import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-CSEij6hU.js";
+import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-CrRhZSFU.js";
 import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
 import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CI-970bO.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
@@ -1891,6 +1891,9 @@ function mapFirestoreUserToProfile(data, fallbackUser) {
 		likedVideoIds: Array.isArray(data.likedVideoIds) ? data.likedVideoIds : [],
 		liveSessionsHosted: data.liveSessionsHosted || 0,
 		loginStreakDays: data.loginStreakDays || 1,
+		providerIds: Array.isArray(data.providerIds) ? data.providerIds : void 0,
+		passwordRegistered: typeof data.passwordRegistered === "boolean" ? data.passwordRegistered : Array.isArray(data.providerIds) && data.providerIds.includes("password") ? true : data.authProvider === "password",
+		passwordLinkedAt: data.passwordLinkedAt,
 		createdAt: data.createdAt,
 		isFollowing: false
 	};
@@ -1911,13 +1914,18 @@ async function syncUserInFirestore(user, authProvider, extra) {
 		if (existingSnap.exists()) {
 			const existingData = existingSnap.data();
 			const providerIds = Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
+			const hasPasswordProvider = providerIds.includes("password");
 			const updatePayload = {
 				lastLogin: now,
 				lastActiveAt: now,
 				isOnline: true,
 				lastDeviceId: getOrCreateDeviceId(),
 				lastDeviceInfo: getDeviceSummaryLabel(),
-				...providerIds.length > 0 ? { providerIds } : {}
+				...providerIds.length > 0 ? { providerIds } : {},
+				...hasPasswordProvider && existingData.passwordRegistered !== true ? {
+					passwordRegistered: true,
+					...!existingData.passwordLinkedAt ? { passwordLinkedAt: now } : {}
+				} : {}
 			};
 			if (!existingData.displayId) updatePayload.displayId = `LP${user.uid.substring(0, 6).toUpperCase()}`;
 			if (!existingData.username) updatePayload.username = `@${(existingData.email || user.email || "user").split("@")[0].replace(/[^a-zA-Z0-9_]/g, "").toLowerCase() || "lenzouser"}`;
@@ -1945,6 +1953,8 @@ async function syncUserInFirestore(user, authProvider, extra) {
 				authProvider,
 				...extra?.emailOtpVerified ? { emailOtpVerified: true } : {},
 				providerIds: providerIds.length > 0 ? providerIds : [authProvider === "google" ? "google.com" : "password"],
+				passwordRegistered: authProvider === "password" || providerIds.includes("password"),
+				...authProvider === "password" || providerIds.includes("password") ? { passwordLinkedAt: now } : {},
 				createdAt: now,
 				lastLogin: now,
 				lastActiveAt: now,
@@ -2327,7 +2337,7 @@ async function loginWithEmail(email, pass, rememberMe = true) {
 		};
 	} catch (error) {
 		console.error("[Email Login Error]:", error);
-		if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") throw new Error("Invalid email or password. Please check your credentials.");
+		if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") throw new Error("Invalid email or password. If you originally signed in with Google, tap \"Continue with Google\" below to log in and register a password for this account.");
 		else if (error.code === "auth/invalid-email") throw new Error("Please enter a valid email address.");
 		else if (error.code === "auth/operation-not-allowed") throw new Error("Email/Password sign-in is disabled in Firebase Console. Enable it under Authentication -> Sign-in method, or use Google Login.");
 		else if (error.code === "auth/too-many-requests") throw new Error("Too many failed login attempts. Please reset your password or try again later.");
@@ -2339,12 +2349,16 @@ async function loginWithEmail(email, pass, rememberMe = true) {
 * REAL Password Reset Email via Firebase
 */
 async function resetPassword(email) {
+	const cleanEmail = email.trim().toLowerCase();
+	if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) throw new Error("Please enter a valid email address.");
 	try {
-		await sendPasswordResetEmail(auth, email);
+		await sendPasswordResetEmail(auth, cleanEmail);
 	} catch (error) {
 		console.error("[Password Reset Error]:", error);
 		if (error.code === "auth/user-not-found") throw new Error("No account found with this email address.");
 		else if (error.code === "auth/invalid-email") throw new Error("Please enter a valid email address.");
+		else if (error.code === "auth/too-many-requests") throw new Error("Too many reset requests. Please wait a few minutes and check your inbox.");
+		else if (error.code === "auth/network-request-failed") throw new Error("Network error. Please check your internet connection and try again.");
 		throw new Error(error.message || "Failed to send password reset email.");
 	}
 }
@@ -2413,26 +2427,152 @@ async function fetchCurrentFirestoreProfile(uid) {
 	}
 }
 /**
+* Determines whether a Google-authenticated user should be prompted with the one-time
+* "Secure Your Account" password registration card.
+* Returns false once Email/Password is linked in Firebase Auth OR marked completed in Firestore.
+*/
+function needsGooglePasswordRegistration(user, profile) {
+	const target = user ?? auth.currentUser;
+	if (!target || !target.email) return false;
+	const providers = target.providerData.map((p) => p.providerId).filter(Boolean);
+	const hasGoogle = providers.includes("google.com");
+	const hasPassword = providers.includes("password");
+	if (!hasGoogle || hasPassword) return false;
+	if (profile?.passwordRegistered === true) return false;
+	return true;
+}
+/**
+* Reauthenticate an authenticated Google user on Web or Native Android when Firebase requires
+* a recent login before linking a sensitive Email/Password credential.
+*/
+async function reauthenticateCurrentGoogleUser(user) {
+	if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+		const nativeRes = await NativeGoogleAuth.signIn();
+		const idToken = typeof nativeRes?.idToken === "string" ? nativeRes.idToken.trim() : "";
+		if (!idToken || idToken.split(".").length !== 3) throw new Error("Google verification did not return a valid token. Please try again.");
+		if (nativeRes.email && user.email && nativeRes.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) throw new Error(`Please select your signed-in Google account (${user.email}) to verify ownership.`);
+		const googleCred = GoogleAuthProvider.credential(idToken);
+		await reauthenticateWithCredential(user, googleCred);
+		return;
+	}
+	const provider = new GoogleAuthProvider();
+	provider.setCustomParameters({
+		prompt: "select_account",
+		...user.email ? { login_hint: user.email } : {}
+	});
+	await reauthenticateWithPopup(user, provider);
+}
+/**
+* Link an Email & Password credential to the currently signed-in Google user's EXACT SAME Firebase UID.
+* - Uses Firebase `linkWithCredential(user, EmailAuthProvider.credential(email, password))`.
+* - Never creates a duplicate account or changes UID / displayId / coins / diamonds / VIP / levels / wallet / agency.
+* - Never overwrites an existing password credential.
+* - Never stores or logs the plaintext password anywhere.
+*/
+async function linkPasswordToGoogleAccount(password) {
+	const user = auth.currentUser;
+	if (!user) throw new Error("Your session has expired. Please sign in with Google again.");
+	const cleanEmail = (user.email || "").trim().toLowerCase();
+	if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) throw new Error("No verified email address is attached to this Google account.");
+	const initialProviders = Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
+	const hasGoogleProvider = initialProviders.includes("google.com");
+	if (!user.emailVerified && !hasGoogleProvider) throw new Error("Please verify ownership of your email address before registering a password.");
+	if (initialProviders.includes("password")) {
+		const now = (/* @__PURE__ */ new Date()).toISOString();
+		await updateDoc(doc(db, "users", user.uid), {
+			providerIds: initialProviders,
+			passwordRegistered: true,
+			lastActiveAt: now
+		}).catch(() => {});
+		return {
+			providerIds: initialProviders,
+			profile: await fetchCurrentFirestoreProfile(user.uid),
+			alreadyLinked: true
+		};
+	}
+	if (!password || password.length < 6) throw new Error("Password must be at least 6 characters long.");
+	if (!password.trim()) throw new Error("Password cannot contain only spaces.");
+	const emailCredential = EmailAuthProvider.credential(cleanEmail, password);
+	const persistLinkedMetadata = async (linkedUser) => {
+		await linkedUser.reload().catch(() => {});
+		const refreshedUser = auth.currentUser || linkedUser;
+		const providerIds = Array.from(/* @__PURE__ */ new Set([...refreshedUser.providerData.map((p) => p.providerId).filter(Boolean), "password"]));
+		const now = (/* @__PURE__ */ new Date()).toISOString();
+		await updateDoc(doc(db, "users", refreshedUser.uid), {
+			providerIds,
+			passwordRegistered: true,
+			passwordLinkedAt: now,
+			lastActiveAt: now
+		});
+		await refreshedUser.getIdToken(true).catch(() => {});
+		await syncBackendAuthSession(refreshedUser);
+		const updatedProfile = await fetchCurrentFirestoreProfile(refreshedUser.uid);
+		if (updatedProfile) rememberAuthenticatedAccount(updatedProfile, hasGoogleProvider ? "google" : "password");
+		return {
+			providerIds,
+			profile: updatedProfile
+		};
+	};
+	try {
+		return await persistLinkedMetadata((await linkWithCredential(user, emailCredential)).user);
+	} catch (err) {
+		const code = typeof err?.code === "string" ? err.code : "";
+		if (code === "auth/requires-recent-login") try {
+			await reauthenticateCurrentGoogleUser(user);
+			return await persistLinkedMetadata((await linkWithCredential(user, emailCredential)).user);
+		} catch (reauthErr) {
+			const reauthCode = typeof reauthErr?.code === "string" ? reauthErr.code : "";
+			const reauthMsg = String(reauthErr?.message || "");
+			if (reauthCode === "auth/popup-closed-by-user" || reauthMsg.includes("CANCELLED") || reauthMsg.includes("12501")) throw new Error("Google verification was cancelled. Tap \"Register Password\" again to confirm your identity.");
+			if (reauthCode === "auth/user-mismatch") throw new Error(`Please select your signed-in Google account (${cleanEmail}) to confirm password linking.`);
+			if (reauthCode === "auth/provider-already-linked") return {
+				...await persistLinkedMetadata(user),
+				alreadyLinked: true
+			};
+			throw new Error(reauthErr?.message || "Could not re-verify your Google session. Please try again.");
+		}
+		if (code === "auth/provider-already-linked") return {
+			...await persistLinkedMetadata(user),
+			alreadyLinked: true
+		};
+		if (code === "auth/credential-already-in-use" || code === "auth/email-already-in-use") throw new Error("An Email & Password login is already registered for this email address. Use Forgot Password if you need to reset it.");
+		if (code === "auth/weak-password") throw new Error("Please choose a stronger password (at least 6 characters).");
+		if (code === "auth/operation-not-allowed") throw new Error("Email/Password sign-in is not yet enabled in Firebase Console. Enable Email/Password under Authentication -> Sign-in method.");
+		if (code === "auth/network-request-failed") throw new Error("Network error. Please check your internet connection and try again.");
+		throw new Error(err?.message || "Failed to register password for your account. Please try again.");
+	}
+}
+/**
 * Safe verified provider linking: links Google sign-in to the currently authenticated UID
-* without ever merging unverified accounts.
+* without ever merging unverified accounts. Supports both Web and Native Android.
 */
 async function linkGoogleAccount() {
 	const user = auth.currentUser;
 	if (!user) throw new Error("Please sign in first before linking a Google account.");
-	const provider = new GoogleAuthProvider();
-	provider.setCustomParameters({ prompt: "select_account" });
 	try {
-		const result = await linkWithPopup(user, provider);
-		const providerIds = Array.from(new Set(result.user.providerData.map((p) => p.providerId).filter(Boolean)));
+		let linkedUser;
+		if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android") {
+			const nativeRes = await NativeGoogleAuth.signIn();
+			const idToken = typeof nativeRes?.idToken === "string" ? nativeRes.idToken.trim() : "";
+			if (!idToken || idToken.split(".").length !== 3) throw new Error("Google Sign-In did not return a valid token.");
+			const cred = GoogleAuthProvider.credential(idToken);
+			linkedUser = (await linkWithCredential(user, cred)).user;
+		} else {
+			const provider = new GoogleAuthProvider();
+			provider.setCustomParameters({ prompt: "select_account" });
+			linkedUser = (await linkWithPopup(user, provider)).user;
+		}
+		const providerIds = Array.from(new Set(linkedUser.providerData.map((p) => p.providerId).filter(Boolean)));
 		await updateDoc(doc(db, "users", user.uid), {
 			providerIds,
 			lastActiveAt: (/* @__PURE__ */ new Date()).toISOString()
 		}).catch(() => {});
 		return providerIds;
 	} catch (err) {
-		if (err.code === "auth/credential-already-in-use") throw new Error("This Google account is already linked to another Lenzo Party account.");
-		if (err.code === "auth/provider-already-linked") return getLinkedAuthProviders();
-		if (err.code === "auth/popup-closed-by-user") throw new Error("Google account linking was cancelled.");
+		const rawMsg = String(err?.message || "");
+		if (err?.code === "auth/credential-already-in-use") throw new Error("This Google account is already linked to another Lenzo Party account.");
+		if (err?.code === "auth/provider-already-linked") return getLinkedAuthProviders();
+		if (err?.code === "auth/popup-closed-by-user" || rawMsg.includes("CANCELLED") || rawMsg.includes("12501")) throw new Error("Google account linking was cancelled.");
 		throw new Error(err?.message || "Failed to link Google account.");
 	}
 }
@@ -12706,7 +12846,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 				setPassword("");
 				setConfirmPassword("");
 				setSubScreen("login");
-				setErrorMessage("An account with this email already exists. Please log in with your password.");
+				setErrorMessage("An account with this email already exists (including Google accounts). Please log in with Email & Password or Continue with Google.");
 				return;
 			}
 			setErrorMessage(err.message || "Account creation failed.");
@@ -12800,7 +12940,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 		setIsLoading(true);
 		try {
 			await resetPassword(cleanEmail);
-			setSuccessMessage(`Password reset link sent to ${cleanEmail}. Please check your inbox.`);
+			setSuccessMessage(`Password reset link sent to ${cleanEmail}. Check your inbox (and Spam folder) to set a new password for your account.`);
 		} catch (err) {
 			setErrorMessage(err.message || "Could not send reset link. Please check the email.");
 		} finally {
@@ -13026,19 +13166,33 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "w-full space-y-3",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: () => handleContinueAsSavedAccount(lastAccount),
-									disabled: isGoogleLoading || isLoading,
-									className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-black text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50",
-									children: isGoogleLoading || isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "CONTINUE AS THIS ACCOUNT" })
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: () => navigateTo("welcome"),
-									disabled: isGoogleLoading || isLoading,
-									className: "w-full py-3.5 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs sm:text-sm transition-all active:scale-98",
-									children: "USE ANOTHER ACCOUNT"
-								})]
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => handleContinueAsSavedAccount(lastAccount),
+										disabled: isGoogleLoading || isLoading,
+										className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-black text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50",
+										children: isGoogleLoading || isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "CONTINUE AS THIS ACCOUNT" })
+									}),
+									lastAccount.authProvider === "google" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => {
+											setEmail(lastAccount.email);
+											setPassword("");
+											navigateTo("login");
+										},
+										disabled: isGoogleLoading || isLoading,
+										className: "w-full py-3 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/15 text-[#E5DCF5] font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-2",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 text-[#FFC84A]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Log in with Email & Password" })]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: () => navigateTo("welcome"),
+										disabled: isGoogleLoading || isLoading,
+										className: "w-full py-3.5 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold text-xs sm:text-sm transition-all active:scale-98",
+										children: "USE ANOTHER ACCOUNT"
+									})
+								]
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 								className: "mt-5 text-[10px] text-[#B9AECF]/65 leading-relaxed",
@@ -13494,12 +13648,16 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 								className: "space-y-4",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+										htmlFor: "login-email",
 										className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
 										children: "Email Address"
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 										className: "relative flex items-center",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											id: "login-email",
+											name: "email",
 											type: "email",
+											autoComplete: "username",
 											required: true,
 											placeholder: "Enter your email",
 											value: email,
@@ -13508,6 +13666,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 										})]
 									})] }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+										htmlFor: "login-password",
 										className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
 										children: "Password"
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -13515,7 +13674,10 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 										children: [
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }),
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												id: "login-password",
+												name: "password",
 												type: showPassword ? "text" : "password",
+												autoComplete: "current-password",
 												required: true,
 												placeholder: "Enter your password",
 												value: password,
@@ -13525,6 +13687,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 												type: "button",
 												onClick: () => setShowPassword(!showPassword),
+												"aria-label": showPassword ? "Hide password" : "Show password",
 												className: "absolute right-3.5 text-[#B9AECF] hover:text-white",
 												children: showPassword ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EyeOff, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-4 h-4" })
 											})
@@ -13641,7 +13804,10 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 									className: "relative flex items-center",
 									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										id: "forgot-password-email",
+										name: "email",
 										type: "email",
+										autoComplete: "email",
 										required: true,
 										placeholder: "name@example.com",
 										value: email,
@@ -39312,16 +39478,263 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 		})
 	});
 };
+// src/components/auth/SecureAccountPasswordCard.tsx
+/**
+* One-time "Secure Your Account" card shown to Google-authenticated users who have not yet
+* linked an Email & Password credential to their existing Firebase UID.
+*
+* SECURITY:
+* - Links Email/Password directly to the active Google UID via Firebase `linkWithCredential()`.
+* - Never creates a duplicate account or alters existing coins, diamonds, VIP, levels, or profile.
+* - Never stores plaintext passwords in Firestore, localStorage, sessionStorage, or logs.
+* - Uses semantic form autofill attributes (`username`, `new-password`) so Android Password Manager
+*   can offer its native save-password prompt safely.
+*/
+var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
+	const [password, setPassword] = (0, import_react.useState)("");
+	const [confirmPassword, setConfirmPassword] = (0, import_react.useState)("");
+	const [showPassword, setShowPassword] = (0, import_react.useState)(false);
+	const [showConfirmPassword, setShowConfirmPassword] = (0, import_react.useState)(false);
+	const [isSubmitting, setIsSubmitting] = (0, import_react.useState)(false);
+	const [errorMessage, setErrorMessage] = (0, import_react.useState)(null);
+	const [successMessage, setSuccessMessage] = (0, import_react.useState)(null);
+	const hasMinLength = password.length >= 6;
+	const hasStrongLength = password.length >= 8;
+	const hasLetterAndNumber = /[A-Za-z]/.test(password) && /\d/.test(password);
+	const passwordsMatch = password.length > 0 && password === confirmPassword;
+	const strengthLabel = !password ? "" : !hasMinLength ? "Too short" : hasStrongLength && hasLetterAndNumber ? "Strong" : "Good";
+	const strengthColor = !hasMinLength ? "text-rose-400" : hasStrongLength && hasLetterAndNumber ? "text-emerald-400" : "text-[#FFC84A]";
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		setErrorMessage(null);
+		setSuccessMessage(null);
+		if (!password || password.length < 6) {
+			setErrorMessage("Password must be at least 6 characters.");
+			return;
+		}
+		if (!password.trim()) {
+			setErrorMessage("Password cannot contain only spaces.");
+			return;
+		}
+		if (password !== confirmPassword) {
+			setErrorMessage("Passwords do not match. Please re-enter carefully.");
+			return;
+		}
+		setIsSubmitting(true);
+		try {
+			const result = await linkPasswordToGoogleAccount(password);
+			setPassword("");
+			setConfirmPassword("");
+			setSuccessMessage(result.alreadyLinked ? "Email & Password login is already active for this account!" : "Password registered! You can now log in with Email & Password or Google using this same account.");
+			setTimeout(() => {
+				onSuccess(result);
+			}, 900);
+		} catch (err) {
+			setErrorMessage(err?.message || "Could not register password right now. Please try again.");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: "fixed inset-0 z-[95] flex items-center justify-center p-4 bg-[#090611]/85 backdrop-blur-md animate-fade-in overflow-y-auto",
+		role: "dialog",
+		"aria-modal": "true",
+		"aria-labelledby": "secure-account-card-title",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "relative w-full max-w-md bg-[#160C25]/95 border border-white/15 rounded-3xl p-6 sm:p-7 shadow-[0_20px_60px_rgba(0,0,0,0.75)] text-white my-auto overflow-hidden",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute -top-24 -right-24 w-56 h-56 rounded-full bg-[#F328D5]/20 blur-[80px]" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute -bottom-24 -left-24 w-56 h-56 rounded-full bg-[#8B20FF]/20 blur-[80px]" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "relative z-10",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-start justify-between mb-4",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#8B20FF] via-[#F328D5] to-[#FFC84A] p-[1.5px] shadow-lg shadow-[#F328D5]/30",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-full h-full rounded-2xl bg-[#160C25] flex items-center justify-center",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ShieldCheck, { className: "w-6 h-6 text-[#FFC84A]" })
+								})
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: onLater,
+								disabled: isSubmitting,
+								"aria-label": "Remind me later",
+								className: "w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-[#B9AECF] hover:text-white transition-colors disabled:opacity-50",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+							id: "secure-account-card-title",
+							className: "text-xl font-black text-white font-display tracking-tight mb-1.5",
+							children: "Secure Your Account"
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-xs text-[#B9AECF] leading-relaxed mb-5",
+							children: "Register a password to access your account using Email & Password on the Play Store version."
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "mb-4 px-3.5 py-2.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center gap-2.5 text-[11px] text-[#D7CEE8]",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-4 h-4 text-emerald-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+								"Links directly to ",
+								userName ? `${userName}'s` : "your",
+								" existing account — keeps your UID, coins, diamonds, VIP, levels & history untouched."
+							] })]
+						}),
+						errorMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "w-full bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs py-2.5 px-3.5 rounded-2xl mb-4 flex items-start gap-2 animate-fade-in",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-4 h-4 shrink-0 text-rose-400 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "flex-1 leading-snug",
+								children: errorMessage
+							})]
+						}),
+						successMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "w-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs py-2.5 px-3.5 rounded-2xl mb-4 flex items-start gap-2 animate-fade-in",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleCheck, { className: "w-4 h-4 shrink-0 text-emerald-400 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "flex-1 leading-snug",
+								children: successMessage
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+							onSubmit: handleSubmit,
+							className: "space-y-3.5",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+									htmlFor: "secure-account-email",
+									className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
+									children: "Registered Gmail Address"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "relative flex items-center",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mail, { className: "w-4 h-4 absolute left-3.5 text-[#FFC84A]" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											id: "secure-account-email",
+											name: "username",
+											type: "email",
+											autoComplete: "username",
+											readOnly: true,
+											value: email,
+											className: "w-full bg-[#1C102E] border border-white/10 rounded-2xl pl-10 pr-20 py-3 text-xs sm:text-sm text-white/90 font-medium outline-none cursor-default select-all"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "absolute right-3 px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[9px] font-bold text-emerald-300 uppercase",
+											children: "Verified"
+										})
+									]
+								})] }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between mb-1",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+										htmlFor: "secure-account-password",
+										className: "text-[11px] font-bold text-[#B9AECF]",
+										children: "Password"
+									}), strengthLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: `text-[10px] font-bold ${strengthColor}`,
+										children: strengthLabel
+									})]
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "relative flex items-center",
+									children: [
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+											id: "secure-account-password",
+											name: "password",
+											type: showPassword ? "text" : "password",
+											autoComplete: "new-password",
+											required: true,
+											minLength: 6,
+											placeholder: "Create password (min 6 characters)",
+											value: password,
+											onChange: (e) => {
+												setPassword(e.target.value);
+												if (errorMessage) setErrorMessage(null);
+											},
+											disabled: isSubmitting || Boolean(successMessage),
+											className: "w-full bg-[#211333] border border-white/10 focus:border-[#F328D5] rounded-2xl pl-10 pr-11 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors disabled:opacity-60"
+										}),
+										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => setShowPassword((prev) => !prev),
+											"aria-label": showPassword ? "Hide password" : "Show password",
+											className: "absolute right-3.5 text-[#B9AECF] hover:text-white transition-colors",
+											children: showPassword ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EyeOff, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-4 h-4" })
+										})
+									]
+								})] }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", {
+										htmlFor: "secure-account-confirm-password",
+										className: "text-[11px] font-bold text-[#B9AECF] block mb-1",
+										children: "Confirm Password"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "relative flex items-center",
+										children: [
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-4 h-4 absolute left-3.5 text-[#B9AECF]" }),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+												id: "secure-account-confirm-password",
+												name: "confirm-password",
+												type: showConfirmPassword ? "text" : "password",
+												autoComplete: "new-password",
+												required: true,
+												minLength: 6,
+												placeholder: "Re-enter your password",
+												value: confirmPassword,
+												onChange: (e) => {
+													setConfirmPassword(e.target.value);
+													if (errorMessage) setErrorMessage(null);
+												},
+												disabled: isSubmitting || Boolean(successMessage),
+												className: `w-full bg-[#211333] border rounded-2xl pl-10 pr-11 py-3 text-xs sm:text-sm text-white placeholder-[#B9AECF]/40 outline-none transition-colors disabled:opacity-60 ${confirmPassword.length > 0 && !passwordsMatch ? "border-rose-500/60 focus:border-rose-400" : passwordsMatch ? "border-emerald-500/50 focus:border-emerald-400" : "border-white/10 focus:border-[#F328D5]"}`
+											}),
+											/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												type: "button",
+												onClick: () => setShowConfirmPassword((prev) => !prev),
+												"aria-label": showConfirmPassword ? "Hide confirm password" : "Show confirm password",
+												className: "absolute right-3.5 text-[#B9AECF] hover:text-white transition-colors",
+												children: showConfirmPassword ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EyeOff, { className: "w-4 h-4" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-4 h-4" })
+											})
+										]
+									}),
+									confirmPassword.length > 0 && !passwordsMatch && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "mt-1 text-[10px] text-rose-300 font-medium",
+										children: "Passwords do not match yet."
+									})
+								] }),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "pt-2 space-y-2.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "submit",
+										disabled: isSubmitting || Boolean(successMessage) || !hasMinLength || !passwordsMatch,
+										className: "w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-black text-xs sm:text-sm shadow-lg shadow-[#F328D5]/30 hover:opacity-95 transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50",
+										children: isSubmitting ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Registering Password..." })] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Register Password" })
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: onLater,
+										disabled: isSubmitting || Boolean(successMessage),
+										className: "w-full py-3 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#B9AECF] hover:text-white font-bold text-xs transition-colors disabled:opacity-50",
+										children: "Later"
+									})]
+								})
+							]
+						})
+					]
+				})
+			]
+		})
+	});
+};
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BCx9ihdS.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-B8LEV8kd.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DtdIKgnw.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-Di4vIlg3.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-BGyXa1TP.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-Cc7SlupJ.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DJy85-yv.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-C9k7XCVM.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-S4nJUVKX.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-C45jdL02.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-mfpq7ZDa.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BAw7AUBw.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CduOvxGr.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Bza-lPvh.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-Q63gYsUG.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-CkloEjaa.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-5eGB-JmF.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-Mt13j3a6.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -39363,6 +39776,8 @@ function App() {
 	const [isSearchOpen, setIsSearchOpen] = (0, import_react.useState)(false);
 	const [isNotificationsOpen, setIsNotificationsOpen] = (0, import_react.useState)(false);
 	const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = (0, import_react.useState)(false);
+	const [showSecurePasswordModal, setShowSecurePasswordModal] = (0, import_react.useState)(false);
+	const dismissedPasswordPromptUidsRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
 	const [authScreenMode, setAuthScreenMode] = (0, import_react.useState)("login");
 	const [authPrefillEmail, setAuthPrefillEmail] = (0, import_react.useState)(void 0);
 	const [viewingProfileUser, setViewingProfileUser] = (0, import_react.useState)(null);
@@ -39830,6 +40245,11 @@ function App() {
 			console.log("[Android] Application exit requested");
 		});
 		const unregisterBack = androidBridge.registerBackHandler(() => {
+			if (showSecurePasswordModal) {
+				if (authenticatedUid) dismissedPasswordPromptUidsRef.current.add(authenticatedUid);
+				setShowSecurePasswordModal(false);
+				return true;
+			}
 			if (levelUpData) {
 				setLevelUpData(null);
 				return true;
@@ -39922,6 +40342,8 @@ function App() {
 		});
 		return () => unregisterBack();
 	}, [
+		showSecurePasswordModal,
+		authenticatedUid,
 		levelUpData,
 		pkWinnerSession,
 		isGiftShopOpen,
@@ -39939,7 +40361,12 @@ function App() {
 		activeChatUser,
 		currentScreen
 	]);
+	const maybePromptGooglePasswordLink = (0, import_react.useCallback)((firebaseUser, profile) => {
+		if (firebaseUser && !dismissedPasswordPromptUidsRef.current.has(firebaseUser.uid) && needsGooglePasswordRegistration(firebaseUser, profile)) setShowSecurePasswordModal(true);
+		else setShowSecurePasswordModal(false);
+	}, []);
 	const resetUserScopedTransientState = () => {
+		setShowSecurePasswordModal(false);
 		setBlockedUsers([]);
 		setBlockedByUserIds([]);
 		setConversations([]);
@@ -39976,14 +40403,18 @@ function App() {
 						saveStoredUserProfile(profile);
 						rememberAuthenticatedAccount(profile, firebaseUser.providerData.some((p) => p.providerId === "google.com") ? "google" : "password");
 						liveAndRoomService.syncUser(profile);
-					}
+						maybePromptGooglePasswordLink(firebaseUser, profile);
+					} else maybePromptGooglePasswordLink(firebaseUser, null);
 				} catch (e) {
 					console.warn("[Firebase Auth] Profile sync notice:", e);
 				}
-			} else liveAndRoomService.setCurrentUser(null);
+			} else {
+				setShowSecurePasswordModal(false);
+				liveAndRoomService.setCurrentUser(null);
+			}
 		});
 		return () => unsubscribe();
-	}, []);
+	}, [maybePromptGooglePasswordLink]);
 	(0, import_react.useEffect)(() => {
 		let active = true;
 		const dedupeLiveStreamsByHost = (items) => {
@@ -40436,6 +40867,7 @@ function App() {
 		liveAndRoomService.setCurrentUser(profile.id);
 		liveAndRoomService.syncUser(profile);
 		setCurrentScreen("home");
+		maybePromptGooglePasswordLink(auth.currentUser, profile);
 	};
 	const handleLogout = async () => {
 		try {
@@ -40444,6 +40876,7 @@ function App() {
 			console.warn("Logout notice:", e);
 		}
 		resetUserScopedTransientState();
+		dismissedPasswordPromptUidsRef.current.clear();
 		setAuthenticatedUid(null);
 		liveAndRoomService.setCurrentUser(null);
 		setCurrentUser(CURRENT_USER);
@@ -41540,7 +41973,11 @@ function App() {
 									blockedUsers,
 									onUnblockUser: handleUnblockUser,
 									moderators: myModerators,
-									onRemoveModerator: handleRemoveModerator
+									onRemoveModerator: handleRemoveModerator,
+									onUpdateProfile: (updated) => {
+										setCurrentUser(updated);
+										saveStoredUserProfile(updated);
+									}
 								})
 							})
 						]
@@ -41765,6 +42202,28 @@ function App() {
 				onSwitchAccount: handleSwitchAccount,
 				onAddAccount: handleAddAccount
 			}),
+			showSecurePasswordModal && authenticatedUid && auth.currentUser?.email && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SecureAccountPasswordCard, {
+				email: auth.currentUser.email,
+				userName: currentUser.name,
+				onSuccess: ({ providerIds, profile }) => {
+					setCurrentUser((prev) => {
+						const next = {
+							...prev,
+							...profile || {},
+							providerIds,
+							passwordRegistered: true
+						};
+						saveStoredUserProfile(next);
+						return next;
+					});
+					setShowSecurePasswordModal(false);
+					showAppToast("Password registered! You can now log in with Email & Password or Google.");
+				},
+				onLater: () => {
+					if (authenticatedUid) dismissedPasswordPromptUidsRef.current.add(authenticatedUid);
+					setShowSecurePasswordModal(false);
+				}
+			}),
 			appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: "fixed top-5 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
 				children: appToast
@@ -41780,4 +42239,4 @@ function App() {
 // src/main.tsx
 androidBridge.initViewportMetrics();
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
-export { updateWalletSettings as $, adminUnbanDevice as A, loadUserSettingsFromFirestore as At, adminUpdateWithdrawalStatus as B, TOTAL_PROGRESSION_COINS_EXACT as Bt, VipTierBadge as C, uploadPartyBackgroundImage as Ct, adminSendSystemCoinsToAgency as D, getLinkedAuthProviders as Dt, adminEditUserProfileAndProgression as E, profileService as Et, calculateLevelProgression as F, ALL_100_LEVELS as Ft, subscribeAllWithdrawalRequests as G, lookupActiveHostAgencyContract as H, formatCoinsCompact as Ht, DEFAULT_COIN_PACKAGES as I, LEVELS_1_TO_50_EXACT_TOTAL as It, subscribeTransactions as J, subscribeCoinPackages as K, DEFAULT_PAYOUT_METHODS as L, LEVELS_51_TO_100_EXACT_TOTAL as Lt, subscribeAllUsersForAdmin as M, submitAccountDeletionRequest as Mt, subscribeBannedDevicesForAdmin as N, subscribeUserSettings as Nt, adminSetUserBlockStatus as O, linkGoogleAccount as Ot, VIP_FRAME_DEFINITIONS as P, ACHIEVEMENT_BADGE_DEFINITIONS as Pt, subscribeWalletSettings as Q, DEFAULT_WALLET_SETTINGS as R, LEVEL_TIER_CONFIGS as Rt, SuperVipTierBadge as S, uploadMediaDataUrlWithProgress as St, adminBanDevice as T, uploadUserImage as Tt, requestWithdrawal as U, getLevelDefinition as Ut, deleteCoinSellerAgency as V, evaluateAchievementBadges as Vt, saveCoinSellerAgency as W, subscribeUserWallet as X, subscribeUserEarnings as Y, subscribeUserWithdrawalRequests as Z, subscribeAllAgenciesForAdmin as _, openNativeAppSettings as _t, subscribeUserLevelProgression as a, calculateWithdrawalWaterfall as at, LevelEmblemBadge as b, createReelDocument as bt, PARTY_BACKGROUND_PRESETS as c, normalizeEconomyConfig as ct, VerifiedTick as d, validateEconomySettings as dt, walletSettingsToEconomyConfig as et, resolveVerificationStatus as f, liveAndRoomService as ft, subscribeActiveAgencies as g, isNativeAndroidApp as gt, buildWhatsAppUrl as h, createAudioAnalyser as ht, fetchAuthoritativeProgression as i, calculateGiftSplit as it, subscribeAdminAuditLogs as j, saveUserSettingsToFirestore as jt, adminSetUserSuspension as k, getSavedDeviceAccounts as kt, resolvePartyBackgroundImageUrl as l, roundPkr as lt, adminSetAgencyStatus as m, acquireRealMicrophone as mt, equipAchievementBadges as n, OFFICIAL_ECONOMY_DEFAULTS as nt, AchievementBadgeEmblem as o, getDayKey as ot, adminReviewAgencyApplication as p, acquireRealDeviceCamera as pt, subscribeCoinSellerAgencies as q, equipActiveFrame as r, calculateCoinPurchasePricePkr as rt, DEFAULT_PARTY_BACKGROUND_ID as s, getMonthKey as st, BlockedUsersModal as t, OFFICIAL_DEFAULT_COIN_PACKAGES as tt, resolvePartyRoomBackground as u, runFinancialQaAssertions as ut, subscribeAllAgencyApplications as v, setStagedLiveStream as vt, adminAdjustUserCoins as w, uploadReelVideoAndThumbnail as wt, AvatarWithFrame as x, generateReelId as xt, LevelBadge as y, stopMediaStream as yt, adminAdjustBalance as z, SUPER_VIP_TIER_DEFINITIONS as zt };
+export { subscribeWalletSettings as $, adminSetUserSuspension as A, getSavedDeviceAccounts as At, adminAdjustBalance as B, SUPER_VIP_TIER_DEFINITIONS as Bt, SuperVipTierBadge as C, uploadMediaDataUrlWithProgress as Ct, adminEditUserProfileAndProgression as D, profileService as Dt, adminBanDevice as E, uploadUserImage as Et, VIP_FRAME_DEFINITIONS as F, ACHIEVEMENT_BADGE_DEFINITIONS as Ft, saveCoinSellerAgency as G, deleteCoinSellerAgency as H, evaluateAchievementBadges as Ht, calculateLevelProgression as I, ALL_100_LEVELS as It, subscribeCoinSellerAgencies as J, subscribeAllWithdrawalRequests as K, DEFAULT_COIN_PACKAGES as L, LEVELS_1_TO_50_EXACT_TOTAL as Lt, subscribeAdminAuditLogs as M, saveUserSettingsToFirestore as Mt, subscribeAllUsersForAdmin as N, submitAccountDeletionRequest as Nt, adminSendSystemCoinsToAgency as O, getLinkedAuthProviders as Ot, subscribeBannedDevicesForAdmin as P, subscribeUserSettings as Pt, subscribeUserWithdrawalRequests as Q, DEFAULT_PAYOUT_METHODS as R, LEVELS_51_TO_100_EXACT_TOTAL as Rt, AvatarWithFrame as S, generateReelId as St, adminAdjustUserCoins as T, uploadReelVideoAndThumbnail as Tt, lookupActiveHostAgencyContract as U, formatCoinsCompact as Ut, adminUpdateWithdrawalStatus as V, TOTAL_PROGRESSION_COINS_EXACT as Vt, requestWithdrawal as W, getLevelDefinition as Wt, subscribeUserEarnings as X, subscribeTransactions as Y, subscribeUserWallet as Z, subscribeActiveAgencies as _, isNativeAndroidApp as _t, fetchAuthoritativeProgression as a, calculateGiftSplit as at, LevelBadge as b, stopMediaStream as bt, DEFAULT_PARTY_BACKGROUND_ID as c, getMonthKey as ct, resolvePartyRoomBackground as d, runFinancialQaAssertions as dt, updateWalletSettings as et, VerifiedTick as f, validateEconomySettings as ft, buildWhatsAppUrl as g, createAudioAnalyser as gt, adminSetAgencyStatus as h, acquireRealMicrophone as ht, equipActiveFrame as i, calculateCoinPurchasePricePkr as it, adminUnbanDevice as j, loadUserSettingsFromFirestore as jt, adminSetUserBlockStatus as k, linkGoogleAccount as kt, PARTY_BACKGROUND_PRESETS as l, normalizeEconomyConfig as lt, adminReviewAgencyApplication as m, acquireRealDeviceCamera as mt, BlockedUsersModal as n, OFFICIAL_DEFAULT_COIN_PACKAGES as nt, subscribeUserLevelProgression as o, calculateWithdrawalWaterfall as ot, resolveVerificationStatus as p, liveAndRoomService as pt, subscribeCoinPackages as q, equipAchievementBadges as r, OFFICIAL_ECONOMY_DEFAULTS as rt, AchievementBadgeEmblem as s, getDayKey as st, SecureAccountPasswordCard as t, walletSettingsToEconomyConfig as tt, resolvePartyBackgroundImageUrl as u, roundPkr as ut, subscribeAllAgenciesForAdmin as v, openNativeAppSettings as vt, VipTierBadge as w, uploadPartyBackgroundImage as wt, LevelEmblemBadge as x, createReelDocument as xt, subscribeAllAgencyApplications as y, setStagedLiveStream as yt, DEFAULT_WALLET_SETTINGS as z, LEVEL_TIER_CONFIGS as zt };

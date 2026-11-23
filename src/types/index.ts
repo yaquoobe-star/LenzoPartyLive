@@ -119,6 +119,9 @@ export interface UserProfile {
   isDeviceBanned?: boolean;
   lastDeviceId?: string;
   lastDeviceInfo?: string;
+  providerIds?: string[];
+  passwordRegistered?: boolean;
+  passwordLinkedAt?: string;
   createdAt?: string;
 }
 

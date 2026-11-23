@@ -53,6 +53,7 @@ import {
   submitAccountDeletionRequest,
 } from '../../services/accountSwitcherService';
 import { getLinkedAuthProviders, linkGoogleAccount } from '../../services/authService';
+import { SecureAccountPasswordCard } from '../auth/SecureAccountPasswordCard';
 import { auth, FIREBASE_RUNTIME_INFO } from '../../firebase';
 
 interface SettingsScreenProps {
@@ -67,6 +68,7 @@ interface SettingsScreenProps {
   onUnblockUser?: (targetUserId: string, targetName?: string) => Promise<void> | void;
   moderators?: HostModeratorRecord[];
   onRemoveModerator?: (moderatorUserId: string, moderatorName?: string) => Promise<void> | void;
+  onUpdateProfile?: (updated: UserProfile) => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -81,6 +83,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onUnblockUser,
   moderators = [],
   onRemoveModerator,
+  onUpdateProfile,
 }) => {
   const [notifications, setNotifications] = useState(true);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
@@ -104,6 +107,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [deleteReason, setDeleteReason] = useState('');
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
+  const [showLinkPasswordCard, setShowLinkPasswordCard] = useState(false);
   const [linkedProviders, setLinkedProviders] = useState<string[]>(() => getLinkedAuthProviders());
   const [isBlockedModalOpen, setIsBlockedModalOpen] = useState(false);
   const [isModeratorsModalOpen, setIsModeratorsModalOpen] = useState(false);
@@ -501,8 +505,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
-                  <span className="text-[10px] font-bold text-[#B9AECF] uppercase block">Linked Sign-In Providers</span>
+                <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-[#B9AECF] uppercase">Linked Sign-In Providers</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        linkedProviders.includes('password') || currentUser.passwordRegistered
+                          ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      Password: {linkedProviders.includes('password') || currentUser.passwordRegistered ? 'Registered' : 'Not Set'}
+                    </span>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {linkedProviders.length === 0 ? (
                       <span className="text-[#B9AECF]">Session sign-in active</span>
@@ -517,6 +532,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       ))
                     )}
                   </div>
+                  {!linkedProviders.includes('password') && !currentUser.passwordRegistered && auth.currentUser?.email && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSecurityModal(false);
+                        setShowLinkPasswordCard(true);
+                      }}
+                      className="mt-1 w-full py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs flex items-center justify-center gap-2 hover:opacity-95 shadow-md"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Register Password for Email Login</span>
+                    </button>
+                  )}
                   {!linkedProviders.includes('google.com') && auth.currentUser && (
                     <button
                       type="button"
@@ -651,6 +679,26 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* Register Email/Password for Existing Google Account */}
+        {showLinkPasswordCard && auth.currentUser?.email && (
+          <SecureAccountPasswordCard
+            email={auth.currentUser.email}
+            userName={currentUser.name}
+            onSuccess={({ providerIds, profile }) => {
+              setLinkedProviders(providerIds.length > 0 ? providerIds : getLinkedAuthProviders());
+              onUpdateProfile?.({
+                ...currentUser,
+                ...(profile || {}),
+                providerIds,
+                passwordRegistered: true,
+              });
+              setShowLinkPasswordCard(false);
+              showToast('Password registered! You can now log in with Email & Password or Google.');
+            }}
+            onLater={() => setShowLinkPasswordCard(false)}
+          />
         )}
 
         {/* Header Bar */}

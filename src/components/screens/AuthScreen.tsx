@@ -339,7 +339,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         setPassword('');
         setConfirmPassword('');
         setSubScreen('login');
-        setErrorMessage('An account with this email already exists. Please log in with your password.');
+        setErrorMessage('An account with this email already exists (including Google accounts). Please log in with Email & Password or Continue with Google.');
         return;
       }
       setErrorMessage(err.message || 'Account creation failed.');
@@ -446,7 +446,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setIsLoading(true);
     try {
       await resetPassword(cleanEmail);
-      setSuccessMessage(`Password reset link sent to ${cleanEmail}. Please check your inbox.`);
+      setSuccessMessage(`Password reset link sent to ${cleanEmail}. Check your inbox (and Spam folder) to set a new password for your account.`);
     } catch (err: any) {
       setErrorMessage(err.message || 'Could not send reset link. Please check the email.');
     } finally {
@@ -671,6 +671,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   <span>CONTINUE AS THIS ACCOUNT</span>
                 )}
               </button>
+
+              {lastAccount.authProvider === 'google' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(lastAccount.email);
+                    setPassword('');
+                    navigateTo('login');
+                  }}
+                  disabled={isGoogleLoading || isLoading}
+                  className="w-full py-3 px-4 rounded-2xl bg-[#211333] hover:bg-[#2c1a44] border border-white/15 text-[#E5DCF5] font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-2"
+                >
+                  <Mail className="w-4 h-4 text-[#FFC84A]" />
+                  <span>Log in with Email &amp; Password</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -985,11 +1001,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <form onSubmit={handleEmailLogin} className="space-y-4">
               {/* Email Address */}
               <div>
-                <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Email Address</label>
+                <label htmlFor="login-email" className="text-[11px] font-bold text-[#B9AECF] block mb-1">Email Address</label>
                 <div className="relative flex items-center">
                   <Mail className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
                   <input
+                    id="login-email"
+                    name="email"
                     type="email"
+                    autoComplete="username"
                     required
                     placeholder="Enter your email"
                     value={email}
@@ -1001,11 +1020,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
               {/* Password */}
               <div>
-                <label className="text-[11px] font-bold text-[#B9AECF] block mb-1">Password</label>
+                <label htmlFor="login-password" className="text-[11px] font-bold text-[#B9AECF] block mb-1">Password</label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
                   <input
+                    id="login-password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
                     required
                     placeholder="Enter your password"
                     value={password}
@@ -1015,6 +1037,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className="absolute right-3.5 text-[#B9AECF] hover:text-white"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1127,7 +1150,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <div className="relative flex items-center">
                   <Mail className="w-4 h-4 absolute left-3.5 text-[#B9AECF]" />
                   <input
+                    id="forgot-password-email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     placeholder="name@example.com"
                     value={email}

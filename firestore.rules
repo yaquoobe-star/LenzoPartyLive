@@ -113,6 +113,8 @@ service cloud.firestore {
         && (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 32))
         && (!('lastActiveAt' in data) || (data.lastActiveAt is string && data.lastActiveAt.size() <= 64))
         && (!('providerIds' in data) || (data.providerIds is list && data.providerIds.size() <= 6))
+        && (!('passwordRegistered' in data) || data.passwordRegistered is bool)
+        && (!('passwordLinkedAt' in data) || (data.passwordLinkedAt is string && data.passwordLinkedAt.size() <= 64))
         && (!('profileImage' in data) || (data.profileImage is string && data.profileImage.size() <= 1500))
         && (!('coverImage' in data) || (data.coverImage is string && data.coverImage.size() <= 1500))
         && (!('bio' in data) || (data.bio is string && data.bio.size() <= 300))

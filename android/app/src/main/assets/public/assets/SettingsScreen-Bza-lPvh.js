@@ -1,13 +1,13 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { Dn as ArrowLeft, Dt as Globe, En as ArrowRightLeft, L as Send, N as ShieldCheck, Yt as Copy, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, cn as Check, ct as Megaphone, dt as LogOut, f as UserX, ft as Lock, ht as Link2, j as Shield, kn as require_react, l as Vibrate, nt as Moon, r as X, s as Volume2, st as MessageCircle, ut as Mail, vn as BellRing, y as Trash2, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
-import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-C6Lw_OKQ.js";
-import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-BlxLtZF6.js";
-import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CcEQ85aw.js";
+import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-Bs8cZsF9.js";
+import { At as getSavedDeviceAccounts, Mt as saveUserSettingsToFirestore, Nt as submitAccountDeletionRequest, Ot as getLinkedAuthProviders, Pt as subscribeUserSettings, jt as loadUserSettingsFromFirestore, kt as linkGoogleAccount, n as BlockedUsersModal, t as SecureAccountPasswordCard } from "./index-D1KgmVuY.js";
+import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CIREZBAE.js";
 import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/SettingsScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_jsx_runtime = require_jsx_runtime();
-var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser, moderators = [], onRemoveModerator }) => {
+var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenAccountSwitcher, isAdmin = false, onOpenAdminProgression, blockedUsers = [], onUnblockUser, moderators = [], onRemoveModerator, onUpdateProfile }) => {
 	const [notifications, setNotifications] = (0, import_react.useState)(true);
 	const [notifPrefs, setNotifPrefs] = (0, import_react.useState)({ ...DEFAULT_NOTIFICATION_PREFERENCES });
 	const [pushPermission, setPushPermission] = (0, import_react.useState)("default");
@@ -26,6 +26,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 	const [deleteReason, setDeleteReason] = (0, import_react.useState)("");
 	const [isDeletingAccount, setIsDeletingAccount] = (0, import_react.useState)(false);
 	const [isLinkingGoogle, setIsLinkingGoogle] = (0, import_react.useState)(false);
+	const [showLinkPasswordCard, setShowLinkPasswordCard] = (0, import_react.useState)(false);
 	const [linkedProviders, setLinkedProviders] = (0, import_react.useState)(() => getLinkedAuthProviders());
 	const [isBlockedModalOpen, setIsBlockedModalOpen] = (0, import_react.useState)(false);
 	const [isModeratorsModalOpen, setIsModeratorsModalOpen] = (0, import_react.useState)(false);
@@ -408,11 +409,17 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 									})]
 								}),
 								/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2",
+									className: "p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5",
 									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-[10px] font-bold text-[#B9AECF] uppercase block",
-											children: "Linked Sign-In Providers"
+										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center justify-between gap-2",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[10px] font-bold text-[#B9AECF] uppercase",
+												children: "Linked Sign-In Providers"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: `px-2 py-0.5 rounded-md text-[10px] font-bold ${linkedProviders.includes("password") || currentUser.passwordRegistered ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-amber-500/15 text-amber-300 border border-amber-500/30"}`,
+												children: ["Password: ", linkedProviders.includes("password") || currentUser.passwordRegistered ? "Registered" : "Not Set"]
+											})]
 										}),
 										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 											className: "flex flex-wrap gap-1.5",
@@ -423,6 +430,15 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 												className: "px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-[11px]",
 												children: p === "google.com" ? "Google Account" : p === "password" ? "Email & Password" : p
 											}, p))
+										}),
+										!linkedProviders.includes("password") && !currentUser.passwordRegistered && auth.currentUser?.email && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+											type: "button",
+											onClick: () => {
+												setShowSecurityModal(false);
+												setShowLinkPasswordCard(true);
+											},
+											className: "mt-1 w-full py-2.5 rounded-xl bg-gradient-to-r from-[#8B20FF] via-[#F328D5] to-[#FFC84A] text-white font-bold text-xs flex items-center justify-center gap-2 hover:opacity-95 shadow-md",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Register Password for Email Login" })]
 										}),
 										!linkedProviders.includes("google.com") && auth.currentUser && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 											type: "button",
@@ -550,6 +566,22 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							})
 						]
 					})
+				}),
+				showLinkPasswordCard && auth.currentUser?.email && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SecureAccountPasswordCard, {
+					email: auth.currentUser.email,
+					userName: currentUser.name,
+					onSuccess: ({ providerIds, profile }) => {
+						setLinkedProviders(providerIds.length > 0 ? providerIds : getLinkedAuthProviders());
+						onUpdateProfile?.({
+							...currentUser,
+							...profile || {},
+							providerIds,
+							passwordRegistered: true
+						});
+						setShowLinkPasswordCard(false);
+						showToast("Password registered! You can now log in with Email & Password or Google.");
+					},
+					onLater: () => setShowLinkPasswordCard(false)
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "flex items-center gap-3",

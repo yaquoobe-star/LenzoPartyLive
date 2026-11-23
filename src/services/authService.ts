@@ -4,7 +4,11 @@ import {
   signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
+  EmailAuthProvider,
   linkWithPopup,
+  linkWithCredential,
+  reauthenticateWithPopup,
+  reauthenticateWithCredential,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -63,6 +67,8 @@ export interface FirestoreUserData {
   bio?: string;
   authProvider: 'google' | 'password';
   providerIds?: string[];
+  passwordRegistered?: boolean;
+  passwordLinkedAt?: string;
   createdAt: string;
   lastLogin: string;
   lastActiveAt?: string;
@@ -213,6 +219,14 @@ export function mapFirestoreUserToProfile(
     likedVideoIds: Array.isArray(data.likedVideoIds) ? data.likedVideoIds : [],
     liveSessionsHosted: data.liveSessionsHosted || 0,
     loginStreakDays: data.loginStreakDays || 1,
+    providerIds: Array.isArray(data.providerIds) ? data.providerIds : undefined,
+    passwordRegistered:
+      typeof data.passwordRegistered === 'boolean'
+        ? data.passwordRegistered
+        : Array.isArray(data.providerIds) && data.providerIds.includes('password')
+          ? true
+          : data.authProvider === 'password',
+    passwordLinkedAt: data.passwordLinkedAt,
     createdAt: data.createdAt,
     isFollowing: false,
   };
@@ -247,6 +261,7 @@ export async function syncUserInFirestore(
       const providerIds = Array.from(
         new Set(user.providerData.map((p) => p.providerId).filter(Boolean))
       );
+      const hasPasswordProvider = providerIds.includes('password');
       const deviceId = getOrCreateDeviceId();
       const deviceInfo = getDeviceSummaryLabel();
       const updatePayload: Partial<FirestoreUserData> = {
@@ -256,6 +271,12 @@ export async function syncUserInFirestore(
         lastDeviceId: deviceId,
         lastDeviceInfo: deviceInfo,
         ...(providerIds.length > 0 ? { providerIds } : {}),
+        ...(hasPasswordProvider && existingData.passwordRegistered !== true
+          ? {
+              passwordRegistered: true,
+              ...(!existingData.passwordLinkedAt ? { passwordLinkedAt: now } : {}),
+            }
+          : {}),
       };
 
       if (!existingData.displayId) {
@@ -302,6 +323,10 @@ export async function syncUserInFirestore(
         authProvider: authProvider,
         ...(extra?.emailOtpVerified ? { emailOtpVerified: true } : {}),
         providerIds: providerIds.length > 0 ? providerIds : [authProvider === 'google' ? 'google.com' : 'password'],
+        passwordRegistered: authProvider === 'password' || providerIds.includes('password'),
+        ...(authProvider === 'password' || providerIds.includes('password')
+          ? { passwordLinkedAt: now }
+          : {}),
         createdAt: now,
         lastLogin: now,
         lastActiveAt: now,
@@ -869,7 +894,9 @@ export async function loginWithEmail(
       error.code === 'auth/wrong-password' ||
       error.code === 'auth/invalid-credential'
     ) {
-      throw new Error('Invalid email or password. Please check your credentials.');
+      throw new Error(
+        'Invalid email or password. If you originally signed in with Google, tap "Continue with Google" below to log in and register a password for this account.'
+      );
     } else if (error.code === 'auth/invalid-email') {
       throw new Error('Please enter a valid email address.');
     } else if (error.code === 'auth/operation-not-allowed') {
@@ -887,14 +914,22 @@ export async function loginWithEmail(
  * REAL Password Reset Email via Firebase
  */
 export async function resetPassword(email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+    throw new Error('Please enter a valid email address.');
+  }
   try {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, cleanEmail);
   } catch (error: any) {
     console.error('[Password Reset Error]:', error);
     if (error.code === 'auth/user-not-found') {
       throw new Error('No account found with this email address.');
     } else if (error.code === 'auth/invalid-email') {
       throw new Error('Please enter a valid email address.');
+    } else if (error.code === 'auth/too-many-requests') {
+      throw new Error('Too many reset requests. Please wait a few minutes and check your inbox.');
+    } else if (error.code === 'auth/network-request-failed') {
+      throw new Error('Network error. Please check your internet connection and try again.');
     }
     throw new Error(error.message || 'Failed to send password reset email.');
   }
@@ -975,20 +1010,249 @@ export async function fetchCurrentFirestoreProfile(uid: string): Promise<UserPro
 }
 
 /**
+ * Returns true if the current Firebase Auth user already has the Email/Password provider linked.
+ */
+export function hasPasswordProviderLinked(user?: FirebaseUser | null): boolean {
+  const target = user ?? auth.currentUser;
+  if (!target) return false;
+  return target.providerData.some((p) => p.providerId === 'password');
+}
+
+/**
+ * Determines whether a Google-authenticated user should be prompted with the one-time
+ * "Secure Your Account" password registration card.
+ * Returns false once Email/Password is linked in Firebase Auth OR marked completed in Firestore.
+ */
+export function needsGooglePasswordRegistration(
+  user?: FirebaseUser | null,
+  profile?: UserProfile | null
+): boolean {
+  const target = user ?? auth.currentUser;
+  if (!target || !target.email) return false;
+  const providers = target.providerData.map((p) => p.providerId).filter(Boolean);
+  const hasGoogle = providers.includes('google.com');
+  const hasPassword = providers.includes('password');
+  if (!hasGoogle || hasPassword) return false;
+  if (profile?.passwordRegistered === true) return false;
+  return true;
+}
+
+/**
+ * Reauthenticate an authenticated Google user on Web or Native Android when Firebase requires
+ * a recent login before linking a sensitive Email/Password credential.
+ */
+async function reauthenticateCurrentGoogleUser(user: FirebaseUser): Promise<void> {
+  if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+    const nativeRes = await NativeGoogleAuth.signIn();
+    const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
+    if (!idToken || idToken.split('.').length !== 3) {
+      throw new Error('Google verification did not return a valid token. Please try again.');
+    }
+    if (
+      nativeRes.email &&
+      user.email &&
+      nativeRes.email.trim().toLowerCase() !== user.email.trim().toLowerCase()
+    ) {
+      throw new Error(`Please select your signed-in Google account (${user.email}) to verify ownership.`);
+    }
+    const googleCred = GoogleAuthProvider.credential(idToken);
+    await reauthenticateWithCredential(user, googleCred);
+    return;
+  }
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account',
+    ...(user.email ? { login_hint: user.email } : {}),
+  });
+  await reauthenticateWithPopup(user, provider);
+}
+
+/**
+ * Link an Email & Password credential to the currently signed-in Google user's EXACT SAME Firebase UID.
+ * - Uses Firebase `linkWithCredential(user, EmailAuthProvider.credential(email, password))`.
+ * - Never creates a duplicate account or changes UID / displayId / coins / diamonds / VIP / levels / wallet / agency.
+ * - Never overwrites an existing password credential.
+ * - Never stores or logs the plaintext password anywhere.
+ */
+export async function linkPasswordToGoogleAccount(password: string): Promise<{
+  providerIds: string[];
+  profile: UserProfile | null;
+  alreadyLinked?: boolean;
+}> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Your session has expired. Please sign in with Google again.');
+  }
+
+  const cleanEmail = (user.email || '').trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+    throw new Error('No verified email address is attached to this Google account.');
+  }
+
+  const initialProviders = Array.from(
+    new Set(user.providerData.map((p) => p.providerId).filter(Boolean))
+  );
+  const hasGoogleProvider = initialProviders.includes('google.com');
+
+  // Verify email ownership before allowing credential linking
+  if (!user.emailVerified && !hasGoogleProvider) {
+    throw new Error('Please verify ownership of your email address before registering a password.');
+  }
+
+  // Never overwrite an existing password credential
+  if (initialProviders.includes('password')) {
+    const now = new Date().toISOString();
+    await updateDoc(doc(db, 'users', user.uid), {
+      providerIds: initialProviders,
+      passwordRegistered: true,
+      lastActiveAt: now,
+    }).catch(() => {});
+    const existingProfile = await fetchCurrentFirestoreProfile(user.uid);
+    return {
+      providerIds: initialProviders,
+      profile: existingProfile,
+      alreadyLinked: true,
+    };
+  }
+
+  if (!password || password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.');
+  }
+  if (!password.trim()) {
+    throw new Error('Password cannot contain only spaces.');
+  }
+
+  const emailCredential = EmailAuthProvider.credential(cleanEmail, password);
+
+  const persistLinkedMetadata = async (linkedUser: FirebaseUser): Promise<{
+    providerIds: string[];
+    profile: UserProfile | null;
+  }> => {
+    await linkedUser.reload().catch(() => {});
+    const refreshedUser = auth.currentUser || linkedUser;
+    const providerIds = Array.from(
+      new Set([...refreshedUser.providerData.map((p) => p.providerId).filter(Boolean), 'password'])
+    );
+    const now = new Date().toISOString();
+
+    // Update ONLY non-destructive auth metadata fields — preserves UID, displayId, coins, diamonds, VIP, levels, agency, wallet, transactions & profile
+    await updateDoc(doc(db, 'users', refreshedUser.uid), {
+      providerIds,
+      passwordRegistered: true,
+      passwordLinkedAt: now,
+      lastActiveAt: now,
+    });
+
+    // Refresh ID token so backend session immediately recognizes the newly linked provider
+    await refreshedUser.getIdToken(true).catch(() => {});
+    await syncBackendAuthSession(refreshedUser);
+
+    const updatedProfile = await fetchCurrentFirestoreProfile(refreshedUser.uid);
+    if (updatedProfile) {
+      rememberAuthenticatedAccount(updatedProfile, hasGoogleProvider ? 'google' : 'password');
+    }
+
+    return {
+      providerIds,
+      profile: updatedProfile,
+    };
+  };
+
+  try {
+    const linkResult = await linkWithCredential(user, emailCredential);
+    return await persistLinkedMetadata(linkResult.user);
+  } catch (err: any) {
+    const code = typeof err?.code === 'string' ? err.code : '';
+
+    // Handle recent-login security requirement cleanly via Google reauthentication, then retry linkWithCredential
+    if (code === 'auth/requires-recent-login') {
+      try {
+        await reauthenticateCurrentGoogleUser(user);
+        const retryResult = await linkWithCredential(user, emailCredential);
+        return await persistLinkedMetadata(retryResult.user);
+      } catch (reauthErr: any) {
+        const reauthCode = typeof reauthErr?.code === 'string' ? reauthErr.code : '';
+        const reauthMsg = String(reauthErr?.message || '');
+        if (
+          reauthCode === 'auth/popup-closed-by-user' ||
+          reauthMsg.includes('CANCELLED') ||
+          reauthMsg.includes('12501')
+        ) {
+          throw new Error('Google verification was cancelled. Tap "Register Password" again to confirm your identity.');
+        }
+        if (reauthCode === 'auth/user-mismatch') {
+          throw new Error(`Please select your signed-in Google account (${cleanEmail}) to confirm password linking.`);
+        }
+        if (reauthCode === 'auth/provider-already-linked') {
+          const synced = await persistLinkedMetadata(user);
+          return { ...synced, alreadyLinked: true };
+        }
+        throw new Error(
+          reauthErr?.message || 'Could not re-verify your Google session. Please try again.'
+        );
+      }
+    }
+
+    // Never overwrite an already-linked password credential
+    if (code === 'auth/provider-already-linked') {
+      const synced = await persistLinkedMetadata(user);
+      return { ...synced, alreadyLinked: true };
+    }
+
+    if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+      throw new Error(
+        'An Email & Password login is already registered for this email address. Use Forgot Password if you need to reset it.'
+      );
+    }
+
+    if (code === 'auth/weak-password') {
+      throw new Error('Please choose a stronger password (at least 6 characters).');
+    }
+
+    if (code === 'auth/operation-not-allowed') {
+      throw new Error(
+        'Email/Password sign-in is not yet enabled in Firebase Console. Enable Email/Password under Authentication -> Sign-in method.'
+      );
+    }
+
+    if (code === 'auth/network-request-failed') {
+      throw new Error('Network error. Please check your internet connection and try again.');
+    }
+
+    throw new Error(err?.message || 'Failed to register password for your account. Please try again.');
+  }
+}
+
+/**
  * Safe verified provider linking: links Google sign-in to the currently authenticated UID
- * without ever merging unverified accounts.
+ * without ever merging unverified accounts. Supports both Web and Native Android.
  */
 export async function linkGoogleAccount(): Promise<string[]> {
   const user = auth.currentUser;
   if (!user) {
     throw new Error('Please sign in first before linking a Google account.');
   }
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
   try {
-    const result = await linkWithPopup(user, provider);
+    let linkedUser: FirebaseUser;
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      const nativeRes = await NativeGoogleAuth.signIn();
+      const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
+      if (!idToken || idToken.split('.').length !== 3) {
+        throw new Error('Google Sign-In did not return a valid token.');
+      }
+      const cred = GoogleAuthProvider.credential(idToken);
+      const result = await linkWithCredential(user, cred);
+      linkedUser = result.user;
+    } else {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await linkWithPopup(user, provider);
+      linkedUser = result.user;
+    }
+
     const providerIds = Array.from(
-      new Set(result.user.providerData.map((p) => p.providerId).filter(Boolean))
+      new Set(linkedUser.providerData.map((p) => p.providerId).filter(Boolean))
     );
     await updateDoc(doc(db, 'users', user.uid), {
       providerIds,
@@ -996,13 +1260,18 @@ export async function linkGoogleAccount(): Promise<string[]> {
     }).catch(() => {});
     return providerIds;
   } catch (err: any) {
-    if (err.code === 'auth/credential-already-in-use') {
+    const rawMsg = String(err?.message || '');
+    if (err?.code === 'auth/credential-already-in-use') {
       throw new Error('This Google account is already linked to another Lenzo Party account.');
     }
-    if (err.code === 'auth/provider-already-linked') {
+    if (err?.code === 'auth/provider-already-linked') {
       return getLinkedAuthProviders();
     }
-    if (err.code === 'auth/popup-closed-by-user') {
+    if (
+      err?.code === 'auth/popup-closed-by-user' ||
+      rawMsg.includes('CANCELLED') ||
+      rawMsg.includes('12501')
+    ) {
       throw new Error('Google account linking was cancelled.');
     }
     throw new Error(err?.message || 'Failed to link Google account.');

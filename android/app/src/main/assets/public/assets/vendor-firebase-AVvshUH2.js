@@ -6673,6 +6673,12 @@ function _processCredentialSavingMfaContextIfNecessary(auth, operationType, cred
 * limitations under the License.
 */
 /**
+* Takes a set of UserInfo provider data and converts it to a set of names
+*/
+function providerDataAsNames(providerData) {
+	return new Set(providerData.map(({ providerId }) => providerId).filter((pid) => !!pid));
+}
+/**
 * @license
 * Copyright 2019 Google LLC
 *
@@ -6691,6 +6697,12 @@ function _processCredentialSavingMfaContextIfNecessary(auth, operationType, cred
 async function _link$1(user, credential, bypassAuthState = false) {
 	const response = await _logoutIfInvalidated(user, credential._linkToIdToken(user.auth, await user.getIdToken()), bypassAuthState);
 	return UserCredentialImpl._forOperation(user, "link", response);
+}
+async function _assertLinkedStatus(expected, user, provider) {
+	await _reloadWithoutSaving(user);
+	const providerIds = providerDataAsNames(user.providerData);
+	const code = expected === false ? "provider-already-linked" : "no-such-provider";
+	_assert(providerIds.has(provider) === expected, user.auth, code);
 }
 /**
 * @license
@@ -6765,6 +6777,41 @@ async function _signInWithCredential(auth, credential, bypassAuthState = false) 
 */
 async function signInWithCredential(auth, credential) {
 	return _signInWithCredential(_castAuth(auth), credential);
+}
+/**
+* Links the user account with the given credentials.
+*
+* @remarks
+* An {@link AuthProvider} can be used to generate the credential.
+*
+* @param user - The user.
+* @param credential - The auth credential.
+*
+* @public
+*/
+async function linkWithCredential(user, credential) {
+	const userInternal = getModularInstance(user);
+	await _assertLinkedStatus(false, userInternal, credential.providerId);
+	return _link$1(userInternal, credential);
+}
+/**
+* Re-authenticates a user using a fresh credential.
+*
+* @remarks
+* Use before operations such as {@link updatePassword} that require tokens from recent sign-in
+* attempts. This method can be used to recover from a `CREDENTIAL_TOO_OLD_LOGIN_AGAIN` error
+* or a `TOKEN_EXPIRED` error.
+*
+* This method is not supported on any {@link User} signed in by {@link Auth} instances
+* created with a {@link @firebase/app#FirebaseServerApp}.
+*
+* @param user - The user.
+* @param credential - The auth credential.
+*
+* @public
+*/
+async function reauthenticateWithCredential(user, credential) {
+	return _reauthenticate(getModularInstance(user), credential);
 }
 /**
 * @license
@@ -8907,6 +8954,41 @@ async function signInWithPopup(auth, provider, resolver) {
 	const authInternal = _castAuth(auth);
 	_assertInstanceOf(auth, provider, FederatedAuthProvider);
 	return new PopupOperation(authInternal, "signInViaPopup", provider, _withDefaultResolver(authInternal, resolver)).executeNotNull();
+}
+/**
+* Reauthenticates the current user with the specified {@link OAuthProvider} using a pop-up based
+* OAuth flow.
+*
+* @remarks
+* If the reauthentication is successful, the returned result will contain the user and the
+* provider's credential.
+*
+* This method does not work in a Node.js environment or on any {@link User} signed in by
+* {@link Auth} instances created with a {@link @firebase/app#FirebaseServerApp}.
+*
+* @example
+* ```javascript
+* // Sign in using a popup.
+* const provider = new FacebookAuthProvider();
+* const result = await signInWithPopup(auth, provider);
+* // Reauthenticate using a popup.
+* await reauthenticateWithPopup(result.user, provider);
+* ```
+*
+* @param user - The user.
+* @param provider - The provider to authenticate. The provider has to be an {@link OAuthProvider}.
+* Non-OAuth providers like {@link EmailAuthProvider} will throw an error.
+* @param resolver - An instance of {@link PopupRedirectResolver}, optional
+* if already supplied to {@link initializeAuth} or provided by {@link getAuth}.
+*
+* @public
+*/
+async function reauthenticateWithPopup(user, provider, resolver) {
+	const userInternal = getModularInstance(user);
+	if (_isFirebaseServerApp(userInternal.auth.app)) return Promise.reject(_createError(userInternal.auth, "operation-not-supported-in-this-environment"));
+	_assertInstanceOf(userInternal.auth, provider, FederatedAuthProvider);
+	const resolverInternal = _withDefaultResolver(userInternal.auth, resolver);
+	return new PopupOperation(userInternal.auth, "reauthViaPopup", provider, resolverInternal, userInternal).executeNotNull();
 }
 /**
 * Links the authenticated provider to the user account using a pop-up based OAuth flow.
@@ -43417,4 +43499,4 @@ function registerAnalytics() {
 	}
 }
 registerAnalytics();
-export { initializeApp as $, getFirestore as A, linkWithPopup as B, startAfter as C, Timestamp as D, writeBatch as E, browserLocalPersistence as F, signInWithCredential as G, sendEmailVerification as H, browserSessionPersistence as I, signInWithRedirect as J, signInWithEmailAndPassword as K, createUserWithEmailAndPassword as L, initializeFirestore as M, serverTimestamp as N, collection as O, GoogleAuthProvider as P, getApps as Q, getAuth as R, setDoc as S, where as T, sendPasswordResetEmail as U, onAuthStateChanged as V, setPersistence as W, updateProfile as X, signOut as Y, getApp as Z, memoryLocalCache as _, initializeAppCheck as a, query as b, getStorage as c, addDoc as d, deleteDoc as f, limit as g, getDocs as h, ReCaptchaV3Provider as i, increment as j, doc as k, ref as l, getDocFromServer as m, isSupported as n, deleteObject as o, getDoc as p, signInWithPopup as q, ReCaptchaEnterpriseProvider as r, getDownloadURL as s, getAnalytics as t, uploadBytesResumable as u, onSnapshot as v, updateDoc as w, runTransaction as x, orderBy as y, getRedirectResult as z };
+export { signOut as $, getFirestore as A, getRedirectResult as B, startAfter as C, Timestamp as D, writeBatch as E, GoogleAuthProvider as F, reauthenticateWithPopup as G, linkWithPopup as H, browserLocalPersistence as I, setPersistence as J, sendEmailVerification as K, browserSessionPersistence as L, initializeFirestore as M, serverTimestamp as N, collection as O, EmailAuthProvider as P, signInWithRedirect as Q, createUserWithEmailAndPassword as R, setDoc as S, where as T, onAuthStateChanged as U, linkWithCredential as V, reauthenticateWithCredential as W, signInWithEmailAndPassword as X, signInWithCredential as Y, signInWithPopup as Z, memoryLocalCache as _, initializeAppCheck as a, query as b, getStorage as c, addDoc as d, updateProfile as et, deleteDoc as f, limit as g, getDocs as h, ReCaptchaV3Provider as i, increment as j, doc as k, ref as l, getDocFromServer as m, isSupported as n, getApps as nt, deleteObject as o, getDoc as p, sendPasswordResetEmail as q, ReCaptchaEnterpriseProvider as r, initializeApp as rt, getDownloadURL as s, getAnalytics as t, getApp as tt, uploadBytesResumable as u, onSnapshot as v, updateDoc as w, runTransaction as x, orderBy as y, getAuth as z };

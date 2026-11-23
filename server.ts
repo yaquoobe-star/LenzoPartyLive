@@ -193,13 +193,27 @@ async function verifyFirebaseBearerToken(authHeader?: string) {
     throw new Error('Invalid Firebase token signature');
   }
 
+  const identities =
+    payload.firebase?.identities && typeof payload.firebase.identities === 'object'
+      ? Object.keys(payload.firebase.identities)
+      : [];
+  const signInProvider = String(payload.firebase?.sign_in_provider || 'unknown');
+  const linkedProviders = Array.from(
+    new Set([
+      ...(identities.includes('google.com') || signInProvider === 'google.com' ? ['google.com'] : []),
+      ...(signInProvider === 'password' ? ['password'] : []),
+      ...identities.filter((k) => k !== 'email'),
+    ])
+  );
+
   return {
     uid: payload.sub as string,
     email: (payload.email as string) || '',
     emailVerified: Boolean(payload.email_verified),
     name: (payload.name as string) || '',
     picture: (payload.picture as string) || '',
-    signInProvider: payload.firebase?.sign_in_provider || 'unknown',
+    signInProvider,
+    linkedProviders,
   };
 }
 
@@ -2237,6 +2251,7 @@ app.post('/api/auth/session', async (req: Request, res: Response) => {
       email: verified.email,
       emailVerified: verified.emailVerified,
       provider: verified.signInProvider,
+      linkedProviders: verified.linkedProviders,
       firebaseProjectId: FIREBASE_PROJECT_ID,
     });
   } catch (err: any) {
