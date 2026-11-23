@@ -649,7 +649,7 @@ export async function sendEmailOtp(email: string): Promise<{
       primaryNetworkError = err;
     } else if (err?.isNetworkError) {
       const netErr: any = new Error(
-        `Unable to reach the Lenzo email server (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}). Please check your internet connection and try again.`
+        `The Lenzo email server (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}) is currently offline or restarting (HTTP 502). Please check the Railway deployment status, or tap "Continue with Email Verification Link Instead" below.`
       );
       netErr.code = 'SMTP_BACKEND_UNREACHABLE';
       throw netErr;
@@ -678,11 +678,11 @@ export async function sendEmailOtp(email: string): Promise<{
       );
       if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) {
         attempt = prodAttempt;
-      } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error && prodAttempt.response.status < 500) {
+      } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) {
         attempt = prodAttempt;
       } else {
         const cfgErr: any = new Error(
-          '6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.'
+          '6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
         );
         cfgErr.code = 'SMTP_NOT_CONFIGURED';
         throw cfgErr;
@@ -692,7 +692,7 @@ export async function sendEmailOtp(email: string): Promise<{
         throw fallbackErr;
       }
       const cfgErr: any = new Error(
-        '6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.'
+        '6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
       );
       cfgErr.code = 'SMTP_NOT_CONFIGURED';
       throw cfgErr;

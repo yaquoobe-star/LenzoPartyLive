@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CcSBBgpJ.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CcEQ85aw.js","assets/vendor-firebase-BXfD3et1.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-BNKOJcIr.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-D03ekv_w.js","assets/adminAuth-CSEij6hU.js","assets/StoreScreen-C5okPuSO.js","assets/StoreAssetPreview-DapRaNl4.js","assets/pushNotificationService-C6Lw_OKQ.js","assets/apiConfig-ByhnP-Sj.js","assets/SettingsScreen-C-kBVeFy.js","assets/UploadVideoScreen-DsCk7_U8.js","assets/WalletModal-DIq5fzk7.js","assets/LevelAndVIPModal-B-d6ljXx.js","assets/AdminProgressionModal-BjIwpCxB.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DlyzjQ1e.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CcEQ85aw.js","assets/vendor-firebase-BXfD3et1.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-ydEUsVge.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-9Roc6-u-.js","assets/adminAuth-CSEij6hU.js","assets/StoreScreen-aDQNRl4u.js","assets/StoreAssetPreview-DapRaNl4.js","assets/pushNotificationService-C6Lw_OKQ.js","assets/apiConfig-ByhnP-Sj.js","assets/SettingsScreen-Ce7DqGiJ.js","assets/UploadVideoScreen-B8DQCWlC.js","assets/WalletModal-hoK-4QfU.js","assets/LevelAndVIPModal-Bj6LoYta.js","assets/AdminProgressionModal-C43Zo8cv.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
 import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
@@ -2201,7 +2201,7 @@ async function sendEmailOtp(email) {
 	} catch (err) {
 		if (canFallbackToProdApi) primaryNetworkError = err;
 		else if (err?.isNetworkError) {
-			const netErr = /* @__PURE__ */ new Error(`Unable to reach the Lenzo email server (${primaryBase || "https://api.lenzoparty.com"}). Please check your internet connection and try again.`);
+			const netErr = /* @__PURE__ */ new Error(`The Lenzo email server (${primaryBase || "https://api.lenzoparty.com"}) is currently offline or restarting (HTTP 502). Please check the Railway deployment status, or tap "Continue with Email Verification Link Instead" below.`);
 			netErr.code = "SMTP_BACKEND_UNREACHABLE";
 			throw netErr;
 		} else throw err;
@@ -2210,15 +2210,15 @@ async function sendEmailOtp(email) {
 	if (canFallbackToProdApi && (Boolean(primaryNetworkError) || Boolean(attempt?.looksLikeHtml) || primaryNotConfigured)) try {
 		const prodAttempt = await postEmailOtpJson("/api/auth/email/send-otp", { email: cleanEmail }, 2e4, DEFAULT_BACKEND_API_ORIGIN);
 		if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) attempt = prodAttempt;
-		else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error && prodAttempt.response.status < 500) attempt = prodAttempt;
+		else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) attempt = prodAttempt;
 		else {
-			const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.");
+			const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.");
 			cfgErr.code = "SMTP_NOT_CONFIGURED";
 			throw cfgErr;
 		}
 	} catch (fallbackErr) {
 		if (fallbackErr?.code === "SMTP_NOT_CONFIGURED") throw fallbackErr;
-		const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires SMTP_USER and SMTP_PASS (Gmail App Password) on the backend server. You can verify via Email Link below right now.");
+		const cfgErr = /* @__PURE__ */ new Error("6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.");
 		cfgErr.code = "SMTP_NOT_CONFIGURED";
 		throw cfgErr;
 	}
@@ -12635,7 +12635,7 @@ var AuthScreen = ({ onSuccess, onSkip, initialSubScreen, mode = "login", prefill
 			setSubScreen("email_otp");
 		} catch (err) {
 			if (typeof err?.retryAfterSeconds === "number" && err.retryAfterSeconds > 0) setOtpResendCooldown(err.retryAfterSeconds);
-			if (err?.code === "SMTP_NOT_CONFIGURED" || err?.code === "SMTP_AUTH_ERROR" || err?.code === "SMTP_BACKEND_UNREACHABLE") setEmailLinkFallbackOffered(true);
+			if (err?.code === "SMTP_NOT_CONFIGURED" || err?.code === "SMTP_AUTH_ERROR" || err?.code === "SMTP_BACKEND_UNREACHABLE" || err?.code === "SMTP_CONNECTION_ERROR" || err?.code === "SMTP_DELIVERY_FAILED" || err?.code === "RAILWAY_SMTP_BLOCKED" || err?.code === "EMAIL_PROVIDER_AUTH_ERROR" || err?.code === "EMAIL_SENDER_UNVERIFIED" || err?.code === "EMAIL_WEBHOOK_ERROR" || err?.code === "EMAIL_WEBHOOK_ACCESS_ERROR") setEmailLinkFallbackOffered(true);
 			setErrorMessage(err.message || "Could not send verification code.");
 		} finally {
 			setIsLoading(false);
@@ -39313,15 +39313,15 @@ var AccountSwitcherModal = ({ isOpen, currentUser, onClose, onSwitchAccount, onA
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CcSBBgpJ.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BNKOJcIr.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-D03ekv_w.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-C5okPuSO.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C-kBVeFy.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DsCk7_U8.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DIq5fzk7.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-B-d6ljXx.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BjIwpCxB.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DlyzjQ1e.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-ydEUsVge.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-9Roc6-u-.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-aDQNRl4u.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Ce7DqGiJ.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B8DQCWlC.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-hoK-4QfU.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-Bj6LoYta.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-C43Zo8cv.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");

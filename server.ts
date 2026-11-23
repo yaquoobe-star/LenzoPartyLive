@@ -1239,6 +1239,47 @@ const emailOtpIpRequests = new Map<string, number[]>();
 let cachedSmtpTransportKey = '';
 let cachedSmtpTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
+type EmailOtpProvider = 'brevo-http' | 'gmail-webhook' | 'custom-smtp' | 'none';
+type EmailOtpTransportMode = 'https' | 'smtp' | 'none';
+
+function isRailwayRuntime(): boolean {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_PROJECT_ID ||
+      process.env.RAILWAY_SERVICE_ID ||
+      process.env.RAILWAY_STATIC_URL
+  );
+}
+
+function isSafeHttpsWebhookUrl(rawUrl: string): boolean {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return false;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      !host ||
+      host === 'localhost' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host === '[::1]' ||
+      host.endsWith('.local') ||
+      host.endsWith('.internal') ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^169\.254\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function maskEmailForLog(email: string): string {
   const parts = email.split('@');
   if (parts.length !== 2) return '***';
@@ -1278,6 +1319,11 @@ function inferSmtpHostAndPort(smtpUser: string): { host: string; port: number; s
 }
 
 function getEmailOtpConfig() {
+  const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+  const rawWebhookUrl = (process.env.EMAIL_WEBHOOK_URL || '').trim();
+  const webhookUrlValid = isSafeHttpsWebhookUrl(rawWebhookUrl);
+  const webhookSecret = (process.env.EMAIL_WEBHOOK_SECRET || '').trim();
+
   const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   const rawPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').trim();
   const explicitHost = (process.env.SMTP_HOST || '').trim();
@@ -1286,44 +1332,77 @@ function getEmailOtpConfig() {
   const parsedPort = Number(process.env.SMTP_PORT || '');
   const smtpPort = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : inferred.port;
   const rawSecure = (process.env.SMTP_SECURE || '').trim().toLowerCase();
+
+  // Port 465 always uses implicit TLS; ports 587 and 2525 MUST use STARTTLS (secure: false) so handshakes never stall.
   const smtpSecure =
-    rawSecure === 'true'
+    smtpPort === 465
       ? true
-      : rawSecure === 'false'
+      : smtpPort === 587 || smtpPort === 2525
         ? false
-        : explicitHost
-          ? smtpPort === 465
-          : inferred.secure;
+        : rawSecure === 'true'
+          ? true
+          : rawSecure === 'false'
+            ? false
+            : explicitHost
+              ? false
+              : inferred.secure;
 
   // Google App Passwords are often pasted with spaces ("abcd efgh ijkl mnop"); normalize for Gmail SMTP.
   const smtpPass =
     smtpHost.toLowerCase() === 'smtp.gmail.com' ? rawPass.replace(/\s+/g, '') : rawPass;
 
-  const rawFrom = (process.env.SMTP_FROM || '').trim();
-  const smtpFrom = rawFrom || (smtpUser ? `Lenzo Party Live <${smtpUser}>` : '');
+  const rawFrom = (process.env.EMAIL_FROM || process.env.SMTP_FROM || '').trim();
+  const fallbackFromAddress = smtpUser || 'lenzopartyofficial@gmail.com';
+  const smtpFrom = rawFrom || `Lenzo Party Live <${fallbackFromAddress}>`;
   const parsedFrom = parseFromEmailAddress(smtpFrom);
 
   const explicitSecret = (process.env.EMAIL_OTP_SECRET || '').trim();
   const emailOtpSecret = explicitSecret || GENERATED_EMAIL_OTP_SECRET;
 
+  let provider: EmailOtpProvider = 'none';
+  let transportMode: EmailOtpTransportMode = 'none';
+  let configured = false;
   const missingVars: string[] = [];
-  if (!smtpUser) missingVars.push('SMTP_USER');
-  if (!smtpPass) missingVars.push('SMTP_PASS');
-  if (smtpUser && !smtpHost) missingVars.push('SMTP_HOST');
+
+  if (brevoApiKey) {
+    provider = 'brevo-http';
+    transportMode = 'https';
+    configured = parsedFrom.valid;
+    if (!parsedFrom.valid) missingVars.push('EMAIL_FROM');
+  } else if (rawWebhookUrl) {
+    provider = 'gmail-webhook';
+    transportMode = 'https';
+    configured = webhookUrlValid;
+    if (!webhookUrlValid) missingVars.push('EMAIL_WEBHOOK_URL');
+  } else if (smtpHost && smtpUser && smtpPass && parsedFrom.valid) {
+    provider = 'custom-smtp';
+    transportMode = 'smtp';
+    configured = true;
+  } else {
+    if (!smtpUser) missingVars.push('BREVO_API_KEY or EMAIL_WEBHOOK_URL or SMTP_USER');
+    if (smtpUser && !smtpPass) missingVars.push('SMTP_PASS');
+    if (smtpUser && !smtpHost) missingVars.push('SMTP_HOST');
+  }
 
   return {
+    provider,
+    transportMode,
+    brevoApiKey,
+    webhookUrl: webhookUrlValid ? rawWebhookUrl : '',
+    webhookSecret,
     smtpHost,
     smtpPort,
     smtpSecure,
     smtpUser,
     smtpPass,
     smtpFrom,
+    fromAddress: parsedFrom.address || 'lenzopartyofficial@gmail.com',
     fromValid: parsedFrom.valid,
     fromDomain: parsedFrom.domain,
     emailOtpSecret,
     emailOtpSecretExplicit: Boolean(explicitSecret),
     missingVars,
-    configured: Boolean(smtpHost && smtpUser && smtpPass && parsedFrom.valid),
+    configured,
   };
 }
 
@@ -1340,16 +1419,192 @@ function getSmtpTransporter(cfg: ReturnType<typeof getEmailOtpConfig>) {
     host: cfg.smtpHost,
     port: cfg.smtpPort,
     secure: cfg.smtpSecure,
+    requireTLS: cfg.smtpPort === 587,
     auth: {
       user: cfg.smtpUser,
       pass: cfg.smtpPass,
     },
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-    socketTimeout: 20_000,
+    // Fail fast (8s) so Railway Trial/Hobby SMTP port blocks return structured JSON before Cloudflare 504s.
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 10_000,
   });
   cachedSmtpTransportKey = key;
   return cachedSmtpTransporter;
+}
+
+async function sendViaBrevoHttp(
+  cfg: ReturnType<typeof getEmailOtpConfig>,
+  payload: { to: string; subject: string; text: string; html: string }
+): Promise<{ messageId: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': cfg.brevoApiKey,
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'Lenzo Party Live',
+          email: cfg.fromAddress,
+        },
+        to: [{ email: payload.to }],
+        replyTo: {
+          name: 'Lenzo Party Live Support',
+          email: 'lenzopartyofficial@gmail.com',
+        },
+        subject: payload.subject,
+        textContent: payload.text,
+        htmlContent: payload.html,
+      }),
+      signal: controller.signal,
+    });
+
+    const rawText = await resp.text().catch(() => '');
+    let data: any = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!resp.ok) {
+      const apiErr: any = new Error(
+        String(data?.message || data?.code || `Brevo HTTP ${resp.status}`)
+      );
+      apiErr.httpStatus = resp.status;
+      apiErr.brevoCode = String(data?.code || '');
+      if (resp.status === 401 || resp.status === 403) {
+        apiErr.code = 'EMAIL_PROVIDER_AUTH_ERROR';
+      } else if (
+        resp.status === 400 &&
+        /sender|not valid|unverified/i.test(String(data?.message || ''))
+      ) {
+        apiErr.code = 'EMAIL_SENDER_UNVERIFIED';
+      } else {
+        apiErr.code = 'EMAIL_PROVIDER_ERROR';
+      }
+      throw apiErr;
+    }
+
+    return { messageId: String(data?.messageId || `brevo_${Date.now()}`) };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      const timeoutErr: any = new Error('Brevo HTTPS API request timed out.');
+      timeoutErr.code = 'ETIMEDOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function sendViaEmailWebhook(
+  cfg: ReturnType<typeof getEmailOtpConfig>,
+  payload: { to: string; subject: string; text: string; html: string }
+): Promise<{ messageId: string }> {
+  if (!cfg.webhookUrl || !isSafeHttpsWebhookUrl(cfg.webhookUrl)) {
+    const cfgErr: any = new Error('EMAIL_WEBHOOK_URL must be a valid public HTTPS URL.');
+    cfgErr.code = 'EMAIL_WEBHOOK_ERROR';
+    throw cfgErr;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const resp = await fetch(cfg.webhookUrl, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/plain, */*',
+      },
+      body: JSON.stringify({
+        secret: cfg.webhookSecret || undefined,
+        to: payload.to,
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+        replyTo: 'lenzopartyofficial@gmail.com',
+        senderName: 'Lenzo Party Live',
+      }),
+      signal: controller.signal,
+    });
+
+    const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+    const rawText = await resp.text().catch(() => '');
+    let data: any = null;
+    try {
+      data = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      data = null;
+    }
+
+    const looksLikeHtml =
+      contentType.includes('text/html') || /^\s*<!doctype html|^\s*<html/i.test(rawText);
+
+    if (looksLikeHtml) {
+      const accessErr: any = new Error(
+        'Email webhook returned an HTML page instead of JSON. Make sure your Google Apps Script Web App is deployed with "Execute as: Me" and "Who has access: Anyone".'
+      );
+      accessErr.code = 'EMAIL_WEBHOOK_ACCESS_ERROR';
+      throw accessErr;
+    }
+
+    if (!resp.ok || (data && (data.ok === false || data.success === false))) {
+      const webhookErr: any = new Error(
+        String(data?.error || data?.message || `Email webhook failed with HTTP ${resp.status}`)
+      );
+      webhookErr.code = resp.status === 401 || resp.status === 403 ? 'EMAIL_PROVIDER_AUTH_ERROR' : 'EMAIL_WEBHOOK_ERROR';
+      throw webhookErr;
+    }
+
+    return {
+      messageId: String(data?.messageId || `webhook_${Date.now()}`),
+    };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      const timeoutErr: any = new Error('Email webhook request timed out.');
+      timeoutErr.code = 'ETIMEDOUT';
+      throw timeoutErr;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function dispatchOtpEmail(
+  cfg: ReturnType<typeof getEmailOtpConfig>,
+  payload: { to: string; subject: string; text: string; html: string }
+): Promise<{ messageId: string; provider: EmailOtpProvider; transportMode: EmailOtpTransportMode }> {
+  if (cfg.provider === 'brevo-http') {
+    const result = await sendViaBrevoHttp(cfg, payload);
+    return { messageId: result.messageId, provider: cfg.provider, transportMode: 'https' };
+  }
+  if (cfg.provider === 'gmail-webhook') {
+    const result = await sendViaEmailWebhook(cfg, payload);
+    return { messageId: result.messageId, provider: cfg.provider, transportMode: 'https' };
+  }
+  const transporter = getSmtpTransporter(cfg);
+  const mailInfo = await transporter.sendMail({
+    from: cfg.smtpFrom,
+    to: payload.to,
+    replyTo: 'lenzopartyofficial@gmail.com',
+    subject: payload.subject,
+    text: payload.text,
+    html: payload.html,
+  });
+  return {
+    messageId: String(mailInfo?.messageId || ''),
+    provider: 'custom-smtp',
+    transportMode: 'smtp',
+  };
 }
 
 function buildOtpEmailHtml(otp: string): string {
@@ -1638,9 +1893,11 @@ app.get('/api/auth/email/status', (_req: Request, res: Response) => {
   const cfg = getEmailOtpConfig();
   return res.json({
     configured: cfg.configured,
-    provider: 'custom-smtp',
-    smtpHost: cfg.smtpHost || null,
-    smtpPort: cfg.smtpPort,
+    provider: cfg.provider,
+    transportMode: cfg.transportMode,
+    smtpHost: cfg.provider === 'custom-smtp' ? cfg.smtpHost || null : null,
+    smtpPort: cfg.provider === 'custom-smtp' ? cfg.smtpPort : null,
+    smtpSecure: cfg.provider === 'custom-smtp' ? cfg.smtpSecure : null,
     fromDomain: cfg.fromDomain,
     missingVars: cfg.missingVars,
     otpTtlSeconds: EMAIL_OTP_TTL_SECONDS,
@@ -1657,12 +1914,13 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
   console.info('[Email OTP] send-otp request received', {
     email: maskedEmail,
     configured: cfg.configured,
-    smtpHost: cfg.smtpHost || null,
+    provider: cfg.provider,
+    transportMode: cfg.transportMode,
     fromDomain: cfg.fromDomain,
   });
 
   try {
-    if (!email || email.length > 254 || !EMAIL_REGEX.test(email)) {
+    if (!email || email.length > 254 || /[\r\n]/.test(rawEmail) || !EMAIL_REGEX.test(email)) {
       console.warn('[Email OTP] Email validation failed', { email: maskedEmail });
       return res.status(400).json({
         success: false,
@@ -1675,8 +1933,9 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       const missingText =
         cfg.missingVars.length > 0
           ? `Set ${cfg.missingVars.join(' and ')} on the backend server.`
-          : 'SMTP sender address format is invalid.';
-      console.error('[Email OTP] Custom SMTP configuration incomplete', {
+          : 'Email sender configuration is invalid.';
+      console.error('[Email OTP] Email OTP configuration incomplete', {
+        provider: cfg.provider,
         missingVars: cfg.missingVars,
         fromValid: cfg.fromValid,
       });
@@ -1684,7 +1943,7 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
         success: false,
         code: 'SMTP_NOT_CONFIGURED',
         missingVars: cfg.missingVars,
-        error: `Custom Email OTP server needs SMTP credentials. ${missingText}`,
+        error: `Custom Email OTP server needs HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) or SMTP credentials. ${missingText}`,
       });
     }
 
@@ -1723,50 +1982,89 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
     const expiresAt = Math.floor(now / 1000) + EMAIL_OTP_TTL_SECONDS;
     const { challenge, jti } = makeEmailOtpChallenge(email, otp, expiresAt, cfg.emailOtpSecret);
 
-    const transporter = getSmtpTransporter(cfg);
-    const mailInfo = await transporter.sendMail({
-      from: cfg.smtpFrom,
+    const delivery = await dispatchOtpEmail(cfg, {
       to: email,
-      replyTo: 'lenzopartyofficial@gmail.com',
       subject: `${otp} is your Lenzo Party Live verification code`,
       text: `Lenzo Party Live\n\nYour 6-digit verification code is: ${otp}\n\nThis code expires in 10 minutes and can only be used once. Do not share it with anyone.\n\nOfficial Support: lenzopartyofficial@gmail.com`,
       html: buildOtpEmailHtml(otp),
     });
 
-    // SMTP server accepted the message: supersede any previous active OTP for this email & record cooldown
+    // Email server accepted the message: supersede any previous active OTP for this email & record cooldown
     emailOtpState.latestJtiByEmail[email] = { jti, exp: expiresAt, issuedAt: now };
     emailOtpState.lastSentByEmail[email] = now;
     ipTimestamps.push(now);
     emailOtpIpRequests.set(clientIp, ipTimestamps);
     persistEmailOtpStateToDisk();
 
-    console.info('[Email OTP] Verification email dispatched via SMTP', {
+    console.info('[Email OTP] Verification email dispatched', {
       email: maskedEmail,
-      messageId: String(mailInfo?.messageId || ''),
+      provider: delivery.provider,
+      transportMode: delivery.transportMode,
+      messageId: delivery.messageId,
       jtiPrefix: jti.slice(0, 8),
       expiresIn: EMAIL_OTP_TTL_SECONDS,
-      smtpHost: cfg.smtpHost,
     });
 
     return res.json({
       success: true,
       challenge,
+      provider: delivery.provider,
+      transportMode: delivery.transportMode,
       expiresIn: EMAIL_OTP_TTL_SECONDS,
       cooldownSeconds: Math.floor(EMAIL_OTP_RESEND_COOLDOWN_MS / 1000),
-      messageId: String(mailInfo?.messageId || ''),
+      messageId: delivery.messageId,
     });
   } catch (error: any) {
     const errCode = String(error?.code || '').toUpperCase();
     const responseCode = Number(error?.responseCode || 0);
     const rawMsg = String(error?.message || error || '');
 
-    console.error('[Email OTP] SMTP delivery failed', {
+    console.error('[Email OTP] Delivery failed', {
       email: maskedEmail,
-      smtpHost: cfg.smtpHost,
+      provider: cfg.provider,
+      transportMode: cfg.transportMode,
+      smtpHost: cfg.provider === 'custom-smtp' ? cfg.smtpHost : null,
+      smtpPort: cfg.provider === 'custom-smtp' ? cfg.smtpPort : null,
       errCode,
       responseCode,
       message: rawMsg,
     });
+
+    if (errCode === 'EMAIL_WEBHOOK_ACCESS_ERROR') {
+      return res.status(502).json({
+        success: false,
+        code: 'EMAIL_WEBHOOK_ACCESS_ERROR',
+        error: rawMsg,
+      });
+    }
+
+    if (errCode === 'EMAIL_SENDER_UNVERIFIED') {
+      return res.status(502).json({
+        success: false,
+        code: 'EMAIL_SENDER_UNVERIFIED',
+        error:
+          'Sender email is not yet verified in Brevo. Verify lenzopartyofficial@gmail.com under Brevo -> Senders & IP, then retry.',
+      });
+    }
+
+    if (errCode === 'EMAIL_PROVIDER_AUTH_ERROR') {
+      return res.status(502).json({
+        success: false,
+        code: 'EMAIL_PROVIDER_AUTH_ERROR',
+        error:
+          cfg.provider === 'brevo-http'
+            ? 'BREVO_API_KEY was rejected. Check your Brevo SMTP & API key in Railway Variables.'
+            : 'EMAIL_WEBHOOK_SECRET did not match the secret configured in your email webhook.',
+      });
+    }
+
+    if (errCode === 'EMAIL_WEBHOOK_ERROR') {
+      return res.status(502).json({
+        success: false,
+        code: 'EMAIL_WEBHOOK_ERROR',
+        error: rawMsg || 'Email webhook could not send the verification code.',
+      });
+    }
 
     if (errCode === 'EAUTH' || responseCode === 534 || responseCode === 535) {
       return res.status(502).json({
@@ -1785,16 +2083,32 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    if (
+    const isConnectionError =
       errCode === 'ETIMEDOUT' ||
       errCode === 'ESOCKET' ||
       errCode === 'ECONNECTION' ||
-      errCode === 'ENOTFOUND'
+      errCode === 'ECONNREFUSED' ||
+      errCode === 'ENOTFOUND';
+
+    if (
+      isConnectionError &&
+      cfg.provider === 'custom-smtp' &&
+      isRailwayRuntime() &&
+      (cfg.smtpPort === 25 || cfg.smtpPort === 465 || cfg.smtpPort === 587)
     ) {
-      return res.status(504).json({
+      return res.status(502).json({
+        success: false,
+        code: 'RAILWAY_SMTP_BLOCKED',
+        error:
+          'Railway Trial/Hobby plans block outbound SMTP ports (465/587). Add EMAIL_WEBHOOK_URL (free Gmail Apps Script over HTTPS 443) or BREVO_API_KEY in Railway Variables for instant 6-digit Email OTP delivery.',
+      });
+    }
+
+    if (isConnectionError) {
+      return res.status(502).json({
         success: false,
         code: 'SMTP_CONNECTION_ERROR',
-        error: 'Could not connect to the SMTP mail server. Please try again in a moment.',
+        error: 'Could not connect to the email mail server. Please try again in a moment.',
       });
     }
 
@@ -1878,9 +2192,11 @@ app.get('/api/health', (_req: Request, res: Response) => {
     agoraConfigured: Boolean(process.env.AGORA_APP_ID && process.env.AGORA_APP_CERTIFICATE),
     emailOtp: {
       configured: emailOtpCfg.configured,
-      provider: 'custom-smtp',
-      smtpHost: emailOtpCfg.smtpHost || null,
-      smtpPort: emailOtpCfg.smtpPort,
+      provider: emailOtpCfg.provider,
+      transportMode: emailOtpCfg.transportMode,
+      smtpHost: emailOtpCfg.provider === 'custom-smtp' ? emailOtpCfg.smtpHost || null : null,
+      smtpPort: emailOtpCfg.provider === 'custom-smtp' ? emailOtpCfg.smtpPort : null,
+      smtpSecure: emailOtpCfg.provider === 'custom-smtp' ? emailOtpCfg.smtpSecure : null,
       fromValid: emailOtpCfg.fromValid,
       fromDomain: emailOtpCfg.fromDomain,
       emailOtpSecretExplicit: emailOtpCfg.emailOtpSecretExplicit,

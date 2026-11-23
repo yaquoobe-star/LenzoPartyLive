@@ -254,7 +254,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       if (
         err?.code === 'SMTP_NOT_CONFIGURED' ||
         err?.code === 'SMTP_AUTH_ERROR' ||
-        err?.code === 'SMTP_BACKEND_UNREACHABLE'
+        err?.code === 'SMTP_BACKEND_UNREACHABLE' ||
+        err?.code === 'SMTP_CONNECTION_ERROR' ||
+        err?.code === 'SMTP_DELIVERY_FAILED' ||
+        err?.code === 'RAILWAY_SMTP_BLOCKED' ||
+        err?.code === 'EMAIL_PROVIDER_AUTH_ERROR' ||
+        err?.code === 'EMAIL_SENDER_UNVERIFIED' ||
+        err?.code === 'EMAIL_WEBHOOK_ERROR' ||
+        err?.code === 'EMAIL_WEBHOOK_ACCESS_ERROR'
       ) {
         setEmailLinkFallbackOffered(true);
       }
