@@ -3,6 +3,7 @@
   "steps": {
     "install": {
       "commands": [
+        { "src": "package.json", "dest": "package.json" },
         "bun install"
       ]
     }
