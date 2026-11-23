@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { Dn as ArrowLeft, Dt as Globe, En as ArrowRightLeft, L as Send, N as ShieldCheck, Yt as Copy, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, cn as Check, ct as Megaphone, dt as LogOut, f as UserX, ft as Lock, ht as Link2, j as Shield, kn as require_react, l as Vibrate, nt as Moon, r as X, s as Volume2, st as MessageCircle, ut as Mail, vn as BellRing, y as Trash2, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
 import { a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, f as registerDeviceForPushNotifications, h as sendSelfTestPushNotification, v as unregisterDevicePushNotifications } from "./pushNotificationService-C6Lw_OKQ.js";
-import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-2m6nzgVv.js";
+import { At as loadUserSettingsFromFirestore, Dt as getLinkedAuthProviders, Mt as submitAccountDeletionRequest, Nt as subscribeUserSettings, Ot as linkGoogleAccount, jt as saveUserSettingsToFirestore, kt as getSavedDeviceAccounts, t as BlockedUsersModal } from "./index-BlxLtZF6.js";
 import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CcEQ85aw.js";
 import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/SettingsScreen.tsx
@@ -980,7 +980,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast(`Lenzo Party Live v1.0.6 (Build 7 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
+							onClick: () => showToast(`Lenzo Party Live v1.0.7 (Build 8 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
@@ -996,7 +996,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 								className: "flex items-center gap-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-xs text-[#B9AECF]",
-									children: "v1.0.6 (Build 7)"
+									children: "v1.0.7 (Build 8)"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 							})]
 						}),

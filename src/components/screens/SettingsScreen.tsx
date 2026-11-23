@@ -1109,7 +1109,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           {/* About Lenzo Party Live */}
           <div
             onClick={() =>
-              showToast(`Lenzo Party Live v1.0.6 (Build 7 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`)
+              showToast(`Lenzo Party Live v1.0.7 (Build 8 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`)
             }
             className="flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group"
           >
@@ -1122,7 +1122,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span className="text-sm font-semibold text-white">About Lenzo Party Live</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-[#B9AECF]">v1.0.6 (Build 7)</span>
+              <span className="text-xs text-[#B9AECF]">v1.0.7 (Build 8)</span>
               <ChevronRight className="w-4 h-4 text-[#B9AECF]" />
             </div>
           </div>
