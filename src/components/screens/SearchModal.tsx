@@ -11,6 +11,7 @@ import {
   Trash2 
 } from 'lucide-react';
 import { LiveStream, PartyRoom, UserProfile } from '../../types';
+import { HDLiveRoomCard } from '../common/HDLiveRoomCard';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -202,35 +203,18 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               {['All', 'Live'].includes(filterType) && matchedLive.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-[#B9AECF] uppercase mb-2">Live Broadcasts</h4>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {matchedLive.map((stream) => (
-                      <div
+                      <HDLiveRoomCard
                         key={stream.id}
-                        onClick={() => {
+                        variant="live"
+                        stream={stream}
+                        onSelect={() => {
+                          recordSearch(query);
                           onClose();
                           onSelectLive(stream);
                         }}
-                        className="p-2.5 rounded-2xl bg-[#211333] hover:bg-[#2b1742] border border-white/5 flex items-center justify-between cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={stream.coverImage}
-                            alt={stream.title}
-                            className="w-12 h-12 rounded-xl object-cover"
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-white group-hover:text-[#F328D5] transition-colors">
-                              {stream.title}
-                            </span>
-                            <span className="text-[11px] text-[#B9AECF]">
-                              Host: {stream.host.name} • 👤 {stream.viewerCount}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black">
-                          LIVE
-                        </span>
-                      </div>
+                      />
                     ))}
                   </div>
                 </div>
@@ -278,33 +262,18 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               {['All', 'Rooms'].includes(filterType) && matchedRooms.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-[#B9AECF] uppercase mb-2">Party Rooms</h4>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {matchedRooms.map((room) => (
-                      <div
+                      <HDLiveRoomCard
                         key={room.id}
-                        onClick={() => {
+                        variant="party"
+                        room={room}
+                        onSelect={() => {
+                          recordSearch(query);
                           onClose();
                           onSelectRoom(room);
                         }}
-                        className="p-2.5 rounded-2xl bg-[#211333] hover:bg-[#2b1742] border border-white/5 flex items-center justify-between cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white">
-                            <Radio className="w-5 h-5" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-white group-hover:text-[#F328D5] transition-colors">
-                              {room.title}
-                            </span>
-                            <span className="text-[10px] text-[#B9AECF]">
-                              {room.category} • 👤 {room.participantCount} online
-                            </span>
-                          </div>
-                        </div>
-                        <span className="px-3 py-1 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-bold shadow">
-                          Join
-                        </span>
-                      </div>
+                      />
                     ))}
                   </div>
                 </div>

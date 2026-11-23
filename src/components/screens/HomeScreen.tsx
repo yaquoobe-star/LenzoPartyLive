@@ -39,6 +39,7 @@ import {
   subscribeActiveAgencies,
 } from '../../services/agencyService';
 import { CoinSlipOrderModal } from '../agency/CoinSlipOrderModal';
+import { HDLiveRoomCard } from '../common/HDLiveRoomCard';
 
 interface HomeScreenProps {
   currentUser?: UserProfile;
@@ -913,102 +914,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {visibleLiveCards.map((stream) => {
-                  const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
                   const topRankIndex = originalTopBroadcasters.findIndex(
                     (b) => b.host.id === stream.host.id
                   );
                   return (
-                    <div
+                    <HDLiveRoomCard
                       key={stream.id}
-                      onClick={() => onSelectLive(stream)}
-                      className="group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col"
-                    >
-                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#211333]">
-                        {cardImage ? (
-                          <img
-                            src={cardImage}
-                            alt={stream.title}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]">
-                            <Video className="w-10 h-10 text-white/30" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
-
-                        {/* Top Badges: LIVE + Optional Top Rank + Viewer Count */}
-                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1">
-                          <div className="flex items-center gap-1">
-                            <span className="bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                              LIVE
-                            </span>
-                            {topRankIndex >= 0 && (
-                              <span className="bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow">
-                                #{topRankIndex + 1}
-                              </span>
-                            )}
-                          </div>
-
-                          <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
-                            <Eye className="w-3 h-3 text-cyan-300" />
-                            <span>{stream.numericViewers ?? 0}</span>
-                          </span>
-                        </div>
-
-                        {/* Stream Title */}
-                        <div className="absolute bottom-10 left-2.5 right-2.5">
-                          <p className="text-xs font-extrabold text-white truncate drop-shadow">
-                            {stream.title}
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <LevelBadge level={stream.host.level || 0} size="sm" />
-                            <span className="text-[10px] text-rose-300 flex items-center gap-0.5 font-mono">
-                              <Heart className="w-2.5 h-2.5 fill-rose-400" />
-                              {stream.likesCount || 0}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Bottom Host Info with Follow Button */}
-                        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {stream.host.avatar ? (
-                              <img
-                                src={stream.host.avatar}
-                                alt={stream.host.name}
-                                referrerPolicy="no-referrer"
-                                className="w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0">
-                                {(stream.host.name || 'H').charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            <span className="text-xs font-bold text-white truncate drop-shadow">
-                              {stream.host.name}
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleFollow?.(stream.host.id);
-                            }}
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${
-                              stream.host.isFollowing
-                                ? 'bg-white/20 text-white'
-                                : 'bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white'
-                            }`}
-                          >
-                            {stream.host.isFollowing ? 'Following' : 'Follow'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      variant="live"
+                      stream={stream}
+                      topRankIndex={topRankIndex}
+                      onSelect={() => onSelectLive(stream)}
+                      onToggleFollow={onToggleFollow}
+                    />
                   );
                 })}
               </div>
@@ -1039,100 +956,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {visiblePartyRooms.map((room) => {
-                const maxSeats = normalizePartyMaxSeats(room.maxSeats, room.host?.level);
-                const activeCapacity = getActiveSeatCapacity(maxSeats, room.host?.level);
-                const occupiedSeats = countActiveOccupiedSeats(room.seats, maxSeats, room.host?.level);
-                const availableSeats = Math.max(0, activeCapacity - occupiedSeats);
-                const onlineCount =
-                  typeof room.numericParticipants === 'number'
-                    ? room.numericParticipants
-                    : parseInt(String(room.participantCount || '0'), 10) || 0;
-                const cardImage = room.coverImage || room.host?.coverImage || room.host?.avatar;
-
-                return (
-                  <div
-                    key={room.id}
-                    onClick={() => onSelectRoom(room)}
-                    className="group relative rounded-2xl overflow-hidden bg-[#160C25] border border-[#8B20FF]/30 hover:border-[#FA26A0]/70 transition-all duration-300 shadow-lg cursor-pointer flex flex-col"
-                  >
-                    <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#1C0D33]">
-                      {cardImage ? (
-                        <img
-                          src={cardImage}
-                          alt={room.title}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#240F42] via-[#3A125C] to-[#1A092B]">
-                          <Mic className="w-10 h-10 text-[#C084FC]/60" />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#090414]/95 via-[#140724]/30 to-black/35" />
-
-                      {/* Top Badges: AUDIO PARTY Status + Participant Count */}
-                      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1">
-                        <span className="bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white font-black text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md">
-                          <Mic className="w-2.5 h-2.5" />
-                          <span>AUDIO PARTY</span>
-                        </span>
-
-                        <span className="bg-black/65 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10">
-                          <Users className="w-3 h-3 text-emerald-300" />
-                          <span>{onlineCount}</span>
-                        </span>
-                      </div>
-
-                      {/* Room Title & Seat Availability */}
-                      <div className="absolute bottom-10 left-2.5 right-2.5 space-y-1">
-                        <p className="text-xs font-extrabold text-white truncate drop-shadow">
-                          {room.title}
-                        </p>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-md bg-[#1D0B38]/90 border border-[#A855F7]/40 text-[9px] font-bold text-[#E9D5FF]">
-                            {occupiedSeats}/{activeCapacity} Seats
-                          </span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
-                              availableSeats > 0
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                                : 'bg-rose-500/20 text-rose-300 border border-rose-400/30'
-                            }`}
-                          >
-                            {availableSeats > 0 ? `${availableSeats} Open` : 'Full'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bottom Host Info + Join Action */}
-                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {room.host?.avatar ? (
-                            <img
-                              src={room.host.avatar}
-                              alt={room.host.name}
-                              referrerPolicy="no-referrer"
-                              className="w-5 h-5 rounded-full object-cover ring-1 ring-[#FA26A0]/70 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0">
-                              {(room.host?.name || 'H').charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="text-xs font-bold text-white truncate drop-shadow">
-                            {room.host?.name || 'Host'}
-                          </span>
-                        </div>
-
-                        <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-[10px] font-black shadow-md shrink-0">
-                          Join
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {visiblePartyRooms.map((room) => (
+                <HDLiveRoomCard
+                  key={room.id}
+                  variant="party"
+                  room={room}
+                  onSelect={() => onSelectRoom(room)}
+                />
+              ))}
             </div>
           )}
         </section>

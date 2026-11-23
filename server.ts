@@ -43,6 +43,13 @@ import {
   runFinancialQaAssertions,
   validateEconomySettings,
 } from './src/shared/financialEngine';
+import {
+  DISCONNECT_GRACE_MS,
+  EMPTY_ROOM_CLEANUP_MS,
+  HEARTBEAT_STALE_MS,
+  RECENTLY_CLOSED_TTL_MS,
+  RoomLifecycleStatus,
+} from './src/shared/roomLifecycleConfig';
 
 const { RtcTokenBuilder, RtcRole } = (agoraTokenPkg as any).default || agoraTokenPkg;
 const _require = createRequire(import.meta.url);
@@ -72,6 +79,7 @@ server.on('error', (err) => {
 
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(express.text({ type: 'text/plain', limit: '64kb' }));
 
 // Graceful JSON handler for oversized payloads
 app.use((err: any, _req: Request, res: Response, next: express.NextFunction) => {
@@ -401,6 +409,13 @@ interface ServerLiveStream {
   coverImage: string;
   channelName: string;
   isLive: boolean;
+  status: RoomLifecycleStatus;
+  hostPresent: boolean;
+  hostLastSeen: number;
+  emptySince: number | null;
+  closesAt: number | null;
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
+  disconnectedUsers: Map<string, { timer: ReturnType<typeof setTimeout>; disconnectedAt: number }>;
   allowGuests: boolean;
   isPrivate: boolean;
   announcement?: string;
@@ -429,6 +444,12 @@ interface ServerPartyRoom {
   announcement: string;
   isLocked: boolean;
   allowJoin: boolean;
+  status: RoomLifecycleStatus;
+  hostPresent: boolean;
+  emptySince: number | null;
+  closesAt: number | null;
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
+  disconnectedUsers: Map<string, { timer: ReturnType<typeof setTimeout>; disconnectedAt: number }>;
   seats: (any | null)[];
   mutedSeatIndices: Set<number>;
   pendingRequests: Map<string, any>;
@@ -471,8 +492,23 @@ interface RankingConfig {
   updatedBy?: string;
 }
 
+const SERVER_EMPTY_ROOM_CLEANUP_MS = Math.max(
+  1000,
+  Number(process.env.LENZO_EMPTY_ROOM_CLEANUP_MS) || EMPTY_ROOM_CLEANUP_MS
+);
+const SERVER_DISCONNECT_GRACE_MS = Math.max(
+  500,
+  Number(process.env.LENZO_DISCONNECT_GRACE_MS) || DISCONNECT_GRACE_MS
+);
+const SERVER_HEARTBEAT_STALE_MS = Math.max(
+  2000,
+  Number(process.env.LENZO_HEARTBEAT_STALE_MS) || HEARTBEAT_STALE_MS
+);
+
 const liveStreamsMap = new Map<string, ServerLiveStream>();
 const partyRoomsMap = new Map<string, ServerPartyRoom>();
+const recentlyClosedStreamIds = new Map<string, number>();
+const recentlyClosedRoomIds = new Map<string, number>();
 const broadcasterMetricsMap = new Map<string, BroadcasterMetricRecord>();
 const contributorMetricsMap = new Map<string, ContributorMetricRecord>();
 
@@ -713,7 +749,12 @@ function serializeLiveStream(stream: ServerLiveStream) {
     coverImage: stream.coverImage,
     viewerCount: formatCompactCount(numericViewers),
     numericViewers,
-    isLive: stream.isLive,
+    isLive: stream.isLive && stream.status !== 'closed',
+    status: stream.status,
+    hostPresent: Boolean(stream.hostPresent),
+    emptySince: stream.emptySince,
+    closesAt: stream.closesAt,
+    streamType: 'solo' as const,
     tags: stream.tags,
     guests: [],
     likesCount: stream.likesCount,
@@ -736,6 +777,7 @@ function serializePartyRoom(room: ServerPartyRoom) {
   }
   const occupiedSeats = safeSeats.filter(Boolean).length;
   const numericParticipants = room.participants.size;
+  const hostPresent = room.participants.has(room.host?.id);
   return {
     id: room.id,
     displayId: room.displayId,
@@ -756,13 +798,389 @@ function serializePartyRoom(room: ServerPartyRoom) {
     mutedSeatIndices: Array.from(room.mutedSeatIndices).filter((idx) => idx < safeMaxSeats),
     isLocked: room.isLocked,
     allowJoin: room.allowJoin,
-    isOwnerPresent: room.participants.has(room.host?.id),
+    isOwnerPresent: hostPresent,
+    hostPresent,
+    status: room.status,
+    emptySince: room.emptySince,
+    closesAt: room.closesAt,
     startTime: room.startTime,
     likesCount: room.likesCount,
     backgroundType: room.backgroundType || 'preset',
     backgroundId: room.backgroundId || 'royal_neon',
     backgroundImage: room.backgroundImage || '',
   };
+}
+
+function parseJsonOrBeaconBody(body: any): Record<string, any> {
+  if (!body) return {};
+  if (typeof body === 'string') {
+    try {
+      const parsed = JSON.parse(body);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof body === 'object' ? body : {};
+}
+
+function clearRoomUserDisconnectTimer(room: ServerPartyRoom, userId: string) {
+  const entry = room.disconnectedUsers.get(userId);
+  if (entry) {
+    clearTimeout(entry.timer);
+    room.disconnectedUsers.delete(userId);
+  }
+}
+
+function clearStreamUserDisconnectTimer(stream: ServerLiveStream, userId: string) {
+  const entry = stream.disconnectedUsers.get(userId);
+  if (entry) {
+    clearTimeout(entry.timer);
+    stream.disconnectedUsers.delete(userId);
+  }
+}
+
+function clearRoomCleanupTimer(room: ServerPartyRoom) {
+  if (room.cleanupTimer) {
+    clearTimeout(room.cleanupTimer);
+    room.cleanupTimer = null;
+  }
+}
+
+function clearStreamCleanupTimer(stream: ServerLiveStream) {
+  if (stream.cleanupTimer) {
+    clearTimeout(stream.cleanupTimer);
+    stream.cleanupTimer = null;
+  }
+}
+
+function closePartyRoomAuthoritatively(room: ServerPartyRoom, reason = 'auto_closed_empty') {
+  if (room.status === 'closed') return;
+  clearRoomCleanupTimer(room);
+  for (const entry of room.disconnectedUsers.values()) {
+    clearTimeout(entry.timer);
+  }
+  room.disconnectedUsers.clear();
+  room.status = 'closed';
+  room.hostPresent = false;
+  room.emptySince = null;
+  room.closesAt = null;
+  room.seats = Array(room.maxSeats).fill(null);
+  room.mutedSeatIndices.clear();
+  room.pendingRequests.clear();
+  room.participants.clear();
+  partyRoomsMap.delete(room.id);
+  recentlyClosedRoomIds.set(room.id, Date.now());
+
+  const autoClosed = reason === 'auto_closed_empty';
+  broadcastToRoom(room.id, 'room:closed', {
+    roomId: room.id,
+    reason: autoClosed ? 'Party room closed automatically after 5 minutes of inactivity.' : reason,
+    autoClosed,
+  });
+  broadcastAll('room:directory_updated', {
+    roomId: room.id,
+    action: 'ended',
+    reason,
+    autoClosed,
+  });
+}
+
+function closeLiveStreamAuthoritatively(stream: ServerLiveStream, reason = 'auto_closed_empty') {
+  if (stream.status === 'closed') return;
+  clearStreamCleanupTimer(stream);
+  for (const entry of stream.disconnectedUsers.values()) {
+    clearTimeout(entry.timer);
+  }
+  stream.disconnectedUsers.clear();
+  stream.status = 'closed';
+  stream.isLive = false;
+  stream.hostPresent = false;
+  stream.emptySince = null;
+  stream.closesAt = null;
+  stream.viewers.clear();
+  liveStreamsMap.delete(stream.id);
+  recentlyClosedStreamIds.set(stream.id, Date.now());
+
+  const metric = broadcasterMetricsMap.get(stream.host?.id);
+  if (metric && metric.liveStreamId === stream.id) {
+    metric.isCurrentlyLive = false;
+    metric.liveStreamId = undefined;
+  }
+
+  const autoClosed = reason === 'auto_closed_empty';
+  broadcastToLive(stream.id, 'live:ended', {
+    streamId: stream.id,
+    reason: autoClosed ? 'Solo Live room closed automatically after 5 minutes of inactivity.' : reason,
+    autoClosed,
+  });
+  broadcastAll('live:directory_updated', {
+    streamId: stream.id,
+    action: 'ended',
+    reason,
+    autoClosed,
+  });
+}
+
+function reconcilePartyRoomLifecycle(room: ServerPartyRoom, broadcastDirectory = true) {
+  if (room.status === 'closed' || partyRoomsMap.get(room.id) !== room) return;
+  room.hostPresent = room.participants.has(room.host?.id);
+  const activeCount = room.participants.size;
+
+  if (activeCount > 0) {
+    const wasEmpty = room.status === 'empty';
+    clearRoomCleanupTimer(room);
+    room.status = 'active';
+    room.emptySince = null;
+    room.closesAt = null;
+    const serialized = serializePartyRoom(room);
+    if (wasEmpty) {
+      broadcastToRoom(room.id, 'room:reactivated', { roomId: room.id, room: serialized });
+    }
+    if (broadcastDirectory) {
+      broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
+    }
+    return;
+  }
+
+  // Zero active participants: mark EMPTY and start single authoritative 5-minute countdown
+  if (room.status !== 'empty' || !room.cleanupTimer) {
+    clearRoomCleanupTimer(room);
+    const now = Date.now();
+    room.status = 'empty';
+    room.emptySince = room.emptySince ?? now;
+    room.closesAt = room.closesAt ?? now + SERVER_EMPTY_ROOM_CLEANUP_MS;
+    const delayMs = Math.max(0, room.closesAt - now);
+
+    room.cleanupTimer = setTimeout(() => {
+      room.cleanupTimer = null;
+      if (partyRoomsMap.get(room.id) !== room || room.status !== 'empty') return;
+      if (room.participants.size > 0) {
+        reconcilePartyRoomLifecycle(room, true);
+        return;
+      }
+      closePartyRoomAuthoritatively(room, 'auto_closed_empty');
+    }, delayMs);
+
+    const serialized = serializePartyRoom(room);
+    broadcastToRoom(room.id, 'room:empty_countdown_started', {
+      roomId: room.id,
+      emptySince: room.emptySince,
+      closesAt: room.closesAt,
+      room: serialized,
+    });
+    if (broadcastDirectory) {
+      broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
+    }
+  } else if (broadcastDirectory) {
+    broadcastAll('room:directory_updated', {
+      roomId: room.id,
+      action: 'updated',
+      room: serializePartyRoom(room),
+    });
+  }
+}
+
+function reconcileLiveStreamLifecycle(stream: ServerLiveStream, broadcastDirectory = true) {
+  if (stream.status === 'closed' || liveStreamsMap.get(stream.id) !== stream) return;
+  const activeOccupancy = (stream.hostPresent ? 1 : 0) + stream.viewers.size;
+
+  if (activeOccupancy > 0) {
+    const wasEmpty = stream.status === 'empty';
+    clearStreamCleanupTimer(stream);
+    stream.status = 'active';
+    stream.emptySince = null;
+    stream.closesAt = null;
+    const serialized = serializeLiveStream(stream);
+    if (wasEmpty) {
+      broadcastToLive(stream.id, 'live:reactivated', { streamId: stream.id, stream: serialized });
+    }
+    if (broadcastDirectory) {
+      broadcastAll('live:directory_updated', { streamId: stream.id, action: 'updated', stream: serialized });
+    }
+    return;
+  }
+
+  // Zero active participants (host left AND 0 viewers remain): mark EMPTY and start 5-minute countdown
+  if (stream.status !== 'empty' || !stream.cleanupTimer) {
+    clearStreamCleanupTimer(stream);
+    const now = Date.now();
+    stream.status = 'empty';
+    stream.emptySince = stream.emptySince ?? now;
+    stream.closesAt = stream.closesAt ?? now + SERVER_EMPTY_ROOM_CLEANUP_MS;
+    const delayMs = Math.max(0, stream.closesAt - now);
+
+    stream.cleanupTimer = setTimeout(() => {
+      stream.cleanupTimer = null;
+      if (liveStreamsMap.get(stream.id) !== stream || stream.status !== 'empty') return;
+      const currentOccupancy = (stream.hostPresent ? 1 : 0) + stream.viewers.size;
+      if (currentOccupancy > 0) {
+        reconcileLiveStreamLifecycle(stream, true);
+        return;
+      }
+      closeLiveStreamAuthoritatively(stream, 'auto_closed_empty');
+    }, delayMs);
+
+    const serialized = serializeLiveStream(stream);
+    broadcastToLive(stream.id, 'live:empty_countdown_started', {
+      streamId: stream.id,
+      emptySince: stream.emptySince,
+      closesAt: stream.closesAt,
+      stream: serialized,
+    });
+    if (broadcastDirectory) {
+      broadcastAll('live:directory_updated', { streamId: stream.id, action: 'updated', stream: serialized });
+    }
+  } else if (broadcastDirectory) {
+    broadcastAll('live:directory_updated', {
+      streamId: stream.id,
+      action: 'updated',
+      stream: serializeLiveStream(stream),
+    });
+  }
+}
+
+function markPartyParticipantLeft(room: ServerPartyRoom, userId: string, reason = 'explicit_leave') {
+  if (!room || room.status === 'closed' || !userId) return;
+  clearRoomUserDisconnectTimer(room, userId);
+
+  const isHost = userId === room.host?.id;
+  const wasParticipant = room.participants.delete(userId);
+  if (isHost) {
+    room.hostPresent = false;
+  }
+
+  if (room.pendingRequests.has(userId)) {
+    room.pendingRequests.delete(userId);
+    broadcastToRoom(room.id, 'room:seat_request_cancelled', { roomId: room.id, userId });
+  }
+
+  // Clear ALL seats occupied by this user (including Host Seat 0)
+  const vacatedSeats: Array<{ index: number; removedUser: any }> = [];
+  for (let idx = 0; idx < room.seats.length; idx++) {
+    const occupant = room.seats[idx];
+    if (occupant && (occupant.id === userId || (isHost && idx === 0 && occupant.id === room.host?.id))) {
+      vacatedSeats.push({ index: idx, removedUser: occupant });
+      room.seats[idx] = null;
+      room.mutedSeatIndices.delete(idx);
+    }
+  }
+
+  if (vacatedSeats.length > 0) {
+    const serializedAfterVacate = serializePartyRoom(room);
+    for (const vacated of vacatedSeats) {
+      broadcastToRoom(room.id, 'room:seat_vacated', {
+        roomId: room.id,
+        seatIndex: vacated.index,
+        removedUser: vacated.removedUser,
+        reason,
+        room: serializedAfterVacate,
+      });
+    }
+  }
+
+  // Update lifecycle (active vs empty 5-min countdown) BEFORE broadcasting participant_left so payload includes status/closesAt
+  reconcilePartyRoomLifecycle(room, true);
+
+  if (wasParticipant || vacatedSeats.length > 0 || isHost) {
+    broadcastToRoom(room.id, 'webrtc:room_peer_left', { roomId: room.id, fromUserId: userId });
+    const serialized = serializePartyRoom(room);
+    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+    broadcastToRoom(room.id, 'room:participant_left', {
+      roomId: room.id,
+      userId,
+      isHost,
+      reason,
+      participants: participantsSnapshot,
+      room: serialized,
+    });
+  }
+}
+
+function markLiveParticipantLeft(stream: ServerLiveStream, userId: string, reason = 'explicit_leave') {
+  if (!stream || stream.status === 'closed' || !userId) return;
+  clearStreamUserDisconnectTimer(stream, userId);
+
+  const isHost = userId === stream.host?.id;
+  let changed = false;
+
+  if (isHost) {
+    if (stream.hostPresent) {
+      stream.hostPresent = false;
+      changed = true;
+    }
+    if (stream.viewers.delete(userId)) {
+      changed = true;
+    }
+  } else if (stream.viewers.delete(userId)) {
+    changed = true;
+  }
+
+  // Update lifecycle (active vs empty 5-min countdown) before broadcasting so clients see fresh status/closesAt
+  reconcileLiveStreamLifecycle(stream, true);
+
+  if (changed) {
+    broadcastToLive(stream.id, 'webrtc:peer_left', { streamId: stream.id, fromUserId: userId });
+    const serialized = serializeLiveStream(stream);
+    const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+    if (isHost) {
+      broadcastToLive(stream.id, 'live:host_left', {
+        streamId: stream.id,
+        hostId: userId,
+        reason,
+        stream: serialized,
+        numericViewers: serialized.numericViewers,
+        viewerCount: serialized.viewerCount,
+      });
+    }
+    broadcastToLive(stream.id, 'live:viewer_left', {
+      streamId: stream.id,
+      userId,
+      isHost,
+      reason,
+      viewers: viewersSnapshot.slice(0, 20),
+      numericViewers: serialized.numericViewers,
+      viewerCount: serialized.viewerCount,
+      stream: serialized,
+    });
+  }
+}
+
+function schedulePartyDisconnectGrace(room: ServerPartyRoom, userId: string) {
+  if (!room || room.status === 'closed' || !room.participants.has(userId)) return;
+  clearRoomUserDisconnectTimer(room, userId);
+  const disconnectedAt = Date.now();
+  const timer = setTimeout(() => {
+    room.disconnectedUsers.delete(userId);
+    if (partyRoomsMap.get(room.id) !== room || room.status === 'closed') return;
+    if (hasOtherSocketInRoom(userId, room.id)) return;
+    const participant = room.participants.get(userId);
+    if (!participant) return;
+    if (participant.lastSeen > disconnectedAt) return;
+    markPartyParticipantLeft(room, userId, 'disconnect_timeout');
+  }, SERVER_DISCONNECT_GRACE_MS);
+  room.disconnectedUsers.set(userId, { timer, disconnectedAt });
+}
+
+function scheduleLiveDisconnectGrace(stream: ServerLiveStream, userId: string) {
+  if (!stream || stream.status === 'closed') return;
+  const isHost = userId === stream.host?.id;
+  if (isHost ? !stream.hostPresent : !stream.viewers.has(userId)) return;
+  clearStreamUserDisconnectTimer(stream, userId);
+  const disconnectedAt = Date.now();
+  const timer = setTimeout(() => {
+    stream.disconnectedUsers.delete(userId);
+    if (liveStreamsMap.get(stream.id) !== stream || stream.status === 'closed') return;
+    if (hasOtherSocketInStream(userId, stream.id)) return;
+    if (isHost) {
+      if (!stream.hostPresent || stream.hostLastSeen > disconnectedAt) return;
+    } else {
+      const viewer = stream.viewers.get(userId);
+      if (!viewer || viewer.lastSeen > disconnectedAt) return;
+    }
+    markLiveParticipantLeft(stream, userId, 'disconnect_timeout');
+  }, SERVER_DISCONNECT_GRACE_MS);
+  stream.disconnectedUsers.set(userId, { timer, disconnectedAt });
 }
 
 // WebSocket Server (PK Battles, Live Streams, Party Rooms & Real-Time Sync)
@@ -906,7 +1324,20 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
         ws.subscribedStreamId = String(msg.streamId);
         if (msg.userId) ws.userId = String(msg.userId);
         const stream = liveStreamsMap.get(ws.subscribedStreamId);
-        if (stream) {
+        if (stream && stream.status !== 'closed') {
+          if (ws.userId) {
+            clearStreamUserDisconnectTimer(stream, ws.userId);
+            const now = Date.now();
+            if (ws.userId === stream.host?.id) {
+              stream.hostLastSeen = now;
+              if (!stream.hostPresent) {
+                stream.hostPresent = true;
+                reconcileLiveStreamLifecycle(stream, true);
+              }
+            } else if (stream.viewers.has(ws.userId)) {
+              stream.viewers.get(ws.userId)!.lastSeen = now;
+            }
+          }
           ws.send(JSON.stringify({
             event: 'live:sync_state',
             payload: {
@@ -924,7 +1355,13 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
         ws.subscribedRoomId = String(msg.roomId);
         if (msg.userId) ws.userId = String(msg.userId);
         const room = partyRoomsMap.get(ws.subscribedRoomId);
-        if (room) {
+        if (room && room.status !== 'closed') {
+          if (ws.userId) {
+            clearRoomUserDisconnectTimer(room, ws.userId);
+            if (room.participants.has(ws.userId)) {
+              room.participants.get(ws.userId)!.lastSeen = Date.now();
+            }
+          }
           ws.send(JSON.stringify({
             event: 'room:sync_state',
             payload: {
@@ -994,50 +1431,16 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
     const uid = ws.userId;
     if (uid && ws.subscribedStreamId) {
       const stream = liveStreamsMap.get(ws.subscribedStreamId);
-      if (stream && !hasOtherSocketInStream(uid, ws.subscribedStreamId, ws)) {
-        broadcastToLive(stream.id, 'webrtc:peer_left', { streamId: stream.id, fromUserId: uid });
-        if (stream.viewers.has(uid)) {
-          stream.viewers.delete(uid);
-          const serialized = serializeLiveStream(stream);
-          broadcastToLive(stream.id, 'live:viewer_left', {
-            streamId: stream.id,
-            userId: uid,
-            numericViewers: serialized.numericViewers,
-            viewerCount: serialized.viewerCount,
-          });
-          broadcastAll('live:directory_updated', { streamId: stream.id, action: 'updated', stream: serialized });
-        }
+      if (stream && stream.status !== 'closed' && !hasOtherSocketInStream(uid, ws.subscribedStreamId, ws)) {
+        // Scenario C: Do not immediately evict on momentary disconnect — allow grace period for reconnection
+        scheduleLiveDisconnectGrace(stream, uid);
       }
     }
     if (uid && ws.subscribedRoomId) {
       const room = partyRoomsMap.get(ws.subscribedRoomId);
-      if (room && !hasOtherSocketInRoom(uid, ws.subscribedRoomId, ws)) {
-        broadcastToRoom(room.id, 'webrtc:room_peer_left', { roomId: room.id, fromUserId: uid });
-        room.participants.delete(uid);
-        if (room.pendingRequests.has(uid)) {
-          room.pendingRequests.delete(uid);
-          broadcastToRoom(room.id, 'room:seat_request_cancelled', { roomId: room.id, userId: uid });
-        }
-        // Vacate any seat (including Host Seat 0) if disconnecting user has no other open socket in the room
-        const seatIdx = room.seats.findIndex((s) => s && s.id === uid);
-        if (seatIdx >= 0) {
-          const removedUser = room.seats[seatIdx];
-          room.seats[seatIdx] = null;
-          room.mutedSeatIndices.delete(seatIdx);
-          broadcastToRoom(room.id, 'room:seat_vacated', {
-            roomId: room.id,
-            seatIndex: seatIdx,
-            removedUser,
-            room: serializePartyRoom(room),
-          });
-        }
-        const serialized = serializePartyRoom(room);
-        broadcastToRoom(room.id, 'room:participant_left', {
-          roomId: room.id,
-          userId: uid,
-          room: serialized,
-        });
-        broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
+      if (room && room.status !== 'closed' && !hasOtherSocketInRoom(uid, ws.subscribedRoomId, ws)) {
+        // Scenario C: Do not immediately evict on momentary disconnect — allow grace period for reconnection
+        schedulePartyDisconnectGrace(room, uid);
       }
     }
   });
@@ -1055,61 +1458,90 @@ const pingInterval = setInterval(() => {
   });
 }, 25000);
 
-// Prune stale live viewers (>90s without heartbeat) & expired seat requests (>60s)
+// Authoritative Room & Live Presence Monitor + Empty-Room Auto-Cleanup Safety Sweep (every 15s)
 setInterval(() => {
   const now = Date.now();
-  for (const stream of liveStreamsMap.values()) {
-    let changed = false;
-    for (const [uid, v] of stream.viewers.entries()) {
-      if (now - v.lastSeen > 90000) {
-        stream.viewers.delete(uid);
-        changed = true;
+
+  for (const stream of Array.from(liveStreamsMap.values())) {
+    if (stream.status === 'closed') {
+      liveStreamsMap.delete(stream.id);
+      continue;
+    }
+
+    // Prune stale host who stopped heartbeating and has no open WS or pending grace timer
+    if (
+      stream.hostPresent &&
+      now - stream.hostLastSeen > SERVER_HEARTBEAT_STALE_MS &&
+      !hasOtherSocketInStream(stream.host?.id, stream.id) &&
+      !stream.disconnectedUsers.has(stream.host?.id)
+    ) {
+      markLiveParticipantLeft(stream, stream.host.id, 'heartbeat_timeout');
+    }
+
+    // Prune stale viewers who stopped heartbeating and have no open WS or pending grace timer
+    for (const [uid, v] of Array.from(stream.viewers.entries())) {
+      if (
+        now - v.lastSeen > SERVER_HEARTBEAT_STALE_MS &&
+        !hasOtherSocketInStream(uid, stream.id) &&
+        !stream.disconnectedUsers.has(uid)
+      ) {
+        markLiveParticipantLeft(stream, uid, 'heartbeat_timeout');
       }
     }
-    if (changed) {
-      const serialized = serializeLiveStream(stream);
-      broadcastToLive(stream.id, 'live:viewer_count_updated', {
-        streamId: stream.id,
-        numericViewers: serialized.numericViewers,
-        viewerCount: serialized.viewerCount,
-      });
+
+    // Belt-and-suspenders expiry verification for empty Solo Live rooms
+    if (
+      liveStreamsMap.get(stream.id) === stream &&
+      stream.status === 'empty' &&
+      stream.closesAt !== null &&
+      now >= stream.closesAt &&
+      (stream.hostPresent ? 1 : 0) + stream.viewers.size === 0
+    ) {
+      closeLiveStreamAuthoritatively(stream, 'auto_closed_empty');
     }
   }
-  for (const room of partyRoomsMap.values()) {
-    let participantsChanged = false;
-    for (const [uid, participant] of room.participants.entries()) {
-      if (now - participant.lastSeen > 90000 && !hasOtherSocketInRoom(uid, room.id)) {
-        room.participants.delete(uid);
-        participantsChanged = true;
-        const seatIdx = room.seats.findIndex((s) => s && s.id === uid);
-        if (seatIdx >= 0) {
-          const removedUser = room.seats[seatIdx];
-          room.seats[seatIdx] = null;
-          room.mutedSeatIndices.delete(seatIdx);
-          broadcastToRoom(room.id, 'room:seat_vacated', {
-            roomId: room.id,
-            seatIndex: seatIdx,
-            removedUser,
-            room: serializePartyRoom(room),
-          });
-        }
-        broadcastToRoom(room.id, 'room:participant_left', {
-          roomId: room.id,
-          userId: uid,
-          room: serializePartyRoom(room),
-        });
+
+  for (const room of Array.from(partyRoomsMap.values())) {
+    if (room.status === 'closed') {
+      partyRoomsMap.delete(room.id);
+      continue;
+    }
+
+    for (const [uid, participant] of Array.from(room.participants.entries())) {
+      if (
+        now - participant.lastSeen > SERVER_HEARTBEAT_STALE_MS &&
+        !hasOtherSocketInRoom(uid, room.id) &&
+        !room.disconnectedUsers.has(uid)
+      ) {
+        markPartyParticipantLeft(room, uid, 'heartbeat_timeout');
       }
     }
-    if (participantsChanged) {
-      const serialized = serializePartyRoom(room);
-      broadcastAll('room:directory_updated', { roomId: room.id, action: 'updated', room: serialized });
-    }
-    for (const [uid, reqObj] of room.pendingRequests.entries()) {
+
+    for (const [uid, reqObj] of Array.from(room.pendingRequests.entries())) {
       if (reqObj.expiresAt && now > reqObj.expiresAt) {
         room.pendingRequests.delete(uid);
         broadcastToRoom(room.id, 'room:seat_request_cancelled', { roomId: room.id, userId: uid });
       }
     }
+
+    // Belt-and-suspenders expiry verification for empty Party Rooms
+    if (
+      partyRoomsMap.get(room.id) === room &&
+      room.status === 'empty' &&
+      room.closesAt !== null &&
+      now >= room.closesAt &&
+      room.participants.size === 0
+    ) {
+      closePartyRoomAuthoritatively(room, 'auto_closed_empty');
+    }
+  }
+
+  // Clean up expired recently-closed memory entries
+  for (const [id, closedAt] of Array.from(recentlyClosedRoomIds.entries())) {
+    if (now - closedAt > RECENTLY_CLOSED_TTL_MS) recentlyClosedRoomIds.delete(id);
+  }
+  for (const [id, closedAt] of Array.from(recentlyClosedStreamIds.entries())) {
+    if (now - closedAt > RECENTLY_CLOSED_TTL_MS) recentlyClosedStreamIds.delete(id);
   }
 }, 15000);
 
@@ -2696,6 +3128,7 @@ app.post('/api/pk/history', (req: Request, res: Response) => {
 
 app.get('/api/rooms', (_req: Request, res: Response) => {
   const rooms = Array.from(partyRoomsMap.values())
+    .filter((r) => r.status !== 'closed')
     .sort((a, b) => b.startTime - a.startTime)
     .map(serializePartyRoom);
   res.json({ rooms });
@@ -2703,7 +3136,7 @@ app.get('/api/rooms', (_req: Request, res: Response) => {
 
 app.get('/api/rooms/:roomId', (req: Request, res: Response) => {
   const room = partyRoomsMap.get(req.params.roomId);
-  if (!room) {
+  if (!room || room.status === 'closed') {
     return res.status(404).json({ error: 'Party room not found or has ended.' });
   }
   res.json({
@@ -2802,6 +3235,12 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
     announcement: sanitizeText(announcement, 250) || 'Welcome to our party voice room!',
     isLocked: false,
     allowJoin: true,
+    status: 'active',
+    hostPresent: true,
+    emptySince: null,
+    closesAt: null,
+    cleanupTimer: null,
+    disconnectedUsers: new Map(),
     seats,
     mutedSeatIndices: new Set<number>(),
     pendingRequests: new Map(),
@@ -2829,6 +3268,7 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
     isHost: true,
   });
 
+  recentlyClosedRoomIds.delete(roomId);
   serverUsers.set(host.id, host);
   partyRoomsMap.set(roomId, newRoom);
   recordRankingEvent({
@@ -2849,7 +3289,7 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   const { roomId } = req.params;
   const { user, password } = req.body;
   const room = partyRoomsMap.get(roomId);
-  if (!room) {
+  if (!room || room.status === 'closed') {
     return res.status(404).json({ error: 'Party room not found or closed.' });
   }
   if (!user || !user.id) {
@@ -2864,6 +3304,7 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   }
 
   const now = Date.now();
+  clearRoomUserDisconnectTimer(room, user.id);
   const isNewParticipant = !room.participants.has(user.id);
   const lastBannerAt = room.recentJoinAnnouncements.get(user.id) || 0;
   const shouldEmitBanner = isNewParticipant && now - lastBannerAt > 15000 && user.id !== room.host.id;
@@ -2881,6 +3322,9 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
     isHost: user.id === room.host.id,
   };
   room.participants.set(user.id, viewerRecord);
+  if (user.id === room.host.id) {
+    room.hostPresent = true;
+  }
   serverUsers.set(user.id, user);
   cacheRankingUser(user);
   if (isNewParticipant && user.id !== room.host.id) {
@@ -2892,6 +3336,9 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
       target: room.host,
     });
   }
+
+  // Cancel any 5-minute empty countdown and reactivate room immediately
+  reconcilePartyRoomLifecycle(room, true);
 
   const serialized = serializePartyRoom(room);
   const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
@@ -2910,7 +3357,6 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
       room: serialized,
     });
   }
-  broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
 
   res.json({
     success: true,
@@ -2923,12 +3369,13 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
 
 app.post('/api/rooms/:roomId/heartbeat', (req: Request, res: Response) => {
   const room = partyRoomsMap.get(req.params.roomId);
-  const { userId } = req.body;
-  if (!room) {
+  const { userId } = parseJsonOrBeaconBody(req.body);
+  if (!room || room.status === 'closed') {
     return res.status(404).json({ error: 'Party room closed or not found.' });
   }
   if (userId && room.participants.has(userId)) {
     const now = Date.now();
+    clearRoomUserDisconnectTimer(room, userId);
     room.participants.get(userId)!.lastSeen = now;
     if (userId !== room.host.id) {
       const creditKey = `party:${room.id}:${userId}`;
@@ -2946,64 +3393,41 @@ app.post('/api/rooms/:roomId/heartbeat', (req: Request, res: Response) => {
       }
     }
   }
-  res.json({ success: true, numericParticipants: room.participants.size });
+  res.json({
+    success: true,
+    numericParticipants: room.participants.size,
+    status: room.status,
+    closesAt: room.closesAt,
+  });
 });
 
 app.post('/api/rooms/:roomId/leave', (req: Request, res: Response) => {
   const { roomId } = req.params;
-  const { userId } = req.body;
+  const { userId } = parseJsonOrBeaconBody(req.body);
   const room = partyRoomsMap.get(roomId);
-  if (!room) {
+  if (!room || room.status === 'closed') {
     return res.json({ success: true });
   }
 
   if (userId) {
-    room.participants.delete(userId);
-    if (room.pendingRequests.has(userId)) {
-      room.pendingRequests.delete(userId);
-      broadcastToRoom(roomId, 'room:seat_request_cancelled', { roomId, userId });
-    }
-    const seatIdx = room.seats.findIndex((s) => s && s.id === userId);
-    if (seatIdx >= 0) {
-      const removedUser = room.seats[seatIdx];
-      room.seats[seatIdx] = null;
-      room.mutedSeatIndices.delete(seatIdx);
-      broadcastToRoom(roomId, 'room:seat_vacated', {
-        roomId,
-        seatIndex: seatIdx,
-        removedUser,
-        room: serializePartyRoom(room),
-      });
-    }
-    const serialized = serializePartyRoom(room);
-    broadcastToRoom(roomId, 'webrtc:room_peer_left', { roomId, fromUserId: userId });
-    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
-    broadcastToRoom(roomId, 'room:participant_left', {
-      roomId,
-      userId,
-      participants: participantsSnapshot,
-      room: serialized,
-    });
-    broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+    markPartyParticipantLeft(room, String(userId), 'explicit_leave');
   }
 
-  res.json({ success: true });
+  res.json({ success: true, room: serializePartyRoom(room) });
 });
 
 app.post('/api/rooms/:roomId/end', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
   const room = partyRoomsMap.get(roomId);
-  if (!room) {
+  if (!room || room.status === 'closed') {
     return res.json({ success: true, alreadyClosed: true });
   }
   if (room.host?.id !== hostId && !isVerifiedAdmin(req)) {
     return res.status(403).json({ error: 'Only the room host can close this party room.' });
   }
 
-  partyRoomsMap.delete(roomId);
-  broadcastToRoom(roomId, 'room:closed', { roomId, reason: 'Host ended the party room.' });
-  broadcastAll('room:directory_updated', { roomId, action: 'ended' });
+  closePartyRoomAuthoritatively(room, 'Host ended the party room.');
   res.json({ success: true });
 });
 
@@ -3046,8 +3470,9 @@ function ensurePartyRoomHydrated(
   meta?: { host?: any; title?: string; maxSeats?: number } | null,
   fallbackHostId?: string
 ): ServerPartyRoom | null {
+  if (recentlyClosedRoomIds.has(roomId)) return null;
   const existing = partyRoomsMap.get(roomId);
-  if (existing) return existing;
+  if (existing && existing.status !== 'closed') return existing;
   const hostObj = meta?.host?.id
     ? meta.host
     : fallbackHostId
@@ -3057,7 +3482,6 @@ function ensurePartyRoomHydrated(
 
   const maxSeats = clampServerMaxSeatsForHostLevel(meta?.maxSeats, hostObj);
   const seats: (any | null)[] = Array(maxSeats).fill(null);
-  seats[0] = hostObj;
 
   const hydrated: ServerPartyRoom = {
     id: roomId,
@@ -3070,6 +3494,12 @@ function ensurePartyRoomHydrated(
     maxSeats,
     roomType: 'public',
     announcement: 'Welcome! Hop on a seat, respect everyone & enjoy the party.',
+    status: 'active',
+    hostPresent: false,
+    emptySince: null,
+    closesAt: null,
+    cleanupTimer: null,
+    disconnectedUsers: new Map(),
     seats,
     mutedSeatIndices: new Set<number>(),
     isLocked: false,
@@ -4799,17 +5229,18 @@ function ensureLiveStreamHydrated(
   streamId: string,
   meta?: { host?: any; title?: string; category?: string } | null
 ): ServerLiveStream | null {
+  if (recentlyClosedStreamIds.has(streamId)) return null;
   const existing = liveStreamsMap.get(streamId);
-  if (existing && existing.isLive) return existing;
+  if (existing && existing.isLive && existing.status !== 'closed') return existing;
   if (!meta?.host?.id) return null;
   const hostObj = meta.host;
   // Guarantee strictly ONE active Solo Live per host in liveStreamsMap even when hydrated from Firestore
-  for (const [oldId, oldStream] of liveStreamsMap.entries()) {
+  for (const [oldId, oldStream] of Array.from(liveStreamsMap.entries())) {
     if (oldId !== streamId && oldStream.host?.id === hostObj.id) {
-      oldStream.isLive = false;
-      liveStreamsMap.delete(oldId);
+      closeLiveStreamAuthoritatively(oldStream, 'Host started a new live broadcast.');
     }
   }
+  const now = Date.now();
   const hydrated: ServerLiveStream = {
     id: streamId,
     title: sanitizeText(meta.title || `${hostObj.name || 'Host'}'s Live`, 100),
@@ -4818,6 +5249,13 @@ function ensureLiveStreamHydrated(
     coverImage: typeof hostObj.avatar === 'string' ? hostObj.avatar.slice(0, 1500) : '',
     channelName: `live_${streamId}`,
     isLive: true,
+    status: 'active',
+    hostPresent: true,
+    hostLastSeen: now,
+    emptySince: null,
+    closesAt: null,
+    cleanupTimer: null,
+    disconnectedUsers: new Map(),
     allowGuests: true,
     isPrivate: false,
     announcement: '',
@@ -4825,7 +5263,7 @@ function ensureLiveStreamHydrated(
     likesCount: 0,
     commentsCount: 0,
     giftsCoinValue: 0,
-    startTime: Date.now(),
+    startTime: now,
     viewers: new Map(),
     uniqueViewerIds: new Set(),
     recentJoinAnnouncements: new Map(),
@@ -4838,7 +5276,7 @@ function ensureLiveStreamHydrated(
 
 app.get('/api/live/active_streams', (_req: Request, res: Response) => {
   const activeSorted = Array.from(liveStreamsMap.values())
-    .filter((s) => s.isLive)
+    .filter((s) => s.isLive && s.status !== 'closed')
     .sort((a, b) => b.startTime - a.startTime);
   const byHost = new Map<string, ServerLiveStream>();
   for (const s of activeSorted) {
@@ -4853,7 +5291,7 @@ app.get('/api/live/active_streams', (_req: Request, res: Response) => {
 
 app.get('/api/live/stream/:streamId', (req: Request, res: Response) => {
   const stream = liveStreamsMap.get(req.params.streamId);
-  if (!stream || !stream.isLive) {
+  if (!stream || !stream.isLive || stream.status === 'closed') {
     return res.status(404).json({ error: 'Stream not found or offline', isLive: false });
   }
   res.json({ ...serializeLiveStream(stream), isLive: true, comments: stream.comments.slice(-50) });
@@ -4875,13 +5313,11 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
   // Enforce strictly ONE active Solo Live stream per host: end & remove any previous stale stream by this host
   for (const [oldId, oldStream] of Array.from(liveStreamsMap.entries())) {
     if (oldId !== streamId && oldStream.host?.id === host.id) {
-      oldStream.isLive = false;
-      liveStreamsMap.delete(oldId);
-      broadcastToLive(oldId, 'live:ended', { streamId: oldId, reason: 'Host started a new live broadcast.' });
-      broadcastAll('live:directory_updated', { streamId: oldId, action: 'ended' });
+      closeLiveStreamAuthoritatively(oldStream, 'Host started a new live broadcast.');
     }
   }
 
+  const now = Date.now();
   const newStream: ServerLiveStream = {
     id: streamId,
     title: cleanTitle,
@@ -4890,6 +5326,13 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
     coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 1500) : '',
     channelName: `live_${streamId}`,
     isLive: true,
+    status: 'active',
+    hostPresent: true,
+    hostLastSeen: now,
+    emptySince: null,
+    closesAt: null,
+    cleanupTimer: null,
+    disconnectedUsers: new Map(),
     allowGuests: allowGuests !== false,
     isPrivate: Boolean(isPrivate),
     announcement: sanitizeText(announcement, 250),
@@ -4897,13 +5340,14 @@ app.post('/api/live/start', (req: AuthenticatedRequest, res: Response) => {
     likesCount: 0,
     commentsCount: 0,
     giftsCoinValue: 0,
-    startTime: Date.now(),
+    startTime: now,
     viewers: new Map(),
     uniqueViewerIds: new Set(),
     recentJoinAnnouncements: new Map(),
     comments: [],
   };
 
+  recentlyClosedStreamIds.delete(streamId);
   serverUsers.set(host.id, host);
   liveStreamsMap.set(streamId, newStream);
 
@@ -4929,7 +5373,7 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   const { streamId } = req.params;
   const { user, streamMeta } = req.body;
   const stream = ensureLiveStreamHydrated(streamId, streamMeta);
-  if (!stream || !stream.isLive) {
+  if (!stream || !stream.isLive || stream.status === 'closed') {
     return res.status(404).json({ error: 'Live broadcast has ended or does not exist.' });
   }
   if (!user || !user.id) {
@@ -4940,6 +5384,7 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   }
 
   const now = Date.now();
+  clearStreamUserDisconnectTimer(stream, user.id);
   const isNewInActiveMap = !stream.viewers.has(user.id);
   const lastJoinedBanner = stream.recentJoinAnnouncements.get(user.id) || 0;
   const shouldEmitEntryBanner = isNewInActiveMap && now - lastJoinedBanner > 15000 && user.id !== stream.host.id;
@@ -4957,8 +5402,10 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
     isHost: user.id === stream.host.id,
   };
 
-  // Track active non-host viewers (or unique connected audience members)
-  if (user.id !== stream.host.id) {
+  if (user.id === stream.host.id) {
+    stream.hostPresent = true;
+    stream.hostLastSeen = now;
+  } else {
     stream.viewers.set(user.id, viewerRecord);
     stream.uniqueViewerIds.add(user.id);
     const metric = ensureBroadcasterMetric(stream.host);
@@ -4978,6 +5425,9 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
   serverUsers.set(user.id, user);
   cacheRankingUser(user);
 
+  // Cancel any 5-minute empty countdown and reactivate stream immediately
+  reconcileLiveStreamLifecycle(stream, true);
+
   const serialized = serializeLiveStream(stream);
   const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
   if (shouldEmitEntryBanner) {
@@ -4988,6 +5438,7 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
       viewers: viewersSnapshot.slice(0, 20),
       numericViewers: serialized.numericViewers,
       viewerCount: serialized.viewerCount,
+      stream: serialized,
     });
   } else {
     broadcastToLive(streamId, 'live:viewer_count_updated', {
@@ -4995,9 +5446,9 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
       viewers: viewersSnapshot.slice(0, 20),
       numericViewers: serialized.numericViewers,
       viewerCount: serialized.viewerCount,
+      stream: serialized,
     });
   }
-  broadcastAll('live:directory_updated', { streamId, action: 'updated', stream: serialized });
 
   res.json({
     success: true,
@@ -5009,12 +5460,19 @@ app.post('/api/live/:streamId/join', (req: Request, res: Response) => {
 
 app.post('/api/live/:streamId/heartbeat', (req: Request, res: Response) => {
   const stream = liveStreamsMap.get(req.params.streamId);
-  const { userId } = req.body;
-  if (!stream) return res.status(404).json({ error: 'Stream ended' });
-  if (userId && stream.viewers.has(userId)) {
-    const now = Date.now();
-    stream.viewers.get(userId)!.lastSeen = now;
-    if (userId !== stream.host.id) {
+  const { userId } = parseJsonOrBeaconBody(req.body);
+  if (!stream || stream.status === 'closed') return res.status(404).json({ error: 'Stream ended' });
+  const now = Date.now();
+  if (userId) {
+    clearStreamUserDisconnectTimer(stream, String(userId));
+    if (userId === stream.host.id) {
+      stream.hostLastSeen = now;
+      if (!stream.hostPresent) {
+        stream.hostPresent = true;
+        reconcileLiveStreamLifecycle(stream, true);
+      }
+    } else if (stream.viewers.has(userId)) {
+      stream.viewers.get(userId)!.lastSeen = now;
       const creditKey = `solo:${stream.id}:${userId}`;
       const lastCredit = lastWatchCreditMap.get(creditKey) || 0;
       if (now - lastCredit >= 30000) {
@@ -5030,54 +5488,40 @@ app.post('/api/live/:streamId/heartbeat', (req: Request, res: Response) => {
       }
     }
   }
-  res.json({ success: true, numericViewers: stream.viewers.size });
+  res.json({
+    success: true,
+    numericViewers: stream.viewers.size,
+    hostPresent: stream.hostPresent,
+    status: stream.status,
+    closesAt: stream.closesAt,
+  });
 });
 
 app.post('/api/live/:streamId/leave', (req: Request, res: Response) => {
   const { streamId } = req.params;
-  const { userId } = req.body;
+  const { userId } = parseJsonOrBeaconBody(req.body);
   const stream = liveStreamsMap.get(streamId);
-  if (!stream) {
+  if (!stream || stream.status === 'closed') {
     return res.json({ success: true });
   }
-  if (userId && stream.viewers.has(userId)) {
-    stream.viewers.delete(userId);
-    const serialized = serializeLiveStream(stream);
-    const viewersSnapshot = Array.from(stream.viewers.values()).sort((a, b) => b.joinedAt - a.joinedAt);
-    broadcastToLive(streamId, 'live:viewer_left', {
-      streamId,
-      userId,
-      viewers: viewersSnapshot.slice(0, 20),
-      numericViewers: serialized.numericViewers,
-      viewerCount: serialized.viewerCount,
-    });
-    broadcastAll('live:directory_updated', { streamId, action: 'updated', stream: serialized });
+  if (userId) {
+    markLiveParticipantLeft(stream, String(userId), 'explicit_leave');
   }
-  res.json({ success: true });
+  res.json({ success: true, stream: serializeLiveStream(stream) });
 });
 
 app.post('/api/live/:streamId/end', (req: AuthenticatedRequest, res: Response) => {
   const { streamId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
   const stream = liveStreamsMap.get(streamId);
-  if (!stream) {
+  if (!stream || stream.status === 'closed') {
     return res.json({ success: true, alreadyEnded: true });
   }
   if (stream.host?.id !== hostId && !isVerifiedAdmin(req)) {
     return res.status(403).json({ error: 'Only the host can end this live broadcast.' });
   }
 
-  stream.isLive = false;
-  liveStreamsMap.delete(streamId);
-
-  const metric = broadcasterMetricsMap.get(stream.host.id);
-  if (metric) {
-    metric.isCurrentlyLive = false;
-    metric.liveStreamId = undefined;
-  }
-
-  broadcastToLive(streamId, 'live:ended', { streamId, reason: 'Host ended the live broadcast.' });
-  broadcastAll('live:directory_updated', { streamId, action: 'ended' });
+  closeLiveStreamAuthoritatively(stream, 'Host ended the live broadcast.');
   res.json({ success: true });
 });
 
@@ -7299,41 +7743,16 @@ app.post('/api/users/:id/block', (req: AuthenticatedRequest, res: Response) => {
   userFollowingMap.get(targetId)?.delete(blockerId);
 
   // Immediately evict blocked user from any active party room hosted by blockerId
-  partyRoomsMap.forEach((room, roomId) => {
-    if (room.host?.id === blockerId) {
-      let changed = false;
-      if (room.participants.delete(targetId)) changed = true;
-      if (room.pendingRequests.delete(targetId)) changed = true;
-      room.seats = room.seats.map((seatUser, idx) => {
-        if (seatUser && seatUser.id === targetId) {
-          room.mutedSeatIndices.delete(idx);
-          changed = true;
-          return null;
-        }
-        return seatUser;
-      });
-      if (changed) {
-        const serialized = serializePartyRoom(room);
-        broadcastToRoom(roomId, 'room:participant_left', {
-          roomId,
-          userId: targetId,
-          reason: 'blocked',
-          participantsCount: room.participants.size,
-          room: serialized,
-        });
-      }
+  partyRoomsMap.forEach((room) => {
+    if (room.host?.id === blockerId && room.status !== 'closed') {
+      markPartyParticipantLeft(room, targetId, 'blocked');
     }
   });
 
   // Immediately evict blocked user from any active live stream hosted by blockerId
-  liveStreamsMap.forEach((stream, streamId) => {
-    if (stream.host?.id === blockerId && stream.viewers.delete(targetId)) {
-      broadcastToLive(streamId, 'live:viewer_left', {
-        streamId,
-        userId: targetId,
-        reason: 'blocked',
-        viewerCount: stream.viewers.size,
-      });
+  liveStreamsMap.forEach((stream) => {
+    if (stream.host?.id === blockerId && stream.status !== 'closed') {
+      markLiveParticipantLeft(stream, targetId, 'blocked');
     }
   });
 

@@ -19,6 +19,7 @@ import {
   getActiveSeatCapacity,
   normalizePartyMaxSeats,
 } from '../../utils/partySeatRules';
+import { HDLiveRoomCard } from '../common/HDLiveRoomCard';
 
 interface RoomsScreenProps {
   partyRooms: PartyRoom[];
@@ -316,95 +317,16 @@ export const RoomsScreen: React.FC<RoomsScreenProps> = ({
           ))}
         </div>
 
-        {/* ========================================================
-            6. ROOM CARDS LIST (Matching Screenshot 1 & Screenshot 2)
-            - Circular host avatar with glowing rim
-            - Room name with emoji ("Music Lovers 🎵", "Friends Party ❤️", etc.)
-            - Host username ("Sara Khan", "Ali Khan", "Zara", "Usman")
-            - Participants count: "👥 6/8", "👥 12/16", "👥 4/8", "👥 15/16"
-            - Solid Pink "Join" button (#FA26A0)
-           ======================================================== */}
-        <div className="space-y-3 pt-1">
-          {filteredRooms.map((room) => {
-            const liveOnlineCount = typeof room.numericParticipants === 'number' ? room.numericParticipants : 0;
-            const seatedCount = countActiveOccupiedSeats(room.seats, room.maxSeats, room.host?.level);
-            return (
-              <div
-                key={room.id}
-                onClick={() => onSelectRoom(room)}
-                className="group relative flex items-center justify-between p-3.5 rounded-2xl bg-[#140D20] border border-white/[0.08] hover:border-[#FA26A0]/60 transition-all duration-200 shadow-lg cursor-pointer active:scale-[0.99]"
-              >
-                {/* Left Side: Circular Host Avatar */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
-                    {room.host.avatar || room.coverImage ? (
-                      <img
-                        src={room.host.avatar || room.coverImage}
-                        alt={room.host.name}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0]/50 group-hover:ring-[#FA26A0] transition-all"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-[#24133D] ring-2 ring-[#FA26A0]/50 flex items-center justify-center text-sm font-black text-white">
-                        {(room.host.name || 'R').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FA26A0] text-white flex items-center justify-center text-[9px] shadow">
-                      🎙️
-                    </div>
-                  </div>
-
-                  {/* Middle Content */}
-                  <div className="flex flex-col min-w-0">
-                    <h3 className="text-sm font-extrabold text-white group-hover:text-[#FA26A0] transition-colors truncate leading-snug">
-                      {room.title}
-                    </h3>
-                    <span className="text-xs text-[#9E97AA] font-medium truncate leading-snug">
-                      {room.host.name}
-                    </span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {room.displayId && (
-                        <span className="text-[10px] text-[#6E677A] font-mono leading-none">
-                          ID: {room.displayId}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-[#9E97AA] font-mono leading-none">
-                        • {seatedCount}/{getActiveSeatCapacity(room.maxSeats, room.host?.level)} seats
-                      </span>
-                      {seatedCount === 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-white/10 text-[9px] font-bold text-[#B9AECF] uppercase tracking-wide leading-none">
-                          Empty
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Side: Real-Time Online Count & Pink Join Button */}
-                <div className="flex items-center gap-3 shrink-0 ml-2">
-                  <div className="flex items-center gap-1 text-xs font-mono font-bold text-white/90" title="Real-time connected viewers">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        liveOnlineCount > 0 || seatedCount > 0 ? 'bg-emerald-400' : 'bg-white/30'
-                      }`}
-                    />
-                    <Users className="w-3.5 h-3.5 text-[#9E97AA]" />
-                    <span>{liveOnlineCount}</span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectRoom(room);
-                    }}
-                    className="px-4 py-1.5 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black shadow-md shadow-[#FA26A0]/30 active:scale-95 transition-all"
-                  >
-                    Join
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+        {/* HD Profile Picture Party Room Cards Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
+          {filteredRooms.map((room) => (
+            <HDLiveRoomCard
+              key={room.id}
+              variant="party"
+              room={room}
+              onSelect={() => onSelectRoom(room)}
+            />
+          ))}
         </div>
 
         {/* Empty state */}

@@ -67,9 +67,11 @@ import {
   subscribeFirestoreLiveComments,
   subscribeFirestoreLiveStreamDoc,
   subscribeFirestoreLiveViewers,
+  syncFirestoreLiveStreamLifecycle,
   updateFirestoreLiveLikes,
   updateFirestoreLiveViewerCount,
 } from '../../services/firestoreRealtimeService';
+import { EMPTY_ROOM_CLEANUP_MS } from '../../shared/roomLifecycleConfig';
 import { getUserLevelProgress } from '../../utils/levelSystem';
 
 interface ActiveLiveScreenProps {
@@ -77,6 +79,7 @@ interface ActiveLiveScreenProps {
   currentUser: UserProfile;
   onClose: () => void;
   onEndLive?: (streamId: string) => void;
+  onUpdateStream?: (updated: LiveStream) => void;
   onToggleFollow?: (userId: string) => void;
   onOpenGiftShop: (recipient: UserProfile) => void;
   onOpenPK: () => void;
@@ -127,6 +130,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   currentUser,
   onClose,
   onEndLive,
+  onUpdateStream,
   onToggleFollow,
   onOpenGiftShop,
   onOpenPK,
@@ -282,9 +286,70 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     }
   };
 
+  const hasExplicitlyLeftLiveRef = useRef<boolean>(false);
+  const liveViewerCountRef = useRef<number>(liveViewerCount);
+  useEffect(() => {
+    liveViewerCountRef.current = liveViewerCount;
+  }, [liveViewerCount]);
+
+  // Cleanly exit Solo Live (marks Host or Viewer LEFT immediately without killing an occupied room; starts 5-min empty countdown if 0 remain)
+  const handleCleanLeaveLive = async () => {
+    setShowEndLiveConfirm(false);
+    hasExplicitlyLeftLiveRef.current = true;
+    if (audioAnalyserControllerRef.current) {
+      audioAnalyserControllerRef.current.cleanup();
+      audioAnalyserControllerRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      stopMediaStream(mediaStreamRef.current);
+      mediaStreamRef.current = null;
+    }
+    webrtcMediaService.stopLive();
+    await agoraRtcService.leaveChannel().catch(() => {});
+    void setNativeLiveAudioMode(false);
+
+    const remainingViewers = isActualHost
+      ? Math.max(0, liveViewerCountRef.current)
+      : Math.max(0, liveViewerCountRef.current - 1);
+    const nextHostPresent = isActualHost ? false : stream.hostPresent !== false;
+    const totalActive = (nextHostPresent ? 1 : 0) + remainingViewers;
+    const now = Date.now();
+    const nextStatus: 'active' | 'empty' = totalActive === 0 ? 'empty' : 'active';
+    const nextEmptySince = totalActive === 0 ? now : null;
+    const nextClosesAt = totalActive === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+
+    onUpdateStream?.({
+      ...stream,
+      numericViewers: remainingViewers,
+      viewerCount: String(remainingViewers),
+      hostPresent: nextHostPresent,
+      status: nextStatus,
+      emptySince: nextEmptySince,
+      closesAt: nextClosesAt,
+    });
+
+    const [serverUpdatedStream] = await Promise.all([
+      liveAndRoomService.leaveLiveStream(stream.id, currentUser.id).catch(() => null),
+      leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+      syncFirestoreLiveStreamLifecycle(stream.id, {
+        numericViewers: remainingViewers,
+        ...(isActualHost ? { hostPresent: false } : {}),
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
+      }).catch(() => {}),
+    ]);
+
+    if (serverUpdatedStream) {
+      onUpdateStream?.(serverUpdatedStream);
+    }
+    onClose();
+  };
+
   // Real-time stream join, 15s heartbeat, WebSocket + Firestore comments/likes/viewers/entry banners & exit cleanup
   useEffect(() => {
     let active = true;
+    hasExplicitlyLeftLiveRef.current = false;
     let streamDocEverExisted = false;
     const initialKnownViewerIds = new Set<string>([currentUser.id]);
     let fsViewersInitialized = false;
@@ -299,13 +364,20 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
     // Always write real-time presence to Cloud Firestore (works even when Railway API is 502)
     void joinFirestoreLiveViewer(stream.id, currentUser, isActualHost);
+    void syncFirestoreLiveStreamLifecycle(stream.id, {
+      status: 'active',
+      emptySince: null,
+      closesAt: null,
+      ...(isActualHost ? { hostPresent: true } : {}),
+    });
 
     liveAndRoomService
       .joinLiveStream(stream.id, currentUser, streamMeta)
       .then((res) => {
         if (!active) return;
         if (res.stream) {
-          setLiveViewerCount((prev) => Math.max(prev, res.stream?.numericViewers ?? 0));
+          setLiveViewerCount(res.stream.numericViewers ?? 0);
+          onUpdateStream?.(res.stream);
           if (typeof res.stream.likesCount === 'number') {
             setStreamLikes((prev) => Math.max(prev, res.stream!.likesCount || 0));
           }
@@ -588,9 +660,24 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             prev.some((m) => m.id === giftMsg.id) ? prev : [...prev, giftMsg]
           );
         }
-      } else if (event === 'live:ended') {
+      } else if (event === 'live:host_left') {
         if (!isActualHost) {
-          showToast('Live broadcast has ended');
+          showToast('Host stepped out of the live room');
+        }
+        if (payload.stream) {
+          onUpdateStream?.(payload.stream as LiveStream);
+        }
+      } else if (event === 'live:empty_countdown_started' || event === 'live:reactivated') {
+        if (payload.stream) {
+          onUpdateStream?.(payload.stream as LiveStream);
+        }
+      } else if (event === 'live:ended') {
+        if (!isActualHost || payload.autoClosed) {
+          showToast(
+            payload.autoClosed
+              ? 'Live room closed automatically after 5 minutes of inactivity'
+              : 'Live broadcast has ended'
+          );
           if (audioAnalyserControllerRef.current) {
             audioAnalyserControllerRef.current.cleanup();
             audioAnalyserControllerRef.current = null;
@@ -608,8 +695,46 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       }
     });
 
+    const cleanupOnUnexpectedLiveExit = () => {
+      if (hasExplicitlyLeftLiveRef.current) return;
+      hasExplicitlyLeftLiveRef.current = true;
+      const remainingViewers = isActualHost
+        ? Math.max(0, liveViewerCountRef.current)
+        : Math.max(0, liveViewerCountRef.current - 1);
+      const nextHostPresent = isActualHost ? false : stream.hostPresent !== false;
+      const totalActive = (nextHostPresent ? 1 : 0) + remainingViewers;
+      const now = Date.now();
+      const nextStatus: 'active' | 'empty' = totalActive === 0 ? 'empty' : 'active';
+      const nextEmptySince = totalActive === 0 ? now : null;
+      const nextClosesAt = totalActive === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+
+      onUpdateStream?.({
+        ...stream,
+        numericViewers: remainingViewers,
+        viewerCount: String(remainingViewers),
+        hostPresent: nextHostPresent,
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
+      });
+      void liveAndRoomService.leaveLiveStream(stream.id, currentUser.id).catch(() => {});
+      void leaveFirestoreLiveViewer(stream.id).catch(() => {});
+      void syncFirestoreLiveStreamLifecycle(stream.id, {
+        numericViewers: remainingViewers,
+        ...(isActualHost ? { hostPresent: false } : {}),
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
+      }).catch(() => {});
+    };
+
+    window.addEventListener('pagehide', cleanupOnUnexpectedLiveExit);
+    window.addEventListener('beforeunload', cleanupOnUnexpectedLiveExit);
+
     return () => {
       active = false;
+      window.removeEventListener('pagehide', cleanupOnUnexpectedLiveExit);
+      window.removeEventListener('beforeunload', cleanupOnUnexpectedLiveExit);
       clearInterval(heartbeat);
       if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
       unsubscribeWs();
@@ -617,10 +742,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       unsubFsComments();
       unsubFsStreamDoc();
       liveAndRoomService.unsubscribeLive();
-      if (!isActualHost) {
-        liveAndRoomService.leaveLiveStream(stream.id, currentUser.id);
-        void leaveFirestoreLiveViewer(stream.id);
-      }
+      cleanupOnUnexpectedLiveExit();
     };
   }, [stream.id, currentUser.id, isActualHost]);
 
@@ -1523,37 +1645,49 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCleanLeaveLive}
+                  className="flex-1 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-extrabold transition-colors"
+                >
+                  Exit Room
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowEndLiveConfirm(false);
+                    hasExplicitlyLeftLiveRef.current = true;
+                    if (audioAnalyserControllerRef.current) {
+                      audioAnalyserControllerRef.current.cleanup();
+                      audioAnalyserControllerRef.current = null;
+                    }
+                    if (mediaStreamRef.current) {
+                      stopMediaStream(mediaStreamRef.current);
+                      mediaStreamRef.current = null;
+                    }
+                    webrtcMediaService.stopLive();
+                    await agoraRtcService.leaveChannel().catch(() => {});
+                    void setNativeLiveAudioMode(false);
+                    await Promise.all([
+                      leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+                      liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
+                    ]);
+                    onEndLive?.(stream.id);
+                    onClose();
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all"
+                >
+                  End Broadcast
+                </button>
+              </div>
               <button
+                type="button"
                 onClick={() => setShowEndLiveConfirm(false)}
-                className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
               >
                 Continue Live
-              </button>
-              <button
-                onClick={async () => {
-                  setShowEndLiveConfirm(false);
-                  if (audioAnalyserControllerRef.current) {
-                    audioAnalyserControllerRef.current.cleanup();
-                    audioAnalyserControllerRef.current = null;
-                  }
-                  if (mediaStreamRef.current) {
-                    stopMediaStream(mediaStreamRef.current);
-                    mediaStreamRef.current = null;
-                  }
-                  webrtcMediaService.stopLive();
-                  await agoraRtcService.leaveChannel().catch(() => {});
-                  void setNativeLiveAudioMode(false);
-                  await Promise.all([
-                    leaveFirestoreLiveViewer(stream.id).catch(() => {}),
-                    liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
-                  ]);
-                  onEndLive?.(stream.id);
-                  onClose();
-                }}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all"
-              >
-                End Broadcast
               </button>
             </div>
           </div>
@@ -2544,7 +2678,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
                 if (isActualHost) {
                   setShowEndLiveConfirm(true);
                 } else {
-                  onClose();
+                  void handleCleanLeaveLive();
                 }
               }}
               aria-label={isActualHost ? 'End Broadcast / Exit Live' : 'Exit Live Stream'}

@@ -1136,20 +1136,29 @@ export default function App() {
           if (active) setTopBroadcasters(res.broadcasters);
         });
       } else if (
+        (event === 'live:empty_countdown_started' || event === 'live:reactivated' || event === 'live:host_left') &&
+        payload?.stream
+      ) {
+        upsertStream(payload.stream as LiveStream);
+      } else if (
         (event === 'live:viewer_count_updated' || event === 'live:viewer_joined' || event === 'live:viewer_left') &&
         payload?.streamId
       ) {
-        setLiveStreams((prev) =>
-          prev.map((s) =>
-            s.id === payload.streamId
-              ? {
-                  ...s,
-                  numericViewers: payload.numericViewers ?? s.numericViewers,
-                  viewerCount: payload.viewerCount ?? String(payload.numericViewers ?? s.numericViewers),
-                }
-              : s
-          )
-        );
+        if (payload.stream) {
+          upsertStream(payload.stream as LiveStream);
+        } else {
+          setLiveStreams((prev) =>
+            prev.map((s) =>
+              s.id === payload.streamId
+                ? {
+                    ...s,
+                    numericViewers: payload.numericViewers ?? s.numericViewers,
+                    viewerCount: payload.viewerCount ?? String(payload.numericViewers ?? s.numericViewers),
+                  }
+                : s
+            )
+          );
+        }
       } else if ((event === 'live:like' || event === 'live:heart') && payload?.streamId) {
         setLiveStreams((prev) =>
           prev.map((s) =>
@@ -1191,7 +1200,9 @@ export default function App() {
           event === 'room:participant_joined' ||
           event === 'room:participant_left' ||
           event === 'room:seat_occupied' ||
-          event === 'room:seat_vacated') &&
+          event === 'room:seat_vacated' ||
+          event === 'room:empty_countdown_started' ||
+          event === 'room:reactivated') &&
         payload?.room
       ) {
         upsertRoom(payload.room as PartyRoom);
@@ -1209,8 +1220,38 @@ export default function App() {
       }
     });
 
+    // Lightweight client safety sweep: immediately hide cards whose 5-minute empty countdown has elapsed
+    const expirySweep = setInterval(() => {
+      const now = Date.now();
+      setPartyRooms((prev) => {
+        const filtered = prev.filter((r) => {
+          if (r.status === 'closed') return false;
+          if (r.status === 'empty' && typeof r.closesAt === 'number' && r.closesAt <= now) {
+            endedRoomIdsRef.current.add(r.id);
+            backendRoomIdsRef.current.delete(r.id);
+            return false;
+          }
+          return true;
+        });
+        return filtered.length === prev.length ? prev : filtered;
+      });
+      setLiveStreams((prev) => {
+        const filtered = prev.filter((s) => {
+          if (s.status === 'closed' || s.isLive === false) return false;
+          if (s.status === 'empty' && typeof s.closesAt === 'number' && s.closesAt <= now) {
+            endedLiveIdsRef.current.add(s.id);
+            backendLiveIdsRef.current.delete(s.id);
+            return false;
+          }
+          return true;
+        });
+        return filtered.length === prev.length ? prev : filtered;
+      });
+    }, 3000);
+
     return () => {
       active = false;
+      clearInterval(expirySweep);
       unsubRealtime();
     };
   }, [refreshTick]);
@@ -1307,12 +1348,15 @@ export default function App() {
           if (backendLiveIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
             if (fsItem) {
-              const bestViewers = Math.max(fsItem.numericViewers || 0, existing.numericViewers || 0);
+              const exactViewers =
+                typeof existing.numericViewers === 'number'
+                  ? existing.numericViewers
+                  : fsItem.numericViewers || 0;
               merged.set(existing.id, {
-                ...existing,
                 ...fsItem,
-                numericViewers: bestViewers,
-                viewerCount: String(bestViewers),
+                ...existing,
+                numericViewers: exactViewers,
+                viewerCount: String(exactViewers),
                 likesCount: Math.max(fsItem.likesCount || 0, existing.likesCount || 0),
               });
             } else {
@@ -1323,6 +1367,12 @@ export default function App() {
         // Strictly collapse to the newest active stream per host.id so 2 cards never appear for one broadcaster
         const byHost = new Map<string, LiveStream>();
         Array.from(merged.values())
+          .filter(
+            (s) =>
+              s.status !== 'closed' &&
+              s.isLive !== false &&
+              !(s.status === 'empty' && typeof s.closesAt === 'number' && s.closesAt <= Date.now())
+          )
           .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
           .forEach((s) => {
             const hostKey = s.host?.id || s.id;
@@ -1337,26 +1387,39 @@ export default function App() {
     });
 
     const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
-      // Merge Firestore party rooms non-destructively: keep authoritative seats & counts in sync across Web & Android
+      // Merge Firestore party rooms with authoritative backend lifecycle state (never resurrect closed/expired rooms)
+      const now = Date.now();
       setPartyRooms((prev) => {
         const merged = new Map<string, PartyRoom>();
         remoteRooms.forEach((r) => {
-          if (!endedRoomIdsRef.current.has(r.id)) {
+          if (
+            !endedRoomIdsRef.current.has(r.id) &&
+            r.status !== 'closed' &&
+            !(r.status === 'empty' && typeof r.closesAt === 'number' && r.closesAt <= now)
+          ) {
             merged.set(r.id, enforcePartyRoomSeatPolicy(r));
           }
         });
         prev.forEach((existing) => {
-          if (endedRoomIdsRef.current.has(existing.id)) return;
+          if (endedRoomIdsRef.current.has(existing.id) || existing.status === 'closed') return;
+          if (existing.status === 'empty' && typeof existing.closesAt === 'number' && existing.closesAt <= now) return;
           if (backendRoomIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
             if (fsItem) {
               merged.set(
                 existing.id,
                 enforcePartyRoomSeatPolicy({
-                  ...existing,
                   ...fsItem,
-                  numericParticipants: typeof fsItem.numericParticipants === 'number' ? fsItem.numericParticipants : 0,
-                  participantCount: String(typeof fsItem.numericParticipants === 'number' ? fsItem.numericParticipants : 0),
+                  ...existing,
+                  numericParticipants:
+                    typeof existing.numericParticipants === 'number'
+                      ? existing.numericParticipants
+                      : fsItem.numericParticipants || 0,
+                  participantCount: String(
+                    typeof existing.numericParticipants === 'number'
+                      ? existing.numericParticipants
+                      : fsItem.numericParticipants || 0
+                  ),
                 })
               );
             } else {
@@ -2347,6 +2410,12 @@ export default function App() {
             setActiveLiveStream(null);
             setActivePKSession(null);
             setCurrentScreen('home');
+          }}
+          onUpdateStream={(updatedStream) => {
+            setActiveLiveStream(updatedStream);
+            setLiveStreams((prev) =>
+              prev.map((s) => (s.id === updatedStream.id ? updatedStream : s))
+            );
           }}
           onEndLive={handleEndLive}
           onToggleFollow={handleToggleFollow}

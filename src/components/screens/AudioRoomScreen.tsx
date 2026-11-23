@@ -88,12 +88,14 @@ import {
   subscribeFirestorePartyRoomDoc,
   subscribeFirestoreRoomMessages,
   subscribeFirestoreRoomParticipants,
+  syncFirestorePartyRoomLifecycle,
   syncFirestorePartyRoomState,
   takeFirestoreSeatDirect,
   updateFirestoreRoomParticipantCount,
   updateFirestoreRoomParticipantState,
   vacateFirestoreSeat,
 } from '../../services/firestoreRealtimeService';
+import { EMPTY_ROOM_CLEANUP_MS } from '../../shared/roomLifecycleConfig';
 import {
   ROOM_KICK_OPTIONS,
   assignHostModerator,
@@ -657,6 +659,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       });
     };
 
+    void syncFirestorePartyRoomLifecycle(room.id, {
+      status: 'active',
+      emptySince: null,
+      closesAt: null,
+      ...(isRoomHost ? { hostPresent: true } : {}),
+    });
+
     liveAndRoomService
       .joinPartyRoom(room.id, currentUser, room.password)
       .then((res) => {
@@ -972,7 +981,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           event === 'room:sync_state' ||
           event === 'room:settings_updated' ||
           event === 'room:seat_occupied' ||
-          event === 'room:seat_vacated') &&
+          event === 'room:seat_vacated' ||
+          event === 'room:empty_countdown_started' ||
+          event === 'room:reactivated') &&
         payload.room
       ) {
         applyServerRoomState(payload.room as PartyRoom);
@@ -1169,8 +1180,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         );
         setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
       } else if (event === 'room:closed') {
-        if (!isRoomHost) {
-          showToast('Host has closed this party room');
+        if (!isRoomHost || payload.autoClosed) {
+          showToast(
+            payload.autoClosed
+              ? 'Party room closed automatically after 5 minutes of inactivity'
+              : 'Host has closed this party room'
+          );
           webrtcMediaService.stopPartyVoice();
           agoraRtcService.leaveChannel().catch(() => {});
           setTimeout(() => {
@@ -1189,16 +1204,33 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         s?.id === currentUser.id || (isRoomHost && idx === 0) ? null : s
       );
       const nextCount = Math.max(0, participantTotalRef.current - 1);
+      const now = Date.now();
+      const nextStatus: 'active' | 'empty' = nextCount === 0 ? 'empty' : 'active';
+      const nextEmptySince = nextCount === 0 ? now : null;
+      const nextClosesAt = nextCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+      const nextHostPresent = isRoomHost ? false : room.hostPresent;
+
       onUpdateRoom?.({
         ...room,
         seats: nextSeats,
         numericParticipants: nextCount,
         participantCount: String(nextCount),
+        hostPresent: nextHostPresent,
+        isOwnerPresent: nextHostPresent,
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
       });
       if (targetSeatIdx !== undefined) {
         void vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {});
       }
-      void updateFirestoreRoomParticipantCount(room.id, nextCount).catch(() => {});
+      void syncFirestorePartyRoomLifecycle(room.id, {
+        numericParticipants: nextCount,
+        ...(isRoomHost ? { hostPresent: false } : {}),
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
+      }).catch(() => {});
       void liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
       void leaveFirestoreRoomParticipant(room.id).catch(() => {});
     };
@@ -1719,7 +1751,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? '4+1' : clamped}-seat layout`);
   };
 
-  // Cleanly exit party room (vacates seat — including Host Seat #1 — updates count, disconnects voice & leaves room)
+  // Cleanly exit party room (vacates seat — including Host Seat #1 — updates count & lifecycle, disconnects voice & leaves room)
   const handleCleanLeaveParty = async () => {
     setShowExitRoomModal(false);
     setShowSettingsSheet(false);
@@ -1733,8 +1765,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       0,
       participantsList.filter((p) => p.userId !== currentUser.id).length
     );
+    const now = Date.now();
+    const nextStatus: 'active' | 'empty' = remainingCount === 0 ? 'empty' : 'active';
+    const nextEmptySince = remainingCount === 0 ? now : null;
+    const nextClosesAt = remainingCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+    const nextHostPresent = isRoomHost ? false : room.hostPresent;
 
-    // Immediately reflect empty host seat & updated participant count in UI + parent room directory
+    // Immediately reflect empty host seat, cleared avatar, updated count & EMPTY status in UI + parent room directory
     setSeats(nextSeats);
     setParticipantTotal(remainingCount);
     onUpdateRoom?.({
@@ -1742,6 +1779,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       seats: nextSeats,
       numericParticipants: remainingCount,
       participantCount: String(remainingCount),
+      hostPresent: nextHostPresent,
+      isOwnerPresent: nextHostPresent,
+      status: nextStatus,
+      emptySince: nextEmptySince,
+      closesAt: nextClosesAt,
     });
 
     webrtcMediaService.stopPartyVoice();
@@ -1754,14 +1796,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       realMicStreamRef.current = null;
     }
     await agoraRtcService.leaveChannel().catch(() => {});
-    await Promise.all([
+    const [serverUpdatedRoom] = await Promise.all([
+      liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => null),
       targetSeatIdx !== undefined
         ? vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {})
         : Promise.resolve(),
-      updateFirestoreRoomParticipantCount(room.id, remainingCount).catch(() => {}),
-      liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}),
       leaveFirestoreRoomParticipant(room.id).catch(() => {}),
+      syncFirestorePartyRoomLifecycle(room.id, {
+        numericParticipants: remainingCount,
+        ...(isRoomHost ? { hostPresent: false } : {}),
+        status: nextStatus,
+        emptySince: nextEmptySince,
+        closesAt: nextClosesAt,
+      }).catch(() => {}),
     ]);
+    if (serverUpdatedRoom) {
+      onUpdateRoom?.(serverUpdatedRoom);
+    }
     onClose();
   };
 

@@ -464,7 +464,12 @@ service cloud.firestore {
                           'numericParticipants',
                           'participantCount',
                           'likesCount',
-                          'lastHeartEvent'
+                          'lastHeartEvent',
+                          'status',
+                          'hostPresent',
+                          'isOwnerPresent',
+                          'emptySince',
+                          'closesAt'
                         ])
                         && (
                           !incoming().diff(existing()).affectedKeys().hasAny(['seats'])
@@ -473,15 +478,38 @@ service cloud.firestore {
                         && (!('chatClearedAt' in incoming()) || incoming().chatClearedAt is number)
                         && (!('announcement' in incoming()) || (incoming().announcement is string && incoming().announcement.size() <= 500))
                         && (!('mutedSeatIndices' in incoming()) || (incoming().mutedSeatIndices is list && incoming().mutedSeatIndices.size() <= 16))
+                        && (!('status' in incoming()) || incoming().status in ['active', 'empty', 'closed'])
+                        && (!('hostPresent' in incoming()) || incoming().hostPresent is bool)
+                        && (!('isOwnerPresent' in incoming()) || incoming().isOwnerPresent is bool)
+                        && (!('emptySince' in incoming()) || incoming().emptySince == null || incoming().emptySince is number)
+                        && (!('closesAt' in incoming()) || incoming().closesAt == null || incoming().closesAt is number)
                       )
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
                         && !isKickedFromRoom(roomId, request.auth.uid)
-                        && incoming().diff(existing()).affectedKeys().hasOnly(['seats', 'seatRequests', 'viewersCount', 'numericParticipants', 'participantCount', 'likesCount', 'lastHeartEvent'])
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'seats',
+                          'seatRequests',
+                          'viewersCount',
+                          'numericParticipants',
+                          'participantCount',
+                          'likesCount',
+                          'lastHeartEvent',
+                          'status',
+                          'hostPresent',
+                          'isOwnerPresent',
+                          'emptySince',
+                          'closesAt'
+                        ])
                         && (
                           !incoming().diff(existing()).affectedKeys().hasAny(['seats'])
                           || isValidGuestPartySeatUpdate(incoming(), existing())
                         )
+                        && (!('status' in incoming()) || incoming().status in ['active', 'empty', 'closed'])
+                        && (!('hostPresent' in incoming()) || incoming().hostPresent is bool)
+                        && (!('isOwnerPresent' in incoming()) || incoming().isOwnerPresent is bool)
+                        && (!('emptySince' in incoming()) || incoming().emptySince == null || incoming().emptySince is number)
+                        && (!('closesAt' in incoming()) || incoming().closesAt == null || incoming().closesAt is number)
                       )
                     );
       allow delete: if isSignedIn() && isValidId(roomId) && (existing().host.id == request.auth.uid || isAdmin());
@@ -561,7 +589,22 @@ service cloud.firestore {
                       || (existing().host.id == request.auth.uid && incoming().host.id == existing().host.id)
                       || (
                         !isBlockedBy(existing().host.id, request.auth.uid)
-                        && incoming().diff(existing()).affectedKeys().hasOnly(['viewersCount', 'numericViewers', 'viewerCount', 'likesCount', 'commentsCount', 'lastHeartEvent'])
+                        && incoming().diff(existing()).affectedKeys().hasOnly([
+                          'viewersCount',
+                          'numericViewers',
+                          'viewerCount',
+                          'likesCount',
+                          'commentsCount',
+                          'lastHeartEvent',
+                          'status',
+                          'hostPresent',
+                          'emptySince',
+                          'closesAt'
+                        ])
+                        && (!('status' in incoming()) || incoming().status in ['active', 'live', 'empty', 'closed', 'ended'])
+                        && (!('hostPresent' in incoming()) || incoming().hostPresent is bool)
+                        && (!('emptySince' in incoming()) || incoming().emptySince == null || incoming().emptySince is number)
+                        && (!('closesAt' in incoming()) || incoming().closesAt == null || incoming().closesAt is number)
                       )
                     );
       allow delete: if isSignedIn() && isValidId(streamId) && (existing().host.id == request.auth.uid || isAdmin());

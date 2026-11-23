@@ -200,6 +200,11 @@ export interface LiveStream {
   announcement?: string;
   allowGuests?: boolean;
   isPrivate?: boolean;
+  status?: 'active' | 'empty' | 'closed';
+  hostPresent?: boolean;
+  emptySince?: number | null;
+  closesAt?: number | null;
+  streamType?: 'solo' | 'live' | 'pk';
 }
 
 export type PartySofaTheme = 'default' | 'gold' | 'green';
@@ -259,6 +264,10 @@ export interface PartyRoom {
   backgroundId?: string;
   backgroundImage?: string;
   seatTheme?: PartySofaTheme;
+  status?: 'active' | 'empty' | 'closed';
+  hostPresent?: boolean;
+  emptySince?: number | null;
+  closesAt?: number | null;
 }
 
 export interface LiveViewerInfo {

@@ -2,7 +2,7 @@ import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { Dn as ArrowLeft, Kt as Crown, Lt as Eye, Rt as EyeOff, T as Sparkles, bt as Image, cn as Check, dn as Camera, ft as Lock, h as Upload, kn as require_react, mt as LoaderCircle, u as Users } from "./vendor-icons-sqDS8tFw.js";
 import { r as auth } from "./firebase-CIREZBAE.js";
 import { a as getActiveSeatCapacity, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, o as getAllowedSeatTierForLevel, t as PARTY_SEAT_TIERS } from "./partySeatRules-C6_w_6jH.js";
-import { Et as uploadUserImage, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-D1KgmVuY.js";
+import { Et as uploadUserImage, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-DdKfydiO.js";
 import { i as require_jsx_runtime } from "./vendor-motion-CI-970bO.js";
 // src/components/screens/CreateRoomScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);

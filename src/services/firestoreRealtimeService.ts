@@ -180,6 +180,44 @@ export async function updateFirestoreLiveViewerCount(
   }
 }
 
+export async function syncFirestoreLiveStreamLifecycle(
+  streamId: string,
+  patch: {
+    numericViewers?: number;
+    hostPresent?: boolean;
+    status?: 'active' | 'empty' | 'closed';
+    emptySince?: number | null;
+    closesAt?: number | null;
+  }
+): Promise<void> {
+  if (!auth.currentUser || !isValidFirestoreId(streamId)) return;
+  try {
+    const payload: Record<string, any> = {};
+    if (typeof patch.numericViewers === 'number') {
+      const safe = Math.max(0, Math.floor(patch.numericViewers));
+      payload.numericViewers = safe;
+      payload.viewerCount = String(safe);
+      payload.viewersCount = safe;
+    }
+    if (typeof patch.hostPresent === 'boolean') {
+      payload.hostPresent = patch.hostPresent;
+    }
+    if (patch.status) {
+      payload.status = patch.status;
+    }
+    if (patch.emptySince !== undefined) {
+      payload.emptySince = patch.emptySince;
+    }
+    if (patch.closesAt !== undefined) {
+      payload.closesAt = patch.closesAt;
+    }
+    if (Object.keys(payload).length === 0) return;
+    await updateDoc(doc(db, 'live_streams', streamId), payload);
+  } catch {
+    // Non-fatal if stream doc was deleted
+  }
+}
+
 export async function updateFirestoreLiveLikes(
   streamId: string,
   likesCount: number
@@ -212,7 +250,7 @@ export function subscribeFirestoreLiveViewers(
       snap.docs.forEach((docSnap) => {
         const data = docSnap.data() as FirestoreLiveViewerDoc;
         const lastSeen = typeof data.lastSeen === 'number' ? data.lastSeen : data.joinedAt || now;
-        if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS && !data.isHost) {
+        if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS) {
           return;
         }
         rawDocs.set(docSnap.id, { ...data, userId: String(data.userId || docSnap.id) });
@@ -554,7 +592,7 @@ export function subscribeFirestoreRoomParticipants(
       snap.docs.forEach((docSnap) => {
         const data = docSnap.data() as FirestoreRoomParticipantDoc;
         const lastSeen = typeof data.lastSeen === 'number' ? data.lastSeen : data.joinedAt || now;
-        if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS && !data.isHost) {
+        if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS) {
           return;
         }
         rawDocs.set(docSnap.id, { ...data, userId: String(data.userId || docSnap.id) });
@@ -745,6 +783,45 @@ export async function updateFirestoreRoomParticipantCount(
     });
   } catch {
     // ignore
+  }
+}
+
+export async function syncFirestorePartyRoomLifecycle(
+  roomId: string,
+  patch: {
+    numericParticipants?: number;
+    hostPresent?: boolean;
+    status?: 'active' | 'empty' | 'closed';
+    emptySince?: number | null;
+    closesAt?: number | null;
+  }
+): Promise<void> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
+  try {
+    const payload: Record<string, any> = {};
+    if (typeof patch.numericParticipants === 'number') {
+      const safe = Math.max(0, Math.floor(patch.numericParticipants));
+      payload.numericParticipants = safe;
+      payload.participantCount = String(safe);
+      payload.viewersCount = safe;
+    }
+    if (typeof patch.hostPresent === 'boolean') {
+      payload.hostPresent = patch.hostPresent;
+      payload.isOwnerPresent = patch.hostPresent;
+    }
+    if (patch.status) {
+      payload.status = patch.status;
+    }
+    if (patch.emptySince !== undefined) {
+      payload.emptySince = patch.emptySince;
+    }
+    if (patch.closesAt !== undefined) {
+      payload.closesAt = patch.closesAt;
+    }
+    if (Object.keys(payload).length === 0) return;
+    await updateDoc(doc(db, 'party_rooms', roomId), payload);
+  } catch {
+    // Non-fatal if room doc was deleted
   }
 }
 

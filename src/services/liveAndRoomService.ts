@@ -249,11 +249,21 @@ class LiveAndRoomService {
     }).catch(() => {});
   }
 
-  public async leaveLiveStream(streamId: string, userId: string): Promise<void> {
-    await apiFetch(`/api/live/${encodeURIComponent(streamId)}/leave`, {
-      method: 'POST',
-      body: JSON.stringify({ userId }),
-    }).catch(() => {});
+  public async leaveLiveStream(streamId: string, userId: string): Promise<LiveStream | null> {
+    try {
+      const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/leave`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+        keepalive: true,
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        return (data?.stream as LiveStream) || null;
+      }
+    } catch {
+      // ignore transient network errors on exit
+    }
+    return null;
   }
 
   public async endLiveStream(streamId: string, hostId: string): Promise<void> {
@@ -390,11 +400,21 @@ class LiveAndRoomService {
     }).catch(() => {});
   }
 
-  public async leavePartyRoom(roomId: string, userId: string): Promise<void> {
-    await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, {
-      method: 'POST',
-      body: JSON.stringify({ userId }),
-    }).catch(() => {});
+  public async leavePartyRoom(roomId: string, userId: string): Promise<PartyRoom | null> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+        keepalive: true,
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        return (data?.room as PartyRoom) || null;
+      }
+    } catch {
+      // ignore transient network errors on exit
+    }
+    return null;
   }
 
   public async endPartyRoom(roomId: string, hostId: string): Promise<void> {

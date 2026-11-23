@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-C45jdL02.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-mfpq7ZDa.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-BAw7AUBw.js","assets/adminAuth-CrRhZSFU.js","assets/StoreScreen-CduOvxGr.js","assets/StoreAssetPreview-DUAqjh-H.js","assets/pushNotificationService-Bs8cZsF9.js","assets/apiConfig-CqMIuGjJ.js","assets/SettingsScreen-Bza-lPvh.js","assets/UploadVideoScreen-Q63gYsUG.js","assets/WalletModal-CkloEjaa.js","assets/LevelAndVIPModal-5eGB-JmF.js","assets/AdminProgressionModal-Mt13j3a6.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CPBdwVb9.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-C62LBz1C.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-BVwp13ou.js","assets/adminAuth-CrRhZSFU.js","assets/StoreScreen-IKQotvVi.js","assets/StoreAssetPreview-DUAqjh-H.js","assets/pushNotificationService-Bs8cZsF9.js","assets/apiConfig-CqMIuGjJ.js","assets/SettingsScreen-DyAiorru.js","assets/UploadVideoScreen-DG4vJEdM.js","assets/WalletModal-BP5_ZtjU.js","assets/LevelAndVIPModal-BZE5EhqG.js","assets/AdminProgressionModal-B15tLdpJ.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
 import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
@@ -2752,15 +2752,29 @@ function toMillis(val, fallback = Date.now()) {
 	if (val && typeof val.seconds === "number") return val.seconds * 1e3;
 	return fallback;
 }
+function isFirestoreRoomStillVisible(data, now = Date.now()) {
+	if (!data) return false;
+	if (data.status === "closed" || data.status === "ended") return false;
+	if (data.status === "empty" && typeof data.closesAt === "number" && data.closesAt <= now) return false;
+	return true;
+}
+function isFirestoreStreamStillVisible(data, now = Date.now()) {
+	if (!data) return false;
+	if (data.isLive === false || data.status === "closed" || data.status === "ended") return false;
+	if (data.status === "empty" && typeof data.closesAt === "number" && data.closesAt <= now) return false;
+	return true;
+}
 function normalizeFirestorePartyRoom(id, data) {
 	const hostCard = sanitizeFirestoreUserCard(data?.host);
 	const hostLevel = sanitizeUserLevel(hostCard.level);
 	const maxSeats = clampPartyMaxSeatsForHostLevel(data?.maxSeats, hostLevel);
-	const activeCapacity = getActiveSeatCapacity(maxSeats, hostLevel);
 	const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
 	const seats = Array(maxSeats).fill(null);
 	for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) seats[i] = rawSeats[i] && !isSeatLockedByHostLevel(i, hostLevel) ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
-	const numericParticipants = typeof data?.numericParticipants === "number" ? data.numericParticipants : typeof data?.viewersCount === "number" ? data.viewersCount : Math.max(1, seats.filter(Boolean).length);
+	const seatedCount = seats.filter(Boolean).length;
+	const numericParticipants = typeof data?.numericParticipants === "number" ? Math.max(0, Math.floor(data.numericParticipants)) : typeof data?.viewersCount === "number" ? Math.max(0, Math.floor(data.viewersCount)) : seatedCount;
+	const hostPresent = typeof data?.hostPresent === "boolean" ? data.hostPresent : typeof data?.isOwnerPresent === "boolean" ? data.isOwnerPresent : seats.some((s) => s?.id === hostCard.id);
+	const normalizedStatus = data?.status === "closed" || data?.status === "ended" ? "closed" : data?.status === "empty" ? "empty" : "active";
 	return {
 		id,
 		displayId: String(data?.displayId || id.replace(/[^0-9]/g, "").slice(-5) || "10001"),
@@ -2769,7 +2783,7 @@ function normalizeFirestorePartyRoom(id, data) {
 		host: hostCard,
 		coverImage: String(data?.coverImage || data?.host?.avatar || ""),
 		iconType: data?.iconType || "heart",
-		participantCount: String(data?.participantCount || `${numericParticipants}/${activeCapacity}`),
+		participantCount: String(numericParticipants),
 		numericParticipants,
 		isAudioRoom: true,
 		maxSeats,
@@ -2781,6 +2795,11 @@ function normalizeFirestorePartyRoom(id, data) {
 		seatRequests: Array.isArray(data?.seatRequests) ? data.seatRequests : [],
 		isLocked: Boolean(data?.isLocked),
 		allowJoin: data?.allowJoin !== false,
+		isOwnerPresent: hostPresent,
+		hostPresent,
+		status: normalizedStatus,
+		emptySince: typeof data?.emptySince === "number" ? data.emptySince : null,
+		closesAt: typeof data?.closesAt === "number" ? data.closesAt : null,
 		startTime: toMillis(data?.startTime ?? data?.createdAt),
 		likesCount: typeof data?.likesCount === "number" ? data.likesCount : 0,
 		backgroundType: data?.backgroundType === "host_dp" || data?.backgroundType === "custom" ? data.backgroundType : "preset",
@@ -2789,16 +2808,23 @@ function normalizeFirestorePartyRoom(id, data) {
 	};
 }
 function normalizeFirestoreLiveStream(id, data) {
-	const numericViewers = typeof data?.numericViewers === "number" ? data.numericViewers : typeof data?.viewersCount === "number" ? data.viewersCount : 0;
+	const numericViewers = typeof data?.numericViewers === "number" ? Math.max(0, Math.floor(data.numericViewers)) : typeof data?.viewersCount === "number" ? Math.max(0, Math.floor(data.viewersCount)) : 0;
+	const normalizedStatus = data?.status === "closed" || data?.status === "ended" || data?.isLive === false ? "closed" : data?.status === "empty" ? "empty" : "active";
+	const hostPresent = typeof data?.hostPresent === "boolean" ? data.hostPresent : normalizedStatus !== "empty" && normalizedStatus !== "closed";
 	return {
 		id,
 		title: String(data?.title || "Live Broadcast"),
 		category: String(data?.category || "Live"),
 		host: sanitizeFirestoreUserCard(data?.host),
-		coverImage: String(data?.coverImage || data?.host?.coverImage || data?.host?.avatar || ""),
-		viewerCount: String(data?.viewerCount ?? numericViewers),
+		coverImage: String(data?.coverImage || data?.host?.avatar || ""),
+		viewerCount: String(numericViewers),
 		numericViewers,
-		isLive: data?.isLive !== false && data?.status !== "ended",
+		isLive: data?.isLive !== false && normalizedStatus !== "closed",
+		status: normalizedStatus,
+		hostPresent,
+		emptySince: typeof data?.emptySince === "number" ? data.emptySince : null,
+		closesAt: typeof data?.closesAt === "number" ? data.closesAt : null,
+		streamType: data?.streamType === "pk" ? "pk" : data?.streamType === "live" ? "live" : "solo",
 		tags: Array.isArray(data?.tags) ? data.tags : [String(data?.category || "Live")],
 		guests: Array.isArray(data?.guests) ? data.guests : [],
 		likesCount: typeof data?.likesCount === "number" ? data.likesCount : 0,
@@ -2811,7 +2837,8 @@ function normalizeFirestoreLiveStream(id, data) {
 function subscribeFirestorePartyRooms(onUpdate) {
 	const q = query(collection(db, "party_rooms"), limit(100));
 	return onSnapshot(q, (snap) => {
-		onUpdate(snap.docs.filter((d) => d.data()?.status !== "closed" && d.data()?.status !== "ended").map((d) => normalizeFirestorePartyRoom(d.id, d.data())).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
+		const now = Date.now();
+		onUpdate(snap.docs.filter((d) => isFirestoreRoomStillVisible(d.data(), now)).map((d) => normalizeFirestorePartyRoom(d.id, d.data())).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
 	}, (err) => {
 		console.warn("[Firestore] subscribeFirestorePartyRooms notice:", err);
 	});
@@ -2860,7 +2887,11 @@ async function createFirestorePartyRoom(room) {
 			backgroundType: room.backgroundType === "host_dp" || room.backgroundType === "custom" ? room.backgroundType : "preset",
 			backgroundId: typeof room.backgroundId === "string" && room.backgroundId.trim() ? room.backgroundId.trim().slice(0, 48) : "royal_neon",
 			backgroundImage: room.backgroundType === "host_dp" ? safeImageUrlForCard(room.backgroundImage || safeHost.avatar, 16e4) || "" : room.backgroundType === "custom" ? safeImageUrlForCard(room.backgroundImage, 16e4) || "" : "",
-			status: "active"
+			status: "active",
+			hostPresent: true,
+			isOwnerPresent: true,
+			emptySince: null,
+			closesAt: null
 		});
 		if (room.roomType === "private" && room.password && room.password.trim()) payload.password = room.password.trim();
 		await setDoc(doc(db, collPath, safeId), {
@@ -2897,7 +2928,8 @@ function dedupeStreamsByHost(streams) {
 function subscribeFirestoreLiveStreams(onUpdate) {
 	const q = query(collection(db, "live_streams"), limit(100));
 	return onSnapshot(q, (snap) => {
-		onUpdate(dedupeStreamsByHost(snap.docs.filter((d) => d.data()?.isLive !== false && d.data()?.status !== "ended").map((d) => normalizeFirestoreLiveStream(d.id, d.data()))));
+		const now = Date.now();
+		onUpdate(dedupeStreamsByHost(snap.docs.filter((d) => isFirestoreStreamStillVisible(d.data(), now)).map((d) => normalizeFirestoreLiveStream(d.id, d.data()))));
 	}, (err) => {
 		console.warn("[Firestore] subscribeFirestoreLiveStreams notice:", err);
 	});
@@ -2929,7 +2961,11 @@ async function createFirestoreLiveStream(stream) {
 			numericViewers: typeof stream.numericViewers === "number" ? stream.numericViewers : 0,
 			viewersCount: typeof stream.numericViewers === "number" ? stream.numericViewers : 0,
 			isLive: true,
-			status: "live",
+			status: "active",
+			hostPresent: true,
+			emptySince: null,
+			closesAt: null,
+			streamType: "solo",
 			tags: Array.isArray(stream.tags) ? stream.tags.slice(0, 8) : [String(stream.category || "Live"), "Live"],
 			guests: [],
 			likesCount: typeof stream.likesCount === "number" ? stream.likesCount : 0,
@@ -6139,10 +6175,15 @@ var LiveAndRoomService = class {
 		}).catch(() => {});
 	}
 	async leaveLiveStream(streamId, userId) {
-		await apiFetch(`/api/live/${encodeURIComponent(streamId)}/leave`, {
-			method: "POST",
-			body: JSON.stringify({ userId })
-		}).catch(() => {});
+		try {
+			const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/leave`, {
+				method: "POST",
+				body: JSON.stringify({ userId }),
+				keepalive: true
+			});
+			if (res.ok) return (await res.json().catch(() => null))?.stream || null;
+		} catch {}
+		return null;
 	}
 	async endLiveStream(streamId, hostId) {
 		const res = await apiFetch(`/api/live/${encodeURIComponent(streamId)}/end`, {
@@ -6248,10 +6289,15 @@ var LiveAndRoomService = class {
 		}).catch(() => {});
 	}
 	async leavePartyRoom(roomId, userId) {
-		await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, {
-			method: "POST",
-			body: JSON.stringify({ userId })
-		}).catch(() => {});
+		try {
+			const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/leave`, {
+				method: "POST",
+				body: JSON.stringify({ userId }),
+				keepalive: true
+			});
+			if (res.ok) return (await res.json().catch(() => null))?.room || null;
+		} catch {}
+		return null;
 	}
 	async endPartyRoom(roomId, hostId) {
 		const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/end`, {
@@ -8323,6 +8369,24 @@ async function updateFirestoreLiveViewerCount(streamId, count) {
 		});
 	} catch {}
 }
+async function syncFirestoreLiveStreamLifecycle(streamId, patch) {
+	if (!auth.currentUser || !isValidFirestoreId(streamId)) return;
+	try {
+		const payload = {};
+		if (typeof patch.numericViewers === "number") {
+			const safe = Math.max(0, Math.floor(patch.numericViewers));
+			payload.numericViewers = safe;
+			payload.viewerCount = String(safe);
+			payload.viewersCount = safe;
+		}
+		if (typeof patch.hostPresent === "boolean") payload.hostPresent = patch.hostPresent;
+		if (patch.status) payload.status = patch.status;
+		if (patch.emptySince !== void 0) payload.emptySince = patch.emptySince;
+		if (patch.closesAt !== void 0) payload.closesAt = patch.closesAt;
+		if (Object.keys(payload).length === 0) return;
+		await updateDoc(doc(db, "live_streams", streamId), payload);
+	} catch {}
+}
 async function updateFirestoreLiveLikes(streamId, likesCount) {
 	if (!auth.currentUser || !isValidFirestoreId(streamId)) return;
 	try {
@@ -8338,7 +8402,7 @@ function subscribeFirestoreLiveViewers(streamId, onUpdate) {
 		snap.docs.forEach((docSnap) => {
 			const data = docSnap.data();
 			const lastSeen = typeof data.lastSeen === "number" ? data.lastSeen : data.joinedAt || now;
-			if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS && !data.isHost) return;
+			if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS) return;
 			rawDocs.set(docSnap.id, {
 				...data,
 				userId: String(data.userId || docSnap.id)
@@ -8547,7 +8611,7 @@ function subscribeFirestoreRoomParticipants(roomId, onUpdate) {
 		snap.docs.forEach((docSnap) => {
 			const data = docSnap.data();
 			const lastSeen = typeof data.lastSeen === "number" ? data.lastSeen : data.joinedAt || now;
-			if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS && !data.isHost) return;
+			if (now - lastSeen > ACTIVE_PRESENCE_TTL_MS) return;
 			rawDocs.set(docSnap.id, {
 				...data,
 				userId: String(data.userId || docSnap.id)
@@ -8680,6 +8744,27 @@ async function updateFirestoreRoomParticipantCount(roomId, count) {
 			participantCount: String(safeCount),
 			viewersCount: safeCount
 		});
+	} catch {}
+}
+async function syncFirestorePartyRoomLifecycle(roomId, patch) {
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return;
+	try {
+		const payload = {};
+		if (typeof patch.numericParticipants === "number") {
+			const safe = Math.max(0, Math.floor(patch.numericParticipants));
+			payload.numericParticipants = safe;
+			payload.participantCount = String(safe);
+			payload.viewersCount = safe;
+		}
+		if (typeof patch.hostPresent === "boolean") {
+			payload.hostPresent = patch.hostPresent;
+			payload.isOwnerPresent = patch.hostPresent;
+		}
+		if (patch.status) payload.status = patch.status;
+		if (patch.emptySince !== void 0) payload.emptySince = patch.emptySince;
+		if (patch.closesAt !== void 0) payload.closesAt = patch.closesAt;
+		if (Object.keys(payload).length === 0) return;
+		await updateDoc(doc(db, "party_rooms", roomId), payload);
 	} catch {}
 }
 function subscribeFirestorePartyRoomDoc(roomId, onStatus) {
@@ -15730,6 +15815,181 @@ var CoinSlipOrderModal = ({ isOpen, onClose, agency, currentUser, onSendMessage 
 		})]
 	});
 };
+// src/shared/roomLifecycleConfig.ts
+/**
+* Default duration (5 minutes) an empty Party Room or Solo Live Room
+* stays visible before the backend automatically closes it.
+*/
+var EMPTY_ROOM_CLEANUP_MS = 3e5;
+/**
+* Format remaining countdown milliseconds as MM:SS (e.g. "04:59").
+*/
+function formatCountdownMMSS(remainingMs) {
+	const safeSec = Math.max(0, Math.ceil(remainingMs / 1e3));
+	return `${Math.floor(safeSec / 60)}:${(safeSec % 60).toString().padStart(2, "0")}`;
+}
+// src/components/common/HDLiveRoomCard.tsx
+function resolveHostHdPhoto(host, fallbackCover) {
+	const avatar = typeof host?.avatar === "string" ? host.avatar.trim() : "";
+	if (avatar) return avatar;
+	const cover = typeof fallbackCover === "string" ? fallbackCover.trim() : "";
+	if (cover) return cover;
+	return typeof host?.coverImage === "string" ? host.coverImage.trim() : "";
+}
+var HDLiveRoomCard = ({ variant, stream, room, topRankIndex = -1, onSelect, onToggleFollow }) => {
+	const isParty = variant === "party";
+	const host = isParty ? room?.host : stream?.host;
+	const title = isParty ? room?.title || "Party Room" : stream?.title || "Solo Live";
+	const status = isParty ? room?.status || "active" : stream?.status || "active";
+	const closesAt = isParty ? room?.closesAt ?? null : stream?.closesAt ?? null;
+	const hostPresent = isParty ? room?.hostPresent ?? room?.isOwnerPresent ?? true : stream?.hostPresent ?? true;
+	const [nowMs, setNowMs] = (0, import_react.useState)(() => Date.now());
+	(0, import_react.useEffect)(() => {
+		if (status !== "empty" || !closesAt) return;
+		setNowMs(Date.now());
+		const id = setInterval(() => setNowMs(Date.now()), 1e3);
+		return () => clearInterval(id);
+	}, [status, closesAt]);
+	const remainingMs = status === "empty" && closesAt ? Math.max(0, closesAt - nowMs) : 0;
+	const isEmptyState = status === "empty";
+	const hdPhotoUrl = resolveHostHdPhoto(host, isParty ? room?.coverImage : stream?.coverImage);
+	const [imgFailed, setImgFailed] = (0, import_react.useState)(false);
+	(0, import_react.useEffect)(() => {
+		setImgFailed(false);
+	}, [hdPhotoUrl]);
+	const viewerCount = isParty ? typeof room?.numericParticipants === "number" ? Math.max(0, room.numericParticipants) : Math.max(0, parseInt(String(room?.participantCount || "0"), 10) || 0) : typeof stream?.numericViewers === "number" ? Math.max(0, stream.numericViewers) : Math.max(0, parseInt(String(stream?.viewerCount || "0"), 10) || 0);
+	const maxSeats = isParty && room ? normalizePartyMaxSeats(room.maxSeats, host?.level) : 0;
+	const activeCapacity = isParty && room ? getActiveSeatCapacity(maxSeats, host?.level) : 0;
+	const occupiedSeats = isParty && room ? countActiveOccupiedSeats(room.seats, maxSeats, host?.level) : 0;
+	const superVipLvl = Math.max(host?.superVipLevel || 0, host?.equippedSuperVipFrame || 0);
+	const isSuperVip = Boolean(host?.isSuperVIP || superVipLvl > 0);
+	const vipLvl = Math.max(host?.vipLevel || 0, host?.equippedVipFrame || 0);
+	const isVip = Boolean(!isSuperVip && (host?.isVIP || vipLvl > 0));
+	const roomTypeLabel = isParty ? "PARTY" : stream?.streamType === "pk" ? "PK LIVE" : stream?.streamType === "live" ? "LIVE" : "SOLO LIVE";
+	const initials = (host?.name || "L").trim().charAt(0).toUpperCase();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick: onSelect,
+		className: `group relative rounded-2xl overflow-hidden bg-[#120820] border transition-all duration-300 shadow-[0_10px_28px_rgba(0,0,0,0.45)] cursor-pointer flex flex-col active:scale-[0.985] ${isEmptyState ? "border-amber-400/35 hover:border-amber-400/70" : isParty ? "border-[#8B20FF]/35 hover:border-[#FA26A0]/75" : "border-white/12 hover:border-[#F328D5]/75"}`,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "relative aspect-[3/4] w-full overflow-hidden bg-[#1A0B2E]",
+			children: [
+				hdPhotoUrl && !imgFailed ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: hdPhotoUrl,
+					alt: host?.name || title,
+					referrerPolicy: "no-referrer",
+					decoding: "async",
+					loading: "eager",
+					onError: () => setImgFailed(true),
+					className: `w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03] ${isEmptyState ? "brightness-[0.86]" : ""}`
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: "w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#230E3D] via-[#311352] to-[#12071F] select-none",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "text-4xl font-black text-white/35 tracking-tight",
+						children: initials
+					})
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/55 via-black/20 to-transparent" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "pointer-events-none absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-[#080312]/95 via-[#080312]/62 via-45% to-transparent" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "absolute top-2.5 left-2.5 right-2.5 flex items-start justify-between gap-1.5",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "flex flex-col gap-1 min-w-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1 flex-wrap",
+							children: [isEmptyState ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/90 text-[#120820] text-[9px] font-black tracking-wide shadow-md tabular-nums",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "EMPTY" }), closesAt ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["· ", formatCountdownMMSS(remainingMs)] }) : null]
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: `inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-white text-[9px] font-black tracking-wide shadow-md ${isParty ? "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0]" : "bg-gradient-to-r from-[#E11D48] to-[#FF2E93]"}`,
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" }),
+									isParty ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-2.5 h-2.5 shrink-0" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-2.5 h-2.5 shrink-0" }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: roomTypeLabel })
+								]
+							}), !isParty && topRankIndex >= 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "inline-flex items-center px-1.5 py-0.5 rounded-md bg-[#FFC84A] text-[#090611] text-[9px] font-black shadow",
+								children: ["#", topRankIndex + 1]
+							})]
+						}), !hostPresent && !isEmptyState && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: "inline-flex items-center self-start px-1.5 py-0.5 rounded bg-black/65 border border-white/15 text-[9px] font-bold text-amber-200/95",
+							children: "Host Left"
+						})]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm border border-white/15 text-white text-[10px] font-extrabold tabular-nums shrink-0 shadow",
+						title: isParty ? "Active participants" : "Live viewers",
+						children: [isParty ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-3 h-3 text-emerald-300 shrink-0" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3 h-3 text-cyan-300 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: viewerCount.toLocaleString() })]
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "absolute inset-x-2.5 bottom-2.5 flex flex-col gap-1",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[12px] font-extrabold text-white leading-tight truncate drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]",
+							children: title
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 min-w-0 flex-wrap",
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[11px] font-bold text-white/95 truncate max-w-[58%] drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]",
+									children: host?.name || "Host"
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
+									level: host?.level || 0,
+									size: "sm"
+								}),
+								isSuperVip ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded bg-gradient-to-r from-[#FF3B7F] via-[#F59E0B] to-[#FFC84A] text-[#14071E] text-[8px] font-black tracking-wide shadow",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["SVIP", superVipLvl > 0 ? ` ${superVipLvl}` : ""] })]
+								}) : isVip ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+									className: "inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded bg-gradient-to-r from-[#FFC84A] to-[#F59E0B] text-[#14071E] text-[8px] font-black tracking-wide shadow",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Crown, { className: "w-2.5 h-2.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: ["VIP", vipLvl > 0 ? ` ${vipLvl}` : ""] })]
+								}) : null
+							]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "flex items-center justify-between gap-1.5 pt-0.5",
+							children: isParty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-[10px] font-semibold text-[#E9D5FF]/90 tabular-nums truncate",
+								children: [
+									occupiedSeats,
+									"/",
+									activeCapacity,
+									" Seats",
+									isEmptyState ? " · Closing soon" : ""
+								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-2.5 py-0.5 rounded-md bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-[10px] font-black shadow shrink-0",
+								children: "Join"
+							})] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "inline-flex items-center gap-1 text-[10px] font-semibold text-rose-200/95 tabular-nums truncate",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-2.5 h-2.5 fill-rose-400 text-rose-400 shrink-0" }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: (stream?.likesCount || 0).toLocaleString() }),
+									isEmptyState ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-amber-300",
+										children: "· Empty"
+									}) : null
+								]
+							}), onToggleFollow && host?.id ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: (e) => {
+									e.stopPropagation();
+									onToggleFollow(host.id);
+								},
+								className: `px-2.5 py-0.5 rounded-md text-[10px] font-extrabold shadow transition-transform active:scale-95 shrink-0 ${host.isFollowing ? "bg-white/20 text-white border border-white/20" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white"}`,
+								children: host.isFollowing ? "Following" : "Follow"
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "px-2.5 py-0.5 rounded-md bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[10px] font-black shadow shrink-0",
+								children: "Watch"
+							})] })
+						})
+					]
+				})
+			]
+		})
+	});
+};
 // src/components/screens/HomeScreen.tsx
 var FAKE_HOST_PATTERN = /^(demo|mock|fake|seed|sample|bot|test_host)[_-]?/i;
 function isOriginalRealHost(user) {
@@ -16420,84 +16680,13 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4",
 						children: visibleLiveCards.map((stream) => {
-							const cardImage = stream.coverImage || stream.host.coverImage || stream.host.avatar;
 							const topRankIndex = originalTopBroadcasters.findIndex((b) => b.host.id === stream.host.id);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								onClick: () => onSelectLive(stream),
-								className: "group relative rounded-2xl overflow-hidden bg-[#160C25] border border-white/10 hover:border-[#F328D5]/60 transition-all duration-300 shadow-lg cursor-pointer flex flex-col",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative aspect-[3/4] w-full overflow-hidden bg-[#211333]",
-									children: [
-										cardImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: cardImage,
-											alt: stream.title,
-											referrerPolicy: "no-referrer",
-											className: "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-full h-full flex items-center justify-center bg-gradient-to-br from-[#211333] to-[#3B174A]",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Video, { className: "w-10 h-10 text-white/30" })
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-white animate-pulse" }), "LIVE"]
-												}), topRankIndex >= 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "bg-[#FFC84A] text-[#090611] font-black text-[9px] px-1.5 py-0.5 rounded-full shadow",
-													children: ["#", topRankIndex + 1]
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Eye, { className: "w-3 h-3 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: stream.numericViewers ?? 0 })]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-10 left-2.5 right-2.5",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-												className: "text-xs font-extrabold text-white truncate drop-shadow",
-												children: stream.title
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 mt-0.5",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LevelBadge, {
-													level: stream.host.level || 0,
-													size: "sm"
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-rose-300 flex items-center gap-0.5 font-mono",
-													children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heart, { className: "w-2.5 h-2.5 fill-rose-400" }), stream.likesCount || 0]
-												})]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 min-w-0",
-												children: [stream.host.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-													src: stream.host.avatar,
-													alt: stream.host.name,
-													referrerPolicy: "no-referrer",
-													className: "w-5 h-5 rounded-full object-cover ring-1 ring-white/50 shrink-0"
-												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0",
-													children: (stream.host.name || "H").charAt(0).toUpperCase()
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white truncate drop-shadow",
-													children: stream.host.name
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-												type: "button",
-												onClick: (e) => {
-													e.stopPropagation();
-													onToggleFollow?.(stream.host.id);
-												},
-												className: `px-2.5 py-0.5 rounded-full text-[10px] font-bold shadow-md hover:scale-105 transition-transform shrink-0 ${stream.host.isFollowing ? "bg-white/20 text-white" : "bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white"}`,
-												children: stream.host.isFollowing ? "Following" : "Follow"
-											})]
-										})
-									]
-								})
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HDLiveRoomCard, {
+								variant: "live",
+								stream,
+								topRankIndex,
+								onSelect: () => onSelectLive(stream),
+								onToggleFollow
 							}, stream.id);
 						})
 					}) : visiblePartyRooms.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -16524,85 +16713,11 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 						]
 					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4",
-						children: visiblePartyRooms.map((room) => {
-							const maxSeats = normalizePartyMaxSeats(room.maxSeats, room.host?.level);
-							const activeCapacity = getActiveSeatCapacity(maxSeats, room.host?.level);
-							const occupiedSeats = countActiveOccupiedSeats(room.seats, maxSeats, room.host?.level);
-							const availableSeats = Math.max(0, activeCapacity - occupiedSeats);
-							const onlineCount = typeof room.numericParticipants === "number" ? room.numericParticipants : parseInt(String(room.participantCount || "0"), 10) || 0;
-							const cardImage = room.coverImage || room.host?.coverImage || room.host?.avatar;
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								onClick: () => onSelectRoom(room),
-								className: "group relative rounded-2xl overflow-hidden bg-[#160C25] border border-[#8B20FF]/30 hover:border-[#FA26A0]/70 transition-all duration-300 shadow-lg cursor-pointer flex flex-col",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative aspect-[3/4] w-full overflow-hidden bg-[#1C0D33]",
-									children: [
-										cardImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: cardImage,
-											alt: room.title,
-											referrerPolicy: "no-referrer",
-											className: "w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-full h-full flex items-center justify-center bg-gradient-to-br from-[#240F42] via-[#3A125C] to-[#1A092B]",
-											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-10 h-10 text-[#C084FC]/60" })
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "absolute inset-0 bg-gradient-to-t from-[#090414]/95 via-[#140724]/30 to-black/35" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between text-xs gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white font-black text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-2.5 h-2.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "AUDIO PARTY" })]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-												className: "bg-black/65 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-3 h-3 text-emerald-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: onlineCount })]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-10 left-2.5 right-2.5 space-y-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-												className: "text-xs font-extrabold text-white truncate drop-shadow",
-												children: room.title
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 flex-wrap",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "px-2 py-0.5 rounded-md bg-[#1D0B38]/90 border border-[#A855F7]/40 text-[9px] font-bold text-[#E9D5FF]",
-													children: [
-														occupiedSeats,
-														"/",
-														activeCapacity,
-														" Seats"
-													]
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: `px-1.5 py-0.5 rounded-md text-[9px] font-bold ${availableSeats > 0 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30" : "bg-rose-500/20 text-rose-300 border border-rose-400/30"}`,
-													children: availableSeats > 0 ? `${availableSeats} Open` : "Full"
-												})]
-											})]
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex items-center gap-1.5 min-w-0",
-												children: [room.host?.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-													src: room.host.avatar,
-													alt: room.host.name,
-													referrerPolicy: "no-referrer",
-													className: "w-5 h-5 rounded-full object-cover ring-1 ring-[#FA26A0]/70 shrink-0"
-												}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-													className: "w-5 h-5 rounded-full bg-[#8B20FF] text-white text-[9px] font-bold flex items-center justify-center ring-1 ring-white/50 shrink-0",
-													children: (room.host?.name || "H").charAt(0).toUpperCase()
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white truncate drop-shadow",
-													children: room.host?.name || "Host"
-												})]
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-												className: "px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#FA26A0] text-white text-[10px] font-black shadow-md shrink-0",
-												children: "Join"
-											})]
-										})
-									]
-								})
-							}, room.id);
-						})
+						children: visiblePartyRooms.map((room) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HDLiveRoomCard, {
+							variant: "party",
+							room,
+							onSelect: () => onSelectRoom(room)
+						}, room.id))
 					})]
 				})
 			]
@@ -16915,86 +17030,12 @@ var RoomsScreen = ({ partyRooms, onSelectRoom, onNavigate, onOpenCreateRoom, onO
 					}, cat.id))
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "space-y-3 pt-1",
-					children: filteredRooms.map((room) => {
-						const liveOnlineCount = typeof room.numericParticipants === "number" ? room.numericParticipants : 0;
-						const seatedCount = countActiveOccupiedSeats(room.seats, room.maxSeats, room.host?.level);
-						return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => onSelectRoom(room),
-							className: "group relative flex items-center justify-between p-3.5 rounded-2xl bg-[#140D20] border border-white/[0.08] hover:border-[#FA26A0]/60 transition-all duration-200 shadow-lg cursor-pointer active:scale-[0.99]",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 min-w-0",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "relative shrink-0",
-									children: [room.host.avatar || room.coverImage ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-										src: room.host.avatar || room.coverImage,
-										alt: room.host.name,
-										referrerPolicy: "no-referrer",
-										className: "w-12 h-12 rounded-full object-cover ring-2 ring-[#FA26A0]/50 group-hover:ring-[#FA26A0] transition-all"
-									}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "w-12 h-12 rounded-full bg-[#24133D] ring-2 ring-[#FA26A0]/50 flex items-center justify-center text-sm font-black text-white",
-										children: (room.host.name || "R").charAt(0).toUpperCase()
-									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-										className: "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FA26A0] text-white flex items-center justify-center text-[9px] shadow",
-										children: "🎙️"
-									})]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex flex-col min-w-0",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
-											className: "text-sm font-extrabold text-white group-hover:text-[#FA26A0] transition-colors truncate leading-snug",
-											children: room.title
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-xs text-[#9E97AA] font-medium truncate leading-snug",
-											children: room.host.name
-										}),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-2 mt-0.5",
-											children: [
-												room.displayId && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-[#6E677A] font-mono leading-none",
-													children: ["ID: ", room.displayId]
-												}),
-												/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-[#9E97AA] font-mono leading-none",
-													children: [
-														"• ",
-														seatedCount,
-														"/",
-														getActiveSeatCapacity(room.maxSeats, room.host?.level),
-														" seats"
-													]
-												}),
-												seatedCount === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "px-1.5 py-0.5 rounded bg-white/10 text-[9px] font-bold text-[#B9AECF] uppercase tracking-wide leading-none",
-													children: "Empty"
-												})
-											]
-										})
-									]
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex items-center gap-3 shrink-0 ml-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center gap-1 text-xs font-mono font-bold text-white/90",
-									title: "Real-time connected viewers",
-									children: [
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: `w-1.5 h-1.5 rounded-full ${liveOnlineCount > 0 || seatedCount > 0 ? "bg-emerald-400" : "bg-white/30"}` }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Users, { className: "w-3.5 h-3.5 text-[#9E97AA]" }),
-										/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: liveOnlineCount })
-									]
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									onClick: (e) => {
-										e.stopPropagation();
-										onSelectRoom(room);
-									},
-									className: "px-4 py-1.5 rounded-full bg-[#FA26A0] hover:bg-[#e01d8b] text-white text-xs font-black shadow-md shadow-[#FA26A0]/30 active:scale-95 transition-all",
-									children: "Join"
-								})]
-							})]
-						}, room.id);
-					})
+					className: "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 pt-1",
+					children: filteredRooms.map((room) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HDLiveRoomCard, {
+						variant: "party",
+						room,
+						onSelect: () => onSelectRoom(room)
+					}, room.id))
 				}),
 				filteredRooms.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "py-16 text-center flex flex-col items-center",
@@ -19991,7 +20032,7 @@ var VIDEO_FILTERS = {
 		css: "contrast-[1.3] brightness-[1.05] hue-rotate-[180deg] saturate-[1.35]"
 	}
 };
-var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK, blockedUserIds = [], blockedByUserIds = [] }) => {
+var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStream, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK, blockedUserIds = [], blockedByUserIds = [] }) => {
 	const isActualHost = currentUser.id === stream.host.id;
 	const blockedUserIdsRef = (0, import_react.useRef)(new Set(blockedUserIds));
 	const blockedByUserIdsRef = (0, import_react.useRef)(new Set(blockedByUserIds));
@@ -20120,8 +20161,58 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			setViewersLoading(false);
 		}
 	};
+	const hasExplicitlyLeftLiveRef = (0, import_react.useRef)(false);
+	const liveViewerCountRef = (0, import_react.useRef)(liveViewerCount);
+	(0, import_react.useEffect)(() => {
+		liveViewerCountRef.current = liveViewerCount;
+	}, [liveViewerCount]);
+	const handleCleanLeaveLive = async () => {
+		setShowEndLiveConfirm(false);
+		hasExplicitlyLeftLiveRef.current = true;
+		if (audioAnalyserControllerRef.current) {
+			audioAnalyserControllerRef.current.cleanup();
+			audioAnalyserControllerRef.current = null;
+		}
+		if (mediaStreamRef.current) {
+			stopMediaStream(mediaStreamRef.current);
+			mediaStreamRef.current = null;
+		}
+		webrtcMediaService.stopLive();
+		await agoraRtcService.leaveChannel().catch(() => {});
+		setNativeLiveAudioMode(false);
+		const remainingViewers = isActualHost ? Math.max(0, liveViewerCountRef.current) : Math.max(0, liveViewerCountRef.current - 1);
+		const nextHostPresent = isActualHost ? false : stream.hostPresent !== false;
+		const totalActive = (nextHostPresent ? 1 : 0) + remainingViewers;
+		const now = Date.now();
+		const nextStatus = totalActive === 0 ? "empty" : "active";
+		const nextEmptySince = totalActive === 0 ? now : null;
+		const nextClosesAt = totalActive === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+		onUpdateStream?.({
+			...stream,
+			numericViewers: remainingViewers,
+			viewerCount: String(remainingViewers),
+			hostPresent: nextHostPresent,
+			status: nextStatus,
+			emptySince: nextEmptySince,
+			closesAt: nextClosesAt
+		});
+		const [serverUpdatedStream] = await Promise.all([
+			liveAndRoomService.leaveLiveStream(stream.id, currentUser.id).catch(() => null),
+			leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+			syncFirestoreLiveStreamLifecycle(stream.id, {
+				numericViewers: remainingViewers,
+				...isActualHost ? { hostPresent: false } : {},
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
+			}).catch(() => {})
+		]);
+		if (serverUpdatedStream) onUpdateStream?.(serverUpdatedStream);
+		onClose();
+	};
 	(0, import_react.useEffect)(() => {
 		let active = true;
+		hasExplicitlyLeftLiveRef.current = false;
 		let streamDocEverExisted = false;
 		const initialKnownViewerIds = /* @__PURE__ */ new Set([currentUser.id]);
 		let fsViewersInitialized = false;
@@ -20133,10 +20224,17 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 		liveAndRoomService.setCurrentUser(currentUser.id);
 		liveAndRoomService.subscribeLive(stream.id, currentUser.id);
 		joinFirestoreLiveViewer(stream.id, currentUser, isActualHost);
+		syncFirestoreLiveStreamLifecycle(stream.id, {
+			status: "active",
+			emptySince: null,
+			closesAt: null,
+			...isActualHost ? { hostPresent: true } : {}
+		});
 		liveAndRoomService.joinLiveStream(stream.id, currentUser, streamMeta).then((res) => {
 			if (!active) return;
 			if (res.stream) {
-				setLiveViewerCount((prev) => Math.max(prev, res.stream?.numericViewers ?? 0));
+				setLiveViewerCount(res.stream.numericViewers ?? 0);
+				onUpdateStream?.(res.stream);
 				if (typeof res.stream.likesCount === "number") setStreamLikes((prev) => Math.max(prev, res.stream.likesCount || 0));
 			}
 			if (Array.isArray(res.viewers) && res.viewers.length > 0) setViewersList((prev) => {
@@ -20334,9 +20432,14 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 					const giftMsg = payload.message;
 					setMessages((prev) => prev.some((m) => m.id === giftMsg.id) ? prev : [...prev, giftMsg]);
 				}
+			} else if (event === "live:host_left") {
+				if (!isActualHost) showToast("Host stepped out of the live room");
+				if (payload.stream) onUpdateStream?.(payload.stream);
+			} else if (event === "live:empty_countdown_started" || event === "live:reactivated") {
+				if (payload.stream) onUpdateStream?.(payload.stream);
 			} else if (event === "live:ended") {
-				if (!isActualHost) {
-					showToast("Live broadcast has ended");
+				if (!isActualHost || payload.autoClosed) {
+					showToast(payload.autoClosed ? "Live room closed automatically after 5 minutes of inactivity" : "Live broadcast has ended");
 					if (audioAnalyserControllerRef.current) {
 						audioAnalyserControllerRef.current.cleanup();
 						audioAnalyserControllerRef.current = null;
@@ -20353,8 +20456,41 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 				}
 			}
 		});
+		const cleanupOnUnexpectedLiveExit = () => {
+			if (hasExplicitlyLeftLiveRef.current) return;
+			hasExplicitlyLeftLiveRef.current = true;
+			const remainingViewers = isActualHost ? Math.max(0, liveViewerCountRef.current) : Math.max(0, liveViewerCountRef.current - 1);
+			const nextHostPresent = isActualHost ? false : stream.hostPresent !== false;
+			const totalActive = (nextHostPresent ? 1 : 0) + remainingViewers;
+			const now = Date.now();
+			const nextStatus = totalActive === 0 ? "empty" : "active";
+			const nextEmptySince = totalActive === 0 ? now : null;
+			const nextClosesAt = totalActive === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+			onUpdateStream?.({
+				...stream,
+				numericViewers: remainingViewers,
+				viewerCount: String(remainingViewers),
+				hostPresent: nextHostPresent,
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
+			});
+			liveAndRoomService.leaveLiveStream(stream.id, currentUser.id).catch(() => {});
+			leaveFirestoreLiveViewer(stream.id).catch(() => {});
+			syncFirestoreLiveStreamLifecycle(stream.id, {
+				numericViewers: remainingViewers,
+				...isActualHost ? { hostPresent: false } : {},
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
+			}).catch(() => {});
+		};
+		window.addEventListener("pagehide", cleanupOnUnexpectedLiveExit);
+		window.addEventListener("beforeunload", cleanupOnUnexpectedLiveExit);
 		return () => {
 			active = false;
+			window.removeEventListener("pagehide", cleanupOnUnexpectedLiveExit);
+			window.removeEventListener("beforeunload", cleanupOnUnexpectedLiveExit);
 			clearInterval(heartbeat);
 			if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
 			unsubscribeWs();
@@ -20362,10 +20498,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 			unsubFsComments();
 			unsubFsStreamDoc();
 			liveAndRoomService.unsubscribeLive();
-			if (!isActualHost) {
-				liveAndRoomService.leaveLiveStream(stream.id, currentUser.id);
-				leaveFirestoreLiveViewer(stream.id);
-			}
+			cleanupOnUnexpectedLiveExit();
 		};
 	}, [
 		stream.id,
@@ -21127,31 +21260,42 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "flex gap-2 pt-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: () => setShowEndLiveConfirm(false),
-								className: "flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors",
-								children: "Continue Live"
+							className: "flex flex-col gap-2 pt-2",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: handleCleanLeaveLive,
+									className: "flex-1 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-extrabold transition-colors",
+									children: "Exit Room"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: async () => {
+										setShowEndLiveConfirm(false);
+										hasExplicitlyLeftLiveRef.current = true;
+										if (audioAnalyserControllerRef.current) {
+											audioAnalyserControllerRef.current.cleanup();
+											audioAnalyserControllerRef.current = null;
+										}
+										if (mediaStreamRef.current) {
+											stopMediaStream(mediaStreamRef.current);
+											mediaStreamRef.current = null;
+										}
+										webrtcMediaService.stopLive();
+										await agoraRtcService.leaveChannel().catch(() => {});
+										setNativeLiveAudioMode(false);
+										await Promise.all([leaveFirestoreLiveViewer(stream.id).catch(() => {}), liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {})]);
+										onEndLive?.(stream.id);
+										onClose();
+									},
+									className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all",
+									children: "End Broadcast"
+								})]
 							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								onClick: async () => {
-									setShowEndLiveConfirm(false);
-									if (audioAnalyserControllerRef.current) {
-										audioAnalyserControllerRef.current.cleanup();
-										audioAnalyserControllerRef.current = null;
-									}
-									if (mediaStreamRef.current) {
-										stopMediaStream(mediaStreamRef.current);
-										mediaStreamRef.current = null;
-									}
-									webrtcMediaService.stopLive();
-									await agoraRtcService.leaveChannel().catch(() => {});
-									setNativeLiveAudioMode(false);
-									await Promise.all([leaveFirestoreLiveViewer(stream.id).catch(() => {}), liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {})]);
-									onEndLive?.(stream.id);
-									onClose();
-								},
-								className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all",
-								children: "End Broadcast"
+								type: "button",
+								onClick: () => setShowEndLiveConfirm(false),
+								className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors",
+								children: "Continue Live"
 							})]
 						})
 					]
@@ -22024,7 +22168,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onToggleFollo
 								type: "button",
 								onClick: () => {
 									if (isActualHost) setShowEndLiveConfirm(true);
-									else onClose();
+									else handleCleanLeaveLive();
 								},
 								"aria-label": isActualHost ? "End Broadcast / Exit Live" : "Exit Live Stream",
 								className: `w-9 h-9 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-95 shrink-0 shadow-lg ${isActualHost ? "bg-rose-600/90 hover:bg-rose-600 border-white/25 text-white shadow-rose-900/40" : "bg-black/65 hover:bg-black/85 border-white/15 text-white"}`,
@@ -24036,6 +24180,12 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				});
 			});
 		};
+		syncFirestorePartyRoomLifecycle(room.id, {
+			status: "active",
+			emptySince: null,
+			closesAt: null,
+			...isRoomHost ? { hostPresent: true } : {}
+		});
 		liveAndRoomService.joinPartyRoom(room.id, currentUser, room.password).then((res) => {
 			if (!active) return;
 			if (res.room) applyServerRoomState(res.room);
@@ -24251,7 +24401,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				return;
 			}
 			if (payload.roomId && payload.roomId !== room.id) return;
-			if ((event === "room:updated" || event === "room:state_updated" || event === "room:sync_state" || event === "room:settings_updated" || event === "room:seat_occupied" || event === "room:seat_vacated") && payload.room) {
+			if ((event === "room:updated" || event === "room:state_updated" || event === "room:sync_state" || event === "room:settings_updated" || event === "room:seat_occupied" || event === "room:seat_vacated" || event === "room:empty_countdown_started" || event === "room:reactivated") && payload.room) {
 				applyServerRoomState(payload.room);
 				if (Array.isArray(payload.participants)) {
 					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
@@ -24394,8 +24544,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				}]);
 				setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
 			} else if (event === "room:closed") {
-				if (!isRoomHost) {
-					showToast("Host has closed this party room");
+				if (!isRoomHost || payload.autoClosed) {
+					showToast(payload.autoClosed ? "Party room closed automatically after 5 minutes of inactivity" : "Host has closed this party room");
 					webrtcMediaService.stopPartyVoice();
 					agoraRtcService.leaveChannel().catch(() => {});
 					setTimeout(() => {
@@ -24411,14 +24561,30 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : void 0;
 			const nextSeats = seatsRef.current.map((s, idx) => s?.id === currentUser.id || isRoomHost && idx === 0 ? null : s);
 			const nextCount = Math.max(0, participantTotalRef.current - 1);
+			const now = Date.now();
+			const nextStatus = nextCount === 0 ? "empty" : "active";
+			const nextEmptySince = nextCount === 0 ? now : null;
+			const nextClosesAt = nextCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+			const nextHostPresent = isRoomHost ? false : room.hostPresent;
 			onUpdateRoom?.({
 				...room,
 				seats: nextSeats,
 				numericParticipants: nextCount,
-				participantCount: String(nextCount)
+				participantCount: String(nextCount),
+				hostPresent: nextHostPresent,
+				isOwnerPresent: nextHostPresent,
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
 			});
 			if (targetSeatIdx !== void 0) vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {});
-			updateFirestoreRoomParticipantCount(room.id, nextCount).catch(() => {});
+			syncFirestorePartyRoomLifecycle(room.id, {
+				numericParticipants: nextCount,
+				...isRoomHost ? { hostPresent: false } : {},
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
+			}).catch(() => {});
 			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
 			leaveFirestoreRoomParticipant(room.id).catch(() => {});
 		};
@@ -24838,13 +25004,23 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : void 0;
 		const nextSeats = seatsRef.current.map((s, idx) => s?.id === currentUser.id || isRoomHost && idx === 0 ? null : s);
 		const remainingCount = Math.max(0, participantsList.filter((p) => p.userId !== currentUser.id).length);
+		const now = Date.now();
+		const nextStatus = remainingCount === 0 ? "empty" : "active";
+		const nextEmptySince = remainingCount === 0 ? now : null;
+		const nextClosesAt = remainingCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
+		const nextHostPresent = isRoomHost ? false : room.hostPresent;
 		setSeats(nextSeats);
 		setParticipantTotal(remainingCount);
 		onUpdateRoom?.({
 			...room,
 			seats: nextSeats,
 			numericParticipants: remainingCount,
-			participantCount: String(remainingCount)
+			participantCount: String(remainingCount),
+			hostPresent: nextHostPresent,
+			isOwnerPresent: nextHostPresent,
+			status: nextStatus,
+			emptySince: nextEmptySince,
+			closesAt: nextClosesAt
 		});
 		webrtcMediaService.stopPartyVoice();
 		if (realMicAnalyserRef.current) {
@@ -24856,12 +25032,19 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			realMicStreamRef.current = null;
 		}
 		await agoraRtcService.leaveChannel().catch(() => {});
-		await Promise.all([
+		const [serverUpdatedRoom] = await Promise.all([
+			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => null),
 			targetSeatIdx !== void 0 ? vacateFirestoreSeat(room.id, currentUser.id, targetSeatIdx, maxSeatsRef.current).catch(() => {}) : Promise.resolve(),
-			updateFirestoreRoomParticipantCount(room.id, remainingCount).catch(() => {}),
-			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {}),
-			leaveFirestoreRoomParticipant(room.id).catch(() => {})
+			leaveFirestoreRoomParticipant(room.id).catch(() => {}),
+			syncFirestorePartyRoomLifecycle(room.id, {
+				numericParticipants: remainingCount,
+				...isRoomHost ? { hostPresent: false } : {},
+				status: nextStatus,
+				emptySince: nextEmptySince,
+				closesAt: nextClosesAt
+			}).catch(() => {})
 		]);
+		if (serverUpdatedRoom) onUpdateRoom?.(serverUpdatedRoom);
 		onClose();
 	};
 	const handleSeatClick = (index) => {
@@ -38766,6 +38949,17 @@ var SearchModal = ({ isOpen, onClose, liveStreams, partyRooms, users, onSelectLi
 	const matchedRooms = partyRooms.filter((r) => !normalizedQuery || r.title.toLowerCase().includes(normalizedQuery) || r.category.toLowerCase().includes(normalizedQuery));
 	const matchedLive = liveStreams.filter((l) => !normalizedQuery || l.title.toLowerCase().includes(normalizedQuery) || l.host.name.toLowerCase().includes(normalizedQuery));
 	const hasResults = matchedHosts.length > 0 && ["All", "Hosts"].includes(filterType) || matchedRooms.length > 0 && ["All", "Rooms"].includes(filterType) || matchedLive.length > 0 && ["All", "Live"].includes(filterType);
+	const recordSearch = (term) => {
+		const clean = term.trim();
+		if (!clean) return;
+		setRecentSearches((prev) => {
+			const updated = [clean, ...prev.filter((t) => t !== clean)].slice(0, 8);
+			try {
+				localStorage.setItem("lenzo_recent_searches_v1", JSON.stringify(updated));
+			} catch {}
+			return updated;
+		});
+	};
 	const handleClearHistory = () => {
 		setRecentSearches([]);
 		try {
@@ -38865,38 +39059,15 @@ var SearchModal = ({ isOpen, onClose, liveStreams, partyRooms, users, onSelectLi
 									className: "text-xs font-bold text-[#B9AECF] uppercase mb-2",
 									children: "Live Broadcasts"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "space-y-2",
-									children: matchedLive.map((stream) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										onClick: () => {
+									className: "grid grid-cols-2 gap-3",
+									children: matchedLive.map((stream) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HDLiveRoomCard, {
+										variant: "live",
+										stream,
+										onSelect: () => {
+											recordSearch(query);
 											onClose();
 											onSelectLive(stream);
-										},
-										className: "p-2.5 rounded-2xl bg-[#211333] hover:bg-[#2b1742] border border-white/5 flex items-center justify-between cursor-pointer group",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-3",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-												src: stream.coverImage,
-												alt: stream.title,
-												className: "w-12 h-12 rounded-xl object-cover"
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex flex-col",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white group-hover:text-[#F328D5] transition-colors",
-													children: stream.title
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[11px] text-[#B9AECF]",
-													children: [
-														"Host: ",
-														stream.host.name,
-														" • 👤 ",
-														stream.viewerCount
-													]
-												})]
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black",
-											children: "LIVE"
-										})]
+										}
 									}, stream.id))
 								})] }),
 								["All", "Hosts"].includes(filterType) && matchedHosts.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h4", {
@@ -38942,37 +39113,15 @@ var SearchModal = ({ isOpen, onClose, liveStreams, partyRooms, users, onSelectLi
 									className: "text-xs font-bold text-[#B9AECF] uppercase mb-2",
 									children: "Party Rooms"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: "space-y-2",
-									children: matchedRooms.map((room) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										onClick: () => {
+									className: "grid grid-cols-2 gap-3",
+									children: matchedRooms.map((room) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HDLiveRoomCard, {
+										variant: "party",
+										room,
+										onSelect: () => {
+											recordSearch(query);
 											onClose();
 											onSelectRoom(room);
-										},
-										className: "p-2.5 rounded-2xl bg-[#211333] hover:bg-[#2b1742] border border-white/5 flex items-center justify-between cursor-pointer group",
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-											className: "flex items-center gap-3",
-											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-												className: "w-10 h-10 rounded-xl bg-gradient-to-tr from-[#8B20FF] to-[#F328D5] flex items-center justify-center text-white",
-												children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-5 h-5" })
-											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-												className: "flex flex-col",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-													className: "text-xs font-bold text-white group-hover:text-[#F328D5] transition-colors",
-													children: room.title
-												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-													className: "text-[10px] text-[#B9AECF]",
-													children: [
-														room.category,
-														" • 👤 ",
-														room.participantCount,
-														" online"
-													]
-												})]
-											})]
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "px-3 py-1 rounded-full bg-gradient-to-r from-[#8B20FF] to-[#F328D5] text-white text-[11px] font-bold shadow",
-											children: "Join"
-										})]
+										}
 									}, room.id))
 								})] }),
 								!hasResults && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -39726,15 +39875,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-C45jdL02.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-mfpq7ZDa.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BAw7AUBw.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CduOvxGr.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Bza-lPvh.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-Q63gYsUG.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-CkloEjaa.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-5eGB-JmF.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-Mt13j3a6.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CPBdwVb9.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C62LBz1C.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BVwp13ou.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-IKQotvVi.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-DyAiorru.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DG4vJEdM.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BP5_ZtjU.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BZE5EhqG.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-B15tLdpJ.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -40528,12 +40677,15 @@ function App() {
 				liveAndRoomService.fetchTopBroadcasters().then((res) => {
 					if (active) setTopBroadcasters(res.broadcasters);
 				});
-			} else if ((event === "live:viewer_count_updated" || event === "live:viewer_joined" || event === "live:viewer_left") && payload?.streamId) setLiveStreams((prev) => prev.map((s) => s.id === payload.streamId ? {
-				...s,
-				numericViewers: payload.numericViewers ?? s.numericViewers,
-				viewerCount: payload.viewerCount ?? String(payload.numericViewers ?? s.numericViewers)
-			} : s));
-			else if ((event === "live:like" || event === "live:heart") && payload?.streamId) setLiveStreams((prev) => prev.map((s) => s.id === payload.streamId && typeof payload.likesCount === "number" ? {
+			} else if ((event === "live:empty_countdown_started" || event === "live:reactivated" || event === "live:host_left") && payload?.stream) upsertStream(payload.stream);
+			else if ((event === "live:viewer_count_updated" || event === "live:viewer_joined" || event === "live:viewer_left") && payload?.streamId) {
+				if (payload.stream) upsertStream(payload.stream);
+				else setLiveStreams((prev) => prev.map((s) => s.id === payload.streamId ? {
+					...s,
+					numericViewers: payload.numericViewers ?? s.numericViewers,
+					viewerCount: payload.viewerCount ?? String(payload.numericViewers ?? s.numericViewers)
+				} : s));
+			} else if ((event === "live:like" || event === "live:heart") && payload?.streamId) setLiveStreams((prev) => prev.map((s) => s.id === payload.streamId && typeof payload.likesCount === "number" ? {
 				...s,
 				likesCount: payload.likesCount
 			} : s));
@@ -40564,7 +40716,7 @@ function App() {
 					}
 					return prev;
 				});
-			} else if ((event === "room:updated" || event === "room:state_updated" || event === "room:participant_joined" || event === "room:participant_left" || event === "room:seat_occupied" || event === "room:seat_vacated") && payload?.room) upsertRoom(payload.room);
+			} else if ((event === "room:updated" || event === "room:state_updated" || event === "room:participant_joined" || event === "room:participant_left" || event === "room:seat_occupied" || event === "room:seat_vacated" || event === "room:empty_countdown_started" || event === "room:reactivated") && payload?.room) upsertRoom(payload.room);
 			else if (event === "room:seat_muted" && payload?.roomId && Array.isArray(payload.mutedSeatIndices)) {
 				setPartyRooms((prev) => prev.map((r) => r.id === payload.roomId ? {
 					...r,
@@ -40576,8 +40728,36 @@ function App() {
 				} : prev);
 			}
 		});
+		const expirySweep = setInterval(() => {
+			const now = Date.now();
+			setPartyRooms((prev) => {
+				const filtered = prev.filter((r) => {
+					if (r.status === "closed") return false;
+					if (r.status === "empty" && typeof r.closesAt === "number" && r.closesAt <= now) {
+						endedRoomIdsRef.current.add(r.id);
+						backendRoomIdsRef.current.delete(r.id);
+						return false;
+					}
+					return true;
+				});
+				return filtered.length === prev.length ? prev : filtered;
+			});
+			setLiveStreams((prev) => {
+				const filtered = prev.filter((s) => {
+					if (s.status === "closed" || s.isLive === false) return false;
+					if (s.status === "empty" && typeof s.closesAt === "number" && s.closesAt <= now) {
+						endedLiveIdsRef.current.add(s.id);
+						backendLiveIdsRef.current.delete(s.id);
+						return false;
+					}
+					return true;
+				});
+				return filtered.length === prev.length ? prev : filtered;
+			});
+		}, 3e3);
 		return () => {
 			active = false;
+			clearInterval(expirySweep);
 			unsubRealtime();
 		};
 	}, [refreshTick]);
@@ -40660,19 +40840,19 @@ function App() {
 					if (backendLiveIdsRef.current.has(existing.id)) {
 						const fsItem = merged.get(existing.id);
 						if (fsItem) {
-							const bestViewers = Math.max(fsItem.numericViewers || 0, existing.numericViewers || 0);
+							const exactViewers = typeof existing.numericViewers === "number" ? existing.numericViewers : fsItem.numericViewers || 0;
 							merged.set(existing.id, {
-								...existing,
 								...fsItem,
-								numericViewers: bestViewers,
-								viewerCount: String(bestViewers),
+								...existing,
+								numericViewers: exactViewers,
+								viewerCount: String(exactViewers),
 								likesCount: Math.max(fsItem.likesCount || 0, existing.likesCount || 0)
 							});
 						} else merged.set(existing.id, existing);
 					}
 				});
 				const byHost = /* @__PURE__ */ new Map();
-				Array.from(merged.values()).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)).forEach((s) => {
+				Array.from(merged.values()).filter((s) => s.status !== "closed" && s.isLive !== false && !(s.status === "empty" && typeof s.closesAt === "number" && s.closesAt <= Date.now())).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)).forEach((s) => {
 					const hostKey = s.host?.id || s.id;
 					if (!byHost.has(hostKey)) byHost.set(hostKey, s);
 				});
@@ -40680,20 +40860,22 @@ function App() {
 			});
 		});
 		const unsubRooms = subscribeFirestorePartyRooms((remoteRooms) => {
+			const now = Date.now();
 			setPartyRooms((prev) => {
 				const merged = /* @__PURE__ */ new Map();
 				remoteRooms.forEach((r) => {
-					if (!endedRoomIdsRef.current.has(r.id)) merged.set(r.id, enforcePartyRoomSeatPolicy(r));
+					if (!endedRoomIdsRef.current.has(r.id) && r.status !== "closed" && !(r.status === "empty" && typeof r.closesAt === "number" && r.closesAt <= now)) merged.set(r.id, enforcePartyRoomSeatPolicy(r));
 				});
 				prev.forEach((existing) => {
-					if (endedRoomIdsRef.current.has(existing.id)) return;
+					if (endedRoomIdsRef.current.has(existing.id) || existing.status === "closed") return;
+					if (existing.status === "empty" && typeof existing.closesAt === "number" && existing.closesAt <= now) return;
 					if (backendRoomIdsRef.current.has(existing.id)) {
 						const fsItem = merged.get(existing.id);
 						if (fsItem) merged.set(existing.id, enforcePartyRoomSeatPolicy({
-							...existing,
 							...fsItem,
-							numericParticipants: typeof fsItem.numericParticipants === "number" ? fsItem.numericParticipants : 0,
-							participantCount: String(typeof fsItem.numericParticipants === "number" ? fsItem.numericParticipants : 0)
+							...existing,
+							numericParticipants: typeof existing.numericParticipants === "number" ? existing.numericParticipants : fsItem.numericParticipants || 0,
+							participantCount: String(typeof existing.numericParticipants === "number" ? existing.numericParticipants : fsItem.numericParticipants || 0)
 						}));
 						else merged.set(existing.id, enforcePartyRoomSeatPolicy(existing));
 					}
@@ -41481,6 +41663,10 @@ function App() {
 						setActiveLiveStream(null);
 						setActivePKSession(null);
 						setCurrentScreen("home");
+					},
+					onUpdateStream: (updatedStream) => {
+						setActiveLiveStream(updatedStream);
+						setLiveStreams((prev) => prev.map((s) => s.id === updatedStream.id ? updatedStream : s));
 					},
 					onEndLive: handleEndLive,
 					onToggleFollow: handleToggleFollow,

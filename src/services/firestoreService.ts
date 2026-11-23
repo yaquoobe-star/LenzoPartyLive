@@ -274,11 +274,28 @@ function toMillis(val: any, fallback = Date.now()): number {
   return fallback;
 }
 
+function isFirestoreRoomStillVisible(data: any, now = Date.now()): boolean {
+  if (!data) return false;
+  if (data.status === 'closed' || data.status === 'ended') return false;
+  if (data.status === 'empty' && typeof data.closesAt === 'number' && data.closesAt <= now) {
+    return false;
+  }
+  return true;
+}
+
+function isFirestoreStreamStillVisible(data: any, now = Date.now()): boolean {
+  if (!data) return false;
+  if (data.isLive === false || data.status === 'closed' || data.status === 'ended') return false;
+  if (data.status === 'empty' && typeof data.closesAt === 'number' && data.closesAt <= now) {
+    return false;
+  }
+  return true;
+}
+
 function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
   const hostCard = sanitizeFirestoreUserCard(data?.host);
   const hostLevel = sanitizeUserLevel(hostCard.level);
   const maxSeats = clampPartyMaxSeatsForHostLevel(data?.maxSeats, hostLevel);
-  const activeCapacity = getActiveSeatCapacity(maxSeats, hostLevel);
   const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
   const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
   for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
@@ -287,12 +304,27 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
         ? sanitizeFirestoreUserCard(rawSeats[i])
         : null;
   }
+  const seatedCount = seats.filter(Boolean).length;
   const numericParticipants =
     typeof data?.numericParticipants === 'number'
-      ? data.numericParticipants
+      ? Math.max(0, Math.floor(data.numericParticipants))
       : typeof data?.viewersCount === 'number'
-        ? data.viewersCount
-        : Math.max(1, seats.filter(Boolean).length);
+        ? Math.max(0, Math.floor(data.viewersCount))
+        : seatedCount;
+
+  const hostPresent =
+    typeof data?.hostPresent === 'boolean'
+      ? data.hostPresent
+      : typeof data?.isOwnerPresent === 'boolean'
+        ? data.isOwnerPresent
+        : seats.some((s) => s?.id === hostCard.id);
+
+  const normalizedStatus: 'active' | 'empty' | 'closed' =
+    data?.status === 'closed' || data?.status === 'ended'
+      ? 'closed'
+      : data?.status === 'empty'
+        ? 'empty'
+        : 'active';
 
   return {
     id,
@@ -302,7 +334,7 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
     host: hostCard,
     coverImage: String(data?.coverImage || data?.host?.avatar || ''),
     iconType: data?.iconType || 'heart',
-    participantCount: String(data?.participantCount || `${numericParticipants}/${activeCapacity}`),
+    participantCount: String(numericParticipants),
     numericParticipants,
     isAudioRoom: true,
     maxSeats,
@@ -314,6 +346,11 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
     seatRequests: Array.isArray(data?.seatRequests) ? data.seatRequests : [],
     isLocked: Boolean(data?.isLocked),
     allowJoin: data?.allowJoin !== false,
+    isOwnerPresent: hostPresent,
+    hostPresent,
+    status: normalizedStatus,
+    emptySince: typeof data?.emptySince === 'number' ? data.emptySince : null,
+    closesAt: typeof data?.closesAt === 'number' ? data.closesAt : null,
     startTime: toMillis(data?.startTime ?? data?.createdAt),
     likesCount: typeof data?.likesCount === 'number' ? data.likesCount : 0,
     backgroundType:
@@ -328,19 +365,34 @@ function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
 function normalizeFirestoreLiveStream(id: string, data: any): LiveStream {
   const numericViewers =
     typeof data?.numericViewers === 'number'
-      ? data.numericViewers
+      ? Math.max(0, Math.floor(data.numericViewers))
       : typeof data?.viewersCount === 'number'
-        ? data.viewersCount
+        ? Math.max(0, Math.floor(data.viewersCount))
         : 0;
+  const normalizedStatus: 'active' | 'empty' | 'closed' =
+    data?.status === 'closed' || data?.status === 'ended' || data?.isLive === false
+      ? 'closed'
+      : data?.status === 'empty'
+        ? 'empty'
+        : 'active';
+  const hostPresent =
+    typeof data?.hostPresent === 'boolean'
+      ? data.hostPresent
+      : normalizedStatus !== 'empty' && normalizedStatus !== 'closed';
   return {
     id,
     title: String(data?.title || 'Live Broadcast'),
     category: String(data?.category || 'Live'),
     host: sanitizeFirestoreUserCard(data?.host),
-    coverImage: String(data?.coverImage || data?.host?.coverImage || data?.host?.avatar || ''),
-    viewerCount: String(data?.viewerCount ?? numericViewers),
+    coverImage: String(data?.coverImage || data?.host?.avatar || ''),
+    viewerCount: String(numericViewers),
     numericViewers,
-    isLive: data?.isLive !== false && data?.status !== 'ended',
+    isLive: data?.isLive !== false && normalizedStatus !== 'closed',
+    status: normalizedStatus,
+    hostPresent,
+    emptySince: typeof data?.emptySince === 'number' ? data.emptySince : null,
+    closesAt: typeof data?.closesAt === 'number' ? data.closesAt : null,
+    streamType: data?.streamType === 'pk' ? 'pk' : data?.streamType === 'live' ? 'live' : 'solo',
     tags: Array.isArray(data?.tags) ? data.tags : [String(data?.category || 'Live')],
     guests: Array.isArray(data?.guests) ? data.guests : [],
     likesCount: typeof data?.likesCount === 'number' ? data.likesCount : 0,
@@ -359,8 +411,9 @@ export async function fetchFirestorePartyRooms(): Promise<PartyRoom[]> {
   try {
     const q = query(collection(db, collPath), limit(100));
     const snap = await getDocs(q);
+    const now = Date.now();
     return snap.docs
-      .filter((d) => d.data()?.status !== 'closed' && d.data()?.status !== 'ended')
+      .filter((d) => isFirestoreRoomStillVisible(d.data(), now))
       .map((d) => normalizeFirestorePartyRoom(d.id, d.data()))
       .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
   } catch (err) {
@@ -375,8 +428,9 @@ export function subscribeFirestorePartyRooms(onUpdate: (rooms: PartyRoom[]) => v
   return onSnapshot(
     q,
     (snap) => {
+      const now = Date.now();
       const rooms = snap.docs
-        .filter((d) => d.data()?.status !== 'closed' && d.data()?.status !== 'ended')
+        .filter((d) => isFirestoreRoomStillVisible(d.data(), now))
         .map((d) => normalizeFirestorePartyRoom(d.id, d.data()))
         .sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
       onUpdate(rooms);
@@ -449,6 +503,10 @@ export async function createFirestorePartyRoom(room: PartyRoom | Omit<PartyRoom,
           ? safeImageUrlForCard(room.backgroundImage, 160000) || ''
           : '',
       status: 'active',
+      hostPresent: true,
+      isOwnerPresent: true,
+      emptySince: null,
+      closesAt: null,
     });
 
     if (room.roomType === 'private' && room.password && room.password.trim()) {
@@ -534,8 +592,9 @@ export async function fetchFirestoreLiveStreams(): Promise<LiveStream[]> {
   try {
     const q = query(collection(db, collPath), limit(100));
     const snap = await getDocs(q);
+    const now = Date.now();
     const list = snap.docs
-      .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
+      .filter((d) => isFirestoreStreamStillVisible(d.data(), now))
       .map((d) => normalizeFirestoreLiveStream(d.id, d.data()));
     return dedupeStreamsByHost(list);
   } catch (err) {
@@ -550,8 +609,9 @@ export function subscribeFirestoreLiveStreams(onUpdate: (streams: LiveStream[]) 
   return onSnapshot(
     q,
     (snap) => {
+      const now = Date.now();
       const list = snap.docs
-        .filter((d) => d.data()?.isLive !== false && d.data()?.status !== 'ended')
+        .filter((d) => isFirestoreStreamStillVisible(d.data(), now))
         .map((d) => normalizeFirestoreLiveStream(d.id, d.data()));
       onUpdate(dedupeStreamsByHost(list));
     },
@@ -600,7 +660,11 @@ export async function createFirestoreLiveStream(stream: LiveStream | Omit<LiveSt
       numericViewers: typeof stream.numericViewers === 'number' ? stream.numericViewers : 0,
       viewersCount: typeof stream.numericViewers === 'number' ? stream.numericViewers : 0,
       isLive: true,
-      status: 'live',
+      status: 'active',
+      hostPresent: true,
+      emptySince: null,
+      closesAt: null,
+      streamType: 'solo',
       tags: Array.isArray(stream.tags) ? stream.tags.slice(0, 8) : [String(stream.category || 'Live'), 'Live'],
       guests: [],
       likesCount: typeof stream.likesCount === 'number' ? stream.likesCount : 0,
