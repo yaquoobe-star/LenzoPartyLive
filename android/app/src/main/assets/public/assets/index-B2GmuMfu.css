@@ -11438,8 +11438,8 @@
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
-  .shadow-\[0_0_16px_rgba\(250\,38\,160\,0\.4\)\] {
-    --tw-shadow: 0 0 16px var(--tw-shadow-color, #fa26a066);
+  .shadow-\[0_0_16px_rgba\(250\,38\,160\,0\.38\)\] {
+    --tw-shadow: 0 0 16px var(--tw-shadow-color, #fa26a061);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
 
@@ -14362,10 +14362,6 @@
 
   .focus\:border-\[\#FFC84A\]\/60:focus {
     border-color: oklab(86.0348% .014645 .150198 / .6);
-  }
-
-  .focus\:border-cyan-400:focus {
-    border-color: var(--color-cyan-400);
   }
 
   .focus\:border-cyan-400\/60:focus {

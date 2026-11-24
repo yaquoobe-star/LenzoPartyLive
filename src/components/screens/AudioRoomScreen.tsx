@@ -78,6 +78,7 @@ import {
   acquireRealMicrophone,
   isNativeAndroidApp,
   openNativeAppSettings,
+  pickNativePartyMediaFile,
   setNativeLiveAudioMode,
   stopMediaStream,
   createAudioAnalyser,
@@ -2719,7 +2720,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     // Gallery Audio or Gallery Video -> extract & publish real audio into Party RTC channel!
     const localEntry = localMusicEntriesRef.current.get(track.id);
-    if (!localEntry?.file) {
+    if (!localEntry?.file && !localEntry?.nativeFileUrl) {
       const err = 'Local media file is no longer in memory. Please re-select the file from Gallery.';
       setMusicErrorMessage(err);
       showToast(err);
@@ -2834,11 +2835,85 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  const handleAddYouTubeTrack = async (videoId: string, customTitle?: string) => {
+  const handlePickNativeGalleryMedia = async (
+    sourceType: 'gallery_audio' | 'gallery_video'
+  ): Promise<boolean> => {
+    if (!isRoomHost || !isNativeAndroidApp()) return false;
+    setMusicErrorMessage(null);
+    try {
+      const picked = await pickNativePartyMediaFile(sourceType === 'gallery_video' ? 'video' : 'audio');
+      if (!picked) {
+        return false; // Fall back to HTML file input if native bridge unavailable
+      }
+      if (picked.cancelled) {
+        return true;
+      }
+      if (!picked.webViewFileUrl) {
+        const err = 'Unable to open selected file from Android storage. Please try another file.';
+        setMusicErrorMessage(err);
+        showToast(err);
+        return true;
+      }
+
+      const id = `trk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const meta: PartyMusicTrackMeta = {
+        id,
+        title: cleanFileTrackTitle(picked.fileName || (sourceType === 'gallery_video' ? 'Gallery Video' : 'Gallery Audio')),
+        artist: picked.extractedAudioOnly ? 'Gallery Video (Audio Extracted)' : undefined,
+        sourceType,
+        durationSec: picked.durationSec && picked.durationSec > 0 ? picked.durationSec : 0,
+        mimeType: picked.mimeType || undefined,
+      };
+      localMusicEntriesRef.current.set(id, {
+        meta,
+        nativeFileUrl: picked.webViewFileUrl,
+        audioCodec: picked.audioCodec,
+        extractedAudioOnly: Boolean(picked.extractedAudioOnly),
+        fileSize: picked.fileSize,
+      });
+
+      const prevQueue = partyMusicStateRef.current.queue;
+      const nextQueue = [...prevQueue, meta];
+      const shouldAutoPlay =
+        partyMusicStateRef.current.status !== 'playing' && partyMusicStateRef.current.status !== 'paused';
+
+      if (shouldAutoPlay) {
+        await startHostTrackAtIndex(prevQueue.length, nextQueue);
+      } else {
+        const res = await liveAndRoomService.updateRoomMusicState({
+          roomId: room.id,
+          hostId: currentUser.id,
+          action: 'queue_update',
+          queue: nextQueue,
+          roomMeta: musicRoomMeta(),
+        });
+        if (res.musicState) setPartyMusicState(res.musicState);
+        showToast(`Added "${meta.title}" to Party Queue`);
+      }
+      return true;
+    } catch (err: any) {
+      const rawMsg = String(err?.message || '');
+      if (rawMsg.toLowerCase().includes('not implemented') || rawMsg.toLowerCase().includes('unavailable')) {
+        return false; // Fall back to standard file picker
+      }
+      const msg = rawMsg || 'Unable to load selected media file from Android gallery.';
+      setMusicErrorMessage(msg);
+      showToast(msg);
+      return true;
+    }
+  };
+
+  const handleAddYouTubeTrack = async (
+    videoId: string,
+    customTitle?: string,
+    providedThumbnailUrl?: string,
+    providedAuthorName?: string
+  ) => {
     if (!isRoomHost) return;
     setMusicErrorMessage(null);
-    let resolvedTitle = customTitle || `YouTube Track (${videoId})`;
-    let resolvedThumb = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+    let resolvedTitle = customTitle || `YouTube Video (${videoId})`;
+    let resolvedThumb = providedThumbnailUrl || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    let resolvedAuthor = providedAuthorName || 'YouTube';
 
     if (!customTitle) {
       try {
@@ -2849,6 +2924,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const data = await res.json();
           if (data?.title) resolvedTitle = String(data.title).slice(0, 120);
           if (data?.thumbnail_url) resolvedThumb = String(data.thumbnail_url);
+          if (data?.author_name) resolvedAuthor = String(data.author_name).slice(0, 80);
         }
       } catch {
         // Fallback to default YouTube label
@@ -2858,6 +2934,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     const newTrack: PartyMusicTrackMeta = {
       id: `yt_${videoId}_${Date.now()}`,
       title: resolvedTitle,
+      artist: resolvedAuthor,
       sourceType: 'youtube',
       durationSec: 0,
       youtubeVideoId: videoId,
@@ -5951,6 +6028,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         onLocalListenerVolumeChange={setLocalListenerMusicVol}
         onAddGalleryAudioFiles={(files) => void handleAddGalleryFiles(files, 'gallery_audio')}
         onAddGalleryVideoFiles={(files) => void handleAddGalleryFiles(files, 'gallery_video')}
+        onPickNativeGalleryAudio={() => handlePickNativeGalleryMedia('gallery_audio')}
+        onPickNativeGalleryVideo={() => handlePickNativeGalleryMedia('gallery_video')}
         onAddYouTubeTrack={handleAddYouTubeTrack}
         onPlayTrackAtIndex={(idx) => void startHostTrackAtIndex(idx)}
         onTogglePlayPause={() => void handleMusicTogglePlayPause()}

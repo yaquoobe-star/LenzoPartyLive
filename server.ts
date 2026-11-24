@@ -4165,6 +4165,56 @@ app.post('/api/rooms/:roomId/music', (req: AuthenticatedRequest, res: Response) 
   });
 });
 
+app.get('/api/youtube/oembed', async (req: Request, res: Response) => {
+  const rawVideoId = String(req.query.videoId || '').trim();
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(rawVideoId)) {
+    return res.status(400).json({ error: 'Invalid YouTube video ID.' });
+  }
+  const watchUrl = `https://www.youtube.com/watch?v=${rawVideoId}`;
+  const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
+    const upstream = await fetch(oembedUrl, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    }).finally(() => clearTimeout(timeout));
+
+    if (!upstream.ok) {
+      const status = upstream.status === 401 || upstream.status === 403 ? 403 : 404;
+      return res.status(status).json({
+        error:
+          status === 403
+            ? 'This YouTube video restricts embedded playback.'
+            : 'YouTube video not found or unavailable.',
+      });
+    }
+
+    const data: any = await upstream.json();
+    return res.json({
+      success: true,
+      videoId: rawVideoId,
+      title: sanitizeText(data?.title || `YouTube Video (${rawVideoId})`, 140),
+      authorName: sanitizeText(data?.author_name || 'YouTube', 100),
+      thumbnailUrl:
+        typeof data?.thumbnail_url === 'string' && data.thumbnail_url.startsWith('https://')
+          ? data.thumbnail_url.slice(0, 400)
+          : `https://i.ytimg.com/vi/${rawVideoId}/hqdefault.jpg`,
+      watchUrl,
+    });
+  } catch {
+    return res.json({
+      success: true,
+      videoId: rawVideoId,
+      title: `YouTube Video (${rawVideoId})`,
+      authorName: 'YouTube',
+      thumbnailUrl: `https://i.ytimg.com/vi/${rawVideoId}/hqdefault.jpg`,
+      watchUrl,
+      fallback: true,
+    });
+  }
+});
+
 app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;

@@ -136,6 +136,11 @@ export const PartyYouTubeSyncPlayer: React.FC<PartyYouTubeSyncPlayerProps> = ({
 
         if (!playerRef.current) {
           loadedVideoIdRef.current = videoId;
+          const isRealPublicHttpsOrigin =
+            typeof window !== 'undefined' &&
+            window.location.protocol === 'https:' &&
+            !window.location.hostname.includes('localhost') &&
+            window.location.hostname !== '127.0.0.1';
           playerRef.current = new YT.Player(containerRef.current, {
             videoId,
             width: '100%',
@@ -147,7 +152,7 @@ export const PartyYouTubeSyncPlayer: React.FC<PartyYouTubeSyncPlayerProps> = ({
               modestbranding: 1,
               playsinline: 1,
               rel: 0,
-              origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+              ...(isRealPublicHttpsOrigin ? { origin: window.location.origin } : {}),
             },
             events: {
               onReady: (ev: any) => {
@@ -192,8 +197,8 @@ export const PartyYouTubeSyncPlayer: React.FC<PartyYouTubeSyncPlayerProps> = ({
                 if (cancelled) return;
                 const code = Number(ev?.data);
                 let msg = 'YouTube playback error.';
-                if (code === 101 || code === 150) {
-                  msg = 'This YouTube video does not allow embedded playback. Choose another track or use Gallery Audio.';
+                if (code === 101 || code === 150 || code === 153) {
+                  msg = 'This YouTube video does not allow embedded playback. Choose another YouTube link or use Gallery Audio for global Agora broadcast.';
                 } else if (code === 100) {
                   msg = 'YouTube video not found or private.';
                 } else if (code === 2) {

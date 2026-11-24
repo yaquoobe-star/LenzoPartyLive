@@ -13,6 +13,20 @@ export interface NativeMediaPermissionsResult {
   microphonePermanentlyDenied?: boolean;
 }
 
+export interface NativePartyMediaPickResult {
+  cancelled: boolean;
+  nativeFilePath?: string;
+  webViewFileUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  audioCodec?: string;
+  durationSec?: number;
+  sampleRate?: number;
+  channelCount?: number;
+  fileSize?: number;
+  extractedAudioOnly?: boolean;
+}
+
 interface MediaPermissionsPluginInterface {
   checkMediaPermissions(): Promise<NativeMediaPermissionsResult>;
   requestMediaPermissions(options: { video: boolean; audio: boolean }): Promise<NativeMediaPermissionsResult>;
@@ -20,12 +34,31 @@ interface MediaPermissionsPluginInterface {
   setCommunicationAudioMode(options: { enabled: boolean }): Promise<void>;
   setKeepScreenOn(options: { enabled: boolean }): Promise<{ enabled: boolean }>;
   getKeepScreenOnState(): Promise<{ enabled: boolean }>;
+  pickPartyMediaFile(options: { mediaKind: 'audio' | 'video' }): Promise<NativePartyMediaPickResult>;
 }
 
 const NativeMediaPermissions = registerPlugin<MediaPermissionsPluginInterface>('MediaPermissions');
 
 export function isNativeAndroidApp(): boolean {
   return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+}
+
+export async function pickNativePartyMediaFile(
+  mediaKind: 'audio' | 'video'
+): Promise<NativePartyMediaPickResult | null> {
+  if (!isNativeAndroidApp()) {
+    return null;
+  }
+  const res = await NativeMediaPermissions.pickPartyMediaFile({ mediaKind });
+  if (!res || res.cancelled) {
+    return { cancelled: true };
+  }
+  const webViewFileUrl = res.nativeFilePath ? Capacitor.convertFileSrc(res.nativeFilePath) : undefined;
+  return {
+    ...res,
+    cancelled: false,
+    webViewFileUrl,
+  };
 }
 
 export async function openNativeAppSettings(): Promise<boolean> {
