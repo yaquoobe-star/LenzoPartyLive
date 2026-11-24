@@ -12,6 +12,8 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.view.Window;
+import android.view.WindowManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
@@ -192,5 +194,70 @@ public class MediaPermissionsPlugin extends Plugin {
             // Audio routing best-effort
         }
         call.resolve();
+    }
+
+    @PluginMethod
+    public void setKeepScreenOn(PluginCall call) {
+        final boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        final Activity activity = getActivity();
+        if (activity == null) {
+            JSObject res = new JSObject();
+            res.put("enabled", false);
+            call.resolve(res);
+            return;
+        }
+        try {
+            if (activity instanceof MainActivity) {
+                ((MainActivity) activity).setKeepScreenOnEnabled(enabled);
+            } else {
+                activity.runOnUiThread(() -> {
+                    Window window = activity.getWindow();
+                    if (window == null) {
+                        return;
+                    }
+                    if (enabled) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    }
+                });
+            }
+            JSObject res = new JSObject();
+            res.put("enabled", enabled);
+            call.resolve(res);
+        } catch (Exception e) {
+            call.reject("Unable to update screen wake state: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getKeepScreenOnState(PluginCall call) {
+        Activity activity = getActivity();
+        boolean active = false;
+        if (activity instanceof MainActivity) {
+            active = ((MainActivity) activity).isKeepScreenOnEnabled();
+        } else if (activity != null && activity.getWindow() != null) {
+            active =
+                (activity.getWindow().getAttributes().flags & WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0;
+        }
+        JSObject res = new JSObject();
+        res.put("enabled", active);
+        call.resolve(res);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        Activity activity = getActivity();
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).setKeepScreenOnEnabled(false);
+        } else if (activity != null) {
+            activity.runOnUiThread(() -> {
+                Window window = activity.getWindow();
+                if (window != null) {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+            });
+        }
+        super.handleOnDestroy();
     }
 }

@@ -1,11 +1,11 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BS6zxYXp.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Bbe_e-4S.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CgANHFSG.js","assets/CreateRoomScreen-Dfmhz_2h.js","assets/RankingsScreen-COs0wxEJ.js","assets/StoreScreen-C2f87qjn.js","assets/StoreAssetPreview-BJkHjbk5.js","assets/SettingsScreen-DD6s5ndz.js","assets/UploadVideoScreen-PJVTlxba.js","assets/WalletModal-DEnD_xV5.js","assets/LevelAndVIPModal-DdirMhts.js","assets/AdminProgressionModal-_64v1Ea9.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-Cns4iap9.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-iizCEidI.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BVNOodou.js","assets/CreateRoomScreen-hJQGwIEq.js","assets/RankingsScreen-BKaM6FsA.js","assets/StoreScreen-CmsOuvn6.js","assets/StoreAssetPreview-D9x_no3k.js","assets/SettingsScreen-CdLpQ70Y.js","assets/UploadVideoScreen-BEVJPKGG.js","assets/WalletModal-BAsjUlwa.js","assets/LevelAndVIPModal-mtGtr2qR.js","assets/AdminProgressionModal-_L7PCInh.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { t as require_client } from "./vendor-react-C80-Bi2p.js";
-import { $ as Pause, $t as Coins, A as ShoppingBag, At as Gift, B as RotateCcw, Bt as EyeOff, Cn as BadgeCheck, D as Smartphone, Dn as ArrowRight, Dt as Heart, E as Smile, Et as Hexagon, F as Share2, Ft as Film, G as Radio, H as Repeat2, Ht as Eraser, I as Settings, It as FileText, J as Pin, Jt as Crown, K as Plus, L as Send, M as ShieldOff, N as ShieldCheck, Nt as Flame, O as SlidersHorizontal, On as ArrowRightLeft, Ot as Hash, P as ShieldAlert, Pt as Flag, Q as PenLine, Qt as Compass, R as Search, S as Swords, Sn as Ban, St as Image$1, T as Sparkles, Tn as AtSign, Tt as History, U as RefreshCw, Ut as Ellipsis, V as Reply, Vt as ExternalLink, W as Receipt, X as Percent, Xt as CornerUpLeft, Y as Phone, Yt as Crop, Z as Pen, Zt as Copy, _ as TriangleAlert, _n as Bookmark, a as Wallet, an as CircleAlert, at as Mic, b as Timer, bn as BellRing, c as Video, cn as ChevronLeft, ct as MessageCircle, d as User, dn as CheckCheck, en as Clock, et as Paperclip, f as UserX, fn as ChartColumn, ft as Mail, g as Trophy, gn as Building2, gt as LoaderCircle, h as Upload, hn as Calendar, ht as LockOpen, i as WifiOff, in as CircleArrowDown, it as Minimize2, j as Shield, jn as require_react, jt as Gem, kn as ArrowLeft, kt as Globe, ln as ChevronDown, m as UserCheck, mn as CameraOff, mt as Lock, n as Zap, o as VolumeX, on as ChevronUp, ot as MicOff, p as UserPlus, pn as Camera, pt as LogOut, q as Play, r as X, rn as CircleCheck, s as Volume2, sn as ChevronRight, st as MessageSquare, t as ZoomIn, tn as CircleX, tt as Music, u as Users, un as Check, ut as Maximize2, v as TrendingUp, vn as BookmarkCheck, vt as LayoutGrid, w as Star, wn as Award, wt as House, x as Target, xn as BellOff, xt as KeyRound, y as Trash2, yn as Bell, z as Save, zt as Eye } from "./vendor-icons-Bbe_e-4S.js";
+import { t as require_client } from "./vendor-react-DF7xoaPt.js";
+import { $ as Phone, A as SlidersHorizontal, An as Award, At as Hexagon, B as Settings, Bt as Film, C as Swords, Cn as Bookmark, D as Sparkles, Dn as BellOff, E as Square, En as BellRing, Et as Image$1, F as Shield, Fn as ArrowLeft, Ft as Gift, G as Reply, Gt as Eye, H as Search, I as ShieldOff, It as Gem, J as Receipt, Jt as Eraser, K as Repeat2, Kt as EyeOff, L as ShieldCheck, Ln as require_react, M as SkipForward, Mt as Headphones, N as SkipBack, Nn as ArrowRight, Nt as Hash, O as Smile, On as Ban, Ot as House, P as ShoppingBag, Pn as ArrowRightLeft, Pt as Globe, Q as Pin, R as ShieldAlert, Rt as Flame, S as Target, Sn as Building2, St as LayoutGrid, T as Star, Tn as Bell, Tt as KeyRound, U as Save, V as Send, Vt as FileText, W as RotateCcw, Wt as FileAudio, X as Plus, Y as Radio, Yt as Ellipsis, Z as Play, _ as Trophy, _n as CheckCheck, _t as LogOut, a as WifiOff, an as Coins, at as Music, b as Trash2, bn as CameraOff, bt as LoaderCircle, c as Volume2, ct as Minimize2, d as Users, dn as CircleAlert, dt as MessageSquare, en as Crown, et as Percent, f as User, fn as ChevronUp, ft as MessageCircle, g as Upload, gn as Check, gt as Mail, h as UserCheck, hn as ChevronDown, i as X, in as Compass, it as Paperclip, jn as AtSign, jt as Heart, k as Smartphone, kn as BadgeCheck, kt as History, l as Video, ln as CircleCheck, lt as Mic, m as UserPlus, mn as ChevronLeft, mt as Maximize2, n as Zap, nn as CornerUpLeft, nt as PenLine, o as Wallet, on as Clock, p as UserX, pn as ChevronRight, q as RefreshCw, qt as ExternalLink, r as Youtube, rn as Copy, rt as Pause, s as VolumeX, sn as CircleX, t as ZoomIn, tn as Crop, tt as Pen, un as CircleArrowDown, ut as MicOff, v as TriangleAlert, vn as ChartColumn, vt as Lock, wn as BookmarkCheck, x as Timer, xn as Calendar, y as TrendingUp, yn as Camera, yt as LockOpen, z as Share2, zt as Flag } from "./vendor-icons-iizCEidI.js";
 import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
 import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CIREZBAE.js";
 import { $ as signOut, B as getRedirectResult, C as startAfter, D as Timestamp, E as writeBatch, F as GoogleAuthProvider, G as reauthenticateWithPopup, H as linkWithPopup, I as browserLocalPersistence, J as setPersistence, K as sendEmailVerification, L as browserSessionPersistence, N as serverTimestamp, O as collection, P as EmailAuthProvider, Q as signInWithRedirect, R as createUserWithEmailAndPassword, S as setDoc, T as where, U as onAuthStateChanged, V as linkWithCredential, W as reauthenticateWithCredential, X as signInWithEmailAndPassword, Y as signInWithCredential, Z as signInWithPopup, b as query, d as addDoc, et as updateProfile, f as deleteDoc, g as limit, h as getDocs, j as increment, k as doc, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as sendPasswordResetEmail, s as getDownloadURL, u as uploadBytesResumable, v as onSnapshot, w as updateDoc, x as runTransaction, y as orderBy } from "./vendor-firebase-AVvshUH2.js";
-import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CgANHFSG.js";
+import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-BVNOodou.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 // \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -6885,6 +6885,15 @@ async function setNativeLiveAudioMode(enabled) {
 		await NativeMediaPermissions.setCommunicationAudioMode({ enabled });
 	} catch {}
 }
+async function setNativeKeepScreenOn(enabled) {
+	if (typeof window !== "undefined" && Capacitor.isNativePlatform()) try {
+		const res = await NativeMediaPermissions.setKeepScreenOn({ enabled });
+		return Boolean(res?.enabled ?? enabled);
+	} catch (err) {
+		console.warn("[ScreenWakeLock] Native setKeepScreenOn warning:", err);
+	}
+	return false;
+}
 /**
 * Request native Android runtime CAMERA / RECORD_AUDIO permissions before calling getUserMedia.
 * No-op on web browsers (where getUserMedia triggers the browser permission dialog directly).
@@ -7485,6 +7494,45 @@ var LiveAndRoomService = class {
 			throw new Error(err.error || "Failed to join party room");
 		}
 		return await res.json();
+	}
+	async fetchRoomMusicState(roomId) {
+		try {
+			const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/music`);
+			if (res.ok && res.headers.get("content-type")?.includes("application/json")) return (await res.json())?.musicState || null;
+		} catch {}
+		return null;
+	}
+	async updateRoomMusicState(params) {
+		try {
+			const res = await apiFetch(`/api/rooms/${encodeURIComponent(params.roomId)}/music`, {
+				method: "POST",
+				body: JSON.stringify({
+					hostId: params.hostId,
+					action: params.action,
+					track: params.track,
+					queue: params.queue,
+					currentIndex: params.currentIndex,
+					positionSec: params.positionSec,
+					volume: params.volume,
+					audioTransport: params.audioTransport,
+					roomMeta: params.roomMeta
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) return {
+				success: false,
+				error: data.error || "Failed to update party music state"
+			};
+			return {
+				success: true,
+				musicState: data.musicState
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err?.message || "Network error updating party music"
+			};
+		}
 	}
 	async sendRoomHeartbeat(roomId, userId) {
 		await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/heartbeat`, {
@@ -19286,6 +19334,7 @@ var AgoraRtcService = class {
 	constructor() {
 		this.client = null;
 		this.localAudioTrack = null;
+		this.localMusicAudioTrack = null;
 		this.localVideoTrack = null;
 		this.currentChannel = null;
 		this.currentUserAccount = null;
@@ -19300,6 +19349,7 @@ var AgoraRtcService = class {
 		this.availableCameras = [];
 		this.currentCameraIndex = 0;
 		this.isPublishingAudioFlag = false;
+		this.isPublishingMusicFlag = false;
 		this.isPublishingVideoFlag = false;
 		this.activeJoinPromise = null;
 		this.activeLeavePromise = null;
@@ -19595,6 +19645,9 @@ var AgoraRtcService = class {
 			if (curState === "CONNECTED" && (prevState === "RECONNECTING" || prevState === "CONNECTING")) {
 				this.syncAllRemoteSubscriptions();
 				if (this.currentRole === "host" && (!this.isPublishingAudioFlag || !this.localAudioTrack)) this.ensureLocalAudioPublished(this.isMicMuted);
+				if (this.currentRole === "host" && this.localMusicAudioTrack && !this.isPublishingMusicFlag) client.publish([this.localMusicAudioTrack]).then(() => {
+					this.isPublishingMusicFlag = true;
+				}).catch(() => {});
 			}
 		});
 		client.on("token-privilege-will-expire", () => {
@@ -19876,12 +19929,14 @@ var AgoraRtcService = class {
 				} else {
 					const tracksToUnpublish = [];
 					if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+					if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
 					if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
 					if (tracksToUnpublish.length > 0 && this.client) try {
 						await this.client.unpublish(tracksToUnpublish);
 					} catch (e) {
 						console.warn("[Agora RTC] Unpublish warning on role downgrade:", e);
 					}
+					this.stopLocalMusicTrack();
 					this.stopLocalTracks();
 					this.currentRole = "audience";
 					await this.client.setClientRole("audience", { level: 1 });
@@ -19915,6 +19970,105 @@ var AgoraRtcService = class {
 		});
 		if (this.localAudioTrack) await this.localAudioTrack.setEnabled(!muted).catch(() => {});
 		return ok;
+	}
+	/**
+	* Publish a separate Party Music audio track into the active Agora RTC channel alongside
+	* the Host's microphone track. Agora SDK mixes multiple published audio tracks automatically
+	* so all seated speakers AND non-seated audience listeners hear voice + music simultaneously.
+	*/
+	async publishMusicAudioTrack(mediaStreamTrack) {
+		if (!mediaStreamTrack || mediaStreamTrack.readyState !== "live") return false;
+		if (this.activeJoinPromise) try {
+			await this.activeJoinPromise;
+		} catch {
+			return false;
+		}
+		if (!this.client || this.client.connectionState !== "CONNECTED") {
+			console.warn("[Agora RTC] publishMusicAudioTrack skipped: client not connected");
+			return false;
+		}
+		try {
+			if (this.currentRole !== "host") {
+				if (this.currentChannel && this.currentUserAccount) {
+					const tokenRes = await this.requestRtcToken(this.currentChannel, this.currentUserAccount, "broadcaster", true);
+					if (tokenRes.token && this.client) await this.client.renewToken(tokenRes.token).catch(() => {});
+				}
+				await this.client.setClientRole("host");
+				this.currentRole = "host";
+			}
+			await this.unpublishMusicAudioTrack();
+			const customMusicTrack = import_AgoraRTC_N_production.default.createCustomAudioTrack({
+				mediaStreamTrack,
+				encoderConfig: "music_standard"
+			});
+			this.localMusicAudioTrack = customMusicTrack;
+			await this.client.publish([customMusicTrack]);
+			this.isPublishingMusicFlag = true;
+			console.log("[Agora RTC] Published Party Music custom audio track alongside microphone");
+			return true;
+		} catch (err) {
+			console.warn("[Agora RTC] Failed to publish music audio track:", err?.message || err);
+			this.stopLocalMusicTrack();
+			return false;
+		}
+	}
+	/**
+	* Publish an Agora native BufferSourceAudioTrack (fallback for local audio files when
+	* MediaElementSource capture is unavailable on a specific device/browser).
+	*/
+	async publishMusicBufferTrack(bufferTrack) {
+		if (!bufferTrack) return false;
+		if (!this.client || this.client.connectionState !== "CONNECTED") return false;
+		try {
+			if (this.currentRole !== "host") {
+				if (this.currentChannel && this.currentUserAccount) {
+					const tokenRes = await this.requestRtcToken(this.currentChannel, this.currentUserAccount, "broadcaster", true);
+					if (tokenRes.token && this.client) await this.client.renewToken(tokenRes.token).catch(() => {});
+				}
+				await this.client.setClientRole("host");
+				this.currentRole = "host";
+			}
+			await this.unpublishMusicAudioTrack();
+			this.localMusicAudioTrack = bufferTrack;
+			await this.client.publish([bufferTrack]);
+			this.isPublishingMusicFlag = true;
+			console.log("[Agora RTC] Published Party Music buffer source track alongside microphone");
+			return true;
+		} catch (err) {
+			console.warn("[Agora RTC] Failed to publish music buffer track:", err?.message || err);
+			this.stopLocalMusicTrack();
+			return false;
+		}
+	}
+	async setMusicTrackEnabled(enabled) {
+		if (!this.localMusicAudioTrack) return;
+		try {
+			await this.localMusicAudioTrack.setEnabled(enabled);
+		} catch {}
+	}
+	async unpublishMusicAudioTrack() {
+		const track = this.localMusicAudioTrack;
+		if (!track) {
+			this.isPublishingMusicFlag = false;
+			return;
+		}
+		if (this.client && this.client.connectionState === "CONNECTED") try {
+			await this.client.unpublish([track]);
+		} catch {}
+		this.stopLocalMusicTrack();
+	}
+	stopLocalMusicTrack() {
+		this.isPublishingMusicFlag = false;
+		if (this.localMusicAudioTrack) {
+			try {
+				this.localMusicAudioTrack.stop();
+				this.localMusicAudioTrack.close();
+			} catch {}
+			this.localMusicAudioTrack = null;
+		}
+	}
+	isPublishingMusic() {
+		return this.isPublishingMusicFlag && Boolean(this.localMusicAudioTrack);
 	}
 	/**
 	* Play local video track directly inside a DOM container or element
@@ -20110,9 +20264,11 @@ var AgoraRtcService = class {
 				if (this.client) {
 					const tracksToUnpublish = [];
 					if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+					if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
 					if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
 					if (tracksToUnpublish.length > 0 && this.client.connectionState === "CONNECTED") await this.client.unpublish(tracksToUnpublish).catch(() => {});
 				}
+				this.stopLocalMusicTrack();
 				this.stopLocalTracks();
 				if (this.client) {
 					const state = this.client.connectionState;
@@ -20310,6 +20466,13 @@ var WebRtcMediaService = class {
 		this.partyRemoteAnalysers = /* @__PURE__ */ new Map();
 		this.partyVolumeTimer = null;
 		this.partySpeakerMuted = false;
+		this.partyMicMuted = false;
+		this.partyMusicTrack = null;
+		this.partyMusicVolume = .65;
+		this.partyMixerCtx = null;
+		this.partyMixerMicGain = null;
+		this.partyMixerMusicGain = null;
+		this.partyMixedStream = null;
 		this.partyCallbacks = null;
 		this.partyUnsubscribeWs = null;
 		this.partyUnsubscribeFs = null;
@@ -20862,12 +21025,17 @@ var WebRtcMediaService = class {
 		this.liveViewerSessionId = "";
 		this.liveViewerHandledOfferSession = "";
 	}
+	getOutboundPartyAudioStream() {
+		if (this.partyMixedStream && this.partyMixedStream.getAudioTracks().some((t) => t.readyState === "live")) return this.partyMixedStream;
+		return this.partyLocalStream;
+	}
 	hasLivePartyAudioTrack() {
-		if (!this.partyLocalStream) return false;
-		return this.partyLocalStream.getAudioTracks().some((t) => t.readyState === "live");
+		const active = this.getOutboundPartyAudioStream();
+		if (!active) return false;
+		return active.getAudioTracks().some((t) => t.readyState === "live");
 	}
 	shouldInitiatePartyOffer(peerId, peerIsSpeaker) {
-		if (!this.partyIsSpeaker) return false;
+		if (!this.partyIsSpeaker && !this.partyMusicTrack) return false;
 		if (!peerIsSpeaker) return true;
 		return String(this.partyUserId || "") > peerId;
 	}
@@ -21033,7 +21201,96 @@ var WebRtcMediaService = class {
 		}
 		if (roleChanged || !hadLiveTrack && nowHasLiveTrack) this.announcePartyPresence();
 	}
+	teardownPartyMixer() {
+		this.partyMixerMicGain = null;
+		this.partyMixerMusicGain = null;
+		if (this.partyMixedStream) {
+			this.partyMixedStream.getTracks().forEach((t) => {
+				try {
+					t.stop();
+				} catch {}
+			});
+			this.partyMixedStream = null;
+		}
+		if (this.partyMixerCtx) {
+			try {
+				this.partyMixerCtx.close();
+			} catch {}
+			this.partyMixerCtx = null;
+		}
+	}
+	rebuildPartyMixedStream() {
+		this.teardownPartyMixer();
+		const liveMusic = this.partyMusicTrack && this.partyMusicTrack.readyState === "live" ? this.partyMusicTrack : null;
+		if (!liveMusic) return this.partyLocalStream;
+		try {
+			const AudioCtx = window.AudioContext || window.webkitAudioContext;
+			if (!AudioCtx) {
+				this.partyMixedStream = new MediaStream([liveMusic]);
+				return this.partyMixedStream;
+			}
+			const ctx = new AudioCtx();
+			if (ctx.state === "suspended") ctx.resume().catch(() => {});
+			const dest = ctx.createMediaStreamDestination();
+			const limiter = ctx.createDynamicsCompressor();
+			limiter.threshold.value = -6;
+			limiter.knee.value = 12;
+			limiter.ratio.value = 8;
+			limiter.attack.value = .003;
+			limiter.release.value = .15;
+			limiter.connect(dest);
+			const micTrack = this.partyLocalStream?.getAudioTracks().find((t) => t.readyState === "live");
+			if (micTrack) {
+				const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+				const micGain = ctx.createGain();
+				micGain.gain.value = this.partyMicMuted ? 0 : 1;
+				micSource.connect(micGain);
+				micGain.connect(limiter);
+				this.partyMixerMicGain = micGain;
+			}
+			const musicSource = ctx.createMediaStreamSource(new MediaStream([liveMusic]));
+			const musicGain = ctx.createGain();
+			musicGain.gain.value = Math.max(0, Math.min(1, this.partyMusicVolume));
+			musicSource.connect(musicGain);
+			musicGain.connect(limiter);
+			this.partyMixerMusicGain = musicGain;
+			this.partyMixerCtx = ctx;
+			this.partyMixedStream = dest.stream;
+			return this.partyMixedStream;
+		} catch {
+			this.partyMixedStream = new MediaStream([liveMusic]);
+			return this.partyMixedStream;
+		}
+	}
+	/**
+	* Inject or remove a Party Music track into the WebRTC Party Voice Mesh alongside the Host's mic.
+	* Updates all active peer connections (both seated speakers AND non-seated listeners).
+	*/
+	setPartyMusicTrack(musicTrack, volumePercent = 65) {
+		this.partyMusicTrack = musicTrack && musicTrack.readyState === "live" ? musicTrack : null;
+		this.partyMusicVolume = Math.max(0, Math.min(1, volumePercent / 100));
+		if (!this.partyRoomId || !this.partyUserId) return;
+		const outboundTrack = this.rebuildPartyMixedStream()?.getAudioTracks().find((t) => t.readyState === "live") || null;
+		if (outboundTrack) {
+			this.partyPeers.forEach((pc, peerId) => {
+				const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+				if (sender) sender.replaceTrack(outboundTrack).catch(() => {
+					this.createPartyOffer(peerId);
+				});
+				else this.createPartyOffer(peerId);
+			});
+			this.partyKnownPeers.forEach((meta, peerId) => {
+				if (this.shouldInitiatePartyOffer(peerId, meta.isSpeaker) && !this.isPartyPeerHealthy(peerId)) this.maybeInitiatePartyPeer(peerId, meta.isSpeaker, false);
+			});
+		}
+	}
+	setPartyMusicVolume(volumePercent) {
+		this.partyMusicVolume = Math.max(0, Math.min(1, volumePercent / 100));
+		if (this.partyMixerMusicGain) this.partyMixerMusicGain.gain.value = this.partyMusicVolume;
+	}
 	setPartyMicMuted(muted) {
+		this.partyMicMuted = muted;
+		if (this.partyMixerMicGain) this.partyMixerMicGain.gain.value = muted ? 0 : 1;
 		if (this.partyLocalStream) this.partyLocalStream.getAudioTracks().forEach((t) => {
 			t.enabled = !muted;
 		});
@@ -21094,8 +21351,9 @@ var WebRtcMediaService = class {
 		this.partyOutboundIce.set(peerId, []);
 		this.partyPeerSessions.set(peerId, sessionId);
 		this.partyHandledAnswerSessions.delete(peerId);
-		if (this.partyIsSpeaker && this.partyLocalStream) this.partyLocalStream.getAudioTracks().forEach((track) => {
-			if (this.partyLocalStream && track.readyState === "live") pc.addTrack(track, this.partyLocalStream);
+		const outboundStream = this.getOutboundPartyAudioStream();
+		if ((this.partyIsSpeaker || this.partyMusicTrack) && outboundStream) outboundStream.getAudioTracks().forEach((track) => {
+			if (track.readyState === "live") pc.addTrack(track, outboundStream);
 		});
 		pc.ontrack = (ev) => {
 			const stream = ev.streams && ev.streams[0] ? ev.streams[0] : new MediaStream([ev.track]);
@@ -21394,6 +21652,9 @@ var WebRtcMediaService = class {
 			} catch {}
 		});
 		this.partyRemoteAudioEls.clear();
+		this.teardownPartyMixer();
+		this.partyMusicTrack = null;
+		this.partyMicMuted = false;
 		this.partyLocalStream = null;
 		this.partyCallbacks = null;
 		this.partyRoomId = null;
@@ -23880,6 +24141,1198 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 		]
 	});
 };
+// src/utils/partyMusicEngine.ts
+/**
+* Lenzo Party Live — Global Party Music Distribution Engine
+*
+* Handles Host-side audio capture, soft-limited mixing, local monitoring, and real-time
+* distribution over Agora RTC (primary) or WebRTC Party Voice Mesh (fallback) for:
+*  - Gallery Audio (MP3, AAC, M4A, WAV, OGG, FLAC, WEBM)
+*  - Gallery Video (MP4, MOV, WEBM, MKV, 3GP — audio-only extraction; video never shown to room)
+*
+* Music is injected digitally into the Party RTC audio stream so:
+*  1. Party Host hears it clearly without acoustic mic feedback.
+*  2. All seated Party Participants hear it alongside live voices.
+*  3. All non-seated Party Listeners subscribed to the room channel also hear it.
+*  4. Muting the Host's microphone never interrupts music playback.
+*/
+var SUPPORTED_AUDIO_EXT = /\.(mp3|aac|m4a|wav|ogg|opus|flac|webm)$/i;
+var SUPPORTED_VIDEO_EXT = /\.(mp4|mov|webm|mkv|m4v|3gp|avi)$/i;
+function extractYouTubeVideoId(input) {
+	const trimmed = (input || "").trim();
+	if (!trimmed) return null;
+	if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+	try {
+		const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+		const host = url.hostname.replace(/^www\./, "").toLowerCase();
+		if (host === "youtu.be") {
+			const id = url.pathname.split("/").filter(Boolean)[0];
+			return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+		}
+		if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+			const vParam = url.searchParams.get("v");
+			if (vParam && /^[a-zA-Z0-9_-]{11}$/.test(vParam)) return vParam;
+			const segments = url.pathname.split("/").filter(Boolean);
+			const markerIdx = segments.findIndex((s) => s === "embed" || s === "shorts" || s === "live" || s === "v");
+			if (markerIdx >= 0 && segments[markerIdx + 1] && /^[a-zA-Z0-9_-]{11}$/.test(segments[markerIdx + 1])) return segments[markerIdx + 1];
+		}
+	} catch {
+		const match = trimmed.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+		if (match?.[1]) return match[1];
+	}
+	return null;
+}
+function validateGalleryMediaFile(file, kind) {
+	if (!file || file.size === 0) return {
+		valid: false,
+		error: "Selected file is empty or unreadable."
+	};
+	const type = (file.type || "").toLowerCase();
+	const name = file.name || "";
+	if (kind === "gallery_audio") {
+		if (!(type.startsWith("audio/") || SUPPORTED_AUDIO_EXT.test(name))) return {
+			valid: false,
+			error: `Unsupported audio format "${name}". Please choose MP3, AAC, M4A, WAV, OGG, or FLAC.`
+		};
+	} else if (!(type.startsWith("video/") || SUPPORTED_VIDEO_EXT.test(name))) return {
+		valid: false,
+		error: `Unsupported video format "${name}". Please choose MP4, MOV, WEBM, MKV, or 3GP.`
+	};
+	return { valid: true };
+}
+function cleanFileTrackTitle(fileName) {
+	return (fileName || "Untitled Track").replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110) || "Untitled Track";
+}
+var PartyMusicEngine = class {
+	constructor() {
+		this.audioCtx = null;
+		this.mediaEl = null;
+		this.mediaSourceNode = null;
+		this.localMonitorGain = null;
+		this.broadcastGain = null;
+		this.limiterNode = null;
+		this.mediaStreamDest = null;
+		this.bufferSourceTrack = null;
+		this.activeObjectUrl = null;
+		this.progressTimer = null;
+		this.state = {
+			status: "idle",
+			activeTrackId: null,
+			currentTimeSec: 0,
+			durationSec: 0,
+			volume: 65,
+			transport: "none",
+			error: null
+		};
+		this.listeners = /* @__PURE__ */ new Set();
+		this.endedListeners = /* @__PURE__ */ new Set();
+	}
+	subscribe(cb) {
+		this.listeners.add(cb);
+		cb({ ...this.state });
+		return () => this.listeners.delete(cb);
+	}
+	onTrackEnded(cb) {
+		this.endedListeners.add(cb);
+		return () => this.endedListeners.delete(cb);
+	}
+	getState() {
+		return { ...this.state };
+	}
+	emitState(patch) {
+		this.state = {
+			...this.state,
+			...patch
+		};
+		const snap = { ...this.state };
+		this.listeners.forEach((cb) => {
+			try {
+				cb(snap);
+			} catch {}
+		});
+	}
+	ensureAudioGraph() {
+		const AudioCtx = window.AudioContext || window.webkitAudioContext;
+		if (!AudioCtx) throw new Error("Web Audio API is not available on this device.");
+		if (!this.audioCtx || this.audioCtx.state === "closed") this.audioCtx = new AudioCtx();
+		if (this.audioCtx.state === "suspended") this.audioCtx.resume().catch(() => {});
+		return this.audioCtx;
+	}
+	clearProgressTimer() {
+		if (this.progressTimer) {
+			clearInterval(this.progressTimer);
+			this.progressTimer = null;
+		}
+	}
+	teardownCurrentNodes() {
+		this.clearProgressTimer();
+		if (this.bufferSourceTrack) {
+			try {
+				this.bufferSourceTrack.stopProcessAudioBuffer();
+				this.bufferSourceTrack.stop();
+				this.bufferSourceTrack.close();
+			} catch {}
+			this.bufferSourceTrack = null;
+		}
+		if (this.mediaSourceNode) {
+			try {
+				this.mediaSourceNode.disconnect();
+			} catch {}
+			this.mediaSourceNode = null;
+		}
+		if (this.localMonitorGain) {
+			try {
+				this.localMonitorGain.disconnect();
+			} catch {}
+			this.localMonitorGain = null;
+		}
+		if (this.broadcastGain) {
+			try {
+				this.broadcastGain.disconnect();
+			} catch {}
+			this.broadcastGain = null;
+		}
+		if (this.limiterNode) {
+			try {
+				this.limiterNode.disconnect();
+			} catch {}
+			this.limiterNode = null;
+		}
+		if (this.mediaStreamDest) {
+			try {
+				this.mediaStreamDest.stream.getTracks().forEach((t) => t.stop());
+			} catch {}
+			this.mediaStreamDest = null;
+		}
+		if (this.mediaEl) {
+			try {
+				this.mediaEl.onended = null;
+				this.mediaEl.onerror = null;
+				this.mediaEl.pause();
+				this.mediaEl.removeAttribute("src");
+				this.mediaEl.load();
+				this.mediaEl.remove();
+			} catch {}
+			this.mediaEl = null;
+		}
+		if (this.activeObjectUrl) {
+			try {
+				URL.revokeObjectURL(this.activeObjectUrl);
+			} catch {}
+			this.activeObjectUrl = null;
+		}
+	}
+	/**
+	* Load and broadcast a local Gallery Audio or Gallery Video file into the active Party Room.
+	* For Gallery Video, only the extracted audio track is routed and distributed; video is never displayed.
+	*/
+	async playLocalFile(params) {
+		const { entry, transport, volumePercent = this.state.volume, startPositionSec = 0 } = params;
+		if (!entry.file) {
+			const msg = "Local media file is unavailable. Please re-select the file from Gallery.";
+			this.emitState({
+				status: "error",
+				error: msg
+			});
+			return {
+				ok: false,
+				durationSec: 0,
+				transport: "none",
+				error: msg
+			};
+		}
+		const kind = entry.meta.sourceType === "gallery_video" ? "gallery_video" : "gallery_audio";
+		const validation = validateGalleryMediaFile(entry.file, kind);
+		if (!validation.valid) {
+			this.emitState({
+				status: "error",
+				error: validation.error || "Unsupported media file."
+			});
+			return {
+				ok: false,
+				durationSec: 0,
+				transport: "none",
+				error: validation.error
+			};
+		}
+		await this.stop({ silentEmit: true });
+		this.emitState({
+			status: "loading",
+			activeTrackId: entry.meta.id,
+			currentTimeSec: startPositionSec,
+			volume: Math.max(0, Math.min(100, Math.round(volumePercent))),
+			error: null
+		});
+		const normalizedVol = Math.max(0, Math.min(1, volumePercent / 100));
+		try {
+			const ctx = this.ensureAudioGraph();
+			const objectUrl = URL.createObjectURL(entry.file);
+			this.activeObjectUrl = objectUrl;
+			const mediaEl = kind === "gallery_video" ? document.createElement("video") : document.createElement("audio");
+			mediaEl.src = objectUrl;
+			mediaEl.preload = "auto";
+			mediaEl.crossOrigin = "anonymous";
+			mediaEl.muted = false;
+			mediaEl.volume = 1;
+			if (kind === "gallery_video") {
+				const videoEl = mediaEl;
+				videoEl.playsInline = true;
+				videoEl.setAttribute("playsinline", "true");
+				videoEl.setAttribute("webkit-playsinline", "true");
+			}
+			mediaEl.style.position = "fixed";
+			mediaEl.style.width = "1px";
+			mediaEl.style.height = "1px";
+			mediaEl.style.opacity = "0";
+			mediaEl.style.pointerEvents = "none";
+			mediaEl.style.left = "-9999px";
+			mediaEl.style.top = "-9999px";
+			document.body.appendChild(mediaEl);
+			this.mediaEl = mediaEl;
+			await new Promise((resolve, reject) => {
+				const timeout = setTimeout(() => reject(/* @__PURE__ */ new Error("Media load timed out. Format may be unsupported.")), 12e3);
+				const onLoaded = () => {
+					clearTimeout(timeout);
+					mediaEl.removeEventListener("loadedmetadata", onLoaded);
+					mediaEl.removeEventListener("error", onErr);
+					resolve();
+				};
+				const onErr = () => {
+					clearTimeout(timeout);
+					mediaEl.removeEventListener("loadedmetadata", onLoaded);
+					mediaEl.removeEventListener("error", onErr);
+					reject(/* @__PURE__ */ new Error("Unable to decode this media file. Try MP3, AAC, M4A, or MP4."));
+				};
+				if (mediaEl.readyState >= 1) onLoaded();
+				else {
+					mediaEl.addEventListener("loadedmetadata", onLoaded);
+					mediaEl.addEventListener("error", onErr);
+					mediaEl.load();
+				}
+			});
+			const durationSec = Number.isFinite(mediaEl.duration) && mediaEl.duration > 0 ? mediaEl.duration : 0;
+			if (startPositionSec > 0 && durationSec > 0) mediaEl.currentTime = Math.min(durationSec - .5, startPositionSec);
+			const sourceNode = ctx.createMediaElementSource(mediaEl);
+			const localMonitorGain = ctx.createGain();
+			localMonitorGain.gain.value = normalizedVol * .85;
+			const broadcastGain = ctx.createGain();
+			broadcastGain.gain.value = normalizedVol;
+			const limiter = ctx.createDynamicsCompressor();
+			limiter.threshold.value = -5;
+			limiter.knee.value = 10;
+			limiter.ratio.value = 8;
+			limiter.attack.value = .003;
+			limiter.release.value = .15;
+			const dest = ctx.createMediaStreamDestination();
+			sourceNode.connect(localMonitorGain);
+			localMonitorGain.connect(ctx.destination);
+			sourceNode.connect(broadcastGain);
+			broadcastGain.connect(limiter);
+			limiter.connect(dest);
+			this.mediaSourceNode = sourceNode;
+			this.localMonitorGain = localMonitorGain;
+			this.broadcastGain = broadcastGain;
+			this.limiterNode = limiter;
+			this.mediaStreamDest = dest;
+			const musicTrack = dest.stream.getAudioTracks()[0];
+			if (!musicTrack || musicTrack.readyState !== "live") throw new Error("Could not capture live audio stream from selected file.");
+			await mediaEl.play();
+			let activeTransport = "none";
+			if (transport === "agora" || agoraRtcService.getConnectionState() === "CONNECTED") {
+				if (await agoraRtcService.publishMusicAudioTrack(musicTrack)) activeTransport = "agora";
+			}
+			if (activeTransport === "none" && transport === "webrtc") {
+				webrtcMediaService.setPartyMusicTrack(musicTrack, volumePercent);
+				activeTransport = "webrtc";
+			}
+			if (activeTransport === "none") {
+				if (agoraRtcService.getConnectionState() !== "CONNECTED" && transport !== "webrtc") {
+					this.teardownCurrentNodes();
+					const msg = "Party audio channel is not connected yet. Please wait a moment and try again.";
+					this.emitState({
+						status: "error",
+						error: msg,
+						transport: "none"
+					});
+					return {
+						ok: false,
+						durationSec: 0,
+						transport: "none",
+						error: msg
+					};
+				}
+			}
+			mediaEl.onended = () => {
+				const finishedId = entry.meta.id;
+				this.emitState({
+					status: "stopped",
+					currentTimeSec: durationSec
+				});
+				this.endedListeners.forEach((cb) => cb(finishedId));
+			};
+			mediaEl.onerror = () => {
+				this.emitState({
+					status: "error",
+					error: "Playback interrupted due to a media decoding error."
+				});
+			};
+			this.startProgressPolling();
+			this.emitState({
+				status: "playing",
+				activeTrackId: entry.meta.id,
+				currentTimeSec: mediaEl.currentTime || startPositionSec,
+				durationSec,
+				volume: Math.round(volumePercent),
+				transport: activeTransport,
+				error: null
+			});
+			return {
+				ok: true,
+				durationSec,
+				transport: activeTransport
+			};
+		} catch (primaryErr) {
+			if (kind === "gallery_audio" && (transport === "agora" || agoraRtcService.getConnectionState() === "CONNECTED")) try {
+				this.teardownCurrentNodes();
+				const bufferTrack = await import_AgoraRTC_N_production.default.createBufferSourceAudioTrack({
+					source: entry.file,
+					encoderConfig: "music_standard"
+				});
+				bufferTrack.setVolume(Math.max(0, Math.min(100, Math.round(volumePercent))));
+				if (!await agoraRtcService.publishMusicBufferTrack(bufferTrack)) {
+					bufferTrack.close();
+					throw new Error("Could not publish audio buffer track to Agora channel.");
+				}
+				bufferTrack.startProcessAudioBuffer({ loop: false });
+				bufferTrack.play();
+				if (startPositionSec > 0 && bufferTrack.duration > 0) bufferTrack.seekAudioBuffer(Math.min(bufferTrack.duration - .5, startPositionSec));
+				bufferTrack.on("source-state-change", (currentState) => {
+					if (currentState === "stopped") {
+						const finishedId = entry.meta.id;
+						this.emitState({
+							status: "stopped",
+							currentTimeSec: bufferTrack.duration || 0
+						});
+						this.endedListeners.forEach((cb) => cb(finishedId));
+					}
+				});
+				this.bufferSourceTrack = bufferTrack;
+				this.startProgressPolling();
+				const durationSec = bufferTrack.duration || 0;
+				this.emitState({
+					status: "playing",
+					activeTrackId: entry.meta.id,
+					currentTimeSec: startPositionSec,
+					durationSec,
+					volume: Math.round(volumePercent),
+					transport: "agora",
+					error: null
+				});
+				return {
+					ok: true,
+					durationSec,
+					transport: "agora"
+				};
+			} catch (fallbackErr) {
+				this.teardownCurrentNodes();
+				const msg = fallbackErr?.message || primaryErr?.message || "Failed to play selected audio file.";
+				this.emitState({
+					status: "error",
+					error: msg,
+					transport: "none"
+				});
+				return {
+					ok: false,
+					durationSec: 0,
+					transport: "none",
+					error: msg
+				};
+			}
+			this.teardownCurrentNodes();
+			const msg = primaryErr?.message || "Unable to play selected media file.";
+			this.emitState({
+				status: "error",
+				error: msg,
+				transport: "none"
+			});
+			return {
+				ok: false,
+				durationSec: 0,
+				transport: "none",
+				error: msg
+			};
+		}
+	}
+	startProgressPolling() {
+		this.clearProgressTimer();
+		this.progressTimer = setInterval(() => {
+			if (this.state.status !== "playing") return;
+			if (this.mediaEl) {
+				const cur = Number.isFinite(this.mediaEl.currentTime) ? this.mediaEl.currentTime : 0;
+				const dur = Number.isFinite(this.mediaEl.duration) ? this.mediaEl.duration : this.state.durationSec;
+				this.emitState({
+					currentTimeSec: cur,
+					durationSec: dur
+				});
+			} else if (this.bufferSourceTrack) {
+				const cur = this.bufferSourceTrack.getCurrentTime() || 0;
+				const dur = this.bufferSourceTrack.duration || this.state.durationSec;
+				this.emitState({
+					currentTimeSec: cur,
+					durationSec: dur
+				});
+			}
+		}, 500);
+	}
+	async pause() {
+		let pos = this.state.currentTimeSec;
+		if (this.mediaEl) {
+			this.mediaEl.pause();
+			pos = Number.isFinite(this.mediaEl.currentTime) ? this.mediaEl.currentTime : pos;
+		} else if (this.bufferSourceTrack) {
+			this.bufferSourceTrack.pauseProcessAudioBuffer();
+			pos = this.bufferSourceTrack.getCurrentTime() || pos;
+		}
+		await agoraRtcService.setMusicTrackEnabled(false);
+		this.emitState({
+			status: "paused",
+			currentTimeSec: pos
+		});
+		return pos;
+	}
+	async resume() {
+		let pos = this.state.currentTimeSec;
+		if (this.audioCtx && this.audioCtx.state === "suspended") await this.audioCtx.resume().catch(() => {});
+		await agoraRtcService.setMusicTrackEnabled(true);
+		if (this.mediaEl) {
+			await this.mediaEl.play();
+			pos = Number.isFinite(this.mediaEl.currentTime) ? this.mediaEl.currentTime : pos;
+		} else if (this.bufferSourceTrack) {
+			this.bufferSourceTrack.resumeProcessAudioBuffer();
+			pos = this.bufferSourceTrack.getCurrentTime() || pos;
+		}
+		this.startProgressPolling();
+		this.emitState({
+			status: "playing",
+			currentTimeSec: pos,
+			error: null
+		});
+		return pos;
+	}
+	seek(positionSec) {
+		const safePos = Math.max(0, Math.min(this.state.durationSec || positionSec, positionSec));
+		if (this.mediaEl) this.mediaEl.currentTime = safePos;
+		else if (this.bufferSourceTrack) this.bufferSourceTrack.seekAudioBuffer(safePos);
+		this.emitState({ currentTimeSec: safePos });
+		return safePos;
+	}
+	setVolume(volumePercent) {
+		const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)));
+		const normalized = clamped / 100;
+		if (this.localMonitorGain) this.localMonitorGain.gain.value = normalized * .85;
+		if (this.broadcastGain) this.broadcastGain.gain.value = normalized;
+		if (this.bufferSourceTrack) this.bufferSourceTrack.setVolume(clamped);
+		webrtcMediaService.setPartyMusicVolume(clamped);
+		this.emitState({ volume: clamped });
+	}
+	setLocalHostMuted(muted) {
+		if (this.localMonitorGain) this.localMonitorGain.gain.value = muted ? 0 : this.state.volume / 100 * .85;
+	}
+	async stop(options) {
+		await agoraRtcService.unpublishMusicAudioTrack().catch(() => {});
+		webrtcMediaService.setPartyMusicTrack(null);
+		this.teardownCurrentNodes();
+		if (!options?.silentEmit) this.emitState({
+			status: "stopped",
+			activeTrackId: null,
+			currentTimeSec: 0,
+			durationSec: 0,
+			transport: "none",
+			error: null
+		});
+	}
+	async dispose() {
+		await this.stop();
+		if (this.audioCtx && this.audioCtx.state !== "closed") {
+			try {
+				await this.audioCtx.close();
+			} catch {}
+			this.audioCtx = null;
+		}
+	}
+};
+var partyMusicEngine = new PartyMusicEngine();
+// src/components/common/PartyMusicPanelModal.tsx
+function formatTime(sec) {
+	if (!Number.isFinite(sec) || sec < 0) return "0:00";
+	const total = Math.floor(sec);
+	const mins = Math.floor(total / 60);
+	const secs = total % 60;
+	return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+}
+function sourceBadgeLabel(track) {
+	if (track.sourceType === "gallery_video") return "Gallery Video (Audio)";
+	if (track.sourceType === "youtube") return "YouTube Sync";
+	return "Gallery Audio";
+}
+var PartyMusicPanelModal = ({ isOpen, onClose, isHost, musicState, displayPositionSec, displayDurationSec, isLoadingTrack, errorMessage, voiceTransport, isSpeakerMuted, localListenerVolume, onLocalListenerVolumeChange, onAddGalleryAudioFiles, onAddGalleryVideoFiles, onAddYouTubeTrack, onPlayTrackAtIndex, onTogglePlayPause, onStop, onNext, onPrevious, onSeek, onHostVolumeChange, onRemoveQueueItem, onClearError }) => {
+	const [sourceTab, setSourceTab] = (0, import_react.useState)("gallery_audio");
+	const [youtubeInput, setYoutubeInput] = (0, import_react.useState)("");
+	const [youtubeTitleInput, setYoutubeTitleInput] = (0, import_react.useState)("");
+	const [youtubeInputError, setYoutubeInputError] = (0, import_react.useState)(null);
+	const [addingYoutube, setAddingYoutube] = (0, import_react.useState)(false);
+	const audioFileInputRef = (0, import_react.useRef)(null);
+	const videoFileInputRef = (0, import_react.useRef)(null);
+	if (!isOpen) return null;
+	const activeTrack = musicState.activeTrack;
+	const isPlaying = musicState.status === "playing";
+	const isPaused = musicState.status === "paused";
+	const hasActiveTrack = Boolean(activeTrack && (isPlaying || isPaused));
+	const duration = Math.max(displayDurationSec, activeTrack?.durationSec || 0);
+	const clampedPos = duration > 0 ? Math.min(duration, Math.max(0, displayPositionSec)) : Math.max(0, displayPositionSec);
+	const handleSubmitYouTube = async (e) => {
+		e.preventDefault();
+		setYoutubeInputError(null);
+		const parsedId = extractYouTubeVideoId(youtubeInput);
+		if (!parsedId) {
+			setYoutubeInputError("Enter a valid YouTube link (youtube.com / youtu.be / music.youtube.com) or 11-character Video ID.");
+			return;
+		}
+		setAddingYoutube(true);
+		try {
+			await onAddYouTubeTrack(parsedId, youtubeTitleInput.trim() || void 0);
+			setYoutubeInput("");
+			setYoutubeTitleInput("");
+		} finally {
+			setAddingYoutube(false);
+		}
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		onClick: onClose,
+		className: "fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4 animate-fade-in",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			onClick: (e) => e.stopPropagation(),
+			className: "w-full max-w-md bg-[#120726] border-t sm:border border-[#00D4FF]/35 rounded-t-3xl sm:rounded-3xl shadow-[0_0_32px_rgba(0,212,255,0.22)] flex flex-col max-h-[86vh] overflow-hidden",
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center justify-between px-4 py-3.5 border-b border-white/10 bg-gradient-to-r from-[#071A38]/90 via-[#160A2B] to-[#240B3B]/90 shrink-0",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-2.5 min-w-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: "w-9 h-9 rounded-2xl bg-[#071A38] border border-[#00D4FF]/60 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,212,255,0.35)] shrink-0",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music, { className: "w-4 h-4" })
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "min-w-0",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", {
+							className: "text-sm font-black text-white truncate",
+							children: "Party Music System"
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+							className: "text-[10px] font-semibold text-cyan-200/80 truncate",
+							children: isHost ? `Host Broadcast • ${voiceTransport === "agora" ? "Agora Global Audio Mix" : voiceTransport === "webrtc" ? "WebRTC Global Mix" : "Connecting..."}` : "Synchronized Live Party Music"
+						})]
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: onClose,
+					"aria-label": "Close Party Music Panel",
+					className: "w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors shrink-0",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+				})]
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex-1 overflow-y-auto no-scrollbar p-4 space-y-4",
+				children: [
+					errorMessage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "p-3 rounded-2xl bg-rose-950/85 border border-rose-500/45 flex items-start justify-between gap-2 text-xs text-rose-100",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-start gap-2 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TriangleAlert, { className: "w-4 h-4 text-rose-400 shrink-0 mt-0.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "leading-snug",
+								children: errorMessage
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: onClearError,
+							className: "text-rose-300 hover:text-white shrink-0",
+							"aria-label": "Dismiss error",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "rounded-2xl p-3.5 bg-gradient-to-br from-[#0A1833]/95 via-[#180C32]/95 to-[#230B3A]/95 border border-[#00D4FF]/30 shadow-lg space-y-3",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: "flex items-center justify-between gap-2",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center gap-2.5 min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: `w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${isPlaying ? "bg-cyan-500/20 border-cyan-400/60 text-cyan-300 shadow-[0_0_14px_rgba(0,212,255,0.4)]" : "bg-white/5 border-white/15 text-white/60"}`,
+										children: isLoadingTrack ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "w-5 h-5 animate-spin text-cyan-300" }) : activeTrack?.sourceType === "youtube" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Youtube, { className: "w-5 h-5 text-rose-400" }) : activeTrack?.sourceType === "gallery_video" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Film, { className: "w-5 h-5 text-cyan-300" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Headphones, { className: "w-5 h-5 text-cyan-300" })
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "text-xs font-black text-white truncate",
+											children: activeTrack ? activeTrack.title : "No Track Playing"
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-1.5 mt-0.5 flex-wrap",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+												className: `inline-flex items-center gap-1 text-[10px] font-bold ${isPlaying ? "text-emerald-300" : isPaused ? "text-amber-300" : "text-white/50"}`,
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: `w-2.5 h-2.5 ${isPlaying ? "animate-pulse" : ""}` }), isLoadingTrack ? "Loading..." : isPlaying ? "Playing for All Listeners" : isPaused ? "Paused" : "Stopped"]
+											}), activeTrack && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-[9px] font-bold text-cyan-200/80 bg-cyan-500/15 border border-cyan-400/25 px-1.5 py-0.5 rounded-md",
+												children: sourceBadgeLabel(activeTrack)
+											})]
+										})]
+									})]
+								})
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "space-y-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+									type: "range",
+									min: 0,
+									max: duration > 0 ? duration : 100,
+									step: .5,
+									value: duration > 0 ? clampedPos : 0,
+									disabled: !isHost || !hasActiveTrack || duration <= 0,
+									onChange: (e) => onSeek(Number(e.target.value)),
+									className: "w-full accent-[#00D4FF] h-1.5 bg-white/15 rounded-lg cursor-pointer disabled:cursor-default disabled:opacity-60",
+									"aria-label": "Track playback position"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "flex items-center justify-between text-[10px] font-mono text-white/60",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: formatTime(clampedPos) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: duration > 0 ? formatTime(duration) : "--:--" })]
+								})]
+							}),
+							isHost ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center justify-center gap-3 pt-0.5",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: onPrevious,
+										disabled: musicState.queue.length === 0,
+										"aria-label": "Previous track",
+										className: "w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 flex items-center justify-center text-white transition-all active:scale-95",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkipBack, { className: "w-4 h-4" })
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: onTogglePlayPause,
+										disabled: isLoadingTrack || !hasActiveTrack && musicState.queue.length === 0,
+										"aria-label": isPlaying ? "Pause music" : "Play music",
+										className: "w-12 h-12 rounded-full bg-gradient-to-tr from-[#00A8FF] via-[#00D4FF] to-[#3B82F6] text-[#041226] shadow-[0_0_20px_rgba(0,212,255,0.65)] disabled:opacity-40 flex items-center justify-center transition-all active:scale-95",
+										children: isLoadingTrack ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "w-5 h-5 animate-spin" }) : isPlaying ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pause, { className: "w-5 h-5 fill-current" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-5 h-5 fill-current ml-0.5" })
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: onStop,
+										disabled: !hasActiveTrack && !isLoadingTrack,
+										"aria-label": "Stop music",
+										className: "w-10 h-10 rounded-full bg-rose-600/80 hover:bg-rose-600 disabled:opacity-40 flex items-center justify-center text-white transition-all active:scale-95",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Square, { className: "w-3.5 h-3.5 fill-current" })
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+										type: "button",
+										onClick: onNext,
+										disabled: musicState.queue.length === 0,
+										"aria-label": "Next track",
+										className: "w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 flex items-center justify-center text-white transition-all active:scale-95",
+										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SkipForward, { className: "w-4 h-4" })
+									})
+								]
+							}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[11px] text-center text-white/65 bg-white/5 rounded-xl px-3 py-2 border border-white/10",
+								children: "Only the Party Host can play, pause, skip, or stop shared room music."
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2.5 pt-1",
+								children: [
+									isSpeakerMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, { className: "w-4 h-4 text-rose-400 shrink-0" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-4 h-4 text-cyan-300 shrink-0" }),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+										className: "text-[10px] font-bold text-white/75 shrink-0 w-16",
+										children: isHost ? "Music Vol" : "My Vol"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										type: "range",
+										min: 0,
+										max: 100,
+										value: isHost ? musicState.volume : localListenerVolume,
+										onChange: (e) => {
+											const v = Number(e.target.value);
+											if (isHost) onHostVolumeChange(v);
+											else onLocalListenerVolumeChange(v);
+										},
+										className: "flex-1 accent-[#FA26A0] h-1.5 bg-white/15 rounded-lg cursor-pointer",
+										"aria-label": "Music volume"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "text-[10px] font-mono font-bold text-white/85 w-8 text-right shrink-0",
+										children: [isHost ? musicState.volume : localListenerVolume, "%"]
+									})
+								]
+							})
+						]
+					}),
+					isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-3",
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-[#1A0D33] border border-white/10",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setSourceTab("gallery_audio"),
+										className: `flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-[11px] font-black transition-all ${sourceTab === "gallery_audio" ? "bg-[#071A38] text-cyan-300 border border-[#00D4FF]/55 shadow-[0_0_10px_rgba(0,212,255,0.28)]" : "text-white/65 hover:text-white"}`,
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FileAudio, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "truncate",
+											children: "Audio"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setSourceTab("gallery_video"),
+										className: `flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-[11px] font-black transition-all ${sourceTab === "gallery_video" ? "bg-[#071A38] text-cyan-300 border border-[#00D4FF]/55 shadow-[0_0_10px_rgba(0,212,255,0.28)]" : "text-white/65 hover:text-white"}`,
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Film, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "truncate",
+											children: "Video"
+										})]
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => setSourceTab("youtube"),
+										className: `flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-[11px] font-black transition-all ${sourceTab === "youtube" ? "bg-[#2B0C28] text-[#FF7AB8] border border-[#FA26A0]/55 shadow-[0_0_10px_rgba(250,38,160,0.28)]" : "text-white/65 hover:text-white"}`,
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Youtube, { className: "w-3.5 h-3.5 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "truncate",
+											children: "YouTube"
+										})]
+									})
+								]
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								ref: audioFileInputRef,
+								type: "file",
+								accept: "audio/*,.mp3,.aac,.m4a,.wav,.ogg,.flac",
+								multiple: true,
+								className: "hidden",
+								onChange: (e) => {
+									if (e.target.files && e.target.files.length > 0) {
+										onAddGalleryAudioFiles(e.target.files);
+										e.target.value = "";
+									}
+								}
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								ref: videoFileInputRef,
+								type: "file",
+								accept: "video/*,.mp4,.mov,.webm,.mkv,.m4v,.3gp",
+								multiple: true,
+								className: "hidden",
+								onChange: (e) => {
+									if (e.target.files && e.target.files.length > 0) {
+										onAddGalleryVideoFiles(e.target.files);
+										e.target.value = "";
+									}
+								}
+							}),
+							sourceTab === "gallery_audio" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl p-3.5 bg-[#190B33] border border-white/10 space-y-2.5",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "text-xs font-bold text-white",
+										children: "Select Audio from Device Storage"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-white/65 leading-relaxed",
+										children: "Supports MP3, AAC, M4A, WAV, OGG & FLAC. Mixed directly into the live Party audio stream alongside your microphone for all speakers and listeners."
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => audioFileInputRef.current?.click(),
+										className: "w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#00A8FF] to-[#00D4FF] text-[#041226] text-xs font-black flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(0,212,255,0.4)] active:scale-[0.98] transition-all",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { className: "w-4 h-4" }), "Choose Gallery Audio"]
+									})
+								]
+							}),
+							sourceTab === "gallery_video" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "rounded-2xl p-3.5 bg-[#190B33] border border-white/10 space-y-2.5",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "text-xs font-bold text-white",
+										children: "Extract Audio from Gallery Video"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] text-white/65 leading-relaxed",
+										children: "Choose an MP4, MOV, WEBM, or MKV video from your gallery. Only its audio track is extracted and broadcast to the Party — video stays completely hidden."
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "button",
+										onClick: () => videoFileInputRef.current?.click(),
+										className: "w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#00A8FF] to-[#6366F1] text-white text-xs font-black flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(59,130,246,0.4)] active:scale-[0.98] transition-all",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Film, { className: "w-4 h-4" }), "Choose Gallery Video (Audio Only)"]
+									})
+								]
+							}),
+							sourceTab === "youtube" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+								onSubmit: handleSubmitYouTube,
+								className: "rounded-2xl p-3.5 bg-[#190B33] border border-white/10 space-y-2.5",
+								children: [
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "text-xs font-bold text-white",
+										children: "Synchronized Official YouTube Player"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[10px] text-white/65 leading-relaxed",
+										children: "Uses the official embedded YouTube IFrame Player synchronized across all room listeners (100% compliant with YouTube Terms — no protected stream extraction)."
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										type: "text",
+										value: youtubeInput,
+										onChange: (e) => {
+											setYoutubeInput(e.target.value);
+											setYoutubeInputError(null);
+										},
+										placeholder: "Paste YouTube URL or Video ID...",
+										className: "w-full px-3 py-2 rounded-xl bg-[#0D051F] border border-white/15 focus:border-[#FA26A0] text-xs text-white placeholder-white/40 outline-none"
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+										type: "text",
+										value: youtubeTitleInput,
+										onChange: (e) => setYoutubeTitleInput(e.target.value),
+										placeholder: "Optional track label...",
+										className: "w-full px-3 py-2 rounded-xl bg-[#0D051F] border border-white/15 focus:border-cyan-400 text-xs text-white placeholder-white/40 outline-none"
+									}),
+									youtubeInputError && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-[11px] font-semibold text-rose-300",
+										children: youtubeInputError
+									}),
+									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+										type: "submit",
+										disabled: addingYoutube || !youtubeInput.trim(),
+										className: "w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#FA26A0] to-[#FF007A] disabled:opacity-40 text-white text-xs font-black flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(250,38,160,0.4)] active:scale-[0.98] transition-all",
+										children: [addingYoutube ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoaderCircle, { className: "w-4 h-4 animate-spin" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Youtube, { className: "w-4 h-4" }), "Play Synchronized YouTube Track"]
+									})
+								]
+							})
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "space-y-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+								className: "text-xs font-black text-white/90",
+								children: [
+									"Party Queue (",
+									musicState.queue.length,
+									")"
+								]
+							}), musicState.queue.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: "text-[10px] text-white/50",
+								children: isHost ? "Tap any track to play" : "Synced with Host"
+							})]
+						}), musicState.queue.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "text-center py-5 px-3 rounded-2xl bg-white/[0.03] border border-dashed border-white/10 text-[11px] text-white/50",
+							children: isHost ? "Add Gallery Audio, Gallery Video, or a YouTube track above to start playing music for the whole Party Room." : "No tracks in the Party Music queue yet."
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-1.5",
+							children: musicState.queue.map((track, idx) => {
+								const isCurrent = activeTrack?.id === track.id && (isPlaying || isPaused);
+								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									onClick: () => {
+										if (isHost) onPlayTrackAtIndex(idx);
+									},
+									className: `flex items-center justify-between gap-2 p-2.5 rounded-xl border transition-all ${isCurrent ? "bg-[#071A38]/90 border-[#00D4FF]/60 shadow-[0_0_12px_rgba(0,212,255,0.25)]" : "bg-[#1A0D33]/85 border-white/10 hover:border-white/25"} ${isHost ? "cursor-pointer" : ""}`,
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-2.5 min-w-0",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+											className: "w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-cyan-300 shrink-0",
+											children: track.sourceType === "youtube" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Youtube, { className: "w-3.5 h-3.5 text-rose-400" }) : track.sourceType === "gallery_video" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Film, { className: "w-3.5 h-3.5 text-cyan-300" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FileAudio, { className: "w-3.5 h-3.5 text-cyan-300" })
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "min-w-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "text-xs font-bold text-white truncate",
+												children: track.title
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "text-[10px] text-white/55 truncate",
+												children: [sourceBadgeLabel(track), track.durationSec > 0 ? ` • ${formatTime(track.durationSec)}` : ""]
+											})]
+										})]
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center gap-1.5 shrink-0",
+										children: [isCurrent && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+											className: "text-[9px] font-black text-cyan-300 uppercase px-1.5 py-0.5 rounded bg-cyan-500/20",
+											children: isPlaying ? "Live" : "Paused"
+										}), isHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: (e) => {
+												e.stopPropagation();
+												onRemoveQueueItem(track.id);
+											},
+											"aria-label": "Remove track from queue",
+											className: "w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/30 flex items-center justify-center text-white/60 hover:text-rose-200 transition-colors",
+											children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-3.5 h-3.5" })
+										})]
+									})]
+								}, track.id);
+							})
+						})]
+					})
+				]
+			})]
+		})
+	});
+};
+// src/components/common/PartyYouTubeSyncPlayer.tsx
+function loadYouTubeIframeApi() {
+	if (typeof window === "undefined") return Promise.reject(/* @__PURE__ */ new Error("Window unavailable"));
+	if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+	if (window.__lenzoYtApiPromise) return window.__lenzoYtApiPromise;
+	window.__lenzoYtApiPromise = new Promise((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			reject(/* @__PURE__ */ new Error("YouTube Player API timed out. Check your internet connection."));
+		}, 12e3);
+		const prevReady = window.onYouTubeIframeAPIReady;
+		window.onYouTubeIframeAPIReady = () => {
+			clearTimeout(timeout);
+			if (typeof prevReady === "function") try {
+				prevReady();
+			} catch {}
+			resolve(window.YT);
+		};
+		if (!document.querySelector("script[src*=\"youtube.com/iframe_api\"]")) {
+			const tag = document.createElement("script");
+			tag.src = "https://www.youtube.com/iframe_api";
+			tag.async = true;
+			tag.onerror = () => {
+				clearTimeout(timeout);
+				window.__lenzoYtApiPromise = void 0;
+				reject(/* @__PURE__ */ new Error("Unable to load official YouTube IFrame Player."));
+			};
+			document.head.appendChild(tag);
+		}
+	});
+	return window.__lenzoYtApiPromise;
+}
+/**
+* Policy-Compliant Official YouTube IFrame Synchronized Player.
+* Uses YouTube's official IFrame Player API without extracting or bypassing protected streams.
+* Synchronizes Host + Seated Participants + Non-seated Listeners across join-in-progress,
+* play/pause, seek, track change, and reconnection recovery.
+*/
+var PartyYouTubeSyncPlayer = ({ musicState, clockOffsetMs, isHost, isSpeakerMuted, localVolumeOverride, compact = false, onProgress, onEnded, onError }) => {
+	const containerRef = (0, import_react.useRef)(null);
+	const playerRef = (0, import_react.useRef)(null);
+	const playerReadyRef = (0, import_react.useRef)(false);
+	const loadedVideoIdRef = (0, import_react.useRef)(null);
+	const [ytError, setYtError] = (0, import_react.useState)(null);
+	const [needsTapToPlay, setNeedsTapToPlay] = (0, import_react.useState)(false);
+	const activeTrack = musicState.activeTrack;
+	const videoId = activeTrack?.sourceType === "youtube" ? activeTrack.youtubeVideoId || null : null;
+	const computeExpectedPosition = () => {
+		const base = Math.max(0, Number(musicState.positionSec) || 0);
+		if (musicState.status !== "playing") return base;
+		const approxServerNow = Date.now() + clockOffsetMs;
+		const refTime = musicState.serverTime || musicState.updatedAt || approxServerNow;
+		const total = base + Math.max(0, (approxServerNow - refTime) / 1e3);
+		if (activeTrack && activeTrack.durationSec > 0) return Math.min(activeTrack.durationSec, total);
+		return total;
+	};
+	(0, import_react.useEffect)(() => {
+		if (!videoId || musicState.status === "stopped" || musicState.status === "idle") {
+			if (playerRef.current) {
+				try {
+					playerRef.current.stopVideo?.();
+					playerRef.current.destroy?.();
+				} catch {}
+				playerRef.current = null;
+				playerReadyRef.current = false;
+				loadedVideoIdRef.current = null;
+			}
+			setYtError(null);
+			setNeedsTapToPlay(false);
+			return;
+		}
+		let cancelled = false;
+		setYtError(null);
+		loadYouTubeIframeApi().then((YT) => {
+			if (cancelled || !containerRef.current) return;
+			if (!playerRef.current) {
+				loadedVideoIdRef.current = videoId;
+				playerRef.current = new YT.Player(containerRef.current, {
+					videoId,
+					width: "100%",
+					height: "100%",
+					playerVars: {
+						autoplay: musicState.status === "playing" ? 1 : 0,
+						controls: isHost ? 1 : 0,
+						disablekb: isHost ? 0 : 1,
+						modestbranding: 1,
+						playsinline: 1,
+						rel: 0,
+						origin: typeof window !== "undefined" ? window.location.origin : void 0
+					},
+					events: {
+						onReady: (ev) => {
+							if (cancelled) return;
+							playerReadyRef.current = true;
+							const player = ev.target;
+							const vol = Math.max(0, Math.min(100, localVolumeOverride ?? musicState.volume ?? 65));
+							try {
+								player.setVolume(vol);
+								if (isSpeakerMuted) player.mute();
+								else player.unMute();
+								const expectedPos = computeExpectedPosition();
+								if (expectedPos > 1) player.seekTo(expectedPos, true);
+								if (musicState.status === "playing") player.playVideo();
+								else player.pauseVideo();
+							} catch {}
+						},
+						onStateChange: (ev) => {
+							if (cancelled) return;
+							const YTState = window.YT?.PlayerState;
+							if (!YTState) return;
+							if (ev.data === YTState.PLAYING) {
+								setNeedsTapToPlay(false);
+								setYtError(null);
+							} else if (ev.data === YTState.ENDED && isHost) onEnded?.();
+							else if (ev.data === YTState.UNSTARTED && musicState.status === "playing") setNeedsTapToPlay(true);
+						},
+						onError: (ev) => {
+							if (cancelled) return;
+							const code = Number(ev?.data);
+							let msg = "YouTube playback error.";
+							if (code === 101 || code === 150) msg = "This YouTube video does not allow embedded playback. Choose another track or use Gallery Audio.";
+							else if (code === 100) msg = "YouTube video not found or private.";
+							else if (code === 2) msg = "Invalid YouTube video ID.";
+							setYtError(msg);
+							onError?.(msg);
+						}
+					}
+				});
+			}
+		}).catch((err) => {
+			if (!cancelled) {
+				const msg = err?.message || "Unable to load YouTube Player.";
+				setYtError(msg);
+				onError?.(msg);
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [videoId, musicState.status === "stopped" || musicState.status === "idle"]);
+	(0, import_react.useEffect)(() => {
+		const player = playerRef.current;
+		if (!player || !playerReadyRef.current || !videoId) return;
+		try {
+			const vol = Math.max(0, Math.min(100, localVolumeOverride ?? musicState.volume ?? 65));
+			player.setVolume?.(vol);
+			if (isSpeakerMuted) player.mute?.();
+			else player.unMute?.();
+			if (loadedVideoIdRef.current !== videoId) {
+				loadedVideoIdRef.current = videoId;
+				const startPos = computeExpectedPosition();
+				if (musicState.status === "playing") player.loadVideoById?.({
+					videoId,
+					startSeconds: startPos
+				});
+				else player.cueVideoById?.({
+					videoId,
+					startSeconds: startPos
+				});
+				return;
+			}
+			const expectedPos = computeExpectedPosition();
+			const currentPos = typeof player.getCurrentTime === "function" ? Number(player.getCurrentTime()) || 0 : 0;
+			const drift = Math.abs(expectedPos - currentPos);
+			if (musicState.status === "playing") {
+				if (drift > 2) player.seekTo?.(expectedPos, true);
+				const st = player.getPlayerState?.();
+				if (st !== window.YT?.PlayerState?.PLAYING && st !== window.YT?.PlayerState?.BUFFERING) player.playVideo?.();
+			} else if (musicState.status === "paused") {
+				if (drift > 1.2) player.seekTo?.(expectedPos, true);
+				player.pauseVideo?.();
+			} else if (musicState.status === "stopped") player.stopVideo?.();
+		} catch {}
+	}, [
+		videoId,
+		musicState.status,
+		musicState.positionSec,
+		musicState.updatedAt,
+		musicState.volume,
+		isSpeakerMuted,
+		localVolumeOverride
+	]);
+	(0, import_react.useEffect)(() => {
+		if (!videoId || musicState.status !== "playing") return;
+		const timer = setInterval(() => {
+			const player = playerRef.current;
+			if (!player || !playerReadyRef.current) return;
+			try {
+				const cur = Number(player.getCurrentTime?.()) || 0;
+				const dur = Number(player.getDuration?.()) || activeTrack?.durationSec || 0;
+				onProgress?.(cur, dur);
+			} catch {}
+		}, 600);
+		return () => clearInterval(timer);
+	}, [
+		videoId,
+		musicState.status,
+		activeTrack?.durationSec
+	]);
+	(0, import_react.useEffect)(() => {
+		return () => {
+			if (playerRef.current) {
+				try {
+					playerRef.current.destroy?.();
+				} catch {}
+				playerRef.current = null;
+				playerReadyRef.current = false;
+			}
+		};
+	}, []);
+	if (!videoId || musicState.status === "stopped" || musicState.status === "idle") return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: `rounded-2xl overflow-hidden border border-[#00D4FF]/35 bg-[#090B1E]/95 shadow-[0_0_16px_rgba(0,212,255,0.2)] ${compact ? "w-full" : "w-full"}`,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex items-center justify-between px-2.5 py-1 bg-[#071A38]/90 border-b border-white/10",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-1.5 min-w-0",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: "text-[10px] font-black text-cyan-200 truncate",
+						children: ["YouTube Sync • ", activeTrack?.title || "Playing"]
+					})]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("a", {
+					href: `https://www.youtube.com/watch?v=${videoId}`,
+					target: "_blank",
+					rel: "noopener noreferrer",
+					className: "text-[9px] font-bold text-white/60 hover:text-cyan-300 flex items-center gap-0.5 shrink-0",
+					children: ["YouTube ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExternalLink, { className: "w-2.5 h-2.5" })]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: `relative w-full bg-black ${compact ? "h-[118px]" : "aspect-video max-h-44"}`,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					ref: containerRef,
+					className: "w-full h-full"
+				}), needsTapToPlay && !ytError && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					onClick: () => {
+						try {
+							playerRef.current?.unMute?.();
+							playerRef.current?.playVideo?.();
+							setNeedsTapToPlay(false);
+						} catch {}
+					},
+					className: "absolute inset-0 bg-black/65 flex items-center justify-center text-xs font-black text-cyan-200",
+					children: "Tap to Sync YouTube Audio"
+				})]
+			}),
+			ytError && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "px-2.5 py-1.5 bg-rose-950/90 border-t border-rose-500/40 flex items-center gap-1.5 text-[10px] font-semibold text-rose-200",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(CircleAlert, { className: "w-3.5 h-3.5 text-rose-400 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: ytError })]
+			})
+		]
+	});
+};
 // src/utils/partyBackgrounds.ts
 var DEFAULT_PARTY_BACKGROUND_ID = "royal_neon";
 var PARTY_BACKGROUND_PRESETS = [
@@ -25118,6 +26571,145 @@ var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLock
 		]
 	});
 };
+// src/utils/screenWakeLock.ts
+/**
+* Lenzo Party Live — Permanent Screen Awake Manager
+*
+* Keeps the screen permanently ON during active Live Party Room sessions for:
+*  - Party Host
+*  - Seated Party Participants
+*  - Non-seated Party Listeners
+*
+* Uses reference-counted ownership to prevent duplicate/conflicting Wake Lock calls:
+*  1. Android Native (Capacitor): WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+*     (never modifies global Android display timeout settings).
+*  2. Web / Mobile Browser: Screen Wake Lock API (navigator.wakeLock.request('screen'))
+*     with automatic lifecycle re-acquisition on visibility/appState resume.
+*
+* Releases automatically when the user leaves the Party Room, closes the session,
+* or the screen unmounts / unloads.
+*/
+var ScreenWakeLockManager = class {
+	constructor() {
+		this.activeOwners = /* @__PURE__ */ new Set();
+		this.nativeFlagApplied = false;
+		this.webSentinel = null;
+		this.lifecycleBound = false;
+		this.acquiringWebLock = false;
+		this.appStateRemove = null;
+		this.handleVisibilityChange = () => {
+			if (typeof document === "undefined") return;
+			if (document.visibilityState === "visible" && this.activeOwners.size > 0) this.applyKeepAwake(true);
+		};
+		this.handlePageTeardown = () => {
+			if (this.activeOwners.size > 0 || this.nativeFlagApplied || this.webSentinel) {
+				this.activeOwners.clear();
+				this.applyKeepAwake(false);
+			}
+		};
+	}
+	bindLifecycleListeners() {
+		if (this.lifecycleBound || typeof window === "undefined") return;
+		this.lifecycleBound = true;
+		if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.handleVisibilityChange);
+		window.addEventListener("pagehide", this.handlePageTeardown);
+		window.addEventListener("beforeunload", this.handlePageTeardown);
+		if (Capacitor.isNativePlatform()) App$1.addListener("appStateChange", ({ isActive }) => {
+			if (isActive && this.activeOwners.size > 0) this.applyKeepAwake(true);
+		}).then((handle) => {
+			this.appStateRemove = () => handle.remove();
+		}).catch(() => {});
+	}
+	async requestWebWakeLock() {
+		if (typeof navigator === "undefined" || this.acquiringWebLock) return;
+		const navAny = navigator;
+		if (!navAny.wakeLock || typeof navAny.wakeLock.request !== "function") return;
+		if (this.webSentinel && !this.webSentinel.released) return;
+		if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+		this.acquiringWebLock = true;
+		try {
+			const sentinel = await navAny.wakeLock.request("screen");
+			if (this.activeOwners.size === 0) {
+				await sentinel.release().catch(() => {});
+				return;
+			}
+			this.webSentinel = sentinel;
+			sentinel.addEventListener?.("release", () => {
+				if (this.webSentinel === sentinel) this.webSentinel = null;
+			});
+		} catch {} finally {
+			this.acquiringWebLock = false;
+		}
+	}
+	async releaseWebWakeLock() {
+		const sentinel = this.webSentinel;
+		this.webSentinel = null;
+		if (sentinel && !sentinel.released) try {
+			await sentinel.release();
+		} catch {}
+	}
+	async applyKeepAwake(enabled) {
+		if (enabled) {
+			if (Capacitor.isNativePlatform()) {
+				this.nativeFlagApplied = true;
+				await setNativeKeepScreenOn(true);
+			}
+			await this.requestWebWakeLock();
+		} else {
+			if (this.nativeFlagApplied || Capacitor.isNativePlatform()) {
+				this.nativeFlagApplied = false;
+				await setNativeKeepScreenOn(false);
+			}
+			await this.releaseWebWakeLock();
+		}
+	}
+	/**
+	* Acquire screen awake lock for a specific room/session owner ID.
+	* Safe to call repeatedly with the same ownerId (idempotent, no duplicates).
+	*/
+	async acquire(ownerId) {
+		if (!ownerId) return;
+		this.bindLifecycleListeners();
+		const hadOwners = this.activeOwners.size > 0;
+		this.activeOwners.add(ownerId);
+		if (!hadOwners || !this.nativeFlagApplied || !this.webSentinel) await this.applyKeepAwake(true);
+	}
+	/**
+	* Release screen awake lock for a specific owner ID.
+	* Restores normal system screen timeout as soon as no active rooms remain.
+	*/
+	async release(ownerId) {
+		if (!ownerId) return;
+		this.activeOwners.delete(ownerId);
+		if (this.activeOwners.size === 0) await this.applyKeepAwake(false);
+	}
+	/**
+	* Force-release all locks (e.g., on logout or fatal termination).
+	*/
+	async releaseAll() {
+		this.activeOwners.clear();
+		await this.applyKeepAwake(false);
+	}
+	isActive() {
+		return this.activeOwners.size > 0;
+	}
+	dispose() {
+		if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+		if (typeof window !== "undefined") {
+			window.removeEventListener("pagehide", this.handlePageTeardown);
+			window.removeEventListener("beforeunload", this.handlePageTeardown);
+		}
+		if (this.appStateRemove) {
+			this.appStateRemove().catch(() => {});
+			this.appStateRemove = null;
+		}
+		this.lifecycleBound = false;
+		this.releaseAll();
+	}
+};
+var screenWakeLockManager = new ScreenWakeLockManager();
+var acquirePartyScreenWakeLock = (ownerId) => screenWakeLockManager.acquire(ownerId);
+var releasePartyScreenWakeLock = (ownerId) => screenWakeLockManager.release(ownerId);
 // src/utils/roomService.ts
 var RoomService = class {
 	async fetchRoomSeats(roomId, maxSeats = 8) {
@@ -25398,6 +26990,30 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [showBackgroundPicker, setShowBackgroundPicker] = (0, import_react.useState)(false);
 	const [showLeaderboardModal, setShowLeaderboardModal] = (0, import_react.useState)(false);
 	const [showEditAnnouncementModal, setShowEditAnnouncementModal] = (0, import_react.useState)(false);
+	const [showMusicModal, setShowMusicModal] = (0, import_react.useState)(false);
+	const [partyMusicState, setPartyMusicState] = (0, import_react.useState)(() => room.musicState || {
+		roomId: room.id,
+		hostId: room.host.id,
+		status: "idle",
+		activeTrack: null,
+		queue: [],
+		currentIndex: -1,
+		positionSec: 0,
+		volume: 65,
+		updatedAt: Date.now(),
+		updatedBy: room.host.id,
+		audioTransport: "none"
+	});
+	const partyMusicStateRef = (0, import_react.useRef)(partyMusicState);
+	partyMusicStateRef.current = partyMusicState;
+	const [musicClockOffsetMs, setMusicClockOffsetMs] = (0, import_react.useState)(0);
+	const [musicDisplayPosSec, setMusicDisplayPosSec] = (0, import_react.useState)(0);
+	const [musicDisplayDurSec, setMusicDisplayDurSec] = (0, import_react.useState)(0);
+	const [musicLoadingTrack, setMusicLoadingTrack] = (0, import_react.useState)(false);
+	const [musicErrorMessage, setMusicErrorMessage] = (0, import_react.useState)(null);
+	const [localListenerMusicVol, setLocalListenerMusicVol] = (0, import_react.useState)(80);
+	const localMusicEntriesRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
+	const musicAutoNextGuardRef = (0, import_react.useRef)(null);
 	const [toastMessage, setToastMessage] = (0, import_react.useState)(null);
 	const [roomLikesCount, setRoomLikesCount] = (0, import_react.useState)(room.likesCount || 0);
 	const [roomAnnouncement, setRoomAnnouncement] = (0, import_react.useState)(room.announcement || "Welcome! Hop on a seat, respect everyone & enjoy the party.");
@@ -25577,6 +27193,79 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		};
 	}, [isSpeakerMuted]);
 	(0, import_react.useEffect)(() => {
+		const wakeOwnerId = `party_room_${room.id}_${currentUser.id}`;
+		acquirePartyScreenWakeLock(wakeOwnerId);
+		return () => {
+			releasePartyScreenWakeLock(wakeOwnerId);
+		};
+	}, [room.id, currentUser.id]);
+	(0, import_react.useEffect)(() => {
+		if (isRoomHost) partyMusicEngine.setLocalHostMuted(isSpeakerMuted);
+	}, [isRoomHost, isSpeakerMuted]);
+	(0, import_react.useEffect)(() => {
+		if (!isRoomHost) return;
+		const unsubStatus = partyMusicEngine.subscribe((eng) => {
+			if (eng.status === "loading") setMusicLoadingTrack(true);
+			else setMusicLoadingTrack(false);
+			if (eng.error) setMusicErrorMessage(eng.error);
+			if (eng.status === "playing" || eng.status === "paused") {
+				setMusicDisplayPosSec(eng.currentTimeSec);
+				if (eng.durationSec > 0) setMusicDisplayDurSec(eng.durationSec);
+			}
+		});
+		const unsubEnded = partyMusicEngine.onTrackEnded((finishedTrackId) => {
+			if (musicAutoNextGuardRef.current === finishedTrackId) return;
+			musicAutoNextGuardRef.current = finishedTrackId;
+			handleMusicNextTrackRef.current?.();
+		});
+		return () => {
+			unsubStatus();
+			unsubEnded();
+			partyMusicEngine.stop();
+			localMusicEntriesRef.current.forEach((entry) => {
+				if (entry.objectUrl) try {
+					URL.revokeObjectURL(entry.objectUrl);
+				} catch {}
+			});
+			localMusicEntriesRef.current.clear();
+		};
+	}, [isRoomHost, room.id]);
+	(0, import_react.useEffect)(() => {
+		const st = partyMusicState;
+		if (!st.activeTrack || st.status === "idle" || st.status === "stopped") {
+			setMusicDisplayPosSec(0);
+			setMusicDisplayDurSec(0);
+			return;
+		}
+		if (st.activeTrack.durationSec > 0) setMusicDisplayDurSec(st.activeTrack.durationSec);
+		if (st.status === "paused") {
+			setMusicDisplayPosSec(st.positionSec || 0);
+			return;
+		}
+		if (isRoomHost && st.activeTrack.sourceType !== "youtube") return;
+		const updateSyncedPos = () => {
+			const approxServerNow = Date.now() + musicClockOffsetMs;
+			const refTime = st.serverTime || st.updatedAt || approxServerNow;
+			const elapsed = Math.max(0, (approxServerNow - refTime) / 1e3);
+			const nextPos = (st.positionSec || 0) + elapsed;
+			const dur = st.activeTrack?.durationSec || 0;
+			setMusicDisplayPosSec(dur > 0 ? Math.min(dur, nextPos) : nextPos);
+		};
+		updateSyncedPos();
+		const timer = setInterval(updateSyncedPos, 500);
+		return () => clearInterval(timer);
+	}, [
+		isRoomHost,
+		musicClockOffsetMs,
+		partyMusicState.status,
+		partyMusicState.activeTrack?.id,
+		partyMusicState.activeTrack?.sourceType,
+		partyMusicState.activeTrack?.durationSec,
+		partyMusicState.positionSec,
+		partyMusicState.updatedAt,
+		partyMusicState.serverTime
+	]);
+	(0, import_react.useEffect)(() => {
 		let active = true;
 		hasExplicitlyLeftRef.current = false;
 		roomEnteredAtRef.current = Date.now();
@@ -25642,9 +27331,16 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			closesAt: null,
 			...isRoomHost ? { hostPresent: true } : {}
 		});
+		const applyIncomingMusicState = (incoming, serverTime) => {
+			if (!incoming || typeof incoming !== "object") return;
+			const refServerTime = typeof serverTime === "number" ? serverTime : incoming.serverTime;
+			if (typeof refServerTime === "number" && refServerTime > 0) setMusicClockOffsetMs(refServerTime - Date.now());
+			setPartyMusicState(incoming);
+		};
 		liveAndRoomService.joinPartyRoom(room.id, currentUser, room.password).then((res) => {
 			if (!active) return;
 			if (res.room) applyServerRoomState(res.room);
+			applyIncomingMusicState(res.musicState || res.room?.musicState);
 			if (Array.isArray(res.participants) && res.participants.length > 0) setParticipantsList((prev) => {
 				const map = /* @__PURE__ */ new Map();
 				prev.forEach((p) => map.set(p.userId, p));
@@ -25874,6 +27570,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					setParticipantTotal(filtered.length);
 				}
 				if (event === "room:sync_state") {
+					applyIncomingMusicState(payload.musicState || payload.room?.musicState, typeof payload.serverTime === "number" ? payload.serverTime : void 0);
 					if (Array.isArray(payload.pendingRequests) && payload.pendingRequests.length > 0) {
 						const incoming = payload.pendingRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))).map((r) => ({
 							id: r.id,
@@ -25889,7 +27586,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						});
 					}
 				}
-			} else if (event === "room:participant_joined") {
+			} else if (event === "room:music_updated" && payload.musicState) applyIncomingMusicState(payload.musicState);
+			else if (event === "room:participant_joined") {
 				if (payload.room) applyServerRoomState(payload.room);
 				if (isRoomHost && payload.participant?.userId && blockedUserIdsRef.current.has(payload.participant.userId)) return;
 				if (Array.isArray(payload.participants)) {
@@ -26061,6 +27759,20 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				emptySince: nextEmptySince,
 				closesAt: nextClosesAt
 			}).catch(() => {});
+			if (isRoomHost) {
+				partyMusicEngine.stop();
+				if (partyMusicStateRef.current.status === "playing" || partyMusicStateRef.current.status === "paused") liveAndRoomService.updateRoomMusicState({
+					roomId: room.id,
+					hostId: currentUser.id,
+					action: "stop",
+					roomMeta: {
+						host: room.host,
+						title: room.title,
+						maxSeats: maxSeatsRef.current
+					}
+				}).catch(() => {});
+			}
+			releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
 			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
 			leaveFirestoreRoomParticipant(room.id).catch(() => {});
 		};
@@ -26577,6 +28289,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			emptySince: nextEmptySince,
 			closesAt: nextClosesAt
 		});
+		if (isRoomHost) await partyMusicEngine.stop().catch(() => {});
+		releasePartyScreenWakeLock(`party_room_${room.id}`);
 		webrtcMediaService.stopPartyVoice();
 		if (realMicAnalyserRef.current) {
 			realMicAnalyserRef.current.cleanup();
@@ -26992,6 +28706,308 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setTimeout(() => {
 			chatInputRef.current?.focus();
 		}, 30);
+	};
+	const musicRoomMeta = () => ({
+		host: room.host,
+		title: room.title,
+		maxSeats: maxSeatsRef.current
+	});
+	const startHostTrackAtIndex = async (index, explicitQueue) => {
+		if (!isRoomHost) {
+			showToast("Only the Party Host can control room music.");
+			return;
+		}
+		const queue = explicitQueue || partyMusicStateRef.current.queue;
+		if (index < 0 || index >= queue.length) return;
+		const track = queue[index];
+		setMusicErrorMessage(null);
+		musicAutoNextGuardRef.current = null;
+		if (track.sourceType === "youtube") {
+			await partyMusicEngine.stop();
+			const res = await liveAndRoomService.updateRoomMusicState({
+				roomId: room.id,
+				hostId: currentUser.id,
+				action: "play",
+				track,
+				queue,
+				currentIndex: index,
+				positionSec: 0,
+				volume: partyMusicStateRef.current.volume,
+				audioTransport: "youtube_sync",
+				roomMeta: musicRoomMeta()
+			});
+			if (!res.success) {
+				const err = res.error || "Failed to sync YouTube track to room.";
+				setMusicErrorMessage(err);
+				showToast(err);
+				return;
+			}
+			if (res.musicState) setPartyMusicState(res.musicState);
+			showToast(`Playing YouTube Sync: ${track.title}`);
+			return;
+		}
+		const localEntry = localMusicEntriesRef.current.get(track.id);
+		if (!localEntry?.file) {
+			const err = "Local media file is no longer in memory. Please re-select the file from Gallery.";
+			setMusicErrorMessage(err);
+			showToast(err);
+			return;
+		}
+		const playResult = await partyMusicEngine.playLocalFile({
+			entry: localEntry,
+			transport: voiceTransportRef.current,
+			volumePercent: partyMusicStateRef.current.volume,
+			startPositionSec: 0
+		});
+		if (!playResult.ok) {
+			const err = playResult.error || "Unable to broadcast selected media track.";
+			setMusicErrorMessage(err);
+			showToast(err);
+			return;
+		}
+		const updatedTrack = {
+			...track,
+			durationSec: playResult.durationSec > 0 ? playResult.durationSec : track.durationSec
+		};
+		const updatedQueue = queue.map((t, i) => i === index ? updatedTrack : t);
+		const syncRes = await liveAndRoomService.updateRoomMusicState({
+			roomId: room.id,
+			hostId: currentUser.id,
+			action: "play",
+			track: updatedTrack,
+			queue: updatedQueue,
+			currentIndex: index,
+			positionSec: 0,
+			volume: partyMusicStateRef.current.volume,
+			audioTransport: playResult.transport,
+			roomMeta: musicRoomMeta()
+		});
+		if (syncRes.musicState) setPartyMusicState(syncRes.musicState);
+		else setPartyMusicState((prev) => ({
+			...prev,
+			status: "playing",
+			activeTrack: updatedTrack,
+			queue: updatedQueue,
+			currentIndex: index,
+			positionSec: 0,
+			updatedAt: Date.now(),
+			audioTransport: playResult.transport
+		}));
+		showToast(track.sourceType === "gallery_video" ? `Streaming video audio to room: ${track.title}` : `Playing for all listeners: ${track.title}`);
+	};
+	const handleAddGalleryFiles = async (files, sourceType) => {
+		if (!isRoomHost) return;
+		setMusicErrorMessage(null);
+		const addedTracks = [];
+		const errors = [];
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			const check = validateGalleryMediaFile(file, sourceType);
+			if (!check.valid) {
+				errors.push(check.error || `Unsupported file: ${file.name}`);
+				continue;
+			}
+			const id = `trk_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+			const meta = {
+				id,
+				title: cleanFileTrackTitle(file.name),
+				sourceType,
+				durationSec: 0,
+				mimeType: file.type || void 0
+			};
+			localMusicEntriesRef.current.set(id, {
+				meta,
+				file
+			});
+			addedTracks.push(meta);
+		}
+		if (errors.length > 0) {
+			setMusicErrorMessage(errors[0]);
+			showToast(errors[0]);
+		}
+		if (addedTracks.length === 0) return;
+		const prevQueue = partyMusicStateRef.current.queue;
+		const nextQueue = [...prevQueue, ...addedTracks];
+		if (partyMusicStateRef.current.status !== "playing" && partyMusicStateRef.current.status !== "paused") await startHostTrackAtIndex(prevQueue.length, nextQueue);
+		else {
+			const res = await liveAndRoomService.updateRoomMusicState({
+				roomId: room.id,
+				hostId: currentUser.id,
+				action: "queue_update",
+				queue: nextQueue,
+				roomMeta: musicRoomMeta()
+			});
+			if (res.musicState) setPartyMusicState(res.musicState);
+			showToast(`Added ${addedTracks.length} track${addedTracks.length > 1 ? "s" : ""} to Party Queue`);
+		}
+	};
+	const handleAddYouTubeTrack = async (videoId, customTitle) => {
+		if (!isRoomHost) return;
+		setMusicErrorMessage(null);
+		let resolvedTitle = customTitle || `YouTube Track (${videoId})`;
+		let resolvedThumb = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+		if (!customTitle) try {
+			const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`);
+			if (res.ok) {
+				const data = await res.json();
+				if (data?.title) resolvedTitle = String(data.title).slice(0, 120);
+				if (data?.thumbnail_url) resolvedThumb = String(data.thumbnail_url);
+			}
+		} catch {}
+		const newTrack = {
+			id: `yt_${videoId}_${Date.now()}`,
+			title: resolvedTitle,
+			sourceType: "youtube",
+			durationSec: 0,
+			youtubeVideoId: videoId,
+			thumbnailUrl: resolvedThumb
+		};
+		const prevQueue = partyMusicStateRef.current.queue;
+		const nextQueue = [...prevQueue, newTrack];
+		await startHostTrackAtIndex(prevQueue.length, nextQueue);
+	};
+	const handleMusicTogglePlayPause = async () => {
+		if (!isRoomHost) return;
+		const st = partyMusicStateRef.current;
+		if (!st.activeTrack || st.status === "idle" || st.status === "stopped") {
+			if (st.queue.length > 0) {
+				const targetIdx = st.currentIndex >= 0 && st.currentIndex < st.queue.length ? st.currentIndex : 0;
+				await startHostTrackAtIndex(targetIdx);
+			}
+			return;
+		}
+		if (st.status === "playing") {
+			let pos = musicDisplayPosSec;
+			if (st.activeTrack.sourceType !== "youtube") pos = await partyMusicEngine.pause();
+			const res = await liveAndRoomService.updateRoomMusicState({
+				roomId: room.id,
+				hostId: currentUser.id,
+				action: "pause",
+				positionSec: pos,
+				roomMeta: musicRoomMeta()
+			});
+			if (res.musicState) setPartyMusicState(res.musicState);
+		} else if (st.status === "paused") {
+			let pos = st.positionSec;
+			if (st.activeTrack.sourceType !== "youtube") try {
+				pos = await partyMusicEngine.resume();
+			} catch {
+				const idx = st.queue.findIndex((t) => t.id === st.activeTrack?.id);
+				if (idx >= 0) {
+					await startHostTrackAtIndex(idx);
+					return;
+				}
+			}
+			const res = await liveAndRoomService.updateRoomMusicState({
+				roomId: room.id,
+				hostId: currentUser.id,
+				action: "resume",
+				positionSec: pos,
+				audioTransport: st.activeTrack.sourceType === "youtube" ? "youtube_sync" : partyMusicEngine.getState().transport,
+				roomMeta: musicRoomMeta()
+			});
+			if (res.musicState) setPartyMusicState(res.musicState);
+		}
+	};
+	const handleMusicStop = async () => {
+		if (!isRoomHost) return;
+		await partyMusicEngine.stop();
+		const res = await liveAndRoomService.updateRoomMusicState({
+			roomId: room.id,
+			hostId: currentUser.id,
+			action: "stop",
+			roomMeta: musicRoomMeta()
+		});
+		if (res.musicState) setPartyMusicState(res.musicState);
+		else setPartyMusicState((prev) => ({
+			...prev,
+			status: "stopped",
+			activeTrack: null,
+			currentIndex: -1,
+			positionSec: 0,
+			audioTransport: "none"
+		}));
+		setMusicErrorMessage(null);
+		showToast("Party music stopped for all listeners");
+	};
+	const handleMusicNextTrack = async () => {
+		if (!isRoomHost) return;
+		const st = partyMusicStateRef.current;
+		if (st.queue.length === 0) {
+			await handleMusicStop();
+			return;
+		}
+		const nextIdx = st.currentIndex >= 0 ? (st.currentIndex + 1) % st.queue.length : 0;
+		await startHostTrackAtIndex(nextIdx);
+	};
+	const handleMusicNextTrackRef = (0, import_react.useRef)(null);
+	handleMusicNextTrackRef.current = handleMusicNextTrack;
+	const handleMusicPreviousTrack = async () => {
+		if (!isRoomHost) return;
+		const st = partyMusicStateRef.current;
+		if (st.queue.length === 0) return;
+		const prevIdx = st.currentIndex > 0 ? st.currentIndex - 1 : st.queue.length - 1;
+		await startHostTrackAtIndex(prevIdx);
+	};
+	const handleMusicSeek = async (targetPosSec) => {
+		if (!isRoomHost || !partyMusicStateRef.current.activeTrack) return;
+		if (partyMusicStateRef.current.activeTrack.sourceType !== "youtube") partyMusicEngine.seek(targetPosSec);
+		setMusicDisplayPosSec(targetPosSec);
+		const res = await liveAndRoomService.updateRoomMusicState({
+			roomId: room.id,
+			hostId: currentUser.id,
+			action: "seek",
+			positionSec: targetPosSec,
+			roomMeta: musicRoomMeta()
+		});
+		if (res.musicState) setPartyMusicState(res.musicState);
+	};
+	const handleMusicVolumeChange = (volumePercent) => {
+		if (!isRoomHost) return;
+		const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)));
+		partyMusicEngine.setVolume(clamped);
+		setPartyMusicState((prev) => ({
+			...prev,
+			volume: clamped
+		}));
+		liveAndRoomService.updateRoomMusicState({
+			roomId: room.id,
+			hostId: currentUser.id,
+			action: "volume",
+			volume: clamped,
+			roomMeta: musicRoomMeta()
+		});
+	};
+	const handleRemoveQueueItem = async (trackId) => {
+		if (!isRoomHost) return;
+		const st = partyMusicStateRef.current;
+		const wasActive = st.activeTrack?.id === trackId;
+		const nextQueue = st.queue.filter((t) => t.id !== trackId);
+		localMusicEntriesRef.current.delete(trackId);
+		if (wasActive) {
+			await partyMusicEngine.stop();
+			if (nextQueue.length > 0) {
+				await startHostTrackAtIndex(0, nextQueue);
+				return;
+			}
+			const stopRes = await liveAndRoomService.updateRoomMusicState({
+				roomId: room.id,
+				hostId: currentUser.id,
+				action: "stop",
+				queue: [],
+				roomMeta: musicRoomMeta()
+			});
+			if (stopRes.musicState) setPartyMusicState(stopRes.musicState);
+			return;
+		}
+		const res = await liveAndRoomService.updateRoomMusicState({
+			roomId: room.id,
+			hostId: currentUser.id,
+			action: "queue_update",
+			queue: nextQueue,
+			roomMeta: musicRoomMeta()
+		});
+		if (res.musicState) setPartyMusicState(res.musicState);
 	};
 	const handleSendSeatInvite = async (targetUser, directSeat = false) => {
 		if (showInviteToSeatModal === null) return;
@@ -27459,6 +29475,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							title: "Speaker Mute/Unmute",
 							children: isSpeakerMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, { className: "w-3.5 h-3.5 text-rose-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-3.5 h-3.5" })
 						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => setShowMusicModal(true),
+							"aria-label": "Open Party Music",
+							className: `relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shrink-0 ${partyMusicState.status === "playing" ? "bg-[#071A38] border border-[#00D4FF] text-cyan-300 shadow-[0_0_14px_rgba(0,212,255,0.6)]" : "bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-[#00D4FF]/40 text-cyan-200"}`,
+							title: isRoomHost ? "Party Music Player (Play for Room)" : "Now Playing in Party",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Music, { className: `w-3.5 h-3.5 ${partyMusicState.status === "playing" ? "animate-pulse" : ""}` }), partyMusicState.status === "playing" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0D041B]" })]
+						}),
 						isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
 							onClick: () => openHostInviteModal(),
@@ -27555,6 +29579,65 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					roomAnnouncement && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "max-w-md mx-auto w-full px-3 py-1.5 rounded-full bg-[#17092E]/85 border border-white/10 text-[11px] text-[#E6DCF8] text-center truncate",
 						children: roomAnnouncement
+					}),
+					partyMusicState.activeTrack && (partyMusicState.status === "playing" || partyMusicState.status === "paused") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						"data-no-doubletap": "true",
+						className: "max-w-md mx-auto w-full space-y-2",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							onClick: () => setShowMusicModal(true),
+							className: "w-full px-3 py-2 rounded-2xl bg-gradient-to-r from-[#071A38]/92 via-[#150C32]/92 to-[#220B3A]/92 border border-[#00D4FF]/45 shadow-[0_0_16px_rgba(0,212,255,0.22)] flex items-center justify-between gap-2 cursor-pointer backdrop-blur-md",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-2 min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0",
+									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: `w-3.5 h-3.5 ${partyMusicState.status === "playing" ? "animate-pulse text-emerald-300" : "text-amber-300"}` })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "min-w-0",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+										className: "text-[11px] font-black text-white truncate",
+										children: partyMusicState.activeTrack.title
+									}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "text-[9.5px] font-bold text-cyan-200/80 truncate",
+										children: [
+											partyMusicState.status === "playing" ? "Live Party Music" : "Paused",
+											" •",
+											" ",
+											partyMusicState.activeTrack.sourceType === "youtube" ? "YouTube Sync" : partyMusicState.activeTrack.sourceType === "gallery_video" ? "Video Audio" : "Gallery Audio"
+										]
+									})]
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "flex items-center gap-1.5 shrink-0",
+								children: [isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: (e) => {
+										e.stopPropagation();
+										handleMusicTogglePlayPause();
+									},
+									"aria-label": partyMusicState.status === "playing" ? "Pause Party Music" : "Resume Party Music",
+									className: "w-7 h-7 rounded-full bg-[#00D4FF]/20 hover:bg-[#00D4FF]/35 border border-[#00D4FF]/60 flex items-center justify-center text-cyan-200 active:scale-95",
+									children: partyMusicState.status === "playing" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pause, { className: "w-3.5 h-3.5 fill-current" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Play, { className: "w-3.5 h-3.5 fill-current ml-0.5" })
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "px-2 py-0.5 rounded-full bg-white/10 text-[9px] font-black text-white/85",
+									children: isRoomHost ? "Controls" : "View"
+								})]
+							})]
+						}), partyMusicState.activeTrack.sourceType === "youtube" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PartyYouTubeSyncPlayer, {
+							musicState: partyMusicState,
+							clockOffsetMs: musicClockOffsetMs,
+							isHost: isRoomHost,
+							isSpeakerMuted,
+							localVolumeOverride: isRoomHost ? null : localListenerMusicVol,
+							compact: true,
+							onProgress: (cur, dur) => {
+								setMusicDisplayPosSec(cur);
+								if (dur > 0) setMusicDisplayDurSec(dur);
+							},
+							onEnded: () => {
+								if (isRoomHost) handleMusicNextTrack();
+							},
+							onError: (msg) => setMusicErrorMessage(msg)
+						})]
 					}),
 					partyEntryNotice && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 						className: "max-w-md mx-auto w-full flex justify-center animate-fade-in",
@@ -29358,6 +31441,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								onClick: async () => {
 									setShowCloseRoomConfirmModal(false);
 									hasExplicitlyLeftRef.current = true;
+									await partyMusicEngine.stop().catch(() => {});
+									await releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`).catch(() => {});
 									if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
 									if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
 									webrtcMediaService.stopPartyVoice();
@@ -29372,6 +31457,32 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						})
 					]
 				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PartyMusicPanelModal, {
+				isOpen: showMusicModal,
+				onClose: () => setShowMusicModal(false),
+				isHost: isRoomHost,
+				musicState: partyMusicState,
+				displayPositionSec: musicDisplayPosSec,
+				displayDurationSec: musicDisplayDurSec,
+				isLoadingTrack: musicLoadingTrack,
+				errorMessage: musicErrorMessage,
+				voiceTransport,
+				isSpeakerMuted,
+				localListenerVolume: localListenerMusicVol,
+				onLocalListenerVolumeChange: setLocalListenerMusicVol,
+				onAddGalleryAudioFiles: (files) => void handleAddGalleryFiles(files, "gallery_audio"),
+				onAddGalleryVideoFiles: (files) => void handleAddGalleryFiles(files, "gallery_video"),
+				onAddYouTubeTrack: handleAddYouTubeTrack,
+				onPlayTrackAtIndex: (idx) => void startHostTrackAtIndex(idx),
+				onTogglePlayPause: () => void handleMusicTogglePlayPause(),
+				onStop: () => void handleMusicStop(),
+				onNext: () => void handleMusicNextTrack(),
+				onPrevious: () => void handleMusicPreviousTrack(),
+				onSeek: (pos) => void handleMusicSeek(pos),
+				onHostVolumeChange: handleMusicVolumeChange,
+				onRemoveQueueItem: (trackId) => void handleRemoveQueueItem(trackId),
+				onClearError: () => setMusicErrorMessage(null)
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(LiveLeaderboardModal, {
 				isOpen: showLeaderboardModal,
@@ -41618,15 +43729,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BS6zxYXp.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-Dfmhz_2h.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-COs0wxEJ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-C2f87qjn.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-DD6s5ndz.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-PJVTlxba.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DEnD_xV5.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DdirMhts.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-_64v1Ea9.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-Cns4iap9.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-hJQGwIEq.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BKaM6FsA.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CmsOuvn6.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CdLpQ70Y.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BEVJPKGG.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BAsjUlwa.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-mtGtr2qR.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-_L7PCInh.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");

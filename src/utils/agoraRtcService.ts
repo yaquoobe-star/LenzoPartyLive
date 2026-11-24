@@ -2,6 +2,7 @@ import AgoraRTC, {
   IAgoraRTCClient,
   ILocalVideoTrack,
   ILocalAudioTrack,
+  IBufferSourceAudioTrack,
   ICameraVideoTrack,
   IRemoteAudioTrack,
   IRemoteVideoTrack,
@@ -53,6 +54,7 @@ export interface AgoraTokenResponse {
 class AgoraRtcService {
   private client: IAgoraRTCClient | null = null;
   private localAudioTrack: ILocalAudioTrack | null = null;
+  private localMusicAudioTrack: ILocalAudioTrack | null = null;
   private localVideoTrack: ILocalVideoTrack | null = null;
 
   private currentChannel: string | null = null;
@@ -68,6 +70,7 @@ class AgoraRtcService {
   private availableCameras: MediaDeviceInfo[] = [];
   private currentCameraIndex: number = 0;
   private isPublishingAudioFlag: boolean = false;
+  private isPublishingMusicFlag: boolean = false;
   private isPublishingVideoFlag: boolean = false;
 
   // Serialize join / leave / role transitions to prevent duplicate sessions or WS_ABORT
@@ -481,6 +484,11 @@ class AgoraRtcService {
         void this.syncAllRemoteSubscriptions();
         if (this.currentRole === 'host' && (!this.isPublishingAudioFlag || !this.localAudioTrack)) {
           void this.ensureLocalAudioPublished(this.isMicMuted);
+        }
+        if (this.currentRole === 'host' && this.localMusicAudioTrack && !this.isPublishingMusicFlag) {
+          void client.publish([this.localMusicAudioTrack]).then(() => {
+            this.isPublishingMusicFlag = true;
+          }).catch(() => {});
         }
       }
     });
@@ -926,6 +934,7 @@ class AgoraRtcService {
           // Downgrade to Audience: unpublish and stop local tracks
           const tracksToUnpublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
           if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+          if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
           if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
 
           if (tracksToUnpublish.length > 0 && this.client) {
@@ -935,6 +944,7 @@ class AgoraRtcService {
               console.warn('[Agora RTC] Unpublish warning on role downgrade:', e);
             }
           }
+          this.stopLocalMusicTrack();
           this.stopLocalTracks();
           this.currentRole = 'audience';
           await this.client.setClientRole('audience', { level: 1 });
@@ -972,6 +982,145 @@ class AgoraRtcService {
       await this.localAudioTrack.setEnabled(!muted).catch(() => {});
     }
     return ok;
+  }
+
+  /**
+   * Publish a separate Party Music audio track into the active Agora RTC channel alongside
+   * the Host's microphone track. Agora SDK mixes multiple published audio tracks automatically
+   * so all seated speakers AND non-seated audience listeners hear voice + music simultaneously.
+   */
+  async publishMusicAudioTrack(mediaStreamTrack: MediaStreamTrack): Promise<boolean> {
+    if (!mediaStreamTrack || mediaStreamTrack.readyState !== 'live') {
+      return false;
+    }
+    if (this.activeJoinPromise) {
+      try {
+        await this.activeJoinPromise;
+      } catch {
+        return false;
+      }
+    }
+    if (!this.client || this.client.connectionState !== 'CONNECTED') {
+      console.warn('[Agora RTC] publishMusicAudioTrack skipped: client not connected');
+      return false;
+    }
+
+    try {
+      // Ensure publisher role if Host isn't currently broadcasting
+      if (this.currentRole !== 'host') {
+        if (this.currentChannel && this.currentUserAccount) {
+          const tokenRes = await this.requestRtcToken(
+            this.currentChannel,
+            this.currentUserAccount,
+            'broadcaster',
+            true
+          );
+          if (tokenRes.token && this.client) {
+            await this.client.renewToken(tokenRes.token).catch(() => {});
+          }
+        }
+        await this.client.setClientRole('host');
+        this.currentRole = 'host';
+      }
+
+      await this.unpublishMusicAudioTrack();
+
+      const customMusicTrack = AgoraRTC.createCustomAudioTrack({
+        mediaStreamTrack,
+        encoderConfig: 'music_standard',
+      });
+      this.localMusicAudioTrack = customMusicTrack;
+
+      await this.client.publish([customMusicTrack]);
+      this.isPublishingMusicFlag = true;
+      console.log('[Agora RTC] Published Party Music custom audio track alongside microphone');
+      return true;
+    } catch (err: any) {
+      console.warn('[Agora RTC] Failed to publish music audio track:', err?.message || err);
+      this.stopLocalMusicTrack();
+      return false;
+    }
+  }
+
+  /**
+   * Publish an Agora native BufferSourceAudioTrack (fallback for local audio files when
+   * MediaElementSource capture is unavailable on a specific device/browser).
+   */
+  async publishMusicBufferTrack(bufferTrack: IBufferSourceAudioTrack): Promise<boolean> {
+    if (!bufferTrack) return false;
+    if (!this.client || this.client.connectionState !== 'CONNECTED') {
+      return false;
+    }
+    try {
+      if (this.currentRole !== 'host') {
+        if (this.currentChannel && this.currentUserAccount) {
+          const tokenRes = await this.requestRtcToken(
+            this.currentChannel,
+            this.currentUserAccount,
+            'broadcaster',
+            true
+          );
+          if (tokenRes.token && this.client) {
+            await this.client.renewToken(tokenRes.token).catch(() => {});
+          }
+        }
+        await this.client.setClientRole('host');
+        this.currentRole = 'host';
+      }
+
+      await this.unpublishMusicAudioTrack();
+      this.localMusicAudioTrack = bufferTrack;
+      await this.client.publish([bufferTrack]);
+      this.isPublishingMusicFlag = true;
+      console.log('[Agora RTC] Published Party Music buffer source track alongside microphone');
+      return true;
+    } catch (err: any) {
+      console.warn('[Agora RTC] Failed to publish music buffer track:', err?.message || err);
+      this.stopLocalMusicTrack();
+      return false;
+    }
+  }
+
+  async setMusicTrackEnabled(enabled: boolean): Promise<void> {
+    if (!this.localMusicAudioTrack) return;
+    try {
+      await this.localMusicAudioTrack.setEnabled(enabled);
+    } catch {
+      // ignore
+    }
+  }
+
+  async unpublishMusicAudioTrack(): Promise<void> {
+    const track = this.localMusicAudioTrack;
+    if (!track) {
+      this.isPublishingMusicFlag = false;
+      return;
+    }
+    if (this.client && this.client.connectionState === 'CONNECTED') {
+      try {
+        await this.client.unpublish([track]);
+      } catch {
+        // ignore if already unpublished
+      }
+    }
+    this.stopLocalMusicTrack();
+  }
+
+  private stopLocalMusicTrack(): void {
+    this.isPublishingMusicFlag = false;
+    if (this.localMusicAudioTrack) {
+      try {
+        this.localMusicAudioTrack.stop();
+        this.localMusicAudioTrack.close();
+      } catch {
+        // ignore
+      }
+      this.localMusicAudioTrack = null;
+    }
+  }
+
+  isPublishingMusic(): boolean {
+    return this.isPublishingMusicFlag && Boolean(this.localMusicAudioTrack);
   }
 
   /**
@@ -1201,12 +1350,14 @@ class AgoraRtcService {
         if (this.client) {
           const tracksToUnpublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
           if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+          if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
           if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
           if (tracksToUnpublish.length > 0 && this.client.connectionState === 'CONNECTED') {
             await this.client.unpublish(tracksToUnpublish).catch(() => {});
           }
         }
 
+        this.stopLocalMusicTrack();
         this.stopLocalTracks();
 
         if (this.client) {

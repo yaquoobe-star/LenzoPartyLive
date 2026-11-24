@@ -430,6 +430,29 @@ interface ServerLiveStream {
   comments: any[];
 }
 
+interface ServerPartyMusicTrack {
+  id: string;
+  title: string;
+  artist?: string;
+  sourceType: 'gallery_audio' | 'gallery_video' | 'youtube';
+  durationSec: number;
+  youtubeVideoId?: string;
+  thumbnailUrl?: string;
+  mimeType?: string;
+}
+
+interface ServerPartyMusicState {
+  status: 'idle' | 'playing' | 'paused' | 'stopped';
+  activeTrack: ServerPartyMusicTrack | null;
+  queue: ServerPartyMusicTrack[];
+  currentIndex: number;
+  positionSec: number;
+  volume: number;
+  updatedAt: number;
+  updatedBy: string;
+  audioTransport: 'agora' | 'webrtc' | 'youtube_sync' | 'none';
+}
+
 interface ServerPartyRoom {
   id: string;
   displayId: string;
@@ -462,6 +485,7 @@ interface ServerPartyRoom {
   backgroundType: 'preset' | 'host_dp' | 'custom';
   backgroundId: string;
   backgroundImage: string;
+  musicState?: ServerPartyMusicState;
 }
 
 interface BroadcasterMetricRecord {
@@ -767,6 +791,74 @@ function serializeLiveStream(stream: ServerLiveStream) {
   };
 }
 
+function createDefaultPartyMusicState(hostId: string): ServerPartyMusicState {
+  return {
+    status: 'idle',
+    activeTrack: null,
+    queue: [],
+    currentIndex: -1,
+    positionSec: 0,
+    volume: 65,
+    updatedAt: Date.now(),
+    updatedBy: hostId || '',
+    audioTransport: 'none',
+  };
+}
+
+function serializePartyMusicState(room: ServerPartyRoom) {
+  const now = Date.now();
+  const state = room.musicState || createDefaultPartyMusicState(room.host?.id || '');
+  let computedPos = Math.max(0, Number(state.positionSec) || 0);
+  if (state.status === 'playing' && state.activeTrack) {
+    const elapsedSec = Math.max(0, (now - (state.updatedAt || now)) / 1000);
+    computedPos = computedPos + elapsedSec;
+    if (state.activeTrack.durationSec > 0) {
+      computedPos = Math.min(state.activeTrack.durationSec, computedPos);
+    }
+  }
+  return {
+    roomId: room.id,
+    hostId: room.host?.id || '',
+    status: state.status,
+    activeTrack: state.activeTrack,
+    queue: Array.isArray(state.queue) ? state.queue : [],
+    currentIndex: typeof state.currentIndex === 'number' ? state.currentIndex : -1,
+    positionSec: Number(computedPos.toFixed(2)),
+    volume: Math.max(0, Math.min(100, Math.round(Number(state.volume ?? 65)))),
+    updatedAt: state.updatedAt || now,
+    serverTime: now,
+    updatedBy: state.updatedBy || room.host?.id || '',
+    audioTransport: state.audioTransport || 'none',
+  };
+}
+
+function sanitizeMusicTrackMeta(raw: any): ServerPartyMusicTrack | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const sourceType =
+    raw.sourceType === 'gallery_video' || raw.sourceType === 'youtube'
+      ? raw.sourceType
+      : 'gallery_audio';
+  const title = sanitizeText(raw.title || 'Untitled Track', 140) || 'Untitled Track';
+  const id = sanitizeText(raw.id || `trk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, 128);
+  const durationSec = Number.isFinite(Number(raw.durationSec))
+    ? Math.max(0, Math.min(86400, Number(raw.durationSec)))
+    : 0;
+  const youtubeVideoId =
+    sourceType === 'youtube' && raw.youtubeVideoId
+      ? String(raw.youtubeVideoId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20)
+      : undefined;
+  return {
+    id,
+    title,
+    ...(raw.artist ? { artist: sanitizeText(raw.artist, 100) } : {}),
+    sourceType,
+    durationSec,
+    ...(youtubeVideoId ? { youtubeVideoId } : {}),
+    ...(raw.thumbnailUrl ? { thumbnailUrl: sanitizeText(raw.thumbnailUrl, 400) } : {}),
+    ...(raw.mimeType ? { mimeType: sanitizeText(raw.mimeType, 80) } : {}),
+  };
+}
+
 function serializePartyRoom(room: ServerPartyRoom) {
   const safeMaxSeats = Math.max(
     clampServerMaxSeatsForHostLevel(room.maxSeats, room.host),
@@ -812,6 +904,7 @@ function serializePartyRoom(room: ServerPartyRoom) {
     backgroundType: room.backgroundType || 'preset',
     backgroundId: room.backgroundId || 'royal_neon',
     backgroundImage: room.backgroundImage || '',
+    musicState: serializePartyMusicState(room),
   };
 }
 
@@ -873,6 +966,17 @@ function closePartyRoomAuthoritatively(room: ServerPartyRoom, reason = 'auto_clo
   room.mutedSeatIndices.clear();
   room.pendingRequests.clear();
   room.participants.clear();
+  if (room.musicState && room.musicState.status !== 'stopped' && room.musicState.status !== 'idle') {
+    room.musicState.status = 'stopped';
+    room.musicState.positionSec = 0;
+    room.musicState.audioTransport = 'none';
+    room.musicState.updatedAt = Date.now();
+    broadcastToRoom(room.id, 'room:music_updated', {
+      roomId: room.id,
+      reason: 'room_closed',
+      musicState: serializePartyMusicState(room),
+    });
+  }
   partyRoomsMap.delete(room.id);
   recentlyClosedRoomIds.set(room.id, Date.now());
 
@@ -1052,6 +1156,22 @@ function markPartyParticipantLeft(room: ServerPartyRoom, userId: string, reason 
   const wasParticipant = room.participants.delete(userId);
   if (isHost) {
     room.hostPresent = false;
+    if (room.musicState && (room.musicState.status === 'playing' || room.musicState.status === 'paused')) {
+      room.musicState = {
+        ...room.musicState,
+        status: 'stopped',
+        activeTrack: null,
+        positionSec: 0,
+        updatedAt: Date.now(),
+        updatedBy: userId,
+        audioTransport: 'none',
+      };
+      broadcastToRoom(room.id, 'room:music_updated', {
+        roomId: room.id,
+        musicState: serializePartyMusicState(room),
+        reason: 'host_left',
+      });
+    }
   }
 
   if (room.pendingRequests.has(userId)) {
@@ -1376,6 +1496,7 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
             payload: {
               roomId: room.id,
               room: serializePartyRoom(room),
+              musicState: serializePartyMusicState(room),
               participants: Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt),
               pendingRequests: Array.from(room.pendingRequests.values()),
               messages: room.messages.slice(-50),
@@ -3370,6 +3491,7 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
   res.json({
     success: true,
     room: serialized,
+    musicState: serializePartyMusicState(room),
     participants: participantsSnapshot,
     pendingRequests: Array.from(room.pendingRequests.values()),
     messages: room.messages.slice(-50),
@@ -3868,6 +3990,179 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
   }
 
   return res.json({ success: true, invite: invitePayload });
+});
+
+app.get('/api/rooms/:roomId/music', (req: Request, res: Response) => {
+  const { roomId } = req.params;
+  const room = partyRoomsMap.get(roomId);
+  if (!room || room.status === 'closed') {
+    return res.status(404).json({ error: 'Party room not found or closed.' });
+  }
+  return res.json({
+    success: true,
+    musicState: serializePartyMusicState(room),
+    serverTime: Date.now(),
+  });
+});
+
+app.post('/api/rooms/:roomId/music', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const {
+    action,
+    track,
+    queue,
+    currentIndex,
+    positionSec,
+    volume,
+    audioTransport,
+    roomMeta,
+  } = req.body || {};
+
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, hostId);
+  if (!room || room.status === 'closed') {
+    return res.status(404).json({ error: 'Party room not found or closed.' });
+  }
+  if (!hostId || room.host.id !== hostId) {
+    return res.status(403).json({ error: 'Only the Party Room Host can control room music.' });
+  }
+
+  const now = Date.now();
+  const prev = room.musicState || createDefaultPartyMusicState(room.host.id);
+
+  // Calculate live position at `now` before applying the mutation
+  let currentComputedPos = Math.max(0, Number(prev.positionSec) || 0);
+  if (prev.status === 'playing' && prev.activeTrack) {
+    currentComputedPos += Math.max(0, (now - (prev.updatedAt || now)) / 1000);
+    if (prev.activeTrack.durationSec > 0) {
+      currentComputedPos = Math.min(prev.activeTrack.durationSec, currentComputedPos);
+    }
+  }
+
+  const nextQueue = Array.isArray(queue)
+    ? queue.map(sanitizeMusicTrackMeta).filter((t): t is ServerPartyMusicTrack => Boolean(t)).slice(0, 50)
+    : prev.queue;
+
+  const incomingTrack = track !== undefined ? sanitizeMusicTrackMeta(track) : prev.activeTrack;
+  const nextVolume =
+    typeof volume === 'number' && Number.isFinite(volume)
+      ? Math.max(0, Math.min(100, Math.round(volume)))
+      : prev.volume;
+  const nextTransport: ServerPartyMusicState['audioTransport'] =
+    audioTransport === 'agora' ||
+    audioTransport === 'webrtc' ||
+    audioTransport === 'youtube_sync' ||
+    audioTransport === 'none'
+      ? audioTransport
+      : prev.audioTransport;
+
+  let nextState: ServerPartyMusicState = {
+    ...prev,
+    queue: nextQueue,
+    volume: nextVolume,
+    updatedAt: now,
+    updatedBy: hostId,
+  };
+
+  const act = String(action || 'sync');
+  if (act === 'play' || act === 'load' || act === 'next' || act === 'previous') {
+    const resolvedIdx =
+      typeof currentIndex === 'number' && currentIndex >= 0 && currentIndex < nextQueue.length
+        ? currentIndex
+        : incomingTrack
+        ? nextQueue.findIndex((t) => t.id === incomingTrack.id)
+        : prev.currentIndex;
+    const resolvedTrack = incomingTrack || (resolvedIdx >= 0 ? nextQueue[resolvedIdx] : null);
+    if (!resolvedTrack) {
+      return res.status(400).json({ error: 'A valid audio/video/YouTube track is required to play.' });
+    }
+    const startPos =
+      typeof positionSec === 'number' && Number.isFinite(positionSec) ? Math.max(0, positionSec) : 0;
+    nextState = {
+      status: 'playing',
+      activeTrack: resolvedTrack,
+      queue: nextQueue.some((t) => t.id === resolvedTrack.id) ? nextQueue : [...nextQueue, resolvedTrack],
+      currentIndex: resolvedIdx >= 0 ? resolvedIdx : Math.max(0, nextQueue.length),
+      positionSec: startPos,
+      volume: nextVolume,
+      updatedAt: now,
+      updatedBy: hostId,
+      audioTransport:
+        resolvedTrack.sourceType === 'youtube' ? 'youtube_sync' : nextTransport === 'none' ? 'agora' : nextTransport,
+    };
+  } else if (act === 'pause') {
+    const pausePos =
+      typeof positionSec === 'number' && Number.isFinite(positionSec)
+        ? Math.max(0, positionSec)
+        : currentComputedPos;
+    nextState = {
+      ...nextState,
+      status: prev.activeTrack ? 'paused' : 'idle',
+      positionSec: pausePos,
+    };
+  } else if (act === 'resume') {
+    if (!prev.activeTrack && !incomingTrack) {
+      return res.status(400).json({ error: 'No track loaded to resume.' });
+    }
+    const resumePos =
+      typeof positionSec === 'number' && Number.isFinite(positionSec)
+        ? Math.max(0, positionSec)
+        : currentComputedPos;
+    nextState = {
+      ...nextState,
+      activeTrack: incomingTrack || prev.activeTrack,
+      status: 'playing',
+      positionSec: resumePos,
+      audioTransport: nextTransport,
+    };
+  } else if (act === 'seek') {
+    const targetPos =
+      typeof positionSec === 'number' && Number.isFinite(positionSec) ? Math.max(0, positionSec) : 0;
+    nextState = {
+      ...nextState,
+      positionSec: targetPos,
+    };
+  } else if (act === 'stop') {
+    nextState = {
+      ...nextState,
+      status: 'stopped',
+      activeTrack: null,
+      currentIndex: -1,
+      positionSec: 0,
+      audioTransport: 'none',
+    };
+  } else if (act === 'volume') {
+    nextState = {
+      ...nextState,
+      positionSec: currentComputedPos,
+      volume: nextVolume,
+    };
+  } else if (act === 'queue_update') {
+    nextState = {
+      ...nextState,
+      queue: nextQueue,
+      currentIndex:
+        typeof currentIndex === 'number'
+          ? currentIndex
+          : prev.activeTrack
+          ? nextQueue.findIndex((t) => t.id === prev.activeTrack?.id)
+          : -1,
+      positionSec: currentComputedPos,
+    };
+  }
+
+  room.musicState = nextState;
+  const serializedMusic = serializePartyMusicState(room);
+  broadcastToRoom(room.id, 'room:music_updated', {
+    roomId: room.id,
+    action: act,
+    musicState: serializedMusic,
+  });
+
+  return res.json({
+    success: true,
+    musicState: serializedMusic,
+  });
 });
 
 app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Response) => {

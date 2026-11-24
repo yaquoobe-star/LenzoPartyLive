@@ -236,6 +236,34 @@ export interface HostModeratorRecord {
   assignedAt: number;
 }
 
+export type PartyMusicSourceType = 'gallery_audio' | 'gallery_video' | 'youtube';
+
+export interface PartyMusicTrackMeta {
+  id: string;
+  title: string;
+  artist?: string;
+  sourceType: PartyMusicSourceType;
+  durationSec: number;
+  youtubeVideoId?: string;
+  thumbnailUrl?: string;
+  mimeType?: string;
+}
+
+export interface PartyMusicState {
+  roomId: string;
+  hostId: string;
+  status: 'idle' | 'playing' | 'paused' | 'stopped';
+  activeTrack: PartyMusicTrackMeta | null;
+  queue: PartyMusicTrackMeta[];
+  currentIndex: number;
+  positionSec: number;
+  volume: number;
+  updatedAt: number;
+  serverTime?: number;
+  updatedBy: string;
+  audioTransport: 'agora' | 'webrtc' | 'youtube_sync' | 'none';
+}
+
 export interface PartyRoom {
   id: string;
   title: string;
@@ -268,6 +296,7 @@ export interface PartyRoom {
   hostPresent?: boolean;
   emptySince?: number | null;
   closesAt?: number | null;
+  musicState?: PartyMusicState;
 }
 
 export interface LiveViewerInfo {

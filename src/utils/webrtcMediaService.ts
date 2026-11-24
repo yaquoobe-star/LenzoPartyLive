@@ -130,6 +130,13 @@ class WebRtcMediaService {
   >();
   private partyVolumeTimer: ReturnType<typeof setInterval> | null = null;
   private partySpeakerMuted = false;
+  private partyMicMuted = false;
+  private partyMusicTrack: MediaStreamTrack | null = null;
+  private partyMusicVolume = 0.65;
+  private partyMixerCtx: AudioContext | null = null;
+  private partyMixerMicGain: GainNode | null = null;
+  private partyMixerMusicGain: GainNode | null = null;
+  private partyMixedStream: MediaStream | null = null;
   private partyCallbacks: PartyVoiceCallbacks | null = null;
   private partyUnsubscribeWs: (() => void) | null = null;
   private partyUnsubscribeFs: (() => void) | null = null;
@@ -921,13 +928,21 @@ class WebRtcMediaService {
   // 3. PARTY ROOM REAL-TIME VOICE MESH (over WS + Firestore Failover)
   // ============================================================================
 
+  private getOutboundPartyAudioStream(): MediaStream | null {
+    if (this.partyMixedStream && this.partyMixedStream.getAudioTracks().some((t) => t.readyState === 'live')) {
+      return this.partyMixedStream;
+    }
+    return this.partyLocalStream;
+  }
+
   private hasLivePartyAudioTrack(): boolean {
-    if (!this.partyLocalStream) return false;
-    return this.partyLocalStream.getAudioTracks().some((t) => t.readyState === 'live');
+    const active = this.getOutboundPartyAudioStream();
+    if (!active) return false;
+    return active.getAudioTracks().some((t) => t.readyState === 'live');
   }
 
   private shouldInitiatePartyOffer(peerId: string, peerIsSpeaker: boolean): boolean {
-    if (!this.partyIsSpeaker) return false;
+    if (!this.partyIsSpeaker && !this.partyMusicTrack) return false;
     if (!peerIsSpeaker) return true;
     return String(this.partyUserId || '') > peerId;
   }
@@ -1194,7 +1209,126 @@ class WebRtcMediaService {
     }
   }
 
+  private teardownPartyMixer() {
+    this.partyMixerMicGain = null;
+    this.partyMixerMusicGain = null;
+    if (this.partyMixedStream) {
+      this.partyMixedStream.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {
+          // ignore
+        }
+      });
+      this.partyMixedStream = null;
+    }
+    if (this.partyMixerCtx) {
+      try {
+        void this.partyMixerCtx.close();
+      } catch {
+        // ignore
+      }
+      this.partyMixerCtx = null;
+    }
+  }
+
+  private rebuildPartyMixedStream(): MediaStream | null {
+    this.teardownPartyMixer();
+    const liveMusic = this.partyMusicTrack && this.partyMusicTrack.readyState === 'live' ? this.partyMusicTrack : null;
+    if (!liveMusic) {
+      return this.partyLocalStream;
+    }
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) {
+        this.partyMixedStream = new MediaStream([liveMusic]);
+        return this.partyMixedStream;
+      }
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+      const dest = ctx.createMediaStreamDestination();
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 12;
+      limiter.ratio.value = 8;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.15;
+      limiter.connect(dest);
+
+      // Branch 1: Host Microphone (independent mute)
+      const micTrack = this.partyLocalStream?.getAudioTracks().find((t) => t.readyState === 'live');
+      if (micTrack) {
+        const micSource = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+        const micGain = ctx.createGain();
+        micGain.gain.value = this.partyMicMuted ? 0 : 1.0;
+        micSource.connect(micGain);
+        micGain.connect(limiter);
+        this.partyMixerMicGain = micGain;
+      }
+
+      // Branch 2: Party Music (independent volume)
+      const musicSource = ctx.createMediaStreamSource(new MediaStream([liveMusic]));
+      const musicGain = ctx.createGain();
+      musicGain.gain.value = Math.max(0, Math.min(1, this.partyMusicVolume));
+      musicSource.connect(musicGain);
+      musicGain.connect(limiter);
+      this.partyMixerMusicGain = musicGain;
+
+      this.partyMixerCtx = ctx;
+      this.partyMixedStream = dest.stream;
+      return this.partyMixedStream;
+    } catch {
+      this.partyMixedStream = new MediaStream([liveMusic]);
+      return this.partyMixedStream;
+    }
+  }
+
+  /**
+   * Inject or remove a Party Music track into the WebRTC Party Voice Mesh alongside the Host's mic.
+   * Updates all active peer connections (both seated speakers AND non-seated listeners).
+   */
+  public setPartyMusicTrack(musicTrack: MediaStreamTrack | null, volumePercent = 65) {
+    this.partyMusicTrack = musicTrack && musicTrack.readyState === 'live' ? musicTrack : null;
+    this.partyMusicVolume = Math.max(0, Math.min(1, volumePercent / 100));
+    if (!this.partyRoomId || !this.partyUserId) return;
+
+    const outboundStream = this.rebuildPartyMixedStream();
+    const outboundTrack = outboundStream?.getAudioTracks().find((t) => t.readyState === 'live') || null;
+
+    if (outboundTrack) {
+      this.partyPeers.forEach((pc, peerId) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
+        if (sender) {
+          sender.replaceTrack(outboundTrack).catch(() => {
+            void this.createPartyOffer(peerId);
+          });
+        } else {
+          void this.createPartyOffer(peerId);
+        }
+      });
+
+      this.partyKnownPeers.forEach((meta, peerId) => {
+        if (this.shouldInitiatePartyOffer(peerId, meta.isSpeaker) && !this.isPartyPeerHealthy(peerId)) {
+          this.maybeInitiatePartyPeer(peerId, meta.isSpeaker, false);
+        }
+      });
+    }
+  }
+
+  public setPartyMusicVolume(volumePercent: number) {
+    this.partyMusicVolume = Math.max(0, Math.min(1, volumePercent / 100));
+    if (this.partyMixerMusicGain) {
+      this.partyMixerMusicGain.gain.value = this.partyMusicVolume;
+    }
+  }
+
   public setPartyMicMuted(muted: boolean) {
+    this.partyMicMuted = muted;
+    if (this.partyMixerMicGain) {
+      this.partyMixerMicGain.gain.value = muted ? 0 : 1.0;
+    }
     if (this.partyLocalStream) {
       this.partyLocalStream.getAudioTracks().forEach((t) => {
         t.enabled = !muted;
@@ -1271,10 +1405,11 @@ class WebRtcMediaService {
     this.partyPeerSessions.set(peerId, sessionId);
     this.partyHandledAnswerSessions.delete(peerId);
 
-    if (this.partyIsSpeaker && this.partyLocalStream) {
-      this.partyLocalStream.getAudioTracks().forEach((track) => {
-        if (this.partyLocalStream && track.readyState === 'live') {
-          pc.addTrack(track, this.partyLocalStream);
+    const outboundStream = this.getOutboundPartyAudioStream();
+    if ((this.partyIsSpeaker || this.partyMusicTrack) && outboundStream) {
+      outboundStream.getAudioTracks().forEach((track) => {
+        if (track.readyState === 'live') {
+          pc.addTrack(track, outboundStream);
         }
       });
     }
@@ -1640,6 +1775,9 @@ class WebRtcMediaService {
       }
     });
     this.partyRemoteAudioEls.clear();
+    this.teardownPartyMixer();
+    this.partyMusicTrack = null;
+    this.partyMicMuted = false;
     this.partyLocalStream = null;
     this.partyCallbacks = null;
     this.partyRoomId = null;

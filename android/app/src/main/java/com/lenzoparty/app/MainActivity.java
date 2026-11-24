@@ -34,6 +34,7 @@ public class MainActivity extends BridgeActivity {
     private static final int SYSTEM_BAR_BG_COLOR = Color.parseColor("#060212");
     private final List<PermissionRequest> pendingWebPermissionRequests = new ArrayList<>();
     private boolean permissionDialogInFlight = false;
+    private volatile boolean keepScreenOnActive = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -50,10 +51,50 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         applyDarkSystemBarIcons();
+        applyKeepScreenOnFlag(keepScreenOnActive);
         View contentView = findViewById(android.R.id.content);
         if (contentView != null) {
             ViewCompat.requestApplyInsets(contentView);
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        keepScreenOnActive = false;
+        applyKeepScreenOnFlag(false);
+        super.onDestroy();
+    }
+
+    /**
+     * Enables or disables WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON for active Party Rooms.
+     * Never modifies the user's global Android display timeout settings.
+     */
+    public void setKeepScreenOnEnabled(final boolean enabled) {
+        if (this.keepScreenOnActive == enabled) {
+            // Still ensure window flag matches current desired state without redundant churn
+            applyKeepScreenOnFlag(enabled);
+            return;
+        }
+        this.keepScreenOnActive = enabled;
+        applyKeepScreenOnFlag(enabled);
+    }
+
+    public boolean isKeepScreenOnEnabled() {
+        return this.keepScreenOnActive;
+    }
+
+    private void applyKeepScreenOnFlag(final boolean enabled) {
+        runOnUiThread(() -> {
+            Window window = getWindow();
+            if (window == null) {
+                return;
+            }
+            if (enabled) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+        });
     }
 
     /**

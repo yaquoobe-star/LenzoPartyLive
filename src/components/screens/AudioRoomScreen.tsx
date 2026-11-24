@@ -35,11 +35,17 @@ import {
   Eraser,
   Minimize2,
   Search,
+  Music,
+  Play,
+  Pause,
+  Radio,
 } from 'lucide-react';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { sendPushNotification } from '../../services/pushNotificationService';
 import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
+import { PartyMusicPanelModal } from '../common/PartyMusicPanelModal';
+import { PartyYouTubeSyncPlayer } from '../common/PartyYouTubeSyncPlayer';
 import {
   PartyBackgroundPickerModal,
   PartyBackgroundSelection,
@@ -56,6 +62,8 @@ import {
 } from '../../utils/partyBackgrounds';
 import {
   HostModeratorRecord,
+  PartyMusicState,
+  PartyMusicTrackMeta,
   PartyRoom,
   PartySofaTheme,
   RoomKickDuration,
@@ -75,6 +83,16 @@ import {
   createAudioAnalyser,
   AudioAnalyserController,
 } from '../../utils/mediaDeviceHelper';
+import {
+  acquirePartyScreenWakeLock,
+  releasePartyScreenWakeLock,
+} from '../../utils/screenWakeLock';
+import {
+  cleanFileTrackTitle,
+  LocalPartyTrackEntry,
+  partyMusicEngine,
+  validateGalleryMediaFile,
+} from '../../utils/partyMusicEngine';
 import { agoraRtcService } from '../../utils/agoraRtcService';
 import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
@@ -399,6 +417,34 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [showBackgroundPicker, setShowBackgroundPicker] = useState(false);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showEditAnnouncementModal, setShowEditAnnouncementModal] = useState(false);
+
+  // Global Party Music State (Server-Authoritative Sync + Host Audio Distribution)
+  const [showMusicModal, setShowMusicModal] = useState(false);
+  const [partyMusicState, setPartyMusicState] = useState<PartyMusicState>(() =>
+    room.musicState || {
+      roomId: room.id,
+      hostId: room.host.id,
+      status: 'idle',
+      activeTrack: null,
+      queue: [],
+      currentIndex: -1,
+      positionSec: 0,
+      volume: 65,
+      updatedAt: Date.now(),
+      updatedBy: room.host.id,
+      audioTransport: 'none',
+    }
+  );
+  const partyMusicStateRef = useRef<PartyMusicState>(partyMusicState);
+  partyMusicStateRef.current = partyMusicState;
+  const [musicClockOffsetMs, setMusicClockOffsetMs] = useState(0);
+  const [musicDisplayPosSec, setMusicDisplayPosSec] = useState(0);
+  const [musicDisplayDurSec, setMusicDisplayDurSec] = useState(0);
+  const [musicLoadingTrack, setMusicLoadingTrack] = useState(false);
+  const [musicErrorMessage, setMusicErrorMessage] = useState<string | null>(null);
+  const [localListenerMusicVol, setLocalListenerMusicVol] = useState(80);
+  const localMusicEntriesRef = useRef<Map<string, LocalPartyTrackEntry>>(new Map());
+  const musicAutoNextGuardRef = useRef<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [roomLikesCount, setRoomLikesCount] = useState<number>(room.likesCount || 0);
   const [roomAnnouncement, setRoomAnnouncement] = useState(
@@ -600,6 +646,103 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
   }, [isSpeakerMuted]);
 
+  // FEATURE 1: Keep mobile/Android screen permanently awake during the entire active Party Room session
+  // (Party Host, seated participants, AND non-seated listeners). Released automatically upon leaving/closing.
+  useEffect(() => {
+    const wakeOwnerId = `party_room_${room.id}_${currentUser.id}`;
+    void acquirePartyScreenWakeLock(wakeOwnerId);
+    return () => {
+      void releasePartyScreenWakeLock(wakeOwnerId);
+    };
+  }, [room.id, currentUser.id]);
+
+  // Sync local Host monitor mute with room Speaker toggle without interrupting remote Party Music distribution
+  useEffect(() => {
+    if (isRoomHost) {
+      partyMusicEngine.setLocalHostMuted(isSpeakerMuted);
+    }
+  }, [isRoomHost, isSpeakerMuted]);
+
+  // Subscribe to Host-side local audio distribution engine progress & errors + cleanup on room exit
+  useEffect(() => {
+    if (!isRoomHost) return;
+    const unsubStatus = partyMusicEngine.subscribe((eng) => {
+      if (eng.status === 'loading') {
+        setMusicLoadingTrack(true);
+      } else {
+        setMusicLoadingTrack(false);
+      }
+      if (eng.error) {
+        setMusicErrorMessage(eng.error);
+      }
+      if (eng.status === 'playing' || eng.status === 'paused') {
+        setMusicDisplayPosSec(eng.currentTimeSec);
+        if (eng.durationSec > 0) setMusicDisplayDurSec(eng.durationSec);
+      }
+    });
+    const unsubEnded = partyMusicEngine.onTrackEnded((finishedTrackId) => {
+      if (musicAutoNextGuardRef.current === finishedTrackId) return;
+      musicAutoNextGuardRef.current = finishedTrackId;
+      void handleMusicNextTrackRef.current?.();
+    });
+    return () => {
+      unsubStatus();
+      unsubEnded();
+      void partyMusicEngine.stop();
+      localMusicEntriesRef.current.forEach((entry) => {
+        if (entry.objectUrl) {
+          try {
+            URL.revokeObjectURL(entry.objectUrl);
+          } catch {
+            // ignore
+          }
+        }
+      });
+      localMusicEntriesRef.current.clear();
+    };
+  }, [isRoomHost, room.id]);
+
+  // Keep synchronized progress clock advancing smoothly for all listeners & YouTube sync
+  useEffect(() => {
+    const st = partyMusicState;
+    if (!st.activeTrack || st.status === 'idle' || st.status === 'stopped') {
+      setMusicDisplayPosSec(0);
+      setMusicDisplayDurSec(0);
+      return;
+    }
+    if (st.activeTrack.durationSec > 0) {
+      setMusicDisplayDurSec(st.activeTrack.durationSec);
+    }
+    if (st.status === 'paused') {
+      setMusicDisplayPosSec(st.positionSec || 0);
+      return;
+    }
+    // Host local RTC tracks update displayPos directly from partyMusicEngine; listeners & YouTube compute synced pos
+    if (isRoomHost && st.activeTrack.sourceType !== 'youtube') return;
+
+    const updateSyncedPos = () => {
+      const approxServerNow = Date.now() + musicClockOffsetMs;
+      const refTime = st.serverTime || st.updatedAt || approxServerNow;
+      const elapsed = Math.max(0, (approxServerNow - refTime) / 1000);
+      const nextPos = (st.positionSec || 0) + elapsed;
+      const dur = st.activeTrack?.durationSec || 0;
+      setMusicDisplayPosSec(dur > 0 ? Math.min(dur, nextPos) : nextPos);
+    };
+    updateSyncedPos();
+    const timer = setInterval(updateSyncedPos, 500);
+    return () => clearInterval(timer);
+  }, [
+    isRoomHost,
+    musicClockOffsetMs,
+    partyMusicState.status,
+    partyMusicState.activeTrack?.id,
+    partyMusicState.activeTrack?.sourceType,
+    partyMusicState.activeTrack?.durationSec,
+    partyMusicState.positionSec,
+    partyMusicState.updatedAt,
+    partyMusicState.serverTime,
+  ]);
+
   // Real-Time Backend, WebSocket & Cloud Firestore Room Lifecycle (15s Heartbeat + Strict Real-Time Participants Only)
   useEffect(() => {
     let active = true;
@@ -697,6 +840,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       ...(isRoomHost ? { hostPresent: true } : {}),
     });
 
+    const applyIncomingMusicState = (incoming?: PartyMusicState | null, serverTime?: number) => {
+      if (!incoming || typeof incoming !== 'object') return;
+      const refServerTime = typeof serverTime === 'number' ? serverTime : incoming.serverTime;
+      if (typeof refServerTime === 'number' && refServerTime > 0) {
+        setMusicClockOffsetMs(refServerTime - Date.now());
+      }
+      setPartyMusicState(incoming);
+    };
+
     liveAndRoomService
       .joinPartyRoom(room.id, currentUser, room.password)
       .then((res) => {
@@ -704,6 +856,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (res.room) {
           applyServerRoomState(res.room);
         }
+        applyIncomingMusicState(res.musicState || res.room?.musicState);
         if (Array.isArray(res.participants) && res.participants.length > 0) {
           setParticipantsList((prev) => {
             const map = new Map<string, LiveViewerInfo>();
@@ -1037,6 +1190,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           setParticipantTotal(filtered.length);
         }
         if (event === 'room:sync_state') {
+          applyIncomingMusicState(
+            (payload.musicState || payload.room?.musicState) as PartyMusicState | undefined,
+            typeof payload.serverTime === 'number' ? payload.serverTime : undefined
+          );
           if (Array.isArray(payload.pendingRequests) && payload.pendingRequests.length > 0) {
             const incoming: SeatRequest[] = payload.pendingRequests
               .filter((r: any) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id)))
@@ -1057,6 +1214,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           }
           // Intentionally ignore historical payload.messages so room chat starts fresh from entry time.
         }
+      } else if (event === 'room:music_updated' && payload.musicState) {
+        applyIncomingMusicState(payload.musicState as PartyMusicState);
       } else if (event === 'room:participant_joined') {
         if (payload.room) applyServerRoomState(payload.room as PartyRoom);
         if (isRoomHost && payload.participant?.userId && blockedUserIdsRef.current.has(payload.participant.userId)) {
@@ -1285,6 +1444,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         emptySince: nextEmptySince,
         closesAt: nextClosesAt,
       }).catch(() => {});
+      if (isRoomHost) {
+        void partyMusicEngine.stop();
+        if (partyMusicStateRef.current.status === 'playing' || partyMusicStateRef.current.status === 'paused') {
+          void liveAndRoomService
+            .updateRoomMusicState({
+              roomId: room.id,
+              hostId: currentUser.id,
+              action: 'stop',
+              roomMeta: { host: room.host, title: room.title, maxSeats: maxSeatsRef.current },
+            })
+            .catch(() => {});
+        }
+      }
+      void releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
       void liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
       void leaveFirestoreRoomParticipant(room.id).catch(() => {});
     };
@@ -1930,6 +2103,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       closesAt: nextClosesAt,
     });
 
+    if (isRoomHost) {
+      await partyMusicEngine.stop().catch(() => {});
+    }
+    void releasePartyScreenWakeLock(`party_room_${room.id}`);
     webrtcMediaService.stopPartyVoice();
     if (realMicAnalyserRef.current) {
       realMicAnalyserRef.current.cleanup();
@@ -2489,6 +2666,366 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setTimeout(() => {
       chatInputRef.current?.focus();
     }, 30);
+  };
+
+  // ============================================================================
+  // GLOBAL PARTY MUSIC CONTROLS (Host-Authorized Real Audio Distribution & Sync)
+  // ============================================================================
+  const musicRoomMeta = () => ({
+    host: room.host,
+    title: room.title,
+    maxSeats: maxSeatsRef.current,
+  });
+
+  const startHostTrackAtIndex = async (
+    index: number,
+    explicitQueue?: PartyMusicTrackMeta[]
+  ) => {
+    if (!isRoomHost) {
+      showToast('Only the Party Host can control room music.');
+      return;
+    }
+    const queue = explicitQueue || partyMusicStateRef.current.queue;
+    if (index < 0 || index >= queue.length) return;
+    const track = queue[index];
+    setMusicErrorMessage(null);
+    musicAutoNextGuardRef.current = null;
+
+    if (track.sourceType === 'youtube') {
+      // Ensure any local RTC gallery audio track is cleanly unpublished before switching to YouTube Sync
+      await partyMusicEngine.stop();
+      const res = await liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        action: 'play',
+        track,
+        queue,
+        currentIndex: index,
+        positionSec: 0,
+        volume: partyMusicStateRef.current.volume,
+        audioTransport: 'youtube_sync',
+        roomMeta: musicRoomMeta(),
+      });
+      if (!res.success) {
+        const err = res.error || 'Failed to sync YouTube track to room.';
+        setMusicErrorMessage(err);
+        showToast(err);
+        return;
+      }
+      if (res.musicState) setPartyMusicState(res.musicState);
+      showToast(`Playing YouTube Sync: ${track.title}`);
+      return;
+    }
+
+    // Gallery Audio or Gallery Video -> extract & publish real audio into Party RTC channel!
+    const localEntry = localMusicEntriesRef.current.get(track.id);
+    if (!localEntry?.file) {
+      const err = 'Local media file is no longer in memory. Please re-select the file from Gallery.';
+      setMusicErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    const playResult = await partyMusicEngine.playLocalFile({
+      entry: localEntry,
+      transport: voiceTransportRef.current,
+      volumePercent: partyMusicStateRef.current.volume,
+      startPositionSec: 0,
+    });
+
+    if (!playResult.ok) {
+      const err = playResult.error || 'Unable to broadcast selected media track.';
+      setMusicErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    const updatedTrack: PartyMusicTrackMeta = {
+      ...track,
+      durationSec: playResult.durationSec > 0 ? playResult.durationSec : track.durationSec,
+    };
+    const updatedQueue = queue.map((t, i) => (i === index ? updatedTrack : t));
+
+    const syncRes = await liveAndRoomService.updateRoomMusicState({
+      roomId: room.id,
+      hostId: currentUser.id,
+      action: 'play',
+      track: updatedTrack,
+      queue: updatedQueue,
+      currentIndex: index,
+      positionSec: 0,
+      volume: partyMusicStateRef.current.volume,
+      audioTransport: playResult.transport,
+      roomMeta: musicRoomMeta(),
+    });
+
+    if (syncRes.musicState) {
+      setPartyMusicState(syncRes.musicState);
+    } else {
+      setPartyMusicState((prev) => ({
+        ...prev,
+        status: 'playing',
+        activeTrack: updatedTrack,
+        queue: updatedQueue,
+        currentIndex: index,
+        positionSec: 0,
+        updatedAt: Date.now(),
+        audioTransport: playResult.transport,
+      }));
+    }
+    showToast(
+      track.sourceType === 'gallery_video'
+        ? `Streaming video audio to room: ${track.title}`
+        : `Playing for all listeners: ${track.title}`
+    );
+  };
+
+  const handleAddGalleryFiles = async (
+    files: FileList,
+    sourceType: 'gallery_audio' | 'gallery_video'
+  ) => {
+    if (!isRoomHost) return;
+    setMusicErrorMessage(null);
+    const addedTracks: PartyMusicTrackMeta[] = [];
+    const errors: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const check = validateGalleryMediaFile(file, sourceType);
+      if (!check.valid) {
+        errors.push(check.error || `Unsupported file: ${file.name}`);
+        continue;
+      }
+      const id = `trk_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+      const meta: PartyMusicTrackMeta = {
+        id,
+        title: cleanFileTrackTitle(file.name),
+        sourceType,
+        durationSec: 0,
+        mimeType: file.type || undefined,
+      };
+      localMusicEntriesRef.current.set(id, { meta, file });
+      addedTracks.push(meta);
+    }
+
+    if (errors.length > 0) {
+      setMusicErrorMessage(errors[0]);
+      showToast(errors[0]);
+    }
+    if (addedTracks.length === 0) return;
+
+    const prevQueue = partyMusicStateRef.current.queue;
+    const nextQueue = [...prevQueue, ...addedTracks];
+    const shouldAutoPlay =
+      partyMusicStateRef.current.status !== 'playing' && partyMusicStateRef.current.status !== 'paused';
+
+    if (shouldAutoPlay) {
+      await startHostTrackAtIndex(prevQueue.length, nextQueue);
+    } else {
+      const res = await liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        action: 'queue_update',
+        queue: nextQueue,
+        roomMeta: musicRoomMeta(),
+      });
+      if (res.musicState) setPartyMusicState(res.musicState);
+      showToast(`Added ${addedTracks.length} track${addedTracks.length > 1 ? 's' : ''} to Party Queue`);
+    }
+  };
+
+  const handleAddYouTubeTrack = async (videoId: string, customTitle?: string) => {
+    if (!isRoomHost) return;
+    setMusicErrorMessage(null);
+    let resolvedTitle = customTitle || `YouTube Track (${videoId})`;
+    let resolvedThumb = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+
+    if (!customTitle) {
+      try {
+        const res = await fetch(
+          `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.title) resolvedTitle = String(data.title).slice(0, 120);
+          if (data?.thumbnail_url) resolvedThumb = String(data.thumbnail_url);
+        }
+      } catch {
+        // Fallback to default YouTube label
+      }
+    }
+
+    const newTrack: PartyMusicTrackMeta = {
+      id: `yt_${videoId}_${Date.now()}`,
+      title: resolvedTitle,
+      sourceType: 'youtube',
+      durationSec: 0,
+      youtubeVideoId: videoId,
+      thumbnailUrl: resolvedThumb,
+    };
+
+    const prevQueue = partyMusicStateRef.current.queue;
+    const nextQueue = [...prevQueue, newTrack];
+    await startHostTrackAtIndex(prevQueue.length, nextQueue);
+  };
+
+  const handleMusicTogglePlayPause = async () => {
+    if (!isRoomHost) return;
+    const st = partyMusicStateRef.current;
+    if (!st.activeTrack || st.status === 'idle' || st.status === 'stopped') {
+      if (st.queue.length > 0) {
+        const targetIdx = st.currentIndex >= 0 && st.currentIndex < st.queue.length ? st.currentIndex : 0;
+        await startHostTrackAtIndex(targetIdx);
+      }
+      return;
+    }
+
+    if (st.status === 'playing') {
+      let pos = musicDisplayPosSec;
+      if (st.activeTrack.sourceType !== 'youtube') {
+        pos = await partyMusicEngine.pause();
+      }
+      const res = await liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        action: 'pause',
+        positionSec: pos,
+        roomMeta: musicRoomMeta(),
+      });
+      if (res.musicState) setPartyMusicState(res.musicState);
+    } else if (st.status === 'paused') {
+      let pos = st.positionSec;
+      if (st.activeTrack.sourceType !== 'youtube') {
+        try {
+          pos = await partyMusicEngine.resume();
+        } catch {
+          // If local engine needs reload, restart from saved position
+          const idx = st.queue.findIndex((t) => t.id === st.activeTrack?.id);
+          if (idx >= 0) {
+            await startHostTrackAtIndex(idx);
+            return;
+          }
+        }
+      }
+      const res = await liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        action: 'resume',
+        positionSec: pos,
+        audioTransport: st.activeTrack.sourceType === 'youtube' ? 'youtube_sync' : partyMusicEngine.getState().transport,
+        roomMeta: musicRoomMeta(),
+      });
+      if (res.musicState) setPartyMusicState(res.musicState);
+    }
+  };
+
+  const handleMusicStop = async () => {
+    if (!isRoomHost) return;
+    await partyMusicEngine.stop();
+    const res = await liveAndRoomService.updateRoomMusicState({
+      roomId: room.id,
+      hostId: currentUser.id,
+      action: 'stop',
+      roomMeta: musicRoomMeta(),
+    });
+    if (res.musicState) {
+      setPartyMusicState(res.musicState);
+    } else {
+      setPartyMusicState((prev) => ({
+        ...prev,
+        status: 'stopped',
+        activeTrack: null,
+        currentIndex: -1,
+        positionSec: 0,
+        audioTransport: 'none',
+      }));
+    }
+    setMusicErrorMessage(null);
+    showToast('Party music stopped for all listeners');
+  };
+
+  const handleMusicNextTrack = async () => {
+    if (!isRoomHost) return;
+    const st = partyMusicStateRef.current;
+    if (st.queue.length === 0) {
+      await handleMusicStop();
+      return;
+    }
+    const nextIdx = st.currentIndex >= 0 ? (st.currentIndex + 1) % st.queue.length : 0;
+    await startHostTrackAtIndex(nextIdx);
+  };
+  const handleMusicNextTrackRef = useRef<(() => Promise<void>) | null>(null);
+  handleMusicNextTrackRef.current = handleMusicNextTrack;
+
+  const handleMusicPreviousTrack = async () => {
+    if (!isRoomHost) return;
+    const st = partyMusicStateRef.current;
+    if (st.queue.length === 0) return;
+    const prevIdx =
+      st.currentIndex > 0 ? st.currentIndex - 1 : st.queue.length - 1;
+    await startHostTrackAtIndex(prevIdx);
+  };
+
+  const handleMusicSeek = async (targetPosSec: number) => {
+    if (!isRoomHost || !partyMusicStateRef.current.activeTrack) return;
+    if (partyMusicStateRef.current.activeTrack.sourceType !== 'youtube') {
+      partyMusicEngine.seek(targetPosSec);
+    }
+    setMusicDisplayPosSec(targetPosSec);
+    const res = await liveAndRoomService.updateRoomMusicState({
+      roomId: room.id,
+      hostId: currentUser.id,
+      action: 'seek',
+      positionSec: targetPosSec,
+      roomMeta: musicRoomMeta(),
+    });
+    if (res.musicState) setPartyMusicState(res.musicState);
+  };
+
+  const handleMusicVolumeChange = (volumePercent: number) => {
+    if (!isRoomHost) return;
+    const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)));
+    partyMusicEngine.setVolume(clamped);
+    setPartyMusicState((prev) => ({ ...prev, volume: clamped }));
+    void liveAndRoomService.updateRoomMusicState({
+      roomId: room.id,
+      hostId: currentUser.id,
+      action: 'volume',
+      volume: clamped,
+      roomMeta: musicRoomMeta(),
+    });
+  };
+
+  const handleRemoveQueueItem = async (trackId: string) => {
+    if (!isRoomHost) return;
+    const st = partyMusicStateRef.current;
+    const wasActive = st.activeTrack?.id === trackId;
+    const nextQueue = st.queue.filter((t) => t.id !== trackId);
+    localMusicEntriesRef.current.delete(trackId);
+    if (wasActive) {
+      await partyMusicEngine.stop();
+      if (nextQueue.length > 0) {
+        await startHostTrackAtIndex(0, nextQueue);
+        return;
+      }
+      const stopRes = await liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        action: 'stop',
+        queue: [],
+        roomMeta: musicRoomMeta(),
+      });
+      if (stopRes.musicState) setPartyMusicState(stopRes.musicState);
+      return;
+    }
+    const res = await liveAndRoomService.updateRoomMusicState({
+      roomId: room.id,
+      hostId: currentUser.id,
+      action: 'queue_update',
+      queue: nextQueue,
+      roomMeta: musicRoomMeta(),
+    });
+    if (res.musicState) setPartyMusicState(res.musicState);
   };
 
   const handleSendSeatInvite = async (targetUser: UserProfile, directSeat = false) => {
@@ -3090,6 +3627,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             )}
           </button>
 
+          {/* Party Music Button (Host Controls / Listener Synchronized View) */}
+          <button
+            type="button"
+            onClick={() => setShowMusicModal(true)}
+            aria-label="Open Party Music"
+            className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all active:scale-95 shrink-0 ${
+              partyMusicState.status === 'playing'
+                ? 'bg-[#071A38] border border-[#00D4FF] text-cyan-300 shadow-[0_0_14px_rgba(0,212,255,0.6)]'
+                : 'bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-[#00D4FF]/40 text-cyan-200'
+            }`}
+            title={isRoomHost ? 'Party Music Player (Play for Room)' : 'Now Playing in Party'}
+          >
+            <Music className={`w-3.5 h-3.5 ${partyMusicState.status === 'playing' ? 'animate-pulse' : ''}`} />
+            {partyMusicState.status === 'playing' && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0D041B]" />
+            )}
+          </button>
+
           {/* Host Quick Invite Button (Invite Friends/Users or Listeners to Seat) */}
           {isRoomHost && (
             <button
@@ -3241,6 +3796,85 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             {roomAnnouncement}
           </div>
         )}
+
+        {/* Global Party Music Now Playing Mini-Strip (Visible to Host, Seated Speakers & Non-Seated Listeners) */}
+        {partyMusicState.activeTrack &&
+          (partyMusicState.status === 'playing' || partyMusicState.status === 'paused') && (
+            <div
+              data-no-doubletap="true"
+              className="max-w-md mx-auto w-full space-y-2"
+            >
+              <div
+                onClick={() => setShowMusicModal(true)}
+                className="w-full px-3 py-2 rounded-2xl bg-gradient-to-r from-[#071A38]/92 via-[#150C32]/92 to-[#220B3A]/92 border border-[#00D4FF]/45 shadow-[0_0_16px_rgba(0,212,255,0.22)] flex items-center justify-between gap-2 cursor-pointer backdrop-blur-md"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0">
+                    <Radio
+                      className={`w-3.5 h-3.5 ${
+                        partyMusicState.status === 'playing' ? 'animate-pulse text-emerald-300' : 'text-amber-300'
+                      }`}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-black text-white truncate">
+                      {partyMusicState.activeTrack.title}
+                    </div>
+                    <div className="text-[9.5px] font-bold text-cyan-200/80 truncate">
+                      {partyMusicState.status === 'playing' ? 'Live Party Music' : 'Paused'} •{' '}
+                      {partyMusicState.activeTrack.sourceType === 'youtube'
+                        ? 'YouTube Sync'
+                        : partyMusicState.activeTrack.sourceType === 'gallery_video'
+                        ? 'Video Audio'
+                        : 'Gallery Audio'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isRoomHost && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleMusicTogglePlayPause();
+                      }}
+                      aria-label={partyMusicState.status === 'playing' ? 'Pause Party Music' : 'Resume Party Music'}
+                      className="w-7 h-7 rounded-full bg-[#00D4FF]/20 hover:bg-[#00D4FF]/35 border border-[#00D4FF]/60 flex items-center justify-center text-cyan-200 active:scale-95"
+                    >
+                      {partyMusicState.status === 'playing' ? (
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                      )}
+                    </button>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full bg-white/10 text-[9px] font-black text-white/85">
+                    {isRoomHost ? 'Controls' : 'View'}
+                  </span>
+                </div>
+              </div>
+
+              {partyMusicState.activeTrack.sourceType === 'youtube' && (
+                <PartyYouTubeSyncPlayer
+                  musicState={partyMusicState}
+                  clockOffsetMs={musicClockOffsetMs}
+                  isHost={isRoomHost}
+                  isSpeakerMuted={isSpeakerMuted}
+                  localVolumeOverride={isRoomHost ? null : localListenerMusicVol}
+                  compact
+                  onProgress={(cur, dur) => {
+                    setMusicDisplayPosSec(cur);
+                    if (dur > 0) setMusicDisplayDurSec(dur);
+                  }}
+                  onEnded={() => {
+                    if (isRoomHost) void handleMusicNextTrack();
+                  }}
+                  onError={(msg) => setMusicErrorMessage(msg)}
+                />
+              )}
+            </div>
+          )}
 
         {partyEntryNotice && (
           <div className="max-w-md mx-auto w-full flex justify-center animate-fade-in">
@@ -5284,6 +5918,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 onClick={async () => {
                   setShowCloseRoomConfirmModal(false);
                   hasExplicitlyLeftRef.current = true;
+                  await partyMusicEngine.stop().catch(() => {});
+                  await releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`).catch(() => {});
                   if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
                   if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
                   webrtcMediaService.stopPartyVoice();
@@ -5300,6 +5936,32 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           </div>
         </div>
       )}
+      <PartyMusicPanelModal
+        isOpen={showMusicModal}
+        onClose={() => setShowMusicModal(false)}
+        isHost={isRoomHost}
+        musicState={partyMusicState}
+        displayPositionSec={musicDisplayPosSec}
+        displayDurationSec={musicDisplayDurSec}
+        isLoadingTrack={musicLoadingTrack}
+        errorMessage={musicErrorMessage}
+        voiceTransport={voiceTransport}
+        isSpeakerMuted={isSpeakerMuted}
+        localListenerVolume={localListenerMusicVol}
+        onLocalListenerVolumeChange={setLocalListenerMusicVol}
+        onAddGalleryAudioFiles={(files) => void handleAddGalleryFiles(files, 'gallery_audio')}
+        onAddGalleryVideoFiles={(files) => void handleAddGalleryFiles(files, 'gallery_video')}
+        onAddYouTubeTrack={handleAddYouTubeTrack}
+        onPlayTrackAtIndex={(idx) => void startHostTrackAtIndex(idx)}
+        onTogglePlayPause={() => void handleMusicTogglePlayPause()}
+        onStop={() => void handleMusicStop()}
+        onNext={() => void handleMusicNextTrack()}
+        onPrevious={() => void handleMusicPreviousTrack()}
+        onSeek={(pos) => void handleMusicSeek(pos)}
+        onHostVolumeChange={handleMusicVolumeChange}
+        onRemoveQueueItem={(trackId) => void handleRemoveQueueItem(trackId)}
+        onClearError={() => setMusicErrorMessage(null)}
+      />
       <LiveLeaderboardModal
         isOpen={showLeaderboardModal}
         onClose={() => setShowLeaderboardModal(false)}

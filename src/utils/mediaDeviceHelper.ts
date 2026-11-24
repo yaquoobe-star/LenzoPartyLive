@@ -18,6 +18,8 @@ interface MediaPermissionsPluginInterface {
   requestMediaPermissions(options: { video: boolean; audio: boolean }): Promise<NativeMediaPermissionsResult>;
   openAppSettings(): Promise<{ opened: boolean }>;
   setCommunicationAudioMode(options: { enabled: boolean }): Promise<void>;
+  setKeepScreenOn(options: { enabled: boolean }): Promise<{ enabled: boolean }>;
+  getKeepScreenOnState(): Promise<{ enabled: boolean }>;
 }
 
 const NativeMediaPermissions = registerPlugin<MediaPermissionsPluginInterface>('MediaPermissions');
@@ -46,6 +48,18 @@ export async function setNativeLiveAudioMode(enabled: boolean): Promise<void> {
       // ignore if unsupported
     }
   }
+}
+
+export async function setNativeKeepScreenOn(enabled: boolean): Promise<boolean> {
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      const res = await NativeMediaPermissions.setKeepScreenOn({ enabled });
+      return Boolean(res?.enabled ?? enabled);
+    } catch (err) {
+      console.warn('[ScreenWakeLock] Native setKeepScreenOn warning:', err);
+    }
+  }
+  return false;
 }
 
 /**

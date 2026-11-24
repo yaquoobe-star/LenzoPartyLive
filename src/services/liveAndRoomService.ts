@@ -4,6 +4,8 @@ import {
   GiftItem,
   LiveStream,
   LiveViewerInfo,
+  PartyMusicState,
+  PartyMusicTrackMeta,
   PartyRoom,
   RankingCategory,
   RankingConfig,
@@ -378,6 +380,7 @@ class LiveAndRoomService {
     password?: string
   ): Promise<{
     room: PartyRoom;
+    musicState?: PartyMusicState;
     participants?: LiveViewerInfo[];
     pendingRequests: any[];
     messages: ChatMessage[];
@@ -391,6 +394,56 @@ class LiveAndRoomService {
       throw new Error(err.error || 'Failed to join party room');
     }
     return await res.json();
+  }
+
+  public async fetchRoomMusicState(roomId: string): Promise<PartyMusicState | null> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/music`);
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        return (data?.musicState as PartyMusicState) || null;
+      }
+    } catch {
+      // ignore transient fetch failure
+    }
+    return null;
+  }
+
+  public async updateRoomMusicState(params: {
+    roomId: string;
+    hostId: string;
+    action: 'play' | 'load' | 'pause' | 'resume' | 'stop' | 'seek' | 'next' | 'previous' | 'volume' | 'queue_update';
+    track?: PartyMusicTrackMeta | null;
+    queue?: PartyMusicTrackMeta[];
+    currentIndex?: number;
+    positionSec?: number;
+    volume?: number;
+    audioTransport?: 'agora' | 'webrtc' | 'youtube_sync' | 'none';
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number };
+  }): Promise<{ success: boolean; musicState?: PartyMusicState; error?: string }> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(params.roomId)}/music`, {
+        method: 'POST',
+        body: JSON.stringify({
+          hostId: params.hostId,
+          action: params.action,
+          track: params.track,
+          queue: params.queue,
+          currentIndex: params.currentIndex,
+          positionSec: params.positionSec,
+          volume: params.volume,
+          audioTransport: params.audioTransport,
+          roomMeta: params.roomMeta,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Failed to update party music state' };
+      }
+      return { success: true, musicState: data.musicState as PartyMusicState };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error updating party music' };
+    }
   }
 
   public async sendRoomHeartbeat(roomId: string, userId: string): Promise<void> {
