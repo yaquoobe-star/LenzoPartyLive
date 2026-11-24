@@ -123,7 +123,11 @@ class WebRtcMediaService {
   private partyHandledAnswerSessions = new Map<string, string>();
   private partyPeerSessions = new Map<string, string>();
   private partyRemoteAudioEls = new Map<string, HTMLAudioElement>();
-  private partyRemoteAnalysers = new Map<string, { ctx: AudioContext; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }>();
+  private sharedPartyAudioCtx: AudioContext | null = null;
+  private partyRemoteAnalysers = new Map<
+    string,
+    { source: MediaStreamAudioSourceNode; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer> }
+  >();
   private partyVolumeTimer: ReturnType<typeof setInterval> | null = null;
   private partySpeakerMuted = false;
   private partyCallbacks: PartyVoiceCallbacks | null = null;
@@ -1212,11 +1216,9 @@ class WebRtcMediaService {
   }
 
   public resumePartyRemoteAudio() {
-    this.partyRemoteAnalysers.forEach((entry) => {
-      if (entry.ctx.state === 'suspended') {
-        entry.ctx.resume().catch(() => {});
-      }
-    });
+    if (this.sharedPartyAudioCtx && this.sharedPartyAudioCtx.state === 'suspended') {
+      this.sharedPartyAudioCtx.resume().catch(() => {});
+    }
     this.partyRemoteAudioEls.forEach((audioEl) => {
       audioEl.muted = this.partySpeakerMuted;
       audioEl.volume = 1.0;
@@ -1358,6 +1360,18 @@ class WebRtcMediaService {
     if (this.partyHandledOfferSessions.get(peerId) === sessionId) {
       return;
     }
+
+    // Polite/impolite glare protection: if we already have an outbound offer in flight
+    // and we are the deterministic initiator (impolite peer), ignore colliding offer instead of tearing down audio!
+    const existingPc = this.partyPeers.get(peerId);
+    if (
+      existingPc &&
+      existingPc.signalingState === 'have-local-offer' &&
+      String(this.partyUserId) > peerId
+    ) {
+      return;
+    }
+
     this.partyHandledOfferSessions.set(peerId, sessionId);
 
     const pc = this.setupPartyPeerConnection(peerId, 'answer', sessionId);
@@ -1479,18 +1493,24 @@ class WebRtcMediaService {
       this.partyCallbacks?.onAutoplayBlocked?.();
     });
 
-    // Attach lightweight remote volume analyser for live speaking rings in WebRTC mode
+    // Attach lightweight remote volume analyser using ONE shared AudioContext (avoids Chrome/Android 6-AudioContext crash!)
     if (!this.partyRemoteAnalysers.has(peerId) && typeof window !== 'undefined') {
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
-          const ctx: AudioContext = new AudioCtx();
+          if (!this.sharedPartyAudioCtx || this.sharedPartyAudioCtx.state === 'closed') {
+            this.sharedPartyAudioCtx = new AudioCtx();
+          }
+          const ctx = this.sharedPartyAudioCtx;
+          if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+          }
           const source = ctx.createMediaStreamSource(stream);
           const analyser = ctx.createAnalyser();
           analyser.fftSize = 256;
           source.connect(analyser);
           const data = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
-          this.partyRemoteAnalysers.set(peerId, { ctx, analyser, data });
+          this.partyRemoteAnalysers.set(peerId, { source, analyser, data });
         }
       } catch {
         // Non-fatal: audio still plays via HTMLAudioElement
@@ -1526,7 +1546,8 @@ class WebRtcMediaService {
     const analyserEntry = this.partyRemoteAnalysers.get(peerId);
     if (analyserEntry) {
       try {
-        void analyserEntry.ctx.close();
+        analyserEntry.source.disconnect();
+        analyserEntry.analyser.disconnect();
       } catch {
         // ignore
       }
@@ -1594,12 +1615,21 @@ class WebRtcMediaService {
     this.partyPeerSessions.clear();
     this.partyRemoteAnalysers.forEach((entry) => {
       try {
-        void entry.ctx.close();
+        entry.source.disconnect();
+        entry.analyser.disconnect();
       } catch {
         // ignore
       }
     });
     this.partyRemoteAnalysers.clear();
+    if (this.sharedPartyAudioCtx) {
+      try {
+        void this.sharedPartyAudioCtx.close();
+      } catch {
+        // ignore
+      }
+      this.sharedPartyAudioCtx = null;
+    }
     this.partyRemoteAudioEls.forEach((audioEl) => {
       try {
         audioEl.pause();

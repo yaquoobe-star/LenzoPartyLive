@@ -1,15 +1,11 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-BaVdwiMr.js","assets/dist-BtMCkNml.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CPBdwVb9.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-sqDS8tFw.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CI-970bO.js","assets/CreateRoomScreen-C62LBz1C.js","assets/partySeatRules-C6_w_6jH.js","assets/RankingsScreen-BVwp13ou.js","assets/adminAuth-CrRhZSFU.js","assets/StoreScreen-IKQotvVi.js","assets/StoreAssetPreview-DUAqjh-H.js","assets/pushNotificationService-Bs8cZsF9.js","assets/apiConfig-CqMIuGjJ.js","assets/SettingsScreen-DyAiorru.js","assets/UploadVideoScreen-DG4vJEdM.js","assets/WalletModal-BP5_ZtjU.js","assets/LevelAndVIPModal-BZE5EhqG.js","assets/AdminProgressionModal-B15tLdpJ.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BS6zxYXp.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-Bbe_e-4S.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-CgANHFSG.js","assets/CreateRoomScreen-Dfmhz_2h.js","assets/RankingsScreen-COs0wxEJ.js","assets/StoreScreen-C2f87qjn.js","assets/StoreAssetPreview-BJkHjbk5.js","assets/SettingsScreen-DD6s5ndz.js","assets/UploadVideoScreen-PJVTlxba.js","assets/WalletModal-DEnD_xV5.js","assets/LevelAndVIPModal-DdirMhts.js","assets/AdminProgressionModal-_64v1Ea9.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
-import { t as require_client } from "./vendor-react-LBUG5uQ7.js";
-import { $ as Pause, $t as CircleX, A as ShoppingBag, B as RotateCcw, Bt as Eraser, Cn as AtSign, Ct as History, D as Smartphone, Dn as ArrowLeft, Dt as Globe, E as Smile, En as ArrowRightLeft, Et as Hash, F as Share2, G as Radio, H as Repeat2, I as Settings, J as Pin, Jt as CornerUpLeft, K as Plus, Kt as Crown, L as Send, Lt as Eye, M as ShieldOff, Mt as Flag, N as ShieldCheck, Nt as Film, O as SlidersHorizontal, Ot as Gift, P as ShieldAlert, Pt as FileText, Q as PenLine, Qt as Clock, R as Search, Rt as EyeOff, S as Swords, Sn as Award, St as House, T as Sparkles, Tn as ArrowRight, Tt as Heart, U as RefreshCw, V as Reply, Vt as Ellipsis, W as Receipt, X as Percent, Xt as Compass, Y as Phone, Yt as Copy, Z as Pen, Zt as Coins, _ as TriangleAlert, _n as Bell, a as Wallet, an as ChevronRight, at as MicOff, b as Timer, bn as Ban, bt as Image$1, c as Video, cn as Check, d as User, dn as Camera, dt as LogOut, et as Paperclip, f as UserX, fn as CameraOff, ft as Lock, g as Trophy, gn as BookmarkCheck, gt as LayoutGrid, h as Upload, hn as Bookmark, i as WifiOff, in as ChevronUp, it as Mic, j as Shield, jt as Flame, kn as require_react, kt as Gem, ln as CheckCheck, m as UserCheck, mn as Building2, mt as LoaderCircle, n as Zap, nn as CircleArrowDown, o as VolumeX, on as ChevronLeft, ot as MessageSquare, p as UserPlus, pn as Calendar, pt as LockOpen, q as Play, qt as Crop, r as X, rn as CircleAlert, s as Volume2, sn as ChevronDown, st as MessageCircle, t as ZoomIn, tn as CircleCheck, tt as Music, u as Users, un as ChartColumn, ut as Mail, v as TrendingUp, vn as BellRing, w as Star, wt as Hexagon, x as Target, xn as BadgeCheck, y as Trash2, yn as BellOff, yt as KeyRound, z as Save, zt as ExternalLink } from "./vendor-icons-sqDS8tFw.js";
-import { _ as subscribeRealTimeNotifications, a as getPushPermissionState, b as DEFAULT_NOTIFICATION_PREFERENCES, c as markNotificationAsRead, d as notifyFollowersOfLiveOrRoom, f as registerDeviceForPushNotifications, g as subscribeGlobalPushAnnouncements, i as deliverOsDeviceNotification, l as normalizeNotificationCategory, m as sendPushNotification, n as clearAllNotifications, o as isCategoryEnabledForUser, r as deleteSingleNotification, s as markAllNotificationsAsRead, t as bindNotificationClickListener, u as notifyAdminsOfEvent, y as __vitePreload } from "./pushNotificationService-Bs8cZsF9.js";
-import { a as getWsUrl, i as getApiBaseUrl, n as apiFetch, o as resolveMediaUrl, r as apiUrl, t as DEFAULT_BACKEND_API_ORIGIN } from "./apiConfig-CqMIuGjJ.js";
+import { t as require_client } from "./vendor-react-C80-Bi2p.js";
+import { $ as Pause, $t as Coins, A as ShoppingBag, At as Gift, B as RotateCcw, Bt as EyeOff, Cn as BadgeCheck, D as Smartphone, Dn as ArrowRight, Dt as Heart, E as Smile, Et as Hexagon, F as Share2, Ft as Film, G as Radio, H as Repeat2, Ht as Eraser, I as Settings, It as FileText, J as Pin, Jt as Crown, K as Plus, L as Send, M as ShieldOff, N as ShieldCheck, Nt as Flame, O as SlidersHorizontal, On as ArrowRightLeft, Ot as Hash, P as ShieldAlert, Pt as Flag, Q as PenLine, Qt as Compass, R as Search, S as Swords, Sn as Ban, St as Image$1, T as Sparkles, Tn as AtSign, Tt as History, U as RefreshCw, Ut as Ellipsis, V as Reply, Vt as ExternalLink, W as Receipt, X as Percent, Xt as CornerUpLeft, Y as Phone, Yt as Crop, Z as Pen, Zt as Copy, _ as TriangleAlert, _n as Bookmark, a as Wallet, an as CircleAlert, at as Mic, b as Timer, bn as BellRing, c as Video, cn as ChevronLeft, ct as MessageCircle, d as User, dn as CheckCheck, en as Clock, et as Paperclip, f as UserX, fn as ChartColumn, ft as Mail, g as Trophy, gn as Building2, gt as LoaderCircle, h as Upload, hn as Calendar, ht as LockOpen, i as WifiOff, in as CircleArrowDown, it as Minimize2, j as Shield, jn as require_react, jt as Gem, kn as ArrowLeft, kt as Globe, ln as ChevronDown, m as UserCheck, mn as CameraOff, mt as Lock, n as Zap, o as VolumeX, on as ChevronUp, ot as MicOff, p as UserPlus, pn as Camera, pt as LogOut, q as Play, r as X, rn as CircleCheck, s as Volume2, sn as ChevronRight, st as MessageSquare, t as ZoomIn, tn as CircleX, tt as Music, u as Users, un as Check, ut as Maximize2, v as TrendingUp, vn as BookmarkCheck, vt as LayoutGrid, w as Star, wn as Award, wt as House, x as Target, xn as BellOff, xt as KeyRound, y as Trash2, yn as Bell, z as Save, zt as Eye } from "./vendor-icons-Bbe_e-4S.js";
+import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
 import { a as handleFirestoreError, i as db, n as OperationType, o as storage, r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CIREZBAE.js";
 import { $ as signOut, B as getRedirectResult, C as startAfter, D as Timestamp, E as writeBatch, F as GoogleAuthProvider, G as reauthenticateWithPopup, H as linkWithPopup, I as browserLocalPersistence, J as setPersistence, K as sendEmailVerification, L as browserSessionPersistence, N as serverTimestamp, O as collection, P as EmailAuthProvider, Q as signInWithRedirect, R as createUserWithEmailAndPassword, S as setDoc, T as where, U as onAuthStateChanged, V as linkWithCredential, W as reauthenticateWithCredential, X as signInWithEmailAndPassword, Y as signInWithCredential, Z as signInWithPopup, b as query, d as addDoc, et as updateProfile, f as deleteDoc, g as limit, h as getDocs, j as increment, k as doc, l as ref, m as getDocFromServer, o as deleteObject, p as getDoc, q as sendPasswordResetEmail, s as getDownloadURL, u as uploadBytesResumable, v as onSnapshot, w as updateDoc, x as runTransaction, y as orderBy } from "./vendor-firebase-AVvshUH2.js";
-import { r as registerPlugin, t as Capacitor } from "./dist-BtMCkNml.js";
-import { i as isVerifiedAdminSession, n as getOrCreateDeviceId, r as isAuthorizedAdminEmail, t as getDeviceSummaryLabel } from "./adminAuth-CrRhZSFU.js";
-import { a as getActiveSeatCapacity, c as isSeatLockedByHostLevel, d as sanitizePartySeatsForHostLevel, f as sanitizeUserLevel, i as enforcePartyRoomSeatPolicy, l as isSeatModeUnlockedForLevel, n as clampPartyMaxSeatsForHostLevel, r as countActiveOccupiedSeats, s as isSeatIndexAllowedForRoom, t as PARTY_SEAT_TIERS, u as normalizePartyMaxSeats } from "./partySeatRules-C6_w_6jH.js";
-import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CI-970bO.js";
+import { i as require_jsx_runtime, n as useAnimationControls, r as AnimatePresence, t as motion } from "./vendor-motion-CgANHFSG.js";
 import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 // \0vite/modulepreload-polyfill.js
 (function polyfill() {
@@ -41,9 +37,23 @@ import { t as require_AgoraRTC_N_production } from "./vendor-agora-wey2stzM.js";
 		fetch(link.href, fetchOpts);
 	}
 })();
-// src/data/mockData.ts
+// src/types/index.ts
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_client = require_client();
+var DEFAULT_NOTIFICATION_PREFERENCES = {
+	messages: true,
+	gifts: true,
+	followers: true,
+	rooms: true,
+	pk: true,
+	wallet: true,
+	agency: true,
+	progression: true,
+	system: true,
+	soundEnabled: true,
+	vibrateEnabled: true
+};
+// src/data/mockData.ts
 var CURRENT_USER = {
 	id: "guest",
 	displayId: "",
@@ -1370,6 +1380,129 @@ function saveStoredUserProfile(profile) {
 		console.error("Failed to save user profile to localStorage:", err);
 	}
 }
+// src/utils/apiConfig.ts
+var DEFAULT_BACKEND_API_ORIGIN = "https://api.lenzoparty.com";
+var FRONTEND_PRODUCTION_HOSTS = /* @__PURE__ */ new Set(["lenzoparty.com", "www.lenzoparty.com"]);
+/**
+* Resolve the Railway Backend API base URL across Web, Cloudflare Production, and Capacitor Android.
+* - If VITE_RAILWAY_API_URL or VITE_API_BASE_URL is explicitly defined, always honor it.
+* - On Native Android/iOS (Capacitor WebView runs at https://localhost), use https://api.lenzoparty.com.
+* - On Cloudflare-hosted Web frontend (lenzoparty.com / www.lenzoparty.com), use https://api.lenzoparty.com.
+* - On AI Studio Preview (*.run.app) or localhost:3000 (where Express + Vite share origin), use relative paths.
+*/
+function getApiBaseUrl() {
+	const envBase = "".trim().replace(/\/+$/, "");
+	if (envBase.length > 0) {
+		try {
+			const parsed = new URL(envBase);
+			if (FRONTEND_PRODUCTION_HOSTS.has(parsed.hostname.toLowerCase())) return DEFAULT_BACKEND_API_ORIGIN;
+		} catch {}
+		return envBase;
+	}
+	if (typeof window !== "undefined") {
+		if (Capacitor.isNativePlatform()) return DEFAULT_BACKEND_API_ORIGIN;
+		const host = window.location.hostname.toLowerCase();
+		if (FRONTEND_PRODUCTION_HOSTS.has(host) || host.endsWith(".pages.dev")) return DEFAULT_BACKEND_API_ORIGIN;
+	}
+	return "";
+}
+/**
+* Build a full REST API URL for fetch calls.
+*/
+function apiUrl(path) {
+	const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+	return `${getApiBaseUrl()}${normalizedPath}`;
+}
+/**
+* Resolve stored media URLs so relative /api/* paths work seamlessly across Web,
+* Cloudflare Pages, and Capacitor Android WebView while keeping absolute URLs intact.
+*/
+function resolveMediaUrl(url) {
+	if (!url) return "";
+	const trimmed = String(url).trim();
+	if (!trimmed) return "";
+	if (trimmed.startsWith("https://") || trimmed.startsWith("http://") || trimmed.startsWith("blob:") || trimmed.startsWith("data:")) return trimmed;
+	if (/^(javascript|vbscript):/i.test(trimmed)) return "";
+	if (trimmed.startsWith("/api/")) return apiUrl(trimmed);
+	return trimmed;
+}
+/**
+* Perform an authenticated API request to the shared Express backend (Railway / local server),
+* automatically attaching the current Firebase User's ID Token as a Bearer token when available.
+*/
+async function apiFetch(path, init = {}) {
+	const { timeoutMs = 12e3, skipAuth = false, ...fetchInit } = init;
+	const headers = new Headers(fetchInit.headers || {});
+	if (fetchInit.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+	if (Capacitor.isNativePlatform() && !headers.has("X-Platform")) headers.set("X-Platform", "android");
+	if (!skipAuth) try {
+		const user = auth.currentUser;
+		if (user && !headers.has("Authorization")) {
+			const idToken = await user.getIdToken();
+			if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
+		}
+	} catch (e) {
+		console.warn("[API] Could not attach Firebase ID token:", e);
+	}
+	const targetUrl = apiUrl(path);
+	const callerSignal = fetchInit.signal;
+	let controller = null;
+	let timeoutId = null;
+	let didTimeout = false;
+	let signal = callerSignal ?? void 0;
+	const onCallerAbort = () => {
+		controller?.abort();
+	};
+	if (typeof AbortController !== "undefined" && (timeoutMs > 0 || callerSignal)) {
+		controller = new AbortController();
+		signal = controller.signal;
+		if (callerSignal) {
+			if (callerSignal.aborted) controller.abort();
+			else callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+		}
+		if (timeoutMs > 0) timeoutId = setTimeout(() => {
+			didTimeout = true;
+			controller?.abort();
+		}, timeoutMs);
+	}
+	const isSameOriginRequest = !getApiBaseUrl();
+	try {
+		return await fetch(targetUrl, {
+			...fetchInit,
+			headers,
+			signal,
+			...isSameOriginRequest && !fetchInit.credentials ? { credentials: "include" } : {}
+		});
+	} catch (err) {
+		if (callerSignal?.aborted && !didTimeout) {
+			const abortErr = /* @__PURE__ */ new Error("Request cancelled.");
+			abortErr.name = "AbortError";
+			throw abortErr;
+		}
+		const detail = err?.name === "AbortError" || didTimeout ? `Request timed out after ${timeoutMs}ms (${path})` : `Unable to reach backend (${targetUrl}): ${err?.message || "Network unavailable"}`;
+		console.warn("[API]", detail);
+		const wrapped = new Error(detail);
+		wrapped.cause = err;
+		wrapped.isNetworkError = true;
+		throw wrapped;
+	} finally {
+		if (timeoutId) clearTimeout(timeoutId);
+		if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
+	}
+}
+/**
+* Build a WebSocket URL matching either the Railway/explicit API origin or current browser host.
+*/
+function getWsUrl(path) {
+	const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+	const base = getApiBaseUrl();
+	if (base) try {
+		const parsed = new URL(base);
+		return `${parsed.protocol === "https:" ? "wss:" : "ws:"}//${parsed.host}${normalizedPath}`;
+	} catch {}
+	if (typeof window !== "undefined" && !Capacitor.isNativePlatform()) return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}${normalizedPath}`;
+	return `wss://api.lenzoparty.com${normalizedPath}`;
+}
 // src/utils/pkService.ts
 var PKService = class {
 	constructor() {
@@ -1806,6 +1939,58 @@ async function submitAccountDeletionRequest(reason) {
 		status: "pending",
 		requestedAt: (/* @__PURE__ */ new Date()).toISOString()
 	});
+}
+var AUTHORIZED_ADMIN_EMAIL_SET = /* @__PURE__ */ new Set([
+	"saifkhokhar657@gmail.com",
+	"lenzopartyofficial@gmail.com",
+	"malikyaqoobniaz@gmail.com"
+]);
+function isAuthorizedAdminEmail(email) {
+	if (!email || typeof email !== "string") return false;
+	return AUTHORIZED_ADMIN_EMAIL_SET.has(email.trim().toLowerCase());
+}
+/**
+* Strict check used before privileged writes requiring verified Firebase token claims.
+*/
+function isVerifiedAdminSession() {
+	const liveUser = auth.currentUser;
+	if (!liveUser) return false;
+	return isAuthorizedAdminEmail(liveUser.email) && liveUser.emailVerified === true;
+}
+var DEVICE_ID_STORAGE_KEY = "lenzo_device_id_v1";
+function generateSafeDeviceId() {
+	try {
+		if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return `dev_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+	} catch {}
+	return `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}${Math.random().toString(36).slice(2, 10)}`.replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 48);
+}
+/**
+* Returns a persistent, Firestore-ID-safe device identifier stored on this device.
+* Matches `^[a-zA-Z0-9_\-]+$` (max 64 chars) so it can be used directly as `/banned_devices/{deviceId}`.
+*/
+function getOrCreateDeviceId() {
+	if (typeof window === "undefined") return "dev_server";
+	try {
+		const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+		if (existing && /^[a-zA-Z0-9_\-]{8,64}$/.test(existing)) return existing;
+		const created = generateSafeDeviceId();
+		window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created);
+		return created;
+	} catch {
+		return generateSafeDeviceId();
+	}
+}
+/**
+* Returns a short, safe device/platform summary label (max 180 chars) for admin diagnostics.
+*/
+function getDeviceSummaryLabel() {
+	if (typeof navigator === "undefined") return "Unknown Device";
+	const ua = navigator.userAgent || "";
+	const isAndroid = /Android/i.test(ua);
+	const isIOS = /iPhone|iPad|iPod/i.test(ua);
+	const platform = typeof window !== "undefined" && Boolean(window.Capacitor?.isNativePlatform?.()) ? isAndroid ? "Android App" : isIOS ? "iOS App" : "Native App" : isAndroid ? "Android Web" : isIOS ? "iOS Web" : /Windows/i.test(ua) ? "Windows Web" : /Mac/i.test(ua) ? "macOS Web" : /Linux/i.test(ua) ? "Linux Web" : "Web Browser";
+	const model = ua.match(/Android\s[\d.]+;\s*([^;)]+)/i)?.[1]?.trim();
+	return (model ? `${platform} · ${model}` : platform).replace(/[<>]/g, "").slice(0, 180);
 }
 // src/services/authService.ts
 var NativeGoogleAuth = registerPlugin("NativeGoogleAuth");
@@ -2581,6 +2766,1022 @@ function getLinkedAuthProviders() {
 	if (!user) return [];
 	return Array.from(new Set(user.providerData.map((p) => p.providerId).filter(Boolean)));
 }
+// node_modules/@capacitor/local-notifications/dist/esm/definitions.js
+/**
+* Day of the week. Used for scheduling notifications on a particular weekday.
+*/
+var Weekday;
+(function(Weekday) {
+	Weekday[Weekday["Sunday"] = 1] = "Sunday";
+	Weekday[Weekday["Monday"] = 2] = "Monday";
+	Weekday[Weekday["Tuesday"] = 3] = "Tuesday";
+	Weekday[Weekday["Wednesday"] = 4] = "Wednesday";
+	Weekday[Weekday["Thursday"] = 5] = "Thursday";
+	Weekday[Weekday["Friday"] = 6] = "Friday";
+	Weekday[Weekday["Saturday"] = 7] = "Saturday";
+})(Weekday || (Weekday = {}));
+// \0vite/preload-helper.js
+var scriptRel = "modulepreload";
+var assetsURL = function(dep) {
+	return "/" + dep;
+};
+var seen = {};
+var isCssPreloadUrl = function isCssPreloadUrl(url) {
+	return url.pathname.endsWith(".css");
+};
+var preloadOnce = function preloadOnce(seen, href, preload) {
+	if (href in seen) return seen[href];
+	const promise = preload();
+	if (!promise) {
+		seen[href] = void 0;
+		return;
+	}
+	const preloadPromise = promise.then(() => {
+		seen[href] = void 0;
+	}, (err) => {
+		seen[href] = void 0;
+		throw err;
+	});
+	seen[href] = preloadPromise;
+	return preloadPromise;
+};
+var __vitePreload = function preload(baseModule, deps, importerUrl) {
+	let promise = Promise.resolve();
+	if (deps && deps.length > 0) {
+		let preloadedHrefs;
+		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
+		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
+		function allSettled(promises) {
+			return Promise.all(promises.map((p) => Promise.resolve(p).then((value) => ({
+				status: "fulfilled",
+				value
+			}), (reason) => ({
+				status: "rejected",
+				reason
+			}))));
+		}
+		function importMetaResolve(specifier) {
+			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
+			return new URL(
+				specifier,
+				/** #__KEEP__ */
+				import.meta.url
+			);
+		}
+		promise = allSettled(deps.map((depString) => {
+			depString = assetsURL(depString, importerUrl);
+			const dep = importMetaResolve(depString);
+			const isCss = isCssPreloadUrl(dep);
+			return preloadOnce(seen, dep.href, () => {
+				if (preloadedHrefs === void 0) {
+					preloadedHrefs = {
+						all: /* @__PURE__ */ new Set(),
+						styles: /* @__PURE__ */ new Set()
+					};
+					const links = document.getElementsByTagName("link");
+					for (let i = links.length - 1; i >= 0; i--) {
+						const link = links[i];
+						preloadedHrefs.all.add(link.href);
+						if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
+					}
+				}
+				if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
+				const link = document.createElement("link");
+				link.rel = isCss ? "stylesheet" : scriptRel;
+				if (!isCss) link.as = "script";
+				link.crossOrigin = "";
+				link.href = dep.href;
+				if (cspNonce) link.setAttribute("nonce", cspNonce);
+				document.head.appendChild(link);
+				if (isCss) return new Promise((res, rej) => {
+					const handleSettle = (e) => {
+						link.removeEventListener("load", handleSettle);
+						link.removeEventListener("error", handleSettle);
+						if (e.type === "error") rej(/* @__PURE__ */ new Error(`Unable to preload CSS for ${dep}`));
+						else res(e);
+					};
+					link.addEventListener("load", handleSettle);
+					link.addEventListener("error", handleSettle);
+				});
+			});
+		}).filter((p) => p !== void 0));
+	}
+	function handlePreloadError(err) {
+		const e = new Event("vite:preloadError", { cancelable: true });
+		e.payload = err;
+		window.dispatchEvent(e);
+		if (!e.defaultPrevented) throw err;
+	}
+	return promise.then((res) => {
+		for (const item of res || []) {
+			if (item.status !== "rejected") continue;
+			handlePreloadError(item.reason);
+		}
+		return baseModule().catch(handlePreloadError);
+	});
+};
+// node_modules/@capacitor/local-notifications/dist/esm/index.js
+var LocalNotifications = registerPlugin("LocalNotifications", { web: () => __vitePreload(() => import("./web-CT-1hVF3.js").then((m) => new m.LocalNotificationsWeb()), __vite__mapDeps([0,1])) });
+// src/services/pushNotificationService.ts
+var ANDROID_CHANNEL_ID = "lenzo_party_alerts";
+var SEEN_PUSH_IDS = /* @__PURE__ */ new Set();
+var MAX_SEEN_CACHE = 250;
+var swRegistrationCache = null;
+var androidChannelReady = false;
+var audioCtx = null;
+function rememberSeenPushId(id) {
+	if (!id) return false;
+	if (SEEN_PUSH_IDS.has(id)) return true;
+	SEEN_PUSH_IDS.add(id);
+	if (SEEN_PUSH_IDS.size > MAX_SEEN_CACHE) {
+		const first = SEEN_PUSH_IDS.values().next().value;
+		if (first) SEEN_PUSH_IDS.delete(first);
+	}
+	return false;
+}
+function normalizeNotificationCategory(rawType) {
+	switch (String(rawType || "").toLowerCase()) {
+		case "messages":
+		case "message":
+		case "chat": return "messages";
+		case "gifts":
+		case "gift": return "gifts";
+		case "followers":
+		case "follow":
+		case "like":
+		case "comment": return "followers";
+		case "rooms":
+		case "room":
+		case "live": return "rooms";
+		case "pk": return "pk";
+		case "wallet":
+		case "coins":
+		case "diamonds":
+		case "withdrawal": return "wallet";
+		case "agency": return "agency";
+		case "progression":
+		case "level":
+		case "vip": return "progression";
+		default: return "system";
+	}
+}
+function formatRelativeNotificationTime(ms) {
+	if (!ms || !Number.isFinite(ms)) return "Just now";
+	const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1e3));
+	if (diffSec < 45) return "Just now";
+	const diffMin = Math.floor(diffSec / 60);
+	if (diffMin < 60) return `${diffMin}m ago`;
+	const diffHr = Math.floor(diffMin / 60);
+	if (diffHr < 24) return `${diffHr}h ago`;
+	const diffDay = Math.floor(diffHr / 24);
+	if (diffDay === 1) return "Yesterday";
+	if (diffDay < 7) return `${diffDay}d ago`;
+	return new Date(ms).toLocaleDateString();
+}
+function isCategoryEnabledForUser(type, masterEnabled, prefs) {
+	if (!masterEnabled) return false;
+	const normalized = normalizeNotificationCategory(type);
+	return {
+		...DEFAULT_NOTIFICATION_PREFERENCES,
+		...prefs || {}
+	}[normalized] !== false;
+}
+function makeSafeId(prefix) {
+	return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+function urlBase64ToUint8Array(base64String) {
+	const base64 = (base64String + "=".repeat((4 - base64String.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+	const rawData = window.atob(base64);
+	const buffer = new ArrayBuffer(rawData.length);
+	const outputArray = new Uint8Array(buffer);
+	for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+	return outputArray;
+}
+/**
+* Play a subtle dual-tone chime via Web Audio API without requiring external audio assets.
+*/
+function playNotificationChime(priority = "normal") {
+	if (typeof window === "undefined") return;
+	try {
+		const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+		if (!AudioContextCtor) return;
+		if (!audioCtx) audioCtx = new AudioContextCtor();
+		if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+		const now = audioCtx.currentTime;
+		(priority === "urgent" ? [
+			784,
+			1046.5,
+			1318.5
+		] : [659.25, 987.77]).forEach((freq, idx) => {
+			if (!audioCtx) return;
+			const osc = audioCtx.createOscillator();
+			const gain = audioCtx.createGain();
+			osc.type = "sine";
+			osc.frequency.setValueAtTime(freq, now + idx * .085);
+			gain.gain.setValueAtTime(1e-4, now + idx * .085);
+			gain.gain.exponentialRampToValueAtTime(.08, now + idx * .085 + .02);
+			gain.gain.exponentialRampToValueAtTime(1e-4, now + idx * .085 + .22);
+			osc.connect(gain);
+			gain.connect(audioCtx.destination);
+			osc.start(now + idx * .085);
+			osc.stop(now + idx * .085 + .24);
+		});
+	} catch {}
+}
+function triggerNotificationVibration(priority = "normal") {
+	if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+	try {
+		navigator.vibrate(priority === "urgent" ? [
+			140,
+			60,
+			140,
+			60,
+			140
+		] : [
+			75,
+			40,
+			75
+		]);
+	} catch {}
+}
+/**
+* Query current platform notification permission status.
+*/
+async function getPushPermissionState() {
+	if (typeof window === "undefined") return "unsupported";
+	try {
+		if (Capacitor.isNativePlatform()) {
+			const perm = await LocalNotifications.checkPermissions();
+			if (perm.display === "granted") return "granted";
+			if (perm.display === "denied") return "denied";
+			return "default";
+		}
+		if (!("Notification" in window)) return "unsupported";
+		return Notification.permission;
+	} catch {
+		return "unsupported";
+	}
+}
+async function ensureAndroidChannel() {
+	if (!Capacitor.isNativePlatform() || androidChannelReady) return;
+	try {
+		await LocalNotifications.createChannel({
+			id: ANDROID_CHANNEL_ID,
+			name: "Lenzo Party Live Alerts",
+			description: "Real-time alerts for messages, gifts, live streams, party rooms, PK battles, wallet, and agency updates",
+			importance: 5,
+			visibility: 1,
+			vibration: true,
+			lights: true,
+			lightColor: "#F328D5"
+		});
+		androidChannelReady = true;
+	} catch {}
+}
+/**
+* Register Service Worker + Web Push VAPID subscription OR Native Android notification channel.
+*/
+async function registerDeviceForPushNotifications(options = {}) {
+	const user = auth.currentUser;
+	const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() === "ios" ? "ios" : "android" : "web";
+	if (typeof window === "undefined") return {
+		permission: "unsupported",
+		subscribed: false,
+		platform
+	};
+	if (Capacitor.isNativePlatform()) try {
+		await ensureAndroidChannel();
+		let perm = await LocalNotifications.checkPermissions();
+		if (perm.display !== "granted" && options.requestPermission) perm = await LocalNotifications.requestPermissions();
+		const mapped = perm.display === "granted" ? "granted" : perm.display === "denied" ? "denied" : "default";
+		if (mapped === "granted" && user) {
+			const nativeEndpoint = `capacitor://${platform}/${user.uid}`;
+			const subId = `cap_${platform}_${user.uid.slice(0, 16)}`.replace(/[^a-zA-Z0-9_-]/g, "");
+			await setDoc(doc(db, `users/${user.uid}/push_subscriptions`, subId), {
+				userId: user.uid,
+				platform,
+				endpoint: nativeEndpoint,
+				deviceLabel: `${platform.toUpperCase()} Native App`,
+				updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+			}, { merge: true }).catch(() => {});
+			apiFetch("/api/push/subscribe", {
+				method: "POST",
+				body: JSON.stringify({
+					endpoint: nativeEndpoint,
+					platform,
+					deviceLabel: `${platform.toUpperCase()} Native App`
+				})
+			}).catch(() => {});
+			return {
+				permission: "granted",
+				subscribed: true,
+				platform
+			};
+		}
+		return {
+			permission: mapped,
+			subscribed: false,
+			platform
+		};
+	} catch (err) {
+		return {
+			permission: "default",
+			subscribed: false,
+			platform,
+			error: err?.message || "Native notification permission error"
+		};
+	}
+	if (!("Notification" in window)) return {
+		permission: "unsupported",
+		subscribed: false,
+		platform
+	};
+	let permission = Notification.permission;
+	if (permission === "default" && options.requestPermission) try {
+		permission = await Notification.requestPermission();
+	} catch {
+		permission = Notification.permission;
+	}
+	if (permission !== "granted") return {
+		permission,
+		subscribed: false,
+		platform
+	};
+	if (!user) return {
+		permission: "granted",
+		subscribed: false,
+		platform
+	};
+	try {
+		let subscribed = false;
+		if ("serviceWorker" in navigator) {
+			const reg = swRegistrationCache || await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+			swRegistrationCache = reg;
+			if ("PushManager" in window) {
+				const keyRes = await apiFetch("/api/push/vapid-public-key", { skipAuth: true });
+				const keyJson = keyRes.ok ? await keyRes.json().catch(() => null) : null;
+				const vapidPublicKey = String(keyJson?.publicKey || "").trim();
+				if (vapidPublicKey) {
+					let subscription = await reg.pushManager.getSubscription();
+					if (!subscription) subscription = await reg.pushManager.subscribe({
+						userVisibleOnly: true,
+						applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+					});
+					if (subscription) {
+						const subJson = subscription.toJSON();
+						const deviceLabel = `${navigator.platform || "Web"} · ${/Mobile|Android|iPhone/i.test(navigator.userAgent) ? "Mobile Browser" : "Desktop Browser"}`.slice(0, 120);
+						const res = await apiFetch("/api/push/subscribe", {
+							method: "POST",
+							body: JSON.stringify({
+								subscription: subJson,
+								platform: "web",
+								deviceLabel
+							})
+						});
+						if (res.ok) {
+							subscribed = true;
+							const data = await res.json().catch(() => ({}));
+							const subId = String(data?.subscriptionId || makeSafeId("websub")).slice(0, 64);
+							await setDoc(doc(db, `users/${user.uid}/push_subscriptions`, subId), {
+								userId: user.uid,
+								platform: "web",
+								endpoint: String(subJson.endpoint || "").slice(0, 1024),
+								deviceLabel,
+								updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+							}, { merge: true }).catch(() => {});
+						}
+					}
+				}
+			}
+		}
+		return {
+			permission: "granted",
+			subscribed: subscribed || permission === "granted",
+			platform
+		};
+	} catch (err) {
+		console.warn("[Push] Web Push registration notice:", err);
+		return {
+			permission: "granted",
+			subscribed: false,
+			platform,
+			error: err?.message
+		};
+	}
+}
+/**
+* Unsubscribe current browser/device push endpoint (called when disabling push or logging out).
+*/
+async function unregisterDevicePushNotifications() {
+	try {
+		if (!Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
+			const sub = await (swRegistrationCache || await navigator.serviceWorker.getRegistration("/"))?.pushManager?.getSubscription();
+			if (sub) {
+				const endpoint = sub.endpoint;
+				await sub.unsubscribe().catch(() => {});
+				if (auth.currentUser) await apiFetch("/api/push/unsubscribe", {
+					method: "POST",
+					body: JSON.stringify({ endpoint })
+				}).catch(() => {});
+			}
+		}
+	} catch {}
+}
+/**
+* Show an OS-level notification (Native Android Local Notification or Browser Notification)
+* with automatic deduplication so a push never appears twice.
+*/
+async function deliverOsDeviceNotification(payload, prefs) {
+	if (rememberSeenPushId(`os_${payload.id}`)) return false;
+	const merged = {
+		...DEFAULT_NOTIFICATION_PREFERENCES,
+		...prefs || {}
+	};
+	const priority = payload.priority || "normal";
+	if (merged.soundEnabled) playNotificationChime(priority);
+	if (merged.vibrateEnabled) triggerNotificationVibration(priority);
+	if (Capacitor.isNativePlatform()) {
+		try {
+			await ensureAndroidChannel();
+			if ((await LocalNotifications.checkPermissions()).display === "granted") {
+				const numericId = Math.abs(Array.from(payload.id).reduce((acc, ch) => (acc << 5) - acc + ch.charCodeAt(0) | 0, 0)) % 214748e4;
+				await LocalNotifications.schedule({ notifications: [{
+					id: numericId || Math.floor(Math.random() * 999999),
+					title: payload.title,
+					body: payload.message,
+					channelId: ANDROID_CHANNEL_ID,
+					schedule: { at: new Date(Date.now() + 80) },
+					extra: {
+						id: payload.id,
+						type: payload.type,
+						actionType: payload.actionType || "open_notifications",
+						targetId: payload.targetId || "",
+						senderId: payload.senderId || ""
+					}
+				}] });
+				return true;
+			}
+		} catch (err) {
+			console.warn("[Push] Android local notification error:", err);
+		}
+		return false;
+	}
+	if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+		if (document.hidden) try {
+			const reg = swRegistrationCache || await navigator.serviceWorker?.getRegistration("/");
+			if (reg && typeof reg.showNotification === "function") {
+				await reg.showNotification(payload.title, {
+					body: payload.message,
+					icon: payload.avatar || "/app-icon.png?v=3",
+					badge: "/app-icon.png?v=3",
+					tag: `lenzo-${payload.type}-${payload.id}`,
+					data: {
+						id: payload.id,
+						type: payload.type,
+						actionType: payload.actionType || "open_notifications",
+						targetId: payload.targetId || "",
+						senderId: payload.senderId || ""
+					}
+				});
+				return true;
+			}
+			new Notification(payload.title, {
+				body: payload.message,
+				icon: payload.avatar || "/app-icon.png?v=3",
+				tag: `lenzo-${payload.type}-${payload.id}`
+			});
+			return true;
+		} catch {}
+	}
+	return false;
+}
+/**
+* Listen for OS notification taps (both Native Android Capacitor & Web Service Worker postMessage).
+*/
+function bindNotificationClickListener(onAction) {
+	const cleanups = [];
+	if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+		const swHandler = (event) => {
+			if (event.data?.type === "LENZO_PUSH_NOTIFICATION_CLICK" && event.data?.payload) {
+				const p = event.data.payload;
+				onAction({
+					actionType: p.actionType,
+					targetId: p.targetId,
+					senderId: p.senderId,
+					type: normalizeNotificationCategory(p.type)
+				});
+			}
+		};
+		navigator.serviceWorker.addEventListener("message", swHandler);
+		cleanups.push(() => navigator.serviceWorker.removeEventListener("message", swHandler));
+	}
+	if (Capacitor.isNativePlatform()) {
+		let removed = false;
+		LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
+			if (removed) return;
+			const extra = event?.notification?.extra || {};
+			onAction({
+				actionType: extra.actionType,
+				targetId: extra.targetId,
+				senderId: extra.senderId,
+				type: normalizeNotificationCategory(extra.type)
+			});
+		}).then((handle) => {
+			if (removed) handle.remove();
+			else cleanups.push(() => {
+				handle.remove();
+			});
+		}).catch(() => {});
+		cleanups.push(() => {
+			removed = true;
+		});
+	}
+	return () => cleanups.forEach((fn) => fn());
+}
+/**
+* Universal Single-User Push Dispatcher:
+* 1) Persists notification in Firestore `users/{targetUserId}/notifications/{id}`
+* 2) Dispatches real-time OS Web Push + WebSocket push via `/api/push/send`
+*/
+async function sendPushNotification(input) {
+	const targetUserId = String(input.targetUserId || "").trim();
+	if (!targetUserId || targetUserId === "user_current_01") return;
+	const currentUid = auth.currentUser?.uid || "";
+	if (!input.allowSelf && currentUid && targetUserId === currentUid) return;
+	const notifId = makeSafeId(input.eventKey || input.type || "ntf");
+	const title = String(input.title || "Lenzo Party Live").trim().slice(0, 140);
+	const message = String(input.message || "").trim().slice(0, 420);
+	if (!title || !message) return;
+	const type = normalizeNotificationCategory(input.type);
+	const priority = input.priority === "urgent" || input.priority === "high" ? input.priority : "normal";
+	const firestoreDoc = {
+		title,
+		message,
+		type,
+		isRead: false,
+		priority,
+		createdAt: serverTimestamp()
+	};
+	if (input.avatar && typeof input.avatar === "string") firestoreDoc.avatar = input.avatar.slice(0, 512);
+	if (input.senderId || currentUid) firestoreDoc.senderId = String(input.senderId || currentUid).slice(0, 128);
+	if (input.senderName) firestoreDoc.senderName = String(input.senderName).slice(0, 120);
+	if (input.actionType) firestoreDoc.actionType = String(input.actionType).slice(0, 48);
+	if (input.targetId) firestoreDoc.targetId = String(input.targetId).slice(0, 160);
+	if (input.actionUrl) firestoreDoc.actionUrl = String(input.actionUrl).slice(0, 240);
+	if (input.eventKey) firestoreDoc.eventKey = String(input.eventKey).slice(0, 128);
+	const writeFirestore = setDoc(doc(db, `users/${targetUserId}/notifications`, notifId), firestoreDoc).catch((err) => {
+		console.warn("[Push] Firestore notification write notice:", err?.message || err);
+	});
+	const writeBackend = apiFetch("/api/push/send", {
+		method: "POST",
+		timeoutMs: 8e3,
+		body: JSON.stringify({
+			id: notifId,
+			targetUserIds: [targetUserId],
+			type,
+			title,
+			message,
+			avatar: firestoreDoc.avatar,
+			senderName: firestoreDoc.senderName,
+			actionType: firestoreDoc.actionType || "open_notifications",
+			targetId: firestoreDoc.targetId || "",
+			actionUrl: firestoreDoc.actionUrl || "/",
+			priority
+		})
+	}).catch(() => {});
+	await Promise.allSettled([writeFirestore, writeBackend]);
+}
+/**
+* Universal Multi-User Push Dispatcher (e.g., notifying all followers when a Host goes Live or opens a Party Room).
+*/
+async function sendPushNotificationToMany(targetUserIds, input) {
+	const currentUid = auth.currentUser?.uid || "";
+	const uniqueTargets = Array.from(new Set(targetUserIds.map((id) => String(id || "").trim()).filter((id) => id.length > 0 && id !== "user_current_01" && (input.allowSelf || id !== currentUid)))).slice(0, 120);
+	if (uniqueTargets.length === 0) return;
+	const baseId = makeSafeId(input.eventKey || input.type || "multi");
+	const title = String(input.title || "Lenzo Party Live").trim().slice(0, 140);
+	const message = String(input.message || "").trim().slice(0, 420);
+	if (!title || !message) return;
+	const type = normalizeNotificationCategory(input.type);
+	const priority = input.priority === "urgent" || input.priority === "high" ? input.priority : "normal";
+	const firestorePayload = {
+		title,
+		message,
+		type,
+		isRead: false,
+		priority,
+		createdAt: serverTimestamp()
+	};
+	if (input.avatar) firestorePayload.avatar = input.avatar.slice(0, 512);
+	if (input.senderId || currentUid) firestorePayload.senderId = String(input.senderId || currentUid).slice(0, 128);
+	if (input.senderName) firestorePayload.senderName = String(input.senderName).slice(0, 120);
+	if (input.actionType) firestorePayload.actionType = String(input.actionType).slice(0, 48);
+	if (input.targetId) firestorePayload.targetId = String(input.targetId).slice(0, 160);
+	if (input.eventKey) firestorePayload.eventKey = String(input.eventKey).slice(0, 128);
+	const batchPromises = [];
+	for (let i = 0; i < uniqueTargets.length; i += 40) {
+		const chunk = uniqueTargets.slice(i, i + 40);
+		const batch = writeBatch(db);
+		chunk.forEach((uid, idx) => {
+			batch.set(doc(db, `users/${uid}/notifications`, `${baseId}_${i + idx}`), firestorePayload);
+		});
+		batchPromises.push(batch.commit().catch(() => {}));
+	}
+	const serverPush = apiFetch("/api/push/send", {
+		method: "POST",
+		timeoutMs: 1e4,
+		body: JSON.stringify({
+			id: baseId,
+			targetUserIds: uniqueTargets,
+			type,
+			title,
+			message,
+			avatar: firestorePayload.avatar,
+			senderName: firestorePayload.senderName,
+			actionType: firestorePayload.actionType || "open_notifications",
+			targetId: firestorePayload.targetId || "",
+			priority
+		})
+	}).catch(() => {});
+	await Promise.allSettled([...batchPromises, serverPush]);
+}
+/**
+* Notify all followers of a Host when they start a Live Stream or open a Party Room.
+*/
+async function notifyFollowersOfLiveOrRoom(params) {
+	try {
+		const q = query(collection(db, "follows"), where("followingId", "==", params.hostId), limit(120));
+		const followerIds = (await getDocs(q)).docs.map((d) => String(d.data()?.followerId || "").trim()).filter((id) => id.length > 0 && id !== params.hostId);
+		if (followerIds.length === 0) return;
+		const isLive = params.mode === "live";
+		await sendPushNotificationToMany(followerIds, {
+			type: "rooms",
+			title: isLive ? `🔴 ${params.hostName} is LIVE now!` : `🎙️ ${params.hostName} opened a Party Room!`,
+			message: params.sessionTitle ? `Join "${params.sessionTitle}" right now on Lenzo Party Live!` : isLive ? "Tap to watch the live broadcast and say hello." : "Tap to grab a mic seat and join the party!",
+			avatar: params.hostAvatar,
+			senderId: params.hostId,
+			senderName: params.hostName,
+			actionType: isLive ? "open_live" : "open_room",
+			targetId: params.targetId,
+			priority: "high",
+			eventKey: isLive ? "host_live" : "host_room"
+		});
+	} catch (err) {
+		console.warn("[Push] notifyFollowersOfLiveOrRoom notice:", err);
+	}
+}
+/**
+* Send a real-time push notification to all verified platform administrators (e.g., new withdrawal or agency request).
+*/
+async function notifyAdminsOfEvent(params) {
+	try {
+		const adminUids = (await getDocs(query(collection(db, "admins"), limit(10)))).docs.map((d) => d.id).filter(Boolean);
+		if (adminUids.length === 0) return;
+		await sendPushNotificationToMany(adminUids, {
+			type: params.type,
+			title: params.title,
+			message: params.message,
+			actionType: params.actionType || "open_admin",
+			targetId: params.targetId,
+			priority: params.priority || "high",
+			allowSelf: true
+		});
+	} catch {}
+}
+/**
+* Send a self-test push notification (OS Web Push + WebSocket + Firestore + Native Android)
+* so the user can verify push notifications are active immediately.
+*/
+async function sendSelfTestPushNotification() {
+	const user = auth.currentUser;
+	if (!user) return {
+		ok: false,
+		webPushSent: 0
+	};
+	await sendPushNotification({
+		targetUserId: user.uid,
+		type: "system",
+		title: "🔔 Lenzo Party Push Notifications Active!",
+		message: "All real-time alerts are enabled for messages, gifts, live rooms, PK battles, wallet, and agency events.",
+		actionType: "open_notifications",
+		priority: "high",
+		allowSelf: true,
+		eventKey: "self_test"
+	});
+	try {
+		const res = await apiFetch("/api/push/test", { method: "POST" });
+		const data = res.ok ? await res.json().catch(() => ({})) : {};
+		return {
+			ok: true,
+			webPushSent: Number(data?.webPushSent || 0)
+		};
+	} catch {
+		return {
+			ok: true,
+			webPushSent: 0
+		};
+	}
+}
+/**
+* Super Admin ONLY: Send a Global Push Notification Broadcast to ALL Lenzo Party users.
+*/
+async function sendAdminGlobalPushBroadcast(params) {
+	const user = auth.currentUser;
+	if (!user || !isVerifiedAdminSession()) throw new Error("Only verified Lenzo Party Super Admins can send global push broadcasts.");
+	const title = params.title.trim().slice(0, 140);
+	const message = params.message.trim().slice(0, 500);
+	if (!title || !message) throw new Error("Broadcast title and message are required.");
+	const broadcastId = makeSafeId("bcast");
+	const category = params.category || "system";
+	const priority = params.priority || "high";
+	await setDoc(doc(db, "push_announcements", broadcastId), {
+		id: broadcastId,
+		adminUid: user.uid,
+		adminEmail: (user.email || "").toLowerCase(),
+		title,
+		message,
+		category,
+		priority,
+		active: true,
+		createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+		createdAtMillis: Date.now()
+	});
+	const res = await apiFetch("/api/push/broadcast", {
+		method: "POST",
+		body: JSON.stringify({
+			id: broadcastId,
+			title,
+			message,
+			category,
+			priority
+		})
+	});
+	if (!res.ok) {
+		const errJson = await res.json().catch(() => ({}));
+		throw new Error(errJson?.error || "Failed to dispatch global push broadcast.");
+	}
+	const data = await res.json();
+	return {
+		broadcastId,
+		subscribedUsersCount: Number(data?.subscribedUsersCount || 0),
+		webPushSent: Number(data?.webPushSent || 0),
+		activeWebSocketClients: Number(data?.activeWebSocketClients || 0)
+	};
+}
+/**
+* Subscribe to the signed-in user's Notification Center in real time (Firestore).
+*/
+function subscribeRealTimeNotifications(userId, onUpdate) {
+	if (!userId || userId === "user_current_01") {
+		onUpdate([], []);
+		return () => {};
+	}
+	let initialHydrated = false;
+	const knownIds = /* @__PURE__ */ new Set();
+	const q = query(collection(db, `users/${userId}/notifications`), orderBy("createdAt", "desc"), limit(60));
+	return onSnapshot(q, (snap) => {
+		const newlyAdded = [];
+		const items = snap.docs.map((d) => {
+			const data = d.data();
+			const createdAtMs = typeof data.createdAt?.toMillis === "function" ? data.createdAt.toMillis() : typeof data.createdAt === "number" ? data.createdAt : Date.now();
+			const item = {
+				id: d.id,
+				type: normalizeNotificationCategory(data.type),
+				title: String(data.title || "Lenzo Party Live"),
+				message: String(data.message || ""),
+				avatar: typeof data.avatar === "string" ? data.avatar : void 0,
+				senderId: typeof data.senderId === "string" ? data.senderId : void 0,
+				senderName: typeof data.senderName === "string" ? data.senderName : void 0,
+				actionType: data.actionType,
+				targetId: typeof data.targetId === "string" ? data.targetId : void 0,
+				actionUrl: typeof data.actionUrl === "string" ? data.actionUrl : void 0,
+				priority: data.priority === "urgent" || data.priority === "high" ? data.priority : "normal",
+				timestamp: formatRelativeNotificationTime(createdAtMs),
+				createdAtMs,
+				isRead: Boolean(data.isRead)
+			};
+			if (initialHydrated && !knownIds.has(d.id) && !item.isRead) newlyAdded.push(item);
+			knownIds.add(d.id);
+			return item;
+		});
+		initialHydrated = true;
+		onUpdate(items, newlyAdded);
+	}, (err) => {
+		console.warn("[Push] subscribeRealTimeNotifications notice:", err?.message || err);
+	});
+}
+/**
+* Subscribe to global admin push announcements in real time.
+*/
+function subscribeGlobalPushAnnouncements(onAnnouncement) {
+	let hydrated = false;
+	const seen = /* @__PURE__ */ new Set();
+	const q = query(collection(db, "push_announcements"), orderBy("createdAtMillis", "desc"), limit(20));
+	return onSnapshot(q, (snap) => {
+		snap.docs.forEach((d) => {
+			const data = d.data();
+			if (data.active === false) return;
+			if (!seen.has(d.id)) {
+				seen.add(d.id);
+				if (hydrated) onAnnouncement({
+					id: d.id,
+					type: normalizeNotificationCategory(data.category || "system"),
+					title: String(data.title || "Lenzo Party Announcement"),
+					message: String(data.message || ""),
+					senderName: "Lenzo Party Official",
+					actionType: "open_notifications",
+					priority: data.priority === "urgent" || data.priority === "high" ? data.priority : "high",
+					createdAtMs: Number(data.createdAtMillis || Date.now())
+				});
+			}
+		});
+		hydrated = true;
+	}, () => {});
+}
+async function markNotificationAsRead(userId, notificationId) {
+	if (!userId || !notificationId) return;
+	try {
+		await updateDoc(doc(db, `users/${userId}/notifications`, notificationId), { isRead: true });
+	} catch {}
+}
+async function markAllNotificationsAsRead(userId, notificationIds) {
+	if (!userId || notificationIds.length === 0) return;
+	try {
+		for (let i = 0; i < notificationIds.length; i += 40) {
+			const batch = writeBatch(db);
+			notificationIds.slice(i, i + 40).forEach((id) => {
+				batch.update(doc(db, `users/${userId}/notifications`, id), { isRead: true });
+			});
+			await batch.commit();
+		}
+	} catch {}
+}
+async function deleteSingleNotification(userId, notificationId) {
+	if (!userId || !notificationId) return;
+	try {
+		await deleteDoc(doc(db, `users/${userId}/notifications`, notificationId));
+	} catch {}
+}
+async function clearAllNotifications(userId, notificationIds) {
+	if (!userId || notificationIds.length === 0) return;
+	try {
+		for (let i = 0; i < notificationIds.length; i += 40) {
+			const batch = writeBatch(db);
+			notificationIds.slice(i, i + 40).forEach((id) => {
+				batch.delete(doc(db, `users/${userId}/notifications`, id));
+			});
+			await batch.commit();
+		}
+	} catch {}
+}
+// src/utils/partySeatRules.ts
+var PARTY_SEAT_TIERS = [
+	{
+		tierNumber: 1,
+		tierLabel: "Level 1",
+		maxSeats: 5,
+		minLevel: 0,
+		title: "5 Seats",
+		shortLabel: "5 Seats",
+		description: "Lv.0–4: 4 open + Seat #2 locked (unlocks at Lv.5)"
+	},
+	{
+		tierNumber: 2,
+		tierLabel: "Level 2",
+		maxSeats: 8,
+		minLevel: 10,
+		title: "8 Seats",
+		shortLabel: "8 Seats",
+		description: "5 upper seats + 3 lower seats (unlocks at Lv.10)"
+	},
+	{
+		tierNumber: 3,
+		tierLabel: "Level 3",
+		maxSeats: 16,
+		minLevel: 20,
+		title: "16 Seats",
+		shortLabel: "16 Seats",
+		description: "Full 16-seat party stage (unlocks at Lv.20)"
+	}
+];
+function sanitizeUserLevel(rawLevel) {
+	if (typeof rawLevel !== "number" || !Number.isFinite(rawLevel)) return 0;
+	return Math.max(0, Math.floor(rawLevel));
+}
+function getAllowedSeatTierForLevel(rawHostLevel) {
+	const hostLevel = sanitizeUserLevel(rawHostLevel);
+	const isCoHostSeatUnlocked = hostLevel >= 5;
+	const canSelect8Seats = hostLevel >= 10;
+	const canSelect16Seats = hostLevel >= 20;
+	const unlockedOptions = [5];
+	if (canSelect8Seats) unlockedOptions.push(8);
+	if (canSelect16Seats) unlockedOptions.push(16);
+	return {
+		hostLevel,
+		maxUnlockedSeats: canSelect16Seats ? 16 : canSelect8Seats ? 8 : 5,
+		isCoHostSeatUnlocked,
+		canSelect8Seats,
+		canSelect16Seats,
+		unlockedOptions
+	};
+}
+function isSeatModeUnlockedForLevel(seats, rawHostLevel) {
+	const hostLevel = sanitizeUserLevel(rawHostLevel);
+	if (seats === 16) return hostLevel >= 20;
+	if (seats === 8) return hostLevel >= 10;
+	return true;
+}
+function clampPartyMaxSeatsForHostLevel(requestedSeats, rawHostLevel) {
+	const hostLevel = sanitizeUserLevel(rawHostLevel);
+	const num = Number(requestedSeats);
+	if (num === 16 && hostLevel >= 20) return 16;
+	if (num === 8 && hostLevel >= 10) return 8;
+	if (num === 5 || num === 4) return 5;
+	return getAllowedSeatTierForLevel(hostLevel).maxUnlockedSeats;
+}
+/**
+* Normalizes a party room's seat count.
+* Whenever `hostLevel` is provided, strictly clamps `maxSeats` to the host's unlocked tier:
+* - Lv.0–9  => max 5 seats (Seat #2 locked until Lv.5)
+* - Lv.10–19 => 5 or 8 seats
+* - Lv.20+  => 5, 8, or 16 seats
+*/
+function normalizePartyMaxSeats(raw, hostLevel) {
+	if (typeof hostLevel === "number" && Number.isFinite(hostLevel)) return clampPartyMaxSeatsForHostLevel(raw, hostLevel);
+	const num = Number(raw);
+	if (num === 16) return 16;
+	if (num === 8) return 8;
+	if (num === 5 || num === 4) return 5;
+	return 5;
+}
+/**
+* Seat #2 (index 1, directly beside the Host) is locked for Hosts below Level 5.
+* Unlocks automatically when Host reaches Level 5+.
+*/
+function isSeatLockedByHostLevel(seatIndex, rawHostLevel) {
+	const hostLevel = sanitizeUserLevel(rawHostLevel);
+	return seatIndex === 1 && hostLevel < 5;
+}
+/**
+* Checks whether a seat index is within the host's unlocked seat tier AND not level-locked.
+*/
+function isSeatIndexAllowedForRoom(seatIndex, maxSeats, rawHostLevel) {
+	if (typeof seatIndex !== "number" || !Number.isInteger(seatIndex) || seatIndex < 0) return false;
+	if (seatIndex >= clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel)) return false;
+	if (isSeatLockedByHostLevel(seatIndex, rawHostLevel)) return false;
+	return true;
+}
+/**
+* Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`
+* and Seat #2 (index 1) is always empty when Host Level < 5.
+*/
+function sanitizePartySeatsForHostLevel(rawSeats, maxSeats, rawHostLevel) {
+	const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
+	const next = Array(safeMax).fill(null);
+	if (Array.isArray(rawSeats)) {
+		for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) next[i] = rawSeats[i];
+	}
+	return next;
+}
+/**
+* Counts currently occupied valid (non-level-locked, in-bounds) seats.
+*/
+function countActiveOccupiedSeats(rawSeats, maxSeats, rawHostLevel) {
+	const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
+	if (!Array.isArray(rawSeats)) return 0;
+	let count = 0;
+	for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) count++;
+	return count;
+}
+/**
+* Returns the number of usable (non-level-locked) seats in the room.
+* For Level 0–4 hosts in a 5-slot room, Seat #2 (index 1) is locked, leaving 4 active seats (Host + 3 guests).
+*/
+function getActiveSeatCapacity(maxSeats, rawHostLevel) {
+	const hostLevel = sanitizeUserLevel(rawHostLevel);
+	const clamped = clampPartyMaxSeatsForHostLevel(maxSeats, hostLevel);
+	if (clamped === 5 && hostLevel < 5) return 4;
+	return clamped;
+}
+/**
+* Enforces seat-tier clamping and locked-seat stripping on any PartyRoom object.
+*/
+function enforcePartyRoomSeatPolicy(room) {
+	const hostLevel = sanitizeUserLevel(room?.host?.level);
+	const storedValidMax = typeof room?.maxSeats === "number" && [
+		5,
+		8,
+		16
+	].includes(room.maxSeats) ? room.maxSeats : clampPartyMaxSeatsForHostLevel(room?.maxSeats, hostLevel);
+	const rawSeats = Array.isArray(room?.seats) ? room.seats : void 0;
+	const safeMaxSeats = Math.max(storedValidMax, rawSeats ? rawSeats.length : 0);
+	const safeSeats = rawSeats ? Array.from({ length: safeMaxSeats }, (_, idx) => rawSeats[idx] ?? null) : void 0;
+	return {
+		...room,
+		maxSeats: safeMaxSeats,
+		...safeSeats !== void 0 ? { seats: safeSeats } : {}
+	};
+}
 // src/services/firestoreService.ts
 /**
 * 1. REAL POSTS / VIDEOS FIRESTORE SERVICE
@@ -2760,17 +3961,20 @@ function isFirestoreRoomStillVisible(data, now = Date.now()) {
 }
 function isFirestoreStreamStillVisible(data, now = Date.now()) {
 	if (!data) return false;
-	if (data.isLive === false || data.status === "closed" || data.status === "ended") return false;
-	if (data.status === "empty" && typeof data.closesAt === "number" && data.closesAt <= now) return false;
+	if (data.isLive !== true) return false;
+	if (data.status === "closed" || data.status === "ended" || data.status === "empty") return false;
+	if (data.hostPresent === false) return false;
+	if (typeof data.closesAt === "number" && data.closesAt <= now) return false;
 	return true;
 }
 function normalizeFirestorePartyRoom(id, data) {
 	const hostCard = sanitizeFirestoreUserCard(data?.host);
 	const hostLevel = sanitizeUserLevel(hostCard.level);
-	const maxSeats = clampPartyMaxSeatsForHostLevel(data?.maxSeats, hostLevel);
 	const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
+	const requestedMaxSeats = typeof data?.maxSeats === "number" && data.maxSeats > 0 ? data.maxSeats : rawSeats.length || 8;
+	const maxSeats = Math.max(clampPartyMaxSeatsForHostLevel(requestedMaxSeats, hostLevel), requestedMaxSeats === 8 || requestedMaxSeats === 16 ? requestedMaxSeats : 5, rawSeats.length);
 	const seats = Array(maxSeats).fill(null);
-	for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) seats[i] = rawSeats[i] && !isSeatLockedByHostLevel(i, hostLevel) ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
+	for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) seats[i] = rawSeats[i] ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
 	const seatedCount = seats.filter(Boolean).length;
 	const numericParticipants = typeof data?.numericParticipants === "number" ? Math.max(0, Math.floor(data.numericParticipants)) : typeof data?.viewersCount === "number" ? Math.max(0, Math.floor(data.viewersCount)) : seatedCount;
 	const hostPresent = typeof data?.hostPresent === "boolean" ? data.hostPresent : typeof data?.isOwnerPresent === "boolean" ? data.isOwnerPresent : seats.some((s) => s?.id === hostCard.id);
@@ -5432,7 +6636,7 @@ async function submitContentReport(params) {
 	}
 }
 // node_modules/@capacitor/app/dist/esm/index.js
-var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-BaVdwiMr.js").then((m) => new m.AppWeb()), __vite__mapDeps([0,1])) });
+var App$1 = registerPlugin("App", { web: () => __vitePreload(() => import("./web-BaVdwiMr.js").then((m) => new m.AppWeb()), __vite__mapDeps([2,1])) });
 // node_modules/@capacitor/status-bar/dist/esm/definitions.js
 var Style;
 (function(Style) {
@@ -5484,7 +6688,7 @@ var Animation;
 // node_modules/@capacitor/status-bar/dist/esm/index.js
 var StatusBar = registerPlugin("StatusBar");
 // node_modules/@capacitor/splash-screen/dist/esm/index.js
-var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-BANarah9.js").then((m) => new m.SplashScreenWeb()), __vite__mapDeps([2,1])) });
+var SplashScreen$1 = registerPlugin("SplashScreen", { web: () => __vitePreload(() => import("./web-BANarah9.js").then((m) => new m.SplashScreenWeb()), __vite__mapDeps([3,1])) });
 // node_modules/@capacitor/keyboard/dist/esm/definitions.js
 var KeyboardStyle;
 (function(KeyboardStyle) {
@@ -6398,6 +7602,35 @@ var LiveAndRoomService = class {
 			throw new Error(err.error || "Failed to assign seat");
 		}
 		return (await res.json()).seats || [];
+	}
+	async sendRoomInvite(params) {
+		try {
+			const res = await apiFetch(`/api/rooms/${encodeURIComponent(params.roomId)}/invite`, {
+				method: "POST",
+				body: JSON.stringify({
+					hostId: params.hostId,
+					targetUserId: params.targetUserId,
+					targetUser: params.targetUser,
+					seatIndex: params.seatIndex,
+					inviteType: params.inviteType || "seat",
+					roomMeta: params.roomMeta
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) return {
+				success: false,
+				error: data.error || "Could not send invitation"
+			};
+			return {
+				success: true,
+				invite: data.invite
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err?.message || "Could not send invitation"
+			};
+		}
 	}
 	async updateRoomSettings(roomId, hostId, settings) {
 		const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/settings`, {
@@ -8114,8 +9347,7 @@ function subscribeBlockedByMe(userId, onUpdate) {
 	if (cached.length > 0) onUpdate(cached);
 	(async () => {
 		try {
-			const headers = await getAuthHeaders$1();
-			const res = await apiFetch("/api/users/blocks", { headers });
+			const res = await apiFetch("/api/users/blocks", { headers: await getAuthHeaders$1() });
 			if (res.ok) {
 				const data = await res.json();
 				if (Array.isArray(data.blockedUsers) && data.blockedUsers.length > 0) {
@@ -8159,8 +9391,7 @@ function subscribeBlockedMe(userId, onUpdate) {
 	}
 	(async () => {
 		try {
-			const headers = await getAuthHeaders$1();
-			const res = await apiFetch("/api/users/blocks", { headers });
+			const res = await apiFetch("/api/users/blocks", { headers: await getAuthHeaders$1() });
 			if (res.ok) {
 				const data = await res.json();
 				if (Array.isArray(data.blockedByIds)) onUpdate(data.blockedByIds.map(String));
@@ -8570,8 +9801,16 @@ async function leaveFirestoreRoomParticipant(roomId) {
 	} catch {}
 }
 async function evictFirestoreRoomParticipant(roomId, targetUserId) {
-	if (!auth.currentUser || !isValidFirestoreId(roomId) || !isValidFirestoreId(targetUserId)) return;
+	const uid = auth.currentUser?.uid;
+	if (!uid || !isValidFirestoreId(roomId) || !isValidFirestoreId(targetUserId)) return;
 	try {
+		if (targetUserId !== uid) {
+			const roomSnap = await getDoc(doc(db, "party_rooms", roomId));
+			if (roomSnap.exists()) {
+				const ownerId = roomSnap.data()?.host?.id;
+				if (ownerId && targetUserId === ownerId) return;
+			}
+		}
 		await deleteDoc(doc(db, "party_rooms", roomId, "participants", targetUserId));
 	} catch {}
 }
@@ -8802,13 +10041,15 @@ async function syncFirestorePartyRoomState(roomId, isHost, patch) {
 	try {
 		const payload = {};
 		const resolvedHostLevel = typeof patch.hostLevel === "number" ? sanitizeUserLevel(patch.hostLevel) : typeof patch.host?.level === "number" ? sanitizeUserLevel(patch.host.level) : void 0;
-		const clampedMaxSeats = typeof patch.maxSeats === "number" ? resolvedHostLevel !== void 0 ? clampPartyMaxSeatsForHostLevel(patch.maxSeats, resolvedHostLevel) : clampPartyMaxSeatsForHostLevel(patch.maxSeats, 0) : void 0;
+		const clampedMaxSeats = typeof patch.maxSeats === "number" ? resolvedHostLevel !== void 0 ? Math.max(clampPartyMaxSeatsForHostLevel(patch.maxSeats, resolvedHostLevel), Array.isArray(patch.seats) ? patch.seats.length : 0) : [
+			5,
+			8,
+			16
+		].includes(patch.maxSeats) ? patch.maxSeats : 5 : void 0;
 		if (Array.isArray(patch.seats)) {
 			const compacted = patch.seats.map((s) => compactSeatUser(s));
-			if (resolvedHostLevel !== void 0) {
-				const targetLen = clampedMaxSeats ?? clampPartyMaxSeatsForHostLevel(compacted.length, resolvedHostLevel);
-				payload.seats = sanitizePartySeatsForHostLevel(compacted, targetLen, resolvedHostLevel);
-			} else payload.seats = compacted;
+			const targetLen = Math.max(clampedMaxSeats ?? compacted.length, compacted.length);
+			payload.seats = Array.from({ length: targetLen }, (_, idx) => compacted[idx] || null);
 		}
 		if (Array.isArray(patch.seatRequests)) payload.seatRequests = patch.seatRequests.map((r) => {
 			const u = compactSeatUser(r.user);
@@ -8923,24 +10164,33 @@ async function respondFirestoreSeatRequest(roomId, applicant, approve, preferred
 				if (!snap.exists()) throw new Error("Party room not found.");
 				const data = snap.data();
 				const hostLevel = sanitizeUserLevel(data.host?.level);
-				const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
-				const nextSeats = sanitizePartySeatsForHostLevel(Array.isArray(data.seats) ? data.seats : [], maxSeats, hostLevel);
+				const rawSeats = Array.isArray(data.seats) ? data.seats : [];
+				const storedMax = typeof data.maxSeats === "number" && [
+					5,
+					8,
+					16
+				].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
+				const maxSeats = Math.max(storedMax, rawSeats.length);
+				const nextSeats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
 				const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== applicant.id);
 				let assignedSeatIndex = -1;
 				if (approve) {
 					for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === applicant.id) nextSeats[i] = null;
-					const defaultSeat = isSeatLockedByHostLevel(1, hostLevel) ? 2 : 1;
-					let targetIdx = typeof preferredSeatIndex === "number" && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats && !isSeatLockedByHostLevel(preferredSeatIndex, hostLevel) ? preferredSeatIndex : defaultSeat;
-					if (nextSeats[targetIdx] !== null || isSeatLockedByHostLevel(targetIdx, hostLevel)) {
-						const openIdx = nextSeats.findIndex((s, idx) => s === null && !isSeatLockedByHostLevel(idx, hostLevel));
+					const seatTwoLocked = isSeatLockedByHostLevel(1, hostLevel) && maxSeats <= 5;
+					let targetIdx = typeof preferredSeatIndex === "number" && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats && !(preferredSeatIndex === 1 && seatTwoLocked) ? preferredSeatIndex : seatTwoLocked ? 2 : 1;
+					if (nextSeats[targetIdx] !== null || targetIdx === 1 && seatTwoLocked) {
+						const openIdx = nextSeats.findIndex((s, idx) => s === null && !(idx === 1 && seatTwoLocked));
 						if (openIdx === -1) throw new Error("All unlocked seats are currently full.");
 						targetIdx = openIdx;
 					}
 					nextSeats[targetIdx] = compactSeatUser(applicant);
 					assignedSeatIndex = targetIdx;
 				}
-				tx.update(roomRef, {
-					maxSeats,
+				if (data.host?.id === auth.currentUser?.uid) tx.update(roomRef, {
+					seats: nextSeats,
+					seatRequests: nextRequests
+				});
+				else tx.update(roomRef, {
 					seats: nextSeats,
 					seatRequests: nextRequests
 				});
@@ -8972,18 +10222,20 @@ async function takeFirestoreSeatDirect(roomId, seatIndex, targetUser, maxSeatsFa
 			if (!snap.exists()) return null;
 			const data = snap.data();
 			const hostLevel = sanitizeUserLevel(data.host?.level);
-			const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
-			if (seatIndex < 0 || seatIndex >= maxSeats || isSeatLockedByHostLevel(seatIndex, hostLevel)) return null;
-			const nextSeats = sanitizePartySeatsForHostLevel(Array.isArray(data.seats) ? data.seats : [], maxSeats, hostLevel);
+			const rawSeats = Array.isArray(data.seats) ? data.seats : [];
+			const storedMax = typeof data.maxSeats === "number" && [
+				5,
+				8,
+				16
+			].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
+			const maxSeats = Math.max(storedMax, rawSeats.length);
+			const seatTwoLocked = seatIndex === 1 && isSeatLockedByHostLevel(1, hostLevel) && maxSeats <= 5;
+			if (seatIndex < 0 || seatIndex >= maxSeats || seatTwoLocked) return null;
+			const nextSeats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
 			for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
 			nextSeats[seatIndex] = compactUser;
 			const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== compactUser.id);
-			if (data.host?.id === auth.currentUser?.uid) tx.update(roomRef, {
-				maxSeats,
-				seats: nextSeats,
-				seatRequests: nextRequests
-			});
-			else tx.update(roomRef, {
+			tx.update(roomRef, {
 				seats: nextSeats,
 				seatRequests: nextRequests
 			});
@@ -9012,23 +10264,34 @@ async function vacateFirestoreSeat(roomId, targetUserId, seatIndex, maxSeatsFall
 			const snap = await tx.get(roomRef);
 			if (!snap.exists()) return null;
 			const data = snap.data();
-			const hostLevel = sanitizeUserLevel(data.host?.level);
-			const maxSeats = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
-			const seats = sanitizePartySeatsForHostLevel(Array.isArray(data.seats) ? data.seats : [], maxSeats, hostLevel);
+			const roomOwnerId = typeof data.host?.id === "string" ? data.host.id : "";
+			if (roomOwnerId && targetUserId === roomOwnerId && uid !== roomOwnerId) return null;
+			const rawSeats = Array.isArray(data.seats) ? data.seats : [];
+			const storedMax = typeof data.maxSeats === "number" && [
+				5,
+				8,
+				16
+			].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, sanitizeUserLevel(data.host?.level));
+			const maxSeats = Math.max(storedMax, rawSeats.length);
+			const seats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
+			if (typeof seatIndex === "number" && seatIndex >= 0 && seatIndex < seats.length && roomOwnerId && seats[seatIndex]?.id === roomOwnerId && uid !== roomOwnerId) return null;
 			const clearedIndices = /* @__PURE__ */ new Set();
 			if (typeof seatIndex === "number" && seatIndex >= 0 && seatIndex < maxSeats) {
-				seats[seatIndex] = null;
-				clearedIndices.add(seatIndex);
+				if (!roomOwnerId || seats[seatIndex]?.id !== roomOwnerId || uid === roomOwnerId) {
+					seats[seatIndex] = null;
+					clearedIndices.add(seatIndex);
+				}
 			}
 			for (let i = 0; i < seats.length; i++) if (seats[i]?.id === targetUserId) {
-				seats[i] = null;
-				clearedIndices.add(i);
+				if (!roomOwnerId || seats[i]?.id !== roomOwnerId || uid === roomOwnerId) {
+					seats[i] = null;
+					clearedIndices.add(i);
+				}
 			}
 			const existingMuted = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
 			const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx) && mIdx < maxSeats);
-			const isHostActor = data.host?.id === uid;
+			const isHostActor = roomOwnerId === uid;
 			if (isHostActor) tx.update(roomRef, {
-				maxSeats,
 				seats,
 				mutedSeatIndices: nextMuted
 			});
@@ -9167,9 +10430,11 @@ function isKickRecordActive(kick, now = Date.now()) {
 * - 'session' kick blocks re-entry only for that exact active roomId.
 * - '24h' | '15d' | '30d' kicks block re-entry to that roomId OR any room by that host until expiresAt.
 */
-function getActiveKickForRoom(kicks, roomId, hostId, now = Date.now()) {
+function getActiveKickForRoom(kicks, roomId, hostId, now = Date.now(), currentUserId) {
+	if (currentUserId && hostId && currentUserId === hostId) return null;
 	for (const kick of kicks) {
 		if (!isKickRecordActive(kick, now)) continue;
+		if (hostId && kick.targetUserId === hostId) continue;
 		if (kick.durationType === "session") {
 			if (kick.roomId === roomId) return kick;
 		} else if (kick.roomId === roomId || hostId && kick.hostId === hostId) return kick;
@@ -9229,8 +10494,18 @@ async function kickUserFromRoom(params) {
 	};
 	if (hostId === targetUser.id) return {
 		success: false,
-		error: "You cannot kick yourself."
+		error: "Room owner cannot be kicked."
 	};
+	if (auth.currentUser) try {
+		const roomSnap = await getDoc(doc(db, "party_rooms", roomId));
+		if (roomSnap.exists()) {
+			const ownerId = roomSnap.data()?.host?.id;
+			if (ownerId && ownerId === targetUser.id) return {
+				success: false,
+				error: "Room owner cannot be kicked."
+			};
+		}
+	} catch {}
 	const opt = ROOM_KICK_OPTIONS.find((o) => o.type === durationType) || ROOM_KICK_OPTIONS[0];
 	const now = Date.now();
 	const expiresAt = opt.durationMs ? now + opt.durationMs : null;
@@ -16096,6 +17371,7 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 			if (entry?.user?.id) rankingLookup.set(entry.user.id, entry);
 		});
 		liveStreams.forEach((stream) => {
+			if (!stream || stream.isLive !== true || stream.status === "closed" || stream.status === "empty" || stream.hostPresent === false) return;
 			if (!isOriginalRealHost(stream.host)) return;
 			const viewers = Number(stream.numericViewers ?? 0) || 0;
 			const likes = Number(stream.likesCount ?? 0) || 0;
@@ -16141,6 +17417,7 @@ var HomeScreen = ({ currentUser, liveStreams, partyRooms, topBroadcasters = [], 
 		topBroadcasters
 	]);
 	const filteredStreams = liveStreams.filter((stream) => {
+		if (!stream || stream.isLive !== true || stream.status === "closed" || stream.status === "empty" || stream.hostPresent === false) return false;
 		if (activeTab === "following") return Boolean(stream.host.isFollowing);
 		return true;
 	});
@@ -18026,6 +19303,8 @@ var AgoraRtcService = class {
 		this.isPublishingVideoFlag = false;
 		this.activeJoinPromise = null;
 		this.activeLeavePromise = null;
+		this.roleSwitchQueue = Promise.resolve();
+		this.inFlightSubscribes = /* @__PURE__ */ new Map();
 		this.isLeaving = false;
 		this.isRenewingToken = false;
 		this.backendUnavailableUntil = 0;
@@ -18073,9 +19352,10 @@ var AgoraRtcService = class {
 			mode: "unconfigured"
 		};
 		try {
-			const res = await apiFetch("/api/agora/config", { timeoutMs: 2200 });
+			const res = await apiFetch("/api/agora/config", { timeoutMs: 5e3 });
 			if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
 				const data = await res.json();
+				this.backendUnavailableUntil = 0;
 				return {
 					configured: Boolean(data.configured && data.appId),
 					appId: String(data.appId || ""),
@@ -18084,9 +19364,9 @@ var AgoraRtcService = class {
 					mode: data.mode
 				};
 			}
-			if (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json")) this.backendUnavailableUntil = Date.now() + 25e3;
+			if (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json")) this.backendUnavailableUntil = Date.now() + 4e3;
 		} catch (e) {
-			this.backendUnavailableUntil = Date.now() + 25e3;
+			this.backendUnavailableUntil = Date.now() + 4e3;
 			console.warn("[Agora RTC] Failed to fetch Agora config:", e);
 		}
 		return {
@@ -18104,12 +19384,15 @@ var AgoraRtcService = class {
 			token: null,
 			appId: "",
 			configured: false,
-			error: "Agora token backend temporarily unavailable (using fast WebRTC fallback)"
+			error: "Agora token backend temporarily unavailable"
 		};
-		try {
+		const effectiveTimeout = Math.max(timeoutMs ?? 0, isRefresh ? 6e3 : 5e3);
+		const maxAttempts = isRefresh ? 2 : 2;
+		let lastError = "Token request failed";
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) try {
 			const res = await apiFetch(isRefresh ? "/api/agora/refresh-token" : "/api/agora/token", {
 				method: "POST",
-				timeoutMs: timeoutMs ?? (isRefresh ? 5e3 : 2e3),
+				timeoutMs: effectiveTimeout,
 				body: JSON.stringify({
 					channelName,
 					uid: userAccount,
@@ -18117,12 +19400,17 @@ var AgoraRtcService = class {
 				})
 			});
 			if (!res.ok || !res.headers.get("content-type")?.includes("application/json")) {
-				if (!isRefresh && (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json"))) this.backendUnavailableUntil = Date.now() + 25e3;
+				lastError = await res.text().catch(() => "") || `Agora token endpoint returned ${res.status}`;
+				if (attempt < maxAttempts) {
+					await new Promise((r) => setTimeout(r, 350));
+					continue;
+				}
+				if (!isRefresh && (res.status >= 500 || !res.headers.get("content-type")?.includes("application/json"))) this.backendUnavailableUntil = Date.now() + 4e3;
 				return {
 					token: null,
 					appId: "",
 					configured: false,
-					error: await res.text().catch(() => "") || `Agora token endpoint returned ${res.status}`
+					error: lastError
 				};
 			}
 			const data = await res.json();
@@ -18136,15 +19424,20 @@ var AgoraRtcService = class {
 				error: data.error
 			};
 		} catch (err) {
-			if (!isRefresh) this.backendUnavailableUntil = Date.now() + 25e3;
-			console.warn("[Agora RTC] Failed to request RTC token:", err?.message || err);
-			return {
-				token: null,
-				appId: "",
-				configured: false,
-				error: err?.message || "Token request failed"
-			};
+			lastError = err?.message || "Token request failed";
+			if (attempt < maxAttempts) {
+				await new Promise((r) => setTimeout(r, 350));
+				continue;
+			}
+			if (!isRefresh) this.backendUnavailableUntil = Date.now() + 4e3;
+			console.warn("[Agora RTC] Failed to request RTC token:", lastError);
 		}
+		return {
+			token: null,
+			appId: "",
+			configured: false,
+			error: lastError
+		};
 	}
 	/**
 	* Initialize or retrieve the single shared Agora RTC Client
@@ -18160,40 +19453,75 @@ var AgoraRtcService = class {
 		return this.client;
 	}
 	async handleRemoteSubscribe(client, user, mediaType) {
-		try {
-			await client.subscribe(user, mediaType);
-			const key = String(user.uid);
-			let remote = this.remoteHosts.get(key);
-			if (!remote) {
-				remote = {
-					uid: user.uid,
-					hasVideo: false,
-					hasAudio: false,
-					isCameraOn: false,
-					isMicMuted: false
-				};
-				this.remoteHosts.set(key, remote);
-			}
-			if (mediaType === "video") {
-				remote.videoTrack = user.videoTrack;
-				remote.hasVideo = Boolean(user.videoTrack);
-				remote.isCameraOn = Boolean(user.videoTrack);
-			}
-			if (mediaType === "audio") {
-				remote.audioTrack = user.audioTrack;
-				remote.hasAudio = Boolean(user.audioTrack);
-				remote.isMicMuted = false;
-				if (!this.isSpeakerMuted && user.audioTrack) try {
-					user.audioTrack.play();
-				} catch (e) {
-					console.warn("[Agora RTC] Remote audio play blocked:", e);
-					this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+		if (!user || user.uid === void 0 || user.uid === null) return;
+		const key = String(user.uid);
+		const lockKey = `${key}:${mediaType}`;
+		const existingPromise = this.inFlightSubscribes.get(lockKey);
+		if (existingPromise) return existingPromise;
+		const op = (async () => {
+			for (let attempt = 1; attempt <= 2; attempt++) try {
+				if (this.client !== client || client.connectionState !== "CONNECTED") return;
+				if (!(mediaType === "audio" && Boolean(user.audioTrack) || mediaType === "video" && Boolean(user.videoTrack))) await client.subscribe(user, mediaType);
+				let remote = this.remoteHosts.get(key);
+				if (!remote) {
+					remote = {
+						uid: user.uid,
+						hasVideo: false,
+						hasAudio: false,
+						isCameraOn: false,
+						isMicMuted: false
+					};
+					this.remoteHosts.set(key, remote);
 				}
+				if (mediaType === "video") {
+					remote.videoTrack = user.videoTrack;
+					remote.hasVideo = Boolean(user.videoTrack);
+					remote.isCameraOn = Boolean(user.videoTrack);
+				}
+				if (mediaType === "audio") {
+					remote.audioTrack = user.audioTrack;
+					remote.hasAudio = Boolean(user.audioTrack);
+					remote.isMicMuted = false;
+					if (!this.isSpeakerMuted && user.audioTrack) try {
+						const playResult = user.audioTrack.play();
+						if (playResult && typeof playResult.catch === "function") playResult.catch((e) => {
+							console.warn("[Agora RTC] Remote audio play promise rejected:", e);
+							this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+						});
+					} catch (e) {
+						console.warn("[Agora RTC] Remote audio play blocked:", e);
+						this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+					}
+				}
+				this.notifyRemoteTrackListeners(remote);
+				return;
+			} catch (err) {
+				if (attempt < 2 && this.client === client && client.connectionState === "CONNECTED") {
+					await new Promise((r) => setTimeout(r, 250 * attempt));
+					continue;
+				}
+				console.warn(`[Agora RTC] Subscribe ${mediaType} warning for uid=${user?.uid}:`, err);
 			}
-			this.notifyRemoteTrackListeners(remote);
-		} catch (err) {
-			console.warn(`[Agora RTC] Subscribe ${mediaType} warning for uid=${user?.uid}:`, err);
+		})().finally(() => {
+			if (this.inFlightSubscribes.get(lockKey) === op) this.inFlightSubscribes.delete(lockKey);
+		});
+		this.inFlightSubscribes.set(lockKey, op);
+		return op;
+	}
+	/**
+	* Sweep all remote users in the active channel to guarantee every published audio/video track
+	* is subscribed and playing (critical for multi-participant rooms and post-reconnect recovery).
+	*/
+	async syncAllRemoteSubscriptions() {
+		const client = this.client;
+		if (!client || client.connectionState !== "CONNECTED" || !Array.isArray(client.remoteUsers)) return;
+		const tasks = [];
+		for (const remoteUser of client.remoteUsers) {
+			if (remoteUser.hasAudio) tasks.push(this.handleRemoteSubscribe(client, remoteUser, "audio"));
+			if (remoteUser.hasVideo) tasks.push(this.handleRemoteSubscribe(client, remoteUser, "video"));
 		}
+		if (tasks.length > 0) await Promise.allSettled(tasks);
+		this.resumeRemoteAudio();
 	}
 	async renewCurrentToken(client) {
 		if (this.isRenewingToken || !this.currentChannel || !this.currentUserAccount) return;
@@ -18236,6 +19564,9 @@ var AgoraRtcService = class {
 					remote.isCameraOn = false;
 				}
 				if (mediaType === "audio") {
+					try {
+						remote.audioTrack?.stop();
+					} catch {}
 					remote.audioTrack = void 0;
 					remote.hasAudio = false;
 					remote.isMicMuted = true;
@@ -18244,11 +19575,16 @@ var AgoraRtcService = class {
 			}
 		});
 		client.on("user-left", (user) => {
-			this.remoteHosts.delete(String(user.uid));
+			const key = String(user.uid);
+			const existing = this.remoteHosts.get(key);
+			if (existing?.audioTrack) try {
+				existing.audioTrack.stop();
+			} catch {}
+			this.remoteHosts.delete(key);
 			this.onUserLeftCallbacks.forEach((cb) => cb(user.uid));
 		});
-		client.on("connection-state-change", (curState, _revState, reason) => {
-			console.log(`[Agora RTC] Connection state -> ${curState} (reason: ${reason || "normal"})`);
+		client.on("connection-state-change", (curState, prevState, reason) => {
+			console.log(`[Agora RTC] Connection state ${prevState} -> ${curState} (reason: ${reason || "normal"})`);
 			this.notifyStatusListeners({
 				state: curState,
 				reason,
@@ -18256,6 +19592,10 @@ var AgoraRtcService = class {
 				channelName: this.currentChannel || "",
 				uid: this.currentUid || this.currentUserAccount || ""
 			});
+			if (curState === "CONNECTED" && (prevState === "RECONNECTING" || prevState === "CONNECTING")) {
+				this.syncAllRemoteSubscriptions();
+				if (this.currentRole === "host" && (!this.isPublishingAudioFlag || !this.localAudioTrack)) this.ensureLocalAudioPublished(this.isMicMuted);
+			}
 		});
 		client.on("token-privilege-will-expire", () => {
 			this.renewCurrentToken(client);
@@ -18286,26 +19626,46 @@ var AgoraRtcService = class {
 		const facing = options?.isFront ?? this.isFrontCamera;
 		this.isFrontCamera = facing;
 		const shouldEnableVideo = options?.enableVideo !== false;
-		const shouldEnableAudio = options?.enableAudio !== false;
-		if (options?.mediaStream) {
-			const liveAudioTrack = options.mediaStream.getAudioTracks().find((t) => t.readyState === "live");
-			const liveVideoTrack = options.mediaStream.getVideoTracks().find((t) => t.readyState === "live");
-			if (shouldEnableAudio && liveAudioTrack) try {
-				if (this.localAudioTrack) {
-					try {
-						this.localAudioTrack.stop();
-						this.localAudioTrack.close();
-					} catch {}
-					this.localAudioTrack = null;
-				}
-				const clonedAudio = liveAudioTrack.clone();
-				clonedAudio.enabled = !this.isMicMuted;
-				this.localAudioTrack = import_AgoraRTC_N_production.default.createCustomAudioTrack({ mediaStreamTrack: clonedAudio });
-				this.micPermissionDenied = false;
-			} catch (err) {
-				console.warn("[Agora RTC] Could not create custom audio track from stream:", err?.message || err);
+		if (options?.enableAudio !== false) {
+			if (this.localAudioTrack) {
+				try {
+					this.localAudioTrack.stop();
+					this.localAudioTrack.close();
+				} catch {}
+				this.localAudioTrack = null;
 			}
-			if (shouldEnableVideo && liveVideoTrack) try {
+			try {
+				this.localAudioTrack = await import_AgoraRTC_N_production.default.createMicrophoneAudioTrack({
+					encoderConfig: "speech_standard",
+					AEC: true,
+					ANS: true,
+					AGC: true
+				});
+				await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+				this.micPermissionDenied = false;
+			} catch (nativeErr) {
+				const liveAudioTrack = options?.mediaStream?.getAudioTracks().find((t) => t.readyState === "live");
+				if (liveAudioTrack) try {
+					const clonedAudio = liveAudioTrack.clone();
+					clonedAudio.enabled = !this.isMicMuted;
+					this.localAudioTrack = import_AgoraRTC_N_production.default.createCustomAudioTrack({ mediaStreamTrack: clonedAudio });
+					await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+					this.micPermissionDenied = false;
+				} catch (customErr) {
+					console.warn("[Agora RTC] Fallback custom audio track failed:", customErr?.message || customErr);
+					this.localAudioTrack = null;
+					this.micPermissionDenied = true;
+				}
+				else {
+					console.warn("[Agora RTC] Microphone permission not granted or device unavailable:", nativeErr?.message || nativeErr);
+					this.localAudioTrack = null;
+					this.micPermissionDenied = true;
+				}
+			}
+		}
+		if (shouldEnableVideo) {
+			const liveVideoTrack = options?.mediaStream?.getVideoTracks().find((t) => t.readyState === "live");
+			if (liveVideoTrack) try {
 				if (this.localVideoTrack) {
 					try {
 						this.localVideoTrack.stop();
@@ -18320,58 +19680,41 @@ var AgoraRtcService = class {
 			} catch (err) {
 				console.warn("[Agora RTC] Could not create custom video track from stream:", err?.message || err);
 			}
-			if (shouldEnableAudio && this.localAudioTrack || shouldEnableVideo && this.localVideoTrack) return {
-				videoTrack: this.localVideoTrack,
-				audioTrack: this.localAudioTrack,
-				hasAudio: Boolean(this.localAudioTrack),
-				hasVideo: Boolean(this.localVideoTrack)
-			};
-		}
-		if (shouldEnableVideo) await this.enumerateVideoDevices();
-		if (shouldEnableAudio && !this.localAudioTrack) try {
-			this.localAudioTrack = await import_AgoraRTC_N_production.default.createMicrophoneAudioTrack({
-				AEC: true,
-				ANS: true,
-				AGC: true
-			});
-			if (this.isMicMuted) await this.localAudioTrack.setEnabled(false).catch(() => {});
-			this.micPermissionDenied = false;
-		} catch (err) {
-			console.warn("[Agora RTC] Microphone permission not granted or device unavailable:", err?.message || err);
-			this.localAudioTrack = null;
-			this.micPermissionDenied = true;
-		}
-		if (shouldEnableVideo && !this.localVideoTrack) try {
-			let chosenCameraId;
-			if (this.availableCameras.length > 0) {
-				const searchTerms = facing ? [
-					"front",
-					"user",
-					"face"
-				] : [
-					"back",
-					"rear",
-					"environment"
-				];
-				const matched = this.availableCameras.find((cam) => searchTerms.some((t) => cam.label.toLowerCase().includes(t)));
-				if (matched) chosenCameraId = matched.deviceId;
-			}
-			this.localVideoTrack = await import_AgoraRTC_N_production.default.createCameraVideoTrack({
-				cameraId: chosenCameraId,
-				facingMode: facing ? "user" : "environment",
-				encoderConfig: {
-					width: 1280,
-					height: 720,
-					frameRate: 30,
-					bitrateMin: 600,
-					bitrateMax: 1500
+			if (!this.localVideoTrack) {
+				await this.enumerateVideoDevices();
+				try {
+					let chosenCameraId;
+					if (this.availableCameras.length > 0) {
+						const searchTerms = facing ? [
+							"front",
+							"user",
+							"face"
+						] : [
+							"back",
+							"rear",
+							"environment"
+						];
+						const matched = this.availableCameras.find((cam) => searchTerms.some((t) => cam.label.toLowerCase().includes(t)));
+						if (matched) chosenCameraId = matched.deviceId;
+					}
+					this.localVideoTrack = await import_AgoraRTC_N_production.default.createCameraVideoTrack({
+						cameraId: chosenCameraId,
+						facingMode: facing ? "user" : "environment",
+						encoderConfig: {
+							width: 1280,
+							height: 720,
+							frameRate: 30,
+							bitrateMin: 600,
+							bitrateMax: 1500
+						}
+					});
+					this.cameraPermissionDenied = false;
+				} catch (err) {
+					console.warn("[Agora RTC] Camera permission not granted or device unavailable:", err?.message || err);
+					this.localVideoTrack = null;
+					this.cameraPermissionDenied = true;
 				}
-			});
-			this.cameraPermissionDenied = false;
-		} catch (err) {
-			console.warn("[Agora RTC] Camera permission not granted or device unavailable:", err?.message || err);
-			this.localVideoTrack = null;
-			this.cameraPermissionDenied = true;
+			}
 		}
 		return {
 			videoTrack: this.localVideoTrack,
@@ -18419,10 +19762,7 @@ var AgoraRtcService = class {
 			const uid = await client.join(targetAppId, params.channelName, targetToken || null, params.userAccount);
 			this.currentUid = uid;
 			console.log(`[Agora RTC] Joined channel=${params.channelName} role=${params.role} uid=${uid}`);
-			if (client.remoteUsers && client.remoteUsers.length > 0) for (const remoteUser of client.remoteUsers) {
-				if (remoteUser.hasVideo) await this.handleRemoteSubscribe(client, remoteUser, "video");
-				if (remoteUser.hasAudio) await this.handleRemoteSubscribe(client, remoteUser, "audio");
-			}
+			await this.syncAllRemoteSubscriptions();
 			if (params.role === "host") {
 				await this.createLocalTracks({
 					isFront: params.isFront ?? this.isFrontCamera,
@@ -18437,9 +19777,17 @@ var AgoraRtcService = class {
 					await client.publish(tracksToPublish);
 					this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
 					this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+					if (this.localAudioTrack) await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
 					console.log("[Agora RTC] Published local tracks:", tracksToPublish.map((t) => t.trackMediaType));
 				} catch (pubErr) {
-					console.warn("[Agora RTC] Warning publishing local tracks:", pubErr);
+					console.warn("[Agora RTC] Warning publishing local tracks (retrying once):", pubErr);
+					await new Promise((r) => setTimeout(r, 300));
+					if (client.connectionState === "CONNECTED") await client.publish(tracksToPublish).then(() => {
+						this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+						this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+					}).catch((retryErr) => {
+						console.warn("[Agora RTC] Retry publish warning:", retryErr);
+					});
 				}
 			}
 			return uid;
@@ -18459,76 +19807,114 @@ var AgoraRtcService = class {
 	}
 	/**
 	* Dynamically switch client role (Host <-> Audience) for Party Live seat actions.
-	* Waits for any in-flight join, renews broadcaster token before promoting role,
-	* and avoids destructive track churn if already publishing in the target role.
+	* Serialized via roleSwitchQueue so rapid seat updates never race or drop audio publishing.
 	*/
 	async switchRole(newRole, options) {
-		if (this.activeJoinPromise) try {
-			await this.activeJoinPromise;
-		} catch {
-			return false;
-		}
-		if (!this.client || this.client.connectionState !== "CONNECTED") {
-			console.warn("[Agora RTC] switchRole skipped: client not connected");
-			return false;
-		}
-		if (newRole === "host" && this.currentRole === "host" && this.isPublishingAudioFlag && this.localAudioTrack && !options?.forceRepublish) return true;
-		if (newRole === "audience" && this.currentRole === "audience" && !this.localAudioTrack && !this.localVideoTrack) return true;
-		try {
-			if (newRole === "host") {
-				let freshToken = options?.token ?? null;
-				if (!freshToken && this.currentChannel && this.currentUserAccount) freshToken = (await this.requestRtcToken(this.currentChannel, this.currentUserAccount, "broadcaster", true)).token;
-				if (freshToken) try {
-					await this.client.renewToken(freshToken);
-				} catch (renewErr) {
-					console.warn("[Agora RTC] Token renewal notice before host promotion:", renewErr);
-				}
-				const oldTracks = [];
-				if (this.localAudioTrack) oldTracks.push(this.localAudioTrack);
-				if (this.localVideoTrack) oldTracks.push(this.localVideoTrack);
-				if (oldTracks.length > 0) {
-					try {
-						await this.client.unpublish(oldTracks);
-					} catch {}
-					this.stopLocalTracks();
-				}
-				this.currentRole = "host";
-				await this.client.setClientRole("host");
-				await this.createLocalTracks({
-					isFront: options?.isFront ?? this.isFrontCamera,
-					enableVideo: options?.enableVideo ?? false,
-					enableAudio: options?.enableAudio ?? true,
-					mediaStream: options?.mediaStream ?? null
-				});
-				const tracks = [];
-				if (this.localAudioTrack && options?.enableAudio !== false) tracks.push(this.localAudioTrack);
-				if (this.localVideoTrack && options?.enableVideo === true) tracks.push(this.localVideoTrack);
-				if (tracks.length > 0 && this.client.connectionState === "CONNECTED") {
-					await this.client.publish(tracks);
-					this.isPublishingAudioFlag = Boolean(this.localAudioTrack && options?.enableAudio !== false);
-					this.isPublishingVideoFlag = Boolean(this.localVideoTrack && options?.enableVideo === true);
-					console.log("[Agora RTC] Role upgraded to broadcaster, published tracks:", tracks.map((t) => t.trackMediaType));
-				}
-				return true;
-			} else {
-				const tracksToUnpublish = [];
-				if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
-				if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
-				if (tracksToUnpublish.length > 0) try {
-					await this.client.unpublish(tracksToUnpublish);
-				} catch (e) {
-					console.warn("[Agora RTC] Unpublish warning on role downgrade:", e);
-				}
-				this.stopLocalTracks();
-				this.currentRole = "audience";
-				await this.client.setClientRole("audience", { level: 1 });
-				console.log("[Agora RTC] Role downgraded to ultra-low-latency audience");
-				return true;
+		const runSwitch = async () => {
+			if (this.activeJoinPromise) try {
+				await this.activeJoinPromise;
+			} catch {
+				return false;
 			}
-		} catch (err) {
-			console.warn("[Agora RTC] Error switching role:", err?.message || err);
-			return false;
+			if (!this.client || this.client.connectionState !== "CONNECTED") {
+				console.warn("[Agora RTC] switchRole skipped: client not connected");
+				return false;
+			}
+			if (newRole === "host") {
+				const wantAudio = options?.enableAudio !== false;
+				this.isMicMuted = !wantAudio;
+				if (this.currentRole === "host" && this.isPublishingAudioFlag && this.localAudioTrack && !options?.forceRepublish) {
+					await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+					this.syncAllRemoteSubscriptions();
+					return true;
+				}
+			} else if (this.currentRole === "audience" && !this.localAudioTrack && !this.localVideoTrack) return true;
+			try {
+				if (newRole === "host") {
+					let freshToken = options?.token ?? null;
+					if (!freshToken && this.currentChannel && this.currentUserAccount) freshToken = (await this.requestRtcToken(this.currentChannel, this.currentUserAccount, "broadcaster", true)).token;
+					if (freshToken && this.client) try {
+						await this.client.renewToken(freshToken);
+					} catch (renewErr) {
+						console.warn("[Agora RTC] Token renewal notice before host promotion:", renewErr);
+					}
+					const oldTracks = [];
+					if (this.localAudioTrack) oldTracks.push(this.localAudioTrack);
+					if (this.localVideoTrack) oldTracks.push(this.localVideoTrack);
+					if (oldTracks.length > 0 && this.client) {
+						try {
+							await this.client.unpublish(oldTracks);
+						} catch {}
+						this.stopLocalTracks();
+					}
+					this.currentRole = "host";
+					await this.client.setClientRole("host");
+					await this.createLocalTracks({
+						isFront: options?.isFront ?? this.isFrontCamera,
+						enableVideo: options?.enableVideo ?? false,
+						enableAudio: true,
+						mediaStream: options?.mediaStream ?? null
+					});
+					const tracks = [];
+					if (this.localAudioTrack) tracks.push(this.localAudioTrack);
+					if (this.localVideoTrack && options?.enableVideo === true) tracks.push(this.localVideoTrack);
+					if (tracks.length > 0 && this.client.connectionState === "CONNECTED") {
+						try {
+							await this.client.publish(tracks);
+						} catch (pubErr) {
+							console.warn("[Agora RTC] First publish attempt failed on switchRole, retrying:", pubErr);
+							await new Promise((r) => setTimeout(r, 300));
+							if (this.client?.connectionState === "CONNECTED") await this.client.publish(tracks);
+						}
+						this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+						this.isPublishingVideoFlag = Boolean(this.localVideoTrack && options?.enableVideo === true);
+						if (this.localAudioTrack) await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+						console.log("[Agora RTC] Role upgraded to broadcaster, published tracks:", tracks.map((t) => t.trackMediaType));
+					}
+					this.syncAllRemoteSubscriptions();
+					return this.isPublishingAudioFlag;
+				} else {
+					const tracksToUnpublish = [];
+					if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+					if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
+					if (tracksToUnpublish.length > 0 && this.client) try {
+						await this.client.unpublish(tracksToUnpublish);
+					} catch (e) {
+						console.warn("[Agora RTC] Unpublish warning on role downgrade:", e);
+					}
+					this.stopLocalTracks();
+					this.currentRole = "audience";
+					await this.client.setClientRole("audience", { level: 1 });
+					this.syncAllRemoteSubscriptions();
+					console.log("[Agora RTC] Role downgraded to ultra-low-latency audience");
+					return true;
+				}
+			} catch (err) {
+				console.warn("[Agora RTC] Error switching role:", err?.message || err);
+				return false;
+			}
+		};
+		const next = this.roleSwitchQueue.then(runSwitch, runSwitch);
+		this.roleSwitchQueue = next.catch(() => false);
+		return next;
+	}
+	/**
+	* Guarantee that an active host/seated speaker has a live published local audio track.
+	*/
+	async ensureLocalAudioPublished(muted = false) {
+		this.isMicMuted = muted;
+		if (!this.client || this.client.connectionState !== "CONNECTED") return false;
+		if (this.currentRole === "host" && this.isPublishingAudioFlag && this.localAudioTrack) {
+			await this.localAudioTrack.setEnabled(!muted).catch(() => {});
+			return true;
 		}
+		const ok = await this.switchRole("host", {
+			enableVideo: this.isPublishingVideoFlag,
+			enableAudio: !muted,
+			forceRepublish: !this.localAudioTrack || !this.isPublishingAudioFlag
+		});
+		if (this.localAudioTrack) await this.localAudioTrack.setEnabled(!muted).catch(() => {});
+		return ok;
 	}
 	/**
 	* Play local video track directly inside a DOM container or element
@@ -18651,6 +20037,7 @@ var AgoraRtcService = class {
 		} catch (e) {
 			console.warn("[Agora RTC] Error setting microphone muted:", e);
 		}
+		else if (!muted && this.currentRole === "host" && this.client?.connectionState === "CONNECTED") await this.ensureLocalAudioPublished(false);
 	}
 	/**
 	* Mute or unmute remote audio playback locally (Speaker toggle)
@@ -18746,6 +20133,7 @@ var AgoraRtcService = class {
 				this.currentUid = null;
 				this.currentRole = "audience";
 				this.remoteHosts.clear();
+				this.inFlightSubscribes.clear();
 				this.client = null;
 				this.isLeaving = false;
 				this.activeLeavePromise = null;
@@ -18918,6 +20306,7 @@ var WebRtcMediaService = class {
 		this.partyHandledAnswerSessions = /* @__PURE__ */ new Map();
 		this.partyPeerSessions = /* @__PURE__ */ new Map();
 		this.partyRemoteAudioEls = /* @__PURE__ */ new Map();
+		this.sharedPartyAudioCtx = null;
 		this.partyRemoteAnalysers = /* @__PURE__ */ new Map();
 		this.partyVolumeTimer = null;
 		this.partySpeakerMuted = false;
@@ -19662,9 +21051,7 @@ var WebRtcMediaService = class {
 		});
 	}
 	resumePartyRemoteAudio() {
-		this.partyRemoteAnalysers.forEach((entry) => {
-			if (entry.ctx.state === "suspended") entry.ctx.resume().catch(() => {});
-		});
+		if (this.sharedPartyAudioCtx && this.sharedPartyAudioCtx.state === "suspended") this.sharedPartyAudioCtx.resume().catch(() => {});
 		this.partyRemoteAudioEls.forEach((audioEl) => {
 			audioEl.muted = this.partySpeakerMuted;
 			audioEl.volume = 1;
@@ -19783,6 +21170,8 @@ var WebRtcMediaService = class {
 		if (!this.partyRoomId || !this.partyUserId) return;
 		const sessionId = incomingSessionId || makeSessionId("pa");
 		if (this.partyHandledOfferSessions.get(peerId) === sessionId) return;
+		const existingPc = this.partyPeers.get(peerId);
+		if (existingPc && existingPc.signalingState === "have-local-offer" && String(this.partyUserId) > peerId) return;
 		this.partyHandledOfferSessions.set(peerId, sessionId);
 		const pc = this.setupPartyPeerConnection(peerId, "answer", sessionId);
 		try {
@@ -19882,14 +21271,16 @@ var WebRtcMediaService = class {
 		if (!this.partyRemoteAnalysers.has(peerId) && typeof window !== "undefined") try {
 			const AudioCtx = window.AudioContext || window.webkitAudioContext;
 			if (AudioCtx) {
-				const ctx = new AudioCtx();
+				if (!this.sharedPartyAudioCtx || this.sharedPartyAudioCtx.state === "closed") this.sharedPartyAudioCtx = new AudioCtx();
+				const ctx = this.sharedPartyAudioCtx;
+				if (ctx.state === "suspended") ctx.resume().catch(() => {});
 				const source = ctx.createMediaStreamSource(stream);
 				const analyser = ctx.createAnalyser();
 				analyser.fftSize = 256;
 				source.connect(analyser);
 				const data = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
 				this.partyRemoteAnalysers.set(peerId, {
-					ctx,
+					source,
 					analyser,
 					data
 				});
@@ -19921,7 +21312,8 @@ var WebRtcMediaService = class {
 		const analyserEntry = this.partyRemoteAnalysers.get(peerId);
 		if (analyserEntry) {
 			try {
-				analyserEntry.ctx.close();
+				analyserEntry.source.disconnect();
+				analyserEntry.analyser.disconnect();
 			} catch {}
 			this.partyRemoteAnalysers.delete(peerId);
 		}
@@ -19983,10 +21375,17 @@ var WebRtcMediaService = class {
 		this.partyPeerSessions.clear();
 		this.partyRemoteAnalysers.forEach((entry) => {
 			try {
-				entry.ctx.close();
+				entry.source.disconnect();
+				entry.analyser.disconnect();
 			} catch {}
 		});
 		this.partyRemoteAnalysers.clear();
+		if (this.sharedPartyAudioCtx) {
+			try {
+				this.sharedPartyAudioCtx.close();
+			} catch {}
+			this.sharedPartyAudioCtx = null;
+		}
 		this.partyRemoteAudioEls.forEach((audioEl) => {
 			try {
 				audioEl.pause();
@@ -20032,7 +21431,7 @@ var VIDEO_FILTERS = {
 		css: "contrast-[1.3] brightness-[1.05] hue-rotate-[180deg] saturate-[1.35]"
 	}
 };
-var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStream, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK, blockedUserIds = [], blockedByUserIds = [] }) => {
+var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStream, onToggleFollow, onOpenGiftShop, onOpenPK, onSelectUser, activeGiftCelebration, activePKSession, onForfeitPK, onRematchPK, blockedUserIds = [], blockedByUserIds = [], isMinimized = false, onMinimize, exitSignal = 0 }) => {
 	const isActualHost = currentUser.id === stream.host.id;
 	const blockedUserIdsRef = (0, import_react.useRef)(new Set(blockedUserIds));
 	const blockedByUserIdsRef = (0, import_react.useRef)(new Set(blockedByUserIds));
@@ -20485,11 +21884,9 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 				closesAt: nextClosesAt
 			}).catch(() => {});
 		};
-		window.addEventListener("pagehide", cleanupOnUnexpectedLiveExit);
 		window.addEventListener("beforeunload", cleanupOnUnexpectedLiveExit);
 		return () => {
 			active = false;
-			window.removeEventListener("pagehide", cleanupOnUnexpectedLiveExit);
 			window.removeEventListener("beforeunload", cleanupOnUnexpectedLiveExit);
 			clearInterval(heartbeat);
 			if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
@@ -20505,6 +21902,47 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 		currentUser.id,
 		isActualHost
 	]);
+	const lastLiveExitSignalRef = (0, import_react.useRef)(exitSignal);
+	(0, import_react.useEffect)(() => {
+		if (exitSignal > 0 && exitSignal !== lastLiveExitSignalRef.current) {
+			lastLiveExitSignalRef.current = exitSignal;
+			if (isActualHost) {
+				hasExplicitlyLeftLiveRef.current = true;
+				if (audioAnalyserControllerRef.current) {
+					audioAnalyserControllerRef.current.cleanup();
+					audioAnalyserControllerRef.current = null;
+				}
+				if (mediaStreamRef.current) {
+					stopMediaStream(mediaStreamRef.current);
+					mediaStreamRef.current = null;
+				}
+				webrtcMediaService.stopLive();
+				agoraRtcService.leaveChannel().catch(() => {});
+				setNativeLiveAudioMode(false);
+				Promise.all([leaveFirestoreLiveViewer(stream.id).catch(() => {}), liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {})]).finally(() => {
+					onEndLive?.(stream.id);
+					onClose();
+				});
+			} else handleCleanLeaveLive();
+		}
+	}, [
+		exitSignal,
+		isActualHost,
+		stream.id,
+		currentUser.id
+	]);
+	(0, import_react.useEffect)(() => {
+		if (isActualHost || isMuted) return;
+		const unlockLiveAudio = () => {
+			agoraRtcService.resumeRemoteAudio();
+		};
+		window.addEventListener("pointerdown", unlockLiveAudio, { passive: true });
+		window.addEventListener("touchstart", unlockLiveAudio, { passive: true });
+		return () => {
+			window.removeEventListener("pointerdown", unlockLiveAudio);
+			window.removeEventListener("touchstart", unlockLiveAudio);
+		};
+	}, [isActualHost, isMuted]);
 	const startCamera = async (front = isFrontCamera) => {
 		if (isAcquiringRef.current) return mediaStreamRef.current;
 		isAcquiringRef.current = true;
@@ -21261,14 +22699,8 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex flex-col gap-2 pt-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-								className: "flex gap-2",
-								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-									type: "button",
-									onClick: handleCleanLeaveLive,
-									className: "flex-1 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-extrabold transition-colors",
-									children: "Exit Room"
-								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 									type: "button",
 									onClick: async () => {
 										setShowEndLiveConfirm(false);
@@ -21288,15 +22720,25 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 										onEndLive?.(stream.id);
 										onClose();
 									},
-									className: "flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all",
-									children: "End Broadcast"
-								})]
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								onClick: () => setShowEndLiveConfirm(false),
-								className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors",
-								children: "Continue Live"
-							})]
+									className: "w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all",
+									children: "End Broadcast Now"
+								}),
+								onMinimize && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+									type: "button",
+									onClick: () => {
+										setShowEndLiveConfirm(false);
+										onMinimize();
+									},
+									className: "w-full py-2.5 rounded-xl bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 border border-[#00D4FF]/40 text-cyan-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Minimize2, { className: "w-3.5 h-3.5" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Minimize Live (Stay Connected)" })]
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									onClick: () => setShowEndLiveConfirm(false),
+									className: "w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors",
+									children: "Continue Live"
+								})
+							]
 						})
 					]
 				})
@@ -22163,6 +23605,14 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 								className: "w-8 h-8 rounded-full bg-black/55 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/75 transition-colors shrink-0",
 								title: isMuted ? "Unmute" : "Mute",
 								children: isMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(VolumeX, { className: "w-4 h-4 text-rose-400" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Volume2, { className: "w-4 h-4" })
+							}),
+							onMinimize && !isMinimized && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: onMinimize,
+								"aria-label": "Minimize Live Broadcast",
+								className: "w-8 h-8 rounded-full bg-[#071A38]/85 hover:bg-[#0D2B59] backdrop-blur-md border border-[#00D4FF]/55 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,212,255,0.35)] transition-all active:scale-95 shrink-0",
+								title: "Minimize Live (Stay Connected)",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Minimize2, { className: "w-4 h-4" })
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 								type: "button",
@@ -23784,17 +25234,16 @@ var RoomService = class {
 };
 var roomService = new RoomService();
 // src/components/screens/AudioRoomScreen.tsx
-var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWallet, onSelectUser, onUpdateRoom, onCloseRoom, activeGiftCelebration, blockedUserIds = [], blockedByUserIds = [], activeRoomKicks = [], onBlockUser }) => {
+var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWallet, onSelectUser, onUpdateRoom, onCloseRoom, activeGiftCelebration, blockedUserIds = [], blockedByUserIds = [], activeRoomKicks = [], onBlockUser, isMinimized = false, onMinimize, onMiniStateChange, exitSignal = 0, toggleMicSignal = 0 }) => {
 	const isRoomHost = currentUser.id === room.host.id;
 	const [hostModerators, setHostModerators] = (0, import_react.useState)([]);
 	const moderatorIdsSet = new Set(hostModerators.map((m) => m.moderatorUserId));
 	const isCurrentUserModerator = !isRoomHost && moderatorIdsSet.has(currentUser.id);
 	const canModerate = isRoomHost || isCurrentUserModerator;
 	const canModerateTarget = (targetUserId) => {
-		if (!targetUserId || targetUserId === currentUser.id) return false;
+		if (!targetUserId || targetUserId === currentUser.id || targetUserId === room.host.id) return false;
 		if (isRoomHost) return true;
 		if (!isCurrentUserModerator) return false;
-		if (targetUserId === room.host.id) return false;
 		if (moderatorIdsSet.has(targetUserId)) return false;
 		return true;
 	};
@@ -23844,8 +25293,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		onClose
 	]);
 	(0, import_react.useEffect)(() => {
-		if (isRoomHost) return;
-		const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+		if (isRoomHost || currentUser.id === room.host.id) return;
+		const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id, Date.now(), currentUser.id);
 		if (activeKick) {
 			hasExplicitlyLeftRef.current = true;
 			webrtcMediaService.stopPartyVoice();
@@ -23885,6 +25334,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [requestTargetSeat, setRequestTargetSeat] = (0, import_react.useState)(null);
 	const [showRequestConfirmModal, setShowRequestConfirmModal] = (0, import_react.useState)(false);
 	const [showInviteToSeatModal, setShowInviteToSeatModal] = (0, import_react.useState)(null);
+	const [inviteModalTab, setInviteModalTab] = (0, import_react.useState)("room");
+	const [inviteSearchQuery, setInviteSearchQuery] = (0, import_react.useState)("");
+	const [invitableUsers, setInvitableUsers] = (0, import_react.useState)([]);
+	const [inviteUsersLoading, setInviteUsersLoading] = (0, import_react.useState)(false);
+	const [invitedUserIds, setInvitedUserIds] = (0, import_react.useState)({});
 	const [incomingSeatInvite, setIncomingSeatInvite] = (0, import_react.useState)(null);
 	const [selectedSeatMember, setSelectedSeatMember] = (0, import_react.useState)(null);
 	const [showKickDurationPicker, setShowKickDurationPicker] = (0, import_react.useState)(false);
@@ -24051,31 +25505,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		room.host.id
 	]);
 	(0, import_react.useEffect)(() => {
-		const safeMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
-		const sanitized = normalizeSeats(seatsRef.current, safeMax, hostLevel);
-		const hadInvalidLength = seatsRef.current.length !== safeMax;
-		const hadLockedSeatOccupant = isSeatLockedByHostLevel(1, hostLevel) && Boolean(seatsRef.current[1]);
+		const occupiedCount = seatsRef.current.length;
+		const desiredMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
+		const safeMax = occupiedCount >= 16 ? 16 : occupiedCount >= 8 ? Math.max(8, desiredMax) : desiredMax;
 		if (safeMax !== maxSeatsRef.current) {
 			setMaxSeats(safeMax);
 			maxSeatsRef.current = safeMax;
 		}
-		if (hadInvalidLength || hadLockedSeatOccupant) {
-			setSeats(sanitized);
-			seatsRef.current = sanitized;
-			setMutedSeatIndices((prev) => prev.filter((idx) => idx < safeMax));
-		}
 		if (isRoomHost) {
-			const storedHostLevel = sanitizeUserLevel(room.host?.level);
-			const storedMaxSeats = Number(room.maxSeats);
-			if (hadInvalidLength || hadLockedSeatOccupant || storedHostLevel !== hostLevel || storedMaxSeats > safeMax) syncFirestorePartyRoomState(room.id, true, {
+			if (sanitizeUserLevel(room.host?.level) !== hostLevel) syncFirestorePartyRoomState(room.id, true, {
 				host: {
 					...room.host,
 					...currentUser,
 					level: hostLevel
 				},
-				hostLevel,
-				maxSeats: safeMax,
-				seats: sanitized
+				hostLevel
 			});
 		}
 	}, [
@@ -24145,13 +25589,25 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		liveAndRoomService.setCurrentUser(currentUser.id);
 		liveAndRoomService.subscribeRoom(room.id, currentUser.id);
 		joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, seatsRef.current.some((s) => s?.id === currentUser.id));
-		const applyServerRoomState = (nextRoom) => {
+		const applyServerRoomState = (nextRoom, allowSeatClear = false) => {
 			const effectiveLevel = isRoomHost ? hostLevelRef.current : typeof nextRoom.host?.level === "number" ? sanitizeUserLevel(nextRoom.host.level) : hostLevelRef.current;
 			if (!isRoomHost && typeof nextRoom.host?.level === "number") setLiveHostLevel(effectiveLevel);
-			const nextMax = clampPartyMaxSeatsForHostLevel(nextRoom.maxSeats ?? maxSeatsRef.current, effectiveLevel);
-			const nextSeats = normalizeSeats(nextRoom.seats, nextMax, effectiveLevel);
+			const incomingMax = [
+				5,
+				8,
+				16
+			].includes(Number(nextRoom.maxSeats)) ? Number(nextRoom.maxSeats) : clampPartyMaxSeatsForHostLevel(nextRoom.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+			const nextMax = Math.max(incomingMax, maxSeatsRef.current, Array.isArray(nextRoom.seats) ? nextRoom.seats.length : 0);
+			const incomingSeatsRaw = Array.isArray(nextRoom.seats) ? nextRoom.seats : [];
+			const currentSeats = seatsRef.current;
+			const mergedSeats = Array.from({ length: nextMax }, (_, idx) => {
+				const inc = incomingSeatsRaw[idx] || null;
+				if (inc) return inc;
+				if (!allowSeatClear && currentSeats[idx]) return currentSeats[idx];
+				return null;
+			});
 			setMaxSeats(nextMax);
-			setSeats(nextSeats);
+			setSeats(mergedSeats);
 			if (Array.isArray(nextRoom.mutedSeatIndices)) setMutedSeatIndices(nextRoom.mutedSeatIndices.filter((i) => i < nextMax));
 			setIsSeatLocked(Boolean(nextRoom.isLocked));
 			setIsAllowJoin(nextRoom.allowJoin !== false);
@@ -24164,7 +25620,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			onUpdateRoom?.({
 				...nextRoom,
 				maxSeats: nextMax,
-				seats: nextSeats
+				seats: mergedSeats
 			});
 		};
 		const refreshRealTimeParticipants = () => {
@@ -24332,9 +25788,18 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				roomDocEverExisted = true;
 				const effectiveLevel = isRoomHost ? hostLevelRef.current : typeof data.host?.level === "number" ? sanitizeUserLevel(data.host.level) : hostLevelRef.current;
 				if (!isRoomHost && typeof data.host?.level === "number") setLiveHostLevel(effectiveLevel);
-				const nextMax = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+				const rawFsSeats = Array.isArray(data.seats) ? data.seats : [];
+				const storedFsMax = [
+					5,
+					8,
+					16
+				].includes(Number(data.maxSeats)) ? Number(data.maxSeats) : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+				const nextMax = Math.max(storedFsMax, rawFsSeats.length);
 				setMaxSeats(nextMax);
-				if (Array.isArray(data.seats)) setSeats(normalizeSeats(data.seats, nextMax, effectiveLevel));
+				if (Array.isArray(data.seats)) {
+					const preservedSeats = Array.from({ length: nextMax }, (_, idx) => rawFsSeats[idx] || null);
+					setSeats(preservedSeats);
+				}
 				if (Array.isArray(data.mutedSeatIndices)) setMutedSeatIndices(data.mutedSeatIndices.filter((i) => i < nextMax));
 				if (Array.isArray(data.seatRequests)) {
 					const filteredFsRequests = data.seatRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id)));
@@ -24402,7 +25867,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			}
 			if (payload.roomId && payload.roomId !== room.id) return;
 			if ((event === "room:updated" || event === "room:state_updated" || event === "room:sync_state" || event === "room:settings_updated" || event === "room:seat_occupied" || event === "room:seat_vacated" || event === "room:empty_countdown_started" || event === "room:reactivated") && payload.room) {
-				applyServerRoomState(payload.room);
+				applyServerRoomState(payload.room, event === "room:seat_vacated");
 				if (Array.isArray(payload.participants)) {
 					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
 					setParticipantsList(filtered);
@@ -24513,8 +25978,19 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			} else if (event === "room:seat_request_rejected") {
 				hadPendingSeatReqRef.current = false;
 				showToast("Host declined your seat request");
+			} else if (event === "room:seat_invited") {
+				if (payload.toUserId === currentUser.id && !isCurrentlySeated) {
+					setIncomingSeatInvite({
+						id: payload.id || `inv_${Date.now()}`,
+						fromHost: payload.fromHost || room.host,
+						toUser: currentUser,
+						seatIndex: typeof payload.seatIndex === "number" ? payload.seatIndex : 1,
+						sentAt: payload.createdAt || Date.now()
+					});
+					showToast(`${payload.fromHost?.name || room.host.name} invited you to Seat #${(payload.seatIndex ?? 1) + 1}`);
+				}
 			} else if (event === "room:seat_kicked") {
-				if (!isRoomHost) {
+				if (!isRoomHost && currentUser.id !== room.host.id) {
 					const now = Date.now();
 					if (now - kickedToastShownAtRef.current > 2500) {
 						kickedToastShownAtRef.current = now;
@@ -24588,11 +26064,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => {});
 			leaveFirestoreRoomParticipant(room.id).catch(() => {});
 		};
-		window.addEventListener("pagehide", cleanupOnUnexpectedExit);
 		window.addEventListener("beforeunload", cleanupOnUnexpectedExit);
 		return () => {
 			active = false;
-			window.removeEventListener("pagehide", cleanupOnUnexpectedExit);
 			window.removeEventListener("beforeunload", cleanupOnUnexpectedExit);
 			clearInterval(heartbeatInterval);
 			if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
@@ -24637,7 +26111,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					if (isMounted) setMicPermissionDenied(true);
 					return null;
 				}) : Promise.resolve(realMicStreamRef.current);
-				const tokenPromise = agoraRtcService.requestRtcToken(`party_${room.id}`, currentUser.id, initiallySeated ? "broadcaster" : "audience", false, 1800);
+				const tokenPromise = agoraRtcService.requestRtcToken(`party_${room.id}`, currentUser.id, initiallySeated ? "broadcaster" : "audience", false, 5e3);
 				const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
 				if (!isMounted) return;
 				if (Boolean(tokenData.configured && tokenData.appId) && (Boolean(tokenData.token) || tokenData.tokenRequired === false)) try {
@@ -24838,13 +26312,18 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		return () => {
 			active = false;
 		};
-	}, [isCurrentlySeated, voiceTransport]);
+	}, [
+		isCurrentlySeated,
+		voiceTransport,
+		agoraVoiceState
+	]);
 	(0, import_react.useEffect)(() => {
 		const effectiveMuted = isMicMuted || isHostMutedOnMySeat || !isCurrentlySeated;
 		if (realMicStreamRef.current) realMicStreamRef.current.getAudioTracks().forEach((t) => {
 			t.enabled = !effectiveMuted;
 		});
-		agoraRtcService.setMicrophoneMuted(effectiveMuted);
+		if (!effectiveMuted && voiceTransportRef.current === "agora" && voiceJoinedRef.current) agoraRtcService.ensureLocalAudioPublished(false);
+		else agoraRtcService.setMicrophoneMuted(effectiveMuted);
 		webrtcMediaService.setPartyMicMuted(effectiveMuted);
 		let active = true;
 		if (!effectiveMuted) {
@@ -24976,6 +26455,82 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		const next = !isMicMuted;
 		setIsMicMuted(next);
 		showToast(next ? "Mic muted" : "Mic ON — speaking live");
+	};
+	(0, import_react.useEffect)(() => {
+		onMiniStateChange?.({
+			isSeated: isCurrentlySeated,
+			isMicMuted: isMicMuted || isHostMutedOnMySeat,
+			participantCount: participantTotal,
+			seatedCount: seats.filter(Boolean).length
+		});
+	}, [
+		isCurrentlySeated,
+		isMicMuted,
+		isHostMutedOnMySeat,
+		participantTotal,
+		seats,
+		onMiniStateChange
+	]);
+	const lastToggleMicSignalRef = (0, import_react.useRef)(toggleMicSignal);
+	(0, import_react.useEffect)(() => {
+		if (toggleMicSignal > 0 && toggleMicSignal !== lastToggleMicSignalRef.current) {
+			lastToggleMicSignalRef.current = toggleMicSignal;
+			handleToggleMyMic();
+		}
+	}, [toggleMicSignal]);
+	const lastExitSignalRef = (0, import_react.useRef)(exitSignal);
+	(0, import_react.useEffect)(() => {
+		if (exitSignal > 0 && exitSignal !== lastExitSignalRef.current) {
+			lastExitSignalRef.current = exitSignal;
+			handleCleanLeaveParty();
+		}
+	}, [exitSignal]);
+	const loadInvitableUsers = async () => {
+		if (inviteUsersLoading) return;
+		setInviteUsersLoading(true);
+		try {
+			const snap = await getDocs(query(collection(db, "users"), limit(40)));
+			const list = [];
+			snap.forEach((docSnap) => {
+				const d = docSnap.data();
+				const uid = docSnap.id;
+				if (!uid || uid === currentUser.id || blockedUserIdsRef.current.has(uid)) return;
+				list.push({
+					id: uid,
+					displayId: String(d.displayId || uid.slice(-6).toUpperCase()),
+					name: String(d.name || d.displayName || "Lenzo User"),
+					username: String(d.username || `@${uid.slice(0, 6)}`),
+					avatar: String(d.avatar || d.photoURL || ""),
+					bio: String(d.bio || ""),
+					level: typeof d.level === "number" ? d.level : 1,
+					vipLevel: typeof d.vipLevel === "number" ? d.vipLevel : 0,
+					isVIP: Boolean(d.isVIP || (d.vipLevel || 0) > 0),
+					fansCount: String(d.fansCount || "0"),
+					followingCount: Number(d.followingCount || 0),
+					likesCount: String(d.likesCount || "0"),
+					coins: 0,
+					diamonds: 0
+				});
+			});
+			setInvitableUsers(list);
+		} catch {} finally {
+			setInviteUsersLoading(false);
+		}
+	};
+	const openHostInviteModal = (preferredSeat) => {
+		const firstOpenSeat = seats.findIndex((s, i) => i > 0 && !s && isSeatIndexAllowedForRoom(i, maxSeats, hostLevel));
+		const resolvedSeat = typeof preferredSeat === "number" ? preferredSeat : firstOpenSeat !== -1 ? firstOpenSeat : Math.min(2, maxSeats - 1);
+		setInviteModalTab(typeof preferredSeat === "number" ? "room" : "users");
+		setShowInviteToSeatModal(resolvedSeat);
+		loadInvitableUsers();
+		liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+			if (r.participants.length > 0) setParticipantsList((prev) => {
+				const map = /* @__PURE__ */ new Map();
+				prev.forEach((p) => map.set(p.userId, p));
+				r.participants.forEach((p) => map.set(p.userId, p));
+				return Array.from(map.values());
+			});
+		});
 	};
 	const handleChangeSeatMode = (targetSeats) => {
 		if (!isRoomHost) return;
@@ -25438,32 +26993,97 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			chatInputRef.current?.focus();
 		}, 30);
 	};
-	const handleSendSeatInvite = async (targetUser) => {
+	const handleSendSeatInvite = async (targetUser, directSeat = false) => {
 		if (showInviteToSeatModal === null) return;
 		const targetSeat = showInviteToSeatModal;
-		setShowInviteToSeatModal(null);
 		if (!isSeatIndexAllowedForRoom(targetSeat, maxSeats, hostLevel)) {
 			showToast(isSeatLockedByHostLevel(targetSeat, hostLevel) ? `Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})` : "This seat is locked at the current Host level.");
 			return;
 		}
-		const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
-		liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch(() => null);
-		if (fsRes.success && Array.isArray(fsRes.seats)) {
-			const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
-			const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
-			setSeats(nextSeats);
-			setSeatRequests(nextRequests);
-			syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
+		if (directSeat) {
+			setShowInviteToSeatModal(null);
+			const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
+			liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch(() => null);
+			if (fsRes.success && Array.isArray(fsRes.seats)) {
+				const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
+				const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
+				setSeats(nextSeats);
+				setSeatRequests(nextRequests);
+				syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
+				showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+				return;
+			}
+			const updated = Array.from({ length: maxSeats }, (_, idx) => seats[idx] || null);
+			const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
+			if (prevIdx !== -1) updated[prevIdx] = null;
+			updated[targetSeat] = targetUser;
+			setSeats(updated);
+			syncRoom(updated);
 			showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
 			return;
 		}
-		const updated = normalizeSeats(seats, maxSeats, hostLevel);
-		const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
-		if (prevIdx !== -1) updated[prevIdx] = null;
-		updated[targetSeat] = targetUser;
-		setSeats(updated);
-		syncRoom(updated);
-		showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+		setInvitedUserIds((prev) => ({
+			...prev,
+			[targetUser.id]: true
+		}));
+		const [wsRes] = await Promise.all([liveAndRoomService.sendRoomInvite({
+			roomId: room.id,
+			hostId: currentUser.id,
+			targetUserId: targetUser.id,
+			targetUser,
+			seatIndex: targetSeat,
+			inviteType: "seat",
+			roomMeta: {
+				host: room.host,
+				title: room.title,
+				maxSeats
+			}
+		}), sendPushNotification({
+			targetUserId: targetUser.id,
+			type: "rooms",
+			title: "Seat Invitation",
+			message: `${currentUser.name} invited you to Seat #${targetSeat + 1} in "${room.title}"`,
+			avatar: currentUser.avatar,
+			senderId: currentUser.id,
+			senderName: currentUser.name,
+			actionType: "open_room",
+			targetId: room.id,
+			priority: "high"
+		}).catch(() => {})]);
+		if (wsRes.success) showToast(`Invitation sent to ${targetUser.name} for Seat #${targetSeat + 1}`);
+		else showToast(`Invitation notification sent to ${targetUser.name}`);
+	};
+	const handleSendRoomInviteToUser = async (targetUser) => {
+		if (!targetUser?.id || targetUser.id === currentUser.id) return;
+		setInvitedUserIds((prev) => ({
+			...prev,
+			[targetUser.id]: true
+		}));
+		const [wsRes] = await Promise.all([liveAndRoomService.sendRoomInvite({
+			roomId: room.id,
+			hostId: currentUser.id,
+			targetUserId: targetUser.id,
+			targetUser,
+			inviteType: "room",
+			roomMeta: {
+				host: room.host,
+				title: room.title,
+				maxSeats
+			}
+		}), sendPushNotification({
+			targetUserId: targetUser.id,
+			type: "rooms",
+			title: "Party Room Invitation",
+			message: `${currentUser.name} invited you to join "${room.title}"`,
+			avatar: currentUser.avatar,
+			senderId: currentUser.id,
+			senderName: currentUser.name,
+			actionType: "open_room",
+			targetId: room.id,
+			priority: "high"
+		}).catch(() => {})]);
+		if (wsRes.success) showToast(`Invited ${targetUser.name} to join this room!`);
+		else showToast(`Room invitation sent to ${targetUser.name}!`);
 	};
 	const handleAcceptSeatInvitation = async () => {
 		if (!incomingSeatInvite) return;
@@ -25474,8 +27094,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			return;
 		}
 		const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
-		const updated = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats, hostLevel) : (() => {
-			const copy = normalizeSeats(seats, maxSeats, hostLevel);
+		const updated = fsRes.success && Array.isArray(fsRes.seats) ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null) : (() => {
+			const copy = Array.from({ length: maxSeats }, (_, i) => seats[i] || null);
 			const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
 			if (prevSeat !== -1) copy[prevSeat] = null;
 			copy[idx] = incomingSeatInvite.toUser;
@@ -25483,7 +27103,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		})();
 		setSeats(updated);
 		syncRoom(updated, void 0, void 0, void 0, void 0, fsRes.success);
-		showToast(`Joined Seat #${idx + 1}`);
+		showToast(`Joined Seat #${idx + 1} — mic is live`);
 		setIncomingSeatInvite(null);
 	};
 	const handleOwnerTakeSeat = async (index) => {
@@ -25841,6 +27461,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						}),
 						isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							type: "button",
+							onClick: () => openHostInviteModal(),
+							className: "w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#071A38]/85 hover:bg-[#0D2B59] border border-[#00D4FF]/55 flex items-center justify-center text-cyan-300 shadow-[0_0_10px_rgba(0,212,255,0.3)] transition-all active:scale-95 shrink-0",
+							title: "Invite Users to Room or Seat",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-3.5 h-3.5" })
+						}),
+						isRoomHost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
 							onClick: () => setShowBackgroundPicker(true),
 							className: "w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1F0C3B]/80 hover:bg-[#2C1252] border border-[#FA26A0]/45 flex items-center justify-center text-[#FFB8E2] transition-all active:scale-95 shrink-0",
 							title: "Change Party Background (Themes, Host DP, Gallery)",
@@ -25854,6 +27481,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								className: "absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FA26A0] text-[9px] font-black flex items-center justify-center",
 								children: seatRequests.length
 							})]
+						}),
+						onMinimize && !isMinimized && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: onMinimize,
+							"aria-label": "Minimize Party Room",
+							className: "w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#071A38]/90 hover:bg-[#0D2B59] border border-[#00D4FF]/60 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,212,255,0.38)] transition-all active:scale-95 shrink-0",
+							title: "Minimize Room (Stay Connected)",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Minimize2, { className: "w-3.5 h-3.5" })
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 							onClick: () => setShowExitRoomModal(true),
@@ -26843,6 +28478,15 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
 							})]
 						}),
+						onMinimize && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => {
+								setShowExitRoomModal(false);
+								onMinimize();
+							},
+							className: "w-full py-3 px-4 rounded-2xl bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 border border-[#00D4FF]/45 text-cyan-200 text-xs font-extrabold flex items-center justify-between transition-all",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Minimize Room (Keep Audio & Seat Active)" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Minimize2, { className: "w-4 h-4 text-cyan-300" })]
+						}),
 						isCurrentlySeated && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => handleLeaveSeat(userSeatIndex),
 							className: "w-full py-3 px-4 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-extrabold flex items-center justify-between transition-all",
@@ -27078,71 +28722,172 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				})
 			}),
 			showInviteToSeatModal !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				onClick: () => setShowInviteToSeatModal(null),
 				className: "fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fade-in",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: "w-full max-w-md bg-[#160A2B] border-t border-white/15 rounded-t-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: "flex items-center justify-between pb-3 border-b border-white/10 mb-3",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
-							className: "text-sm font-black text-white",
-							children: ["Invite to Seat #", showInviteToSeatModal + 1]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-							className: "text-[10px] text-white/60",
-							children: "Select a connected listener to invite"
-						})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							onClick: () => setShowInviteToSeatModal(null),
-							className: "w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-white",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
-						})]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: "space-y-2 overflow-y-auto no-scrollbar flex-1 py-1",
-						children: (() => {
-							const eligibleListeners = participantsList.filter((p) => !seats.some((s) => s?.id === p.userId));
-							if (eligibleListeners.length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-								className: "text-xs text-white/60 text-center py-8",
-								children: "No unseated listeners are in the room right now."
-							});
-							return eligibleListeners.map((p) => {
-								const memberProfile = {
-									id: p.userId,
-									displayId: p.userId.slice(-6).toUpperCase(),
-									name: p.name,
-									username: p.username,
-									avatar: p.avatar,
-									bio: "",
-									level: p.level || 1,
-									vipLevel: p.vipLevel || 0,
-									isVIP: Boolean(p.isVIP),
-									fansCount: "0",
-									followingCount: 0,
-									likesCount: "0",
-									coins: 0,
-									diamonds: 0
-								};
-								return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-									className: "flex items-center justify-between p-2.5 rounded-2xl bg-[#200E38] border border-white/5",
-									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: "flex items-center gap-2.5 min-w-0",
-										children: [p.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-											src: p.avatar,
-											alt: p.name,
-											className: "w-9 h-9 rounded-full object-cover"
-										}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-											className: "w-9 h-9 rounded-full bg-[#8B20FF] text-xs font-black flex items-center justify-center",
-											children: (p.name || "U").charAt(0).toUpperCase()
-										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-											className: "text-xs font-bold text-white truncate",
-											children: p.name
-										})]
+					onClick: (e) => e.stopPropagation(),
+					className: "w-full max-w-md bg-[#120A26] border-t border-[#00D4FF]/30 rounded-t-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center justify-between pb-3 border-b border-white/10 mb-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", {
+								className: "text-sm font-black text-white flex items-center gap-1.5",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserPlus, { className: "w-4 h-4 text-cyan-300" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Invite to Party Room" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-[10px] text-white/60",
+								children: inviteModalTab === "room" ? `Invite a connected listener to Seat #${showInviteToSeatModal + 1}` : "Send a live room invitation to friends & users"
+							})] }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								onClick: () => setShowInviteToSeatModal(null),
+								className: "w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white",
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-4 h-4" })
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white/5 border border-white/10 mb-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+								type: "button",
+								onClick: () => setInviteModalTab("room"),
+								className: `py-2 rounded-xl text-xs font-black transition-all ${inviteModalTab === "room" ? "bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow" : "text-white/65 hover:text-white"}`,
+								children: [
+									"In Room (Seat #",
+									showInviteToSeatModal + 1,
+									")"
+								]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => {
+									setInviteModalTab("users");
+									if (invitableUsers.length === 0) loadInvitableUsers();
+								},
+								className: `py-2 rounded-xl text-xs font-black transition-all ${inviteModalTab === "users" ? "bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow" : "text-white/65 hover:text-white"}`,
+								children: "Invite Users"
+							})]
+						}),
+						inviteModalTab === "users" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "relative mb-3",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Search, { className: "w-3.5 h-3.5 text-white/45 absolute left-3 top-1/2 -translate-y-1/2" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+								type: "text",
+								value: inviteSearchQuery,
+								onChange: (e) => setInviteSearchQuery(e.target.value),
+								placeholder: "Search user name or ID...",
+								className: "w-full pl-9 pr-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/60"
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: "space-y-2 overflow-y-auto no-scrollbar flex-1 py-1",
+							children: inviteModalTab === "room" ? (() => {
+								const eligibleListeners = participantsList.filter((p) => p.userId !== currentUser.id && !seats.some((s) => s?.id === p.userId));
+								if (eligibleListeners.length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+									className: "text-center py-8 space-y-2",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+										className: "text-xs text-white/60",
+										children: "No unseated listeners are in the room right now."
 									}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										onClick: () => handleSendSeatInvite(memberProfile),
-										className: "px-3.5 py-1.5 rounded-full bg-[#FA26A0] text-white text-xs font-bold shrink-0",
-										children: "Seat User"
+										type: "button",
+										onClick: () => {
+											setInviteModalTab("users");
+											if (invitableUsers.length === 0) loadInvitableUsers();
+										},
+										className: "px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs font-bold",
+										children: "Invite Friends to Room"
 									})]
-								}, p.userId);
-							});
-						})()
-					})]
+								});
+								return eligibleListeners.map((p) => {
+									const memberProfile = {
+										id: p.userId,
+										displayId: p.userId.slice(-6).toUpperCase(),
+										name: p.name,
+										username: p.username,
+										avatar: p.avatar,
+										bio: "",
+										level: p.level || 1,
+										vipLevel: p.vipLevel || 0,
+										isVIP: Boolean(p.isVIP),
+										fansCount: "0",
+										followingCount: 0,
+										likesCount: "0",
+										coins: 0,
+										diamonds: 0
+									};
+									const alreadyInvited = Boolean(invitedUserIds[p.userId]);
+									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#1C1238] border border-white/10",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2.5 min-w-0",
+											children: [p.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: p.avatar,
+												alt: p.name,
+												className: "w-9 h-9 rounded-full object-cover shrink-0"
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-9 h-9 rounded-full bg-[#2563EB] text-xs font-black flex items-center justify-center shrink-0",
+												children: (p.name || "U").charAt(0).toUpperCase()
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+												className: "text-xs font-bold text-white truncate",
+												children: p.name
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-1.5 shrink-0",
+											children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												type: "button",
+												onClick: () => void handleSendSeatInvite(memberProfile, false),
+												className: `px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${alreadyInvited ? "bg-emerald-500/25 border border-emerald-400/50 text-emerald-200" : "bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white"}`,
+												children: alreadyInvited ? "Invited" : "Invite"
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+												type: "button",
+												onClick: () => void handleSendSeatInvite(memberProfile, true),
+												className: "px-2.5 py-1.5 rounded-full bg-[#FA26A0]/85 hover:bg-[#FA26A0] text-white text-[11px] font-bold",
+												children: "Seat"
+											})]
+										})]
+									}, p.userId);
+								});
+							})() : inviteUsersLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "text-xs text-white/60 text-center py-8",
+								children: "Loading users..."
+							}) : (() => {
+								const q = inviteSearchQuery.trim().toLowerCase();
+								const filteredUsers = invitableUsers.filter((u) => {
+									if (!q) return true;
+									return (u.name || "").toLowerCase().includes(q) || (u.username || "").toLowerCase().includes(q) || String(u.displayId || "").toLowerCase().includes(q);
+								});
+								if (filteredUsers.length === 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs text-white/60 text-center py-8",
+									children: "No matching users found."
+								});
+								return filteredUsers.map((u) => {
+									const alreadyInvited = Boolean(invitedUserIds[u.id]);
+									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+										className: "flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#1C1238] border border-white/10",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											className: "flex items-center gap-2.5 min-w-0",
+											children: [u.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+												src: u.avatar,
+												alt: u.name,
+												className: "w-9 h-9 rounded-full object-cover shrink-0"
+											}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+												className: "w-9 h-9 rounded-full bg-[#2563EB] text-xs font-black flex items-center justify-center shrink-0",
+												children: (u.name || "U").charAt(0).toUpperCase()
+											}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+												className: "min-w-0",
+												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+													className: "text-xs font-bold text-white truncate block",
+													children: u.name
+												}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+													className: "text-[10px] text-white/55 font-mono truncate block",
+													children: ["ID: ", u.displayId]
+												})]
+											})]
+										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+											type: "button",
+											onClick: () => void handleSendRoomInviteToUser(u),
+											className: `px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all ${alreadyInvited ? "bg-emerald-500/25 border border-emerald-400/50 text-emerald-200" : "bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow"}`,
+											children: alreadyInvited ? "Invited ✓" : "Invite"
+										})]
+									}, u.id);
+								});
+							})()
+						})
+					]
 				})
 			}),
 			incomingSeatInvite && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -29680,10 +31425,9 @@ async function addQualifyingGiftingCoins(userId, coinsSpent, options) {
 */
 async function equipActiveFrame(userId, frameType, tier = 0) {
 	try {
-		const headers = await getAuthHeaders();
 		const res = await apiFetch("/api/progression/equip-frame", {
 			method: "POST",
-			headers,
+			headers: await getAuthHeaders(),
 			body: JSON.stringify({
 				userId,
 				frameType,
@@ -29787,10 +31531,9 @@ async function equipAchievementBadges(userId, badgeIds) {
 		error: `You can equip at most 3 achievement badges on your profile.`
 	};
 	try {
-		const headers = await getAuthHeaders();
 		const res = await apiFetch("/api/progression/achievements/equip", {
 			method: "POST",
-			headers,
+			headers: await getAuthHeaders(),
 			body: JSON.stringify({
 				userId,
 				badgeIds
@@ -39875,15 +41618,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CPBdwVb9.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([3,4,5,6,7,8])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C62LBz1C.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([9,4,5,6,7,10,8])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BVwp13ou.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,4,5,12,6,7,8])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-IKQotvVi.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([13,4,5,14,15,1,7,6,16,12,8])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-DyAiorru.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([17,4,5,15,1,7,6,16,12,8])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DG4vJEdM.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([18,4,5,8])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BP5_ZtjU.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([19,4,5,6,7,12,8])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-BZE5EhqG.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([20,4,5,12,6,7,8])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-B15tLdpJ.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([21,4,5,6,7,12,15,1,16,8,14])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BS6zxYXp.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-Dfmhz_2h.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-COs0wxEJ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-C2f87qjn.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-DD6s5ndz.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-PJVTlxba.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DEnD_xV5.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DdirMhts.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-_64v1Ea9.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -39932,6 +41675,20 @@ function App() {
 	const [viewingProfileUser, setViewingProfileUser] = (0, import_react.useState)(null);
 	const [navigatingProfileUser, setNavigatingProfileUser] = (0, import_react.useState)(null);
 	const [activeChatUser, setActiveChatUser] = (0, import_react.useState)(null);
+	const [isAudioRoomMinimized, setIsAudioRoomMinimized] = (0, import_react.useState)(false);
+	const [isLiveStreamMinimized, setIsLiveStreamMinimized] = (0, import_react.useState)(false);
+	const [audioRoomMiniMeta, setAudioRoomMiniMeta] = (0, import_react.useState)({
+		isSeated: false,
+		isMicMuted: false,
+		participantCount: 1,
+		seatedCount: 1
+	});
+	const [audioRoomExitSignal, setAudioRoomExitSignal] = (0, import_react.useState)(0);
+	const [audioRoomToggleMicSignal, setAudioRoomToggleMicSignal] = (0, import_react.useState)(0);
+	const [liveStreamExitSignal, setLiveStreamExitSignal] = (0, import_react.useState)(0);
+	const handleAudioMiniStateChange = (0, import_react.useCallback)((next) => {
+		setAudioRoomMiniMeta((prev) => prev.isSeated === next.isSeated && prev.isMicMuted === next.isMicMuted && prev.participantCount === next.participantCount && prev.seatedCount === next.seatedCount ? prev : next);
+	}, []);
 	const [firestoreReels, setFirestoreReels] = (0, import_react.useState)([]);
 	const [legacyPostVideos, setLegacyPostVideos] = (0, import_react.useState)([]);
 	const [extraPagedReels, setExtraPagedReels] = (0, import_react.useState)([]);
@@ -40575,15 +42332,21 @@ function App() {
 			}
 			return Array.from(byHost.values()).sort((a, b) => (b.numericViewers || 0) - (a.numericViewers || 0) || (b.startTime || 0) - (a.startTime || 0));
 		};
+		const isStreamActivelyLive = (s) => Boolean(s && s.id && s.isLive === true && s.status !== "closed" && s.status !== "empty" && s.hostPresent !== false);
 		const upsertStream = (incoming) => {
 			if (!incoming?.id || endedLiveIdsRef.current.has(incoming.id)) return;
+			if (!isStreamActivelyLive(incoming)) {
+				backendLiveIdsRef.current.delete(incoming.id);
+				setLiveStreams((prev) => prev.filter((s) => s.id !== incoming.id));
+				return;
+			}
 			backendLiveIdsRef.current.add(incoming.id);
 			setLiveStreams((prev) => {
 				const merged = prev.some((s) => s.id === incoming.id) ? prev.map((s) => s.id === incoming.id ? {
 					...s,
 					...incoming
 				} : s) : [incoming, ...prev];
-				return dedupeLiveStreamsByHost(merged);
+				return dedupeLiveStreamsByHost(merged.filter(isStreamActivelyLive));
 			});
 			setActiveLiveStream((prev) => prev && prev.id === incoming.id ? {
 				...prev,
@@ -40726,7 +42489,19 @@ function App() {
 					...prev,
 					mutedSeatIndices: payload.mutedSeatIndices
 				} : prev);
-			}
+			} else if (event === "room:room_invited" && payload?.roomId) setActivePushBanner({
+				id: payload.id || `room_inv_${Date.now()}`,
+				type: "rooms",
+				title: "Party Room Invitation",
+				message: `${payload.fromHost?.name || "Host"} invited you to join "${payload.roomTitle || "Party Room"}"`,
+				avatar: payload.fromHost?.avatar || "",
+				senderId: payload.fromHost?.id,
+				senderName: payload.fromHost?.name,
+				actionType: "open_room",
+				targetId: payload.roomId,
+				priority: "high",
+				createdAtMs: Date.now()
+			});
 		});
 		const expirySweep = setInterval(() => {
 			const now = Date.now();
@@ -40744,8 +42519,7 @@ function App() {
 			});
 			setLiveStreams((prev) => {
 				const filtered = prev.filter((s) => {
-					if (s.status === "closed" || s.isLive === false) return false;
-					if (s.status === "empty" && typeof s.closesAt === "number" && s.closesAt <= now) {
+					if (s.status === "closed" || s.status === "empty" || s.isLive !== true || s.hostPresent === false) {
 						endedLiveIdsRef.current.add(s.id);
 						backendLiveIdsRef.current.delete(s.id);
 						return false;
@@ -40833,10 +42607,11 @@ function App() {
 			setLiveStreams((prev) => {
 				const merged = /* @__PURE__ */ new Map();
 				remoteStreams.forEach((s) => {
-					if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) merged.set(s.id, s);
+					if (!endedLiveIdsRef.current.has(s.id) && s.isLive === true && s.status !== "closed" && s.status !== "empty" && s.hostPresent !== false) merged.set(s.id, s);
 				});
 				prev.forEach((existing) => {
 					if (endedLiveIdsRef.current.has(existing.id)) return;
+					if (existing.isLive !== true || existing.status === "closed" || existing.status === "empty" || existing.hostPresent === false) return;
 					if (backendLiveIdsRef.current.has(existing.id)) {
 						const fsItem = merged.get(existing.id);
 						if (fsItem) {
@@ -40852,7 +42627,7 @@ function App() {
 					}
 				});
 				const byHost = /* @__PURE__ */ new Map();
-				Array.from(merged.values()).filter((s) => s.status !== "closed" && s.isLive !== false && !(s.status === "empty" && typeof s.closesAt === "number" && s.closesAt <= Date.now())).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)).forEach((s) => {
+				Array.from(merged.values()).filter((s) => s.status !== "closed" && s.status !== "empty" && s.isLive === true && s.hostPresent !== false).sort((a, b) => (b.startTime || 0) - (a.startTime || 0)).forEach((s) => {
 					const hostKey = s.host?.id || s.id;
 					if (!byHost.has(hostKey)) byHost.set(hostKey, s);
 				});
@@ -41115,7 +42890,17 @@ function App() {
 			showAppToast(isBlockedByMe(stream.host.id) ? `Unblock ${stream.host.name} to view their live stream.` : "You cannot join or interact with this live stream.");
 			return;
 		}
+		if (activeLiveStream && activeLiveStream.id === stream.id) {
+			setIsLiveStreamMinimized(false);
+			setCurrentScreen("live_active");
+			return;
+		}
+		if (activeAudioRoom) {
+			setActiveAudioRoom(null);
+			setIsAudioRoomMinimized(false);
+		}
 		setActiveLiveStream(stream);
+		setIsLiveStreamMinimized(false);
 		setCurrentScreen("live_active");
 	};
 	const handleSelectRoom = (room) => {
@@ -41124,13 +42909,23 @@ function App() {
 			return;
 		}
 		if (room.host.id !== currentUser.id) {
-			const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+			const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id, Date.now(), currentUser.id);
 			if (activeKick) {
 				showAppToast(activeKick.durationType === "session" ? "You were kicked from this party stream and cannot re-enter this session." : `You are kicked from this room (${formatRemainingKickTime(activeKick)}).`);
 				return;
 			}
 		}
+		if (activeAudioRoom && activeAudioRoom.id === room.id) {
+			setIsAudioRoomMinimized(false);
+			setCurrentScreen("audio_room");
+			return;
+		}
+		if (activeLiveStream) {
+			setActiveLiveStream(null);
+			setIsLiveStreamMinimized(false);
+		}
 		setActiveAudioRoom(room);
+		setIsAudioRoomMinimized(false);
 		setCurrentScreen("audio_room");
 	};
 	const handleStartLive = async (newStream) => {
@@ -41575,10 +43370,12 @@ function App() {
 			return;
 		}
 		setViewingProfileUser(null);
+		if (activeAudioRoom && !isAudioRoomMinimized) setIsAudioRoomMinimized(true);
+		if (activeLiveStream && !isLiveStreamMinimized) setIsLiveStreamMinimized(true);
 		setActiveChatUser(user);
 		setCurrentScreen("messages");
 	};
-	const visibleLiveStreams = liveStreams.filter((s) => s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id));
+	const visibleLiveStreams = liveStreams.filter((s) => s.isLive === true && s.status !== "closed" && s.status !== "empty" && s.hostPresent !== false && (s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id)));
 	const visiblePartyRooms = partyRooms.filter((r) => r.host.id === currentUser.id || !blockedByUserIds.includes(r.host.id));
 	const visibleVideos = videos.filter((v) => {
 		const ownerId = v.creatorUid || v.creator?.id;
@@ -41651,24 +43448,36 @@ function App() {
 			})
 		});
 	}
-	if (currentScreen === "live_active" && activeLiveStream) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PullToRefresh, {
-		onRefresh: handleGlobalAppRefresh,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "relative w-full h-dvh-screen bg-black",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActiveLiveScreen, {
+	const isShowingFullLive = Boolean(activeLiveStream && !isLiveStreamMinimized && currentScreen === "live_active");
+	const isShowingFullAudioRoom = Boolean(activeAudioRoom && !isAudioRoomMinimized && currentScreen === "audio_room");
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: "min-h-dvh-screen w-full bg-[#090611] text-white flex flex-col md:flex-row antialiased selection:bg-[#F328D5]/30",
+		children: [
+			activeLiveStream && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: isShowingFullLive ? "fixed inset-0 z-50 w-full h-dvh-screen bg-black" : "hidden",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ActiveLiveScreen, {
 					stream: activeLiveStream,
 					currentUser,
+					isMinimized: !isShowingFullLive,
+					onMinimize: () => {
+						setIsLiveStreamMinimized(true);
+						setCurrentScreen("home");
+					},
+					exitSignal: liveStreamExitSignal,
 					onClose: () => {
 						setActiveLiveStream(null);
+						setIsLiveStreamMinimized(false);
 						setActivePKSession(null);
-						setCurrentScreen("home");
+						setCurrentScreen((prev) => prev === "live_active" ? "home" : prev);
 					},
 					onUpdateStream: (updatedStream) => {
 						setActiveLiveStream(updatedStream);
 						setLiveStreams((prev) => prev.map((s) => s.id === updatedStream.id ? updatedStream : s));
 					},
-					onEndLive: handleEndLive,
+					onEndLive: (streamId) => {
+						setIsLiveStreamMinimized(false);
+						handleEndLive(streamId);
+					},
 					onToggleFollow: handleToggleFollow,
 					onOpenGiftShop: (recipient) => {
 						setGiftRecipient(recipient);
@@ -41682,106 +43491,25 @@ function App() {
 					onRematchPK: () => setIsPKInviteModalOpen(true),
 					blockedUserIds,
 					blockedByUserIds
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GiftShopModal, {
-					isOpen: isGiftShopOpen,
-					onClose: () => setIsGiftShopOpen(false),
-					currentUser,
-					recipientUser: giftRecipient || (activePKSession ? giftRecipient || activePKSession.host2.user : activeLiveStream.host),
-					gifts,
-					onSendGift: handleSendGift,
-					onOpenWallet: () => setIsWalletOpen(true)
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PKHostInviteModal, {
-					isOpen: isPKInviteModalOpen,
-					onClose: () => setIsPKInviteModalOpen(false),
-					currentUser,
-					activeHost: activeLiveStream.host,
-					onMatchStarted: (session) => {
-						setActivePKSession(session);
-						setIsPKInviteModalOpen(false);
-					}
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PKIncomingChallengeModal, {
-					invitation: incomingPKInvite,
-					onAccept: handleAcceptPKInvite,
-					onDecline: handleDeclinePKInvite
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PKWinnerAnnouncementModal, {
-					session: pkWinnerSession,
-					currentUser,
-					isOpen: !!pkWinnerSession,
-					onClose: () => setPkWinnerSession(null),
-					onRematch: () => {
-						setPkWinnerSession(null);
-						setIsPKInviteModalOpen(true);
-					},
-					onViewHistory: () => {
-						setPkWinnerSession(null);
-						setCurrentScreen("profile");
-					}
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
-					user: viewingProfileUser,
-					currentUserId: currentUser.id,
-					isOpen: !!viewingProfileUser,
-					onClose: () => setViewingProfileUser(null),
-					onToggleFollow: handleToggleFollow,
-					onSendMessage: handleSendMessageToUser,
-					onSendGift: (u) => {
-						setGiftRecipient(u);
-						setIsGiftShopOpen(true);
-					},
-					isBlocked: isBlockedByMe(viewingProfileUser?.id),
-					isBlockedByTarget: isBlockedByTarget(viewingProfileUser?.id),
-					onBlockUser: handleBlockUser,
-					onUnblockUser: handleUnblockUser,
-					onViewFullProfile: (u) => {
-						if (isBlockedByTarget(u.id)) {
-							setViewingProfileUser(null);
-							showAppToast("You cannot view this user's profile or videos.");
-							return;
-						}
-						setViewingProfileUser(null);
-						setActiveLiveStream(null);
-						setActivePKSession(null);
-						setNavigatingProfileUser(u);
-						setCurrentScreen("profile");
-					}
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Suspense, {
-					fallback: null,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WalletModal, {
-						isOpen: isWalletOpen,
-						onClose: () => setIsWalletOpen(false),
-						currentUser,
-						onRechargeSuccess: handleRechargeSuccess,
-						onSendMessage: handleSendMessageToUser
-					})
-				}),
-				appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
-					children: appToast
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PushNotificationBanner, {
-					notification: activePushBanner,
-					onDismiss: () => setActivePushBanner(null),
-					onOpen: (notif) => handleNotificationDeepAction(notif)
-				})
-			]
-		})
-	});
-	if (currentScreen === "audio_room" && activeAudioRoom) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PullToRefresh, {
-		onRefresh: handleGlobalAppRefresh,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "relative w-full min-h-dvh-screen bg-[#060212]",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(AudioRoomScreen, {
+				}, activeLiveStream.id)
+			}),
+			activeAudioRoom && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: isShowingFullAudioRoom ? "fixed inset-0 z-50 w-full h-dvh-screen bg-[#060212]" : "hidden",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AudioRoomScreen, {
 					room: activeAudioRoom,
 					currentUser,
+					isMinimized: !isShowingFullAudioRoom,
+					onMinimize: () => {
+						setIsAudioRoomMinimized(true);
+						setCurrentScreen("home");
+					},
+					onMiniStateChange: handleAudioMiniStateChange,
+					exitSignal: audioRoomExitSignal,
+					toggleMicSignal: audioRoomToggleMicSignal,
 					onClose: () => {
 						setActiveAudioRoom(null);
-						setCurrentScreen("rooms");
+						setIsAudioRoomMinimized(false);
+						setCurrentScreen((prev) => prev === "audio_room" ? "rooms" : prev);
 					},
 					onUpdateRoom: (updatedRoom) => {
 						const enforced = enforcePartyRoomSeatPolicy(updatedRoom);
@@ -41793,7 +43521,8 @@ function App() {
 						backendRoomIdsRef.current.delete(roomId);
 						setPartyRooms((prev) => prev.filter((r) => r.id !== roomId));
 						setActiveAudioRoom(null);
-						setCurrentScreen("rooms");
+						setIsAudioRoomMinimized(false);
+						setCurrentScreen((prev) => prev === "audio_room" ? "rooms" : prev);
 						deleteFirestorePartyRoom(roomId).catch((err) => {
 							console.warn("[Firestore] Party room delete notice:", err);
 						});
@@ -41810,68 +43539,126 @@ function App() {
 					blockedByUserIds,
 					activeRoomKicks,
 					onBlockUser: handleBlockUser
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(GiftShopModal, {
-					isOpen: isGiftShopOpen,
-					onClose: () => setIsGiftShopOpen(false),
-					currentUser,
-					recipientUser: giftRecipient || activeAudioRoom.host,
-					gifts,
-					onSendGift: handleSendGift,
-					onOpenWallet: () => setIsWalletOpen(true)
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(UserProfileModal, {
-					user: viewingProfileUser,
-					currentUserId: currentUser.id,
-					isOpen: !!viewingProfileUser,
-					onClose: () => setViewingProfileUser(null),
-					onToggleFollow: handleToggleFollow,
-					onSendMessage: handleSendMessageToUser,
-					onSendGift: (u) => {
-						setGiftRecipient(u);
-						setIsGiftShopOpen(true);
-					},
-					isBlocked: isBlockedByMe(viewingProfileUser?.id),
-					isBlockedByTarget: isBlockedByTarget(viewingProfileUser?.id),
-					onBlockUser: handleBlockUser,
-					onUnblockUser: handleUnblockUser,
-					onViewFullProfile: (u) => {
-						if (isBlockedByTarget(u.id)) {
-							setViewingProfileUser(null);
-							showAppToast("You cannot view this user's profile or videos.");
-							return;
-						}
-						setViewingProfileUser(null);
-						setActiveAudioRoom(null);
-						setNavigatingProfileUser(u);
-						setCurrentScreen("profile");
-					}
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_react.Suspense, {
-					fallback: null,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(WalletModal, {
-						isOpen: isWalletOpen,
-						onClose: () => setIsWalletOpen(false),
-						currentUser,
-						onRechargeSuccess: handleRechargeSuccess,
-						onSendMessage: handleSendMessageToUser
-					})
-				}),
-				appToast && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: "fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]",
-					children: appToast
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PushNotificationBanner, {
-					notification: activePushBanner,
-					onDismiss: () => setActivePushBanner(null),
-					onOpen: (notif) => handleNotificationDeepAction(notif)
+				}, activeAudioRoom.id)
+			}),
+			activeAudioRoom && !isShowingFullAudioRoom && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed bottom-[76px] md:bottom-5 right-3 left-3 sm:left-auto sm:w-80 z-[48] animate-fade-in",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-2.5 p-2 pr-2.5 rounded-2xl bg-[#07152F]/95 backdrop-blur-xl border border-[#00D4FF]/60 shadow-[0_8px_28px_rgba(0,168,255,0.4)]",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => {
+								setIsAudioRoomMinimized(false);
+								setCurrentScreen("audio_room");
+							},
+							className: "flex items-center gap-2.5 flex-1 min-w-0 text-left",
+							title: "Tap to return to Party Room",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative shrink-0",
+								children: [activeAudioRoom.host?.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: activeAudioRoom.host.avatar,
+									alt: activeAudioRoom.title,
+									className: "w-10 h-10 rounded-full object-cover ring-2 ring-[#00D4FF] shadow-[0_0_12px_rgba(0,212,255,0.65)]"
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-10 h-10 rounded-full bg-gradient-to-br from-[#00A8FF] to-[#2563EB] ring-2 ring-[#00D4FF] flex items-center justify-center text-xs font-black",
+									children: (activeAudioRoom.title || "P").charAt(0).toUpperCase()
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#07152F] animate-pulse" })]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0 flex-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-black text-white truncate leading-tight",
+									children: activeAudioRoom.title
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+									className: "text-[10px] font-bold text-cyan-300 truncate flex items-center gap-1 mt-0.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-3 h-3 text-[#00D4FF] shrink-0 animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: audioRoomMiniMeta.isSeated ? audioRoomMiniMeta.isMicMuted ? "On Seat • Mic Muted" : "On Seat • Mic Live" : `Party Live • ${audioRoomMiniMeta.participantCount} online` })]
+								})]
+							})]
+						}),
+						audioRoomMiniMeta.isSeated && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setAudioRoomToggleMicSignal((n) => n + 1),
+							className: `w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-all active:scale-95 ${audioRoomMiniMeta.isMicMuted ? "bg-rose-950/90 border-rose-500/60 text-rose-300" : "bg-[#0C2A57] border-[#00D4FF]/60 text-cyan-200"}`,
+							title: audioRoomMiniMeta.isMicMuted ? "Unmute Mic" : "Mute Mic",
+							children: audioRoomMiniMeta.isMicMuted ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MicOff, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Mic, { className: "w-3.5 h-3.5" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => {
+								setIsAudioRoomMinimized(false);
+								setCurrentScreen("audio_room");
+							},
+							className: "w-8 h-8 rounded-full bg-[#0C2A57] hover:bg-[#133C7A] border border-[#00D4FF]/55 text-cyan-200 flex items-center justify-center shrink-0 transition-all active:scale-95",
+							title: "Restore Full Screen",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Maximize2, { className: "w-3.5 h-3.5" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setAudioRoomExitSignal((n) => n + 1),
+							className: "w-8 h-8 rounded-full bg-rose-600/80 hover:bg-rose-600 border border-rose-400/45 text-white flex items-center justify-center shrink-0 transition-all active:scale-95",
+							title: "Exit Party Room",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						})
+					]
 				})
-			]
-		})
-	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: "min-h-dvh-screen w-full bg-[#090611] text-white flex flex-col md:flex-row antialiased selection:bg-[#F328D5]/30",
-		children: [
+			}),
+			activeLiveStream && !isShowingFullLive && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: "fixed bottom-[76px] md:bottom-5 right-3 left-3 sm:left-auto sm:w-80 z-[48] animate-fade-in",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: "flex items-center gap-2.5 p-2 pr-2.5 rounded-2xl bg-[#07152F]/95 backdrop-blur-xl border border-[#00D4FF]/60 shadow-[0_8px_28px_rgba(0,168,255,0.4)]",
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							onClick: () => {
+								setIsLiveStreamMinimized(false);
+								setCurrentScreen("live_active");
+							},
+							className: "flex items-center gap-2.5 flex-1 min-w-0 text-left",
+							title: "Tap to return to Live Broadcast",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "relative shrink-0",
+								children: [activeLiveStream.host?.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+									src: activeLiveStream.host.avatar,
+									alt: activeLiveStream.title,
+									className: "w-10 h-10 rounded-full object-cover ring-2 ring-[#00D4FF] shadow-[0_0_12px_rgba(0,212,255,0.65)]"
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+									className: "w-10 h-10 rounded-full bg-gradient-to-br from-[#00A8FF] to-[#2563EB] ring-2 ring-[#00D4FF] flex items-center justify-center text-xs font-black",
+									children: (activeLiveStream.host?.name || "L").charAt(0).toUpperCase()
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-rose-600 text-[7px] font-black text-white border border-[#07152F]",
+									children: "LIVE"
+								})]
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0 flex-1",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+									className: "text-xs font-black text-white truncate leading-tight",
+									children: activeLiveStream.title
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+									className: "text-[10px] font-bold text-cyan-300 truncate flex items-center gap-1 mt-0.5",
+									children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Radio, { className: "w-3 h-3 text-[#00D4FF] shrink-0 animate-pulse" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [activeLiveStream.host?.name, " • Connected"] })]
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => {
+								setIsLiveStreamMinimized(false);
+								setCurrentScreen("live_active");
+							},
+							className: "w-8 h-8 rounded-full bg-[#0C2A57] hover:bg-[#133C7A] border border-[#00D4FF]/55 text-cyan-200 flex items-center justify-center shrink-0 transition-all active:scale-95",
+							title: "Restore Live Screen",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Maximize2, { className: "w-3.5 h-3.5" })
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => setLiveStreamExitSignal((n) => n + 1),
+							className: "w-8 h-8 rounded-full bg-rose-600/80 hover:bg-rose-600 border border-rose-400/45 text-white flex items-center justify-center shrink-0 transition-all active:scale-95",
+							title: activeLiveStream.host.id === currentUser.id ? "End Live Broadcast" : "Leave Live",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						})
+					]
+				})
+			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DesktopSidebar, {
 				currentScreen,
 				currentUser,
@@ -42358,8 +44145,20 @@ function App() {
 						return;
 					}
 					setViewingProfileUser(null);
+					if (activeAudioRoom && !isAudioRoomMinimized) setIsAudioRoomMinimized(true);
+					if (activeLiveStream && !isLiveStreamMinimized) setIsLiveStreamMinimized(true);
 					setNavigatingProfileUser(u);
 					setCurrentScreen("profile");
+				}
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PKHostInviteModal, {
+				isOpen: isPKInviteModalOpen,
+				onClose: () => setIsPKInviteModalOpen(false),
+				currentUser,
+				activeHost: activeLiveStream?.host || activeAudioRoom?.host || currentUser,
+				onMatchStarted: (session) => {
+					setActivePKSession(session);
+					setIsPKInviteModalOpen(false);
 				}
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PKIncomingChallengeModal, {
@@ -42425,4 +44224,4 @@ function App() {
 // src/main.tsx
 androidBridge.initViewportMetrics();
 (0, import_client.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, {}));
-export { subscribeWalletSettings as $, adminSetUserSuspension as A, getSavedDeviceAccounts as At, adminAdjustBalance as B, SUPER_VIP_TIER_DEFINITIONS as Bt, SuperVipTierBadge as C, uploadMediaDataUrlWithProgress as Ct, adminEditUserProfileAndProgression as D, profileService as Dt, adminBanDevice as E, uploadUserImage as Et, VIP_FRAME_DEFINITIONS as F, ACHIEVEMENT_BADGE_DEFINITIONS as Ft, saveCoinSellerAgency as G, deleteCoinSellerAgency as H, evaluateAchievementBadges as Ht, calculateLevelProgression as I, ALL_100_LEVELS as It, subscribeCoinSellerAgencies as J, subscribeAllWithdrawalRequests as K, DEFAULT_COIN_PACKAGES as L, LEVELS_1_TO_50_EXACT_TOTAL as Lt, subscribeAdminAuditLogs as M, saveUserSettingsToFirestore as Mt, subscribeAllUsersForAdmin as N, submitAccountDeletionRequest as Nt, adminSendSystemCoinsToAgency as O, getLinkedAuthProviders as Ot, subscribeBannedDevicesForAdmin as P, subscribeUserSettings as Pt, subscribeUserWithdrawalRequests as Q, DEFAULT_PAYOUT_METHODS as R, LEVELS_51_TO_100_EXACT_TOTAL as Rt, AvatarWithFrame as S, generateReelId as St, adminAdjustUserCoins as T, uploadReelVideoAndThumbnail as Tt, lookupActiveHostAgencyContract as U, formatCoinsCompact as Ut, adminUpdateWithdrawalStatus as V, TOTAL_PROGRESSION_COINS_EXACT as Vt, requestWithdrawal as W, getLevelDefinition as Wt, subscribeUserEarnings as X, subscribeTransactions as Y, subscribeUserWallet as Z, subscribeActiveAgencies as _, isNativeAndroidApp as _t, fetchAuthoritativeProgression as a, calculateGiftSplit as at, LevelBadge as b, stopMediaStream as bt, DEFAULT_PARTY_BACKGROUND_ID as c, getMonthKey as ct, resolvePartyRoomBackground as d, runFinancialQaAssertions as dt, updateWalletSettings as et, VerifiedTick as f, validateEconomySettings as ft, buildWhatsAppUrl as g, createAudioAnalyser as gt, adminSetAgencyStatus as h, acquireRealMicrophone as ht, equipActiveFrame as i, calculateCoinPurchasePricePkr as it, adminUnbanDevice as j, loadUserSettingsFromFirestore as jt, adminSetUserBlockStatus as k, linkGoogleAccount as kt, PARTY_BACKGROUND_PRESETS as l, normalizeEconomyConfig as lt, adminReviewAgencyApplication as m, acquireRealDeviceCamera as mt, BlockedUsersModal as n, OFFICIAL_DEFAULT_COIN_PACKAGES as nt, subscribeUserLevelProgression as o, calculateWithdrawalWaterfall as ot, resolveVerificationStatus as p, liveAndRoomService as pt, subscribeCoinPackages as q, equipAchievementBadges as r, OFFICIAL_ECONOMY_DEFAULTS as rt, AchievementBadgeEmblem as s, getDayKey as st, SecureAccountPasswordCard as t, walletSettingsToEconomyConfig as tt, resolvePartyBackgroundImageUrl as u, roundPkr as ut, subscribeAllAgenciesForAdmin as v, openNativeAppSettings as vt, VipTierBadge as w, uploadPartyBackgroundImage as wt, LevelEmblemBadge as x, createReelDocument as xt, subscribeAllAgencyApplications as y, setStagedLiveStream as yt, DEFAULT_WALLET_SETTINGS as z, LEVEL_TIER_CONFIGS as zt };
+export { subscribeWalletSettings as $, LEVEL_TIER_CONFIGS as $t, adminSetUserSuspension as A, getActiveSeatCapacity as At, adminAdjustBalance as B, linkGoogleAccount as Bt, SuperVipTierBadge as C, uploadMediaDataUrlWithProgress as Ct, adminEditUserProfileAndProgression as D, profileService as Dt, adminBanDevice as E, uploadUserImage as Et, VIP_FRAME_DEFINITIONS as F, sendAdminGlobalPushBroadcast as Ft, saveCoinSellerAgency as G, saveUserSettingsToFirestore as Gt, deleteCoinSellerAgency as H, isVerifiedAdminSession as Ht, calculateLevelProgression as I, sendPushNotification as It, subscribeCoinSellerAgencies as J, apiUrl as Jt, subscribeAllWithdrawalRequests as K, submitAccountDeletionRequest as Kt, DEFAULT_COIN_PACKAGES as L, sendSelfTestPushNotification as Lt, subscribeAdminAuditLogs as M, isSeatModeUnlockedForLevel as Mt, subscribeAllUsersForAdmin as N, getPushPermissionState as Nt, adminSendSystemCoinsToAgency as O, PARTY_SEAT_TIERS as Ot, subscribeBannedDevicesForAdmin as P, registerDeviceForPushNotifications as Pt, subscribeUserWithdrawalRequests as Q, LEVELS_51_TO_100_EXACT_TOTAL as Qt, DEFAULT_PAYOUT_METHODS as R, unregisterDevicePushNotifications as Rt, AvatarWithFrame as S, generateReelId as St, adminAdjustUserCoins as T, uploadReelVideoAndThumbnail as Tt, lookupActiveHostAgencyContract as U, getSavedDeviceAccounts as Ut, adminUpdateWithdrawalStatus as V, isAuthorizedAdminEmail as Vt, requestWithdrawal as W, loadUserSettingsFromFirestore as Wt, subscribeUserEarnings as X, ALL_100_LEVELS as Xt, subscribeTransactions as Y, ACHIEVEMENT_BADGE_DEFINITIONS as Yt, subscribeUserWallet as Z, LEVELS_1_TO_50_EXACT_TOTAL as Zt, subscribeActiveAgencies as _, isNativeAndroidApp as _t, fetchAuthoritativeProgression as a, DEFAULT_NOTIFICATION_PREFERENCES as an, calculateGiftSplit as at, LevelBadge as b, stopMediaStream as bt, DEFAULT_PARTY_BACKGROUND_ID as c, getMonthKey as ct, resolvePartyRoomBackground as d, runFinancialQaAssertions as dt, SUPER_VIP_TIER_DEFINITIONS as en, updateWalletSettings as et, VerifiedTick as f, validateEconomySettings as ft, buildWhatsAppUrl as g, createAudioAnalyser as gt, adminSetAgencyStatus as h, acquireRealMicrophone as ht, equipActiveFrame as i, getLevelDefinition as in, calculateCoinPurchasePricePkr as it, adminUnbanDevice as j, getAllowedSeatTierForLevel as jt, adminSetUserBlockStatus as k, clampPartyMaxSeatsForHostLevel as kt, PARTY_BACKGROUND_PRESETS as l, normalizeEconomyConfig as lt, adminReviewAgencyApplication as m, acquireRealDeviceCamera as mt, BlockedUsersModal as n, evaluateAchievementBadges as nn, OFFICIAL_DEFAULT_COIN_PACKAGES as nt, subscribeUserLevelProgression as o, calculateWithdrawalWaterfall as ot, resolveVerificationStatus as p, liveAndRoomService as pt, subscribeCoinPackages as q, subscribeUserSettings as qt, equipAchievementBadges as r, formatCoinsCompact as rn, OFFICIAL_ECONOMY_DEFAULTS as rt, AchievementBadgeEmblem as s, getDayKey as st, SecureAccountPasswordCard as t, TOTAL_PROGRESSION_COINS_EXACT as tn, walletSettingsToEconomyConfig as tt, resolvePartyBackgroundImageUrl as u, roundPkr as ut, subscribeAllAgenciesForAdmin as v, openNativeAppSettings as vt, VipTierBadge as w, uploadPartyBackgroundImage as wt, LevelEmblemBadge as x, createReelDocument as xt, subscribeAllAgencyApplications as y, setStagedLiveStream as yt, DEFAULT_WALLET_SETTINGS as z, getLinkedAuthProviders as zt };

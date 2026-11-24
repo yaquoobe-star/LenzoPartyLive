@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { Mic, MicOff, Maximize2, X, Radio } from 'lucide-react';
 import { 
   ScreenType, 
   UserProfile, 
@@ -252,6 +253,32 @@ export default function App() {
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
   const [navigatingProfileUser, setNavigatingProfileUser] = useState<UserProfile | null>(null);
   const [activeChatUser, setActiveChatUser] = useState<UserProfile | null>(null);
+
+  // Live & Party Room Minimize State (keeps room mounted & connected while navigating other screens)
+  const [isAudioRoomMinimized, setIsAudioRoomMinimized] = useState(false);
+  const [isLiveStreamMinimized, setIsLiveStreamMinimized] = useState(false);
+  const [audioRoomMiniMeta, setAudioRoomMiniMeta] = useState({
+    isSeated: false,
+    isMicMuted: false,
+    participantCount: 1,
+    seatedCount: 1,
+  });
+  const [audioRoomExitSignal, setAudioRoomExitSignal] = useState(0);
+  const [audioRoomToggleMicSignal, setAudioRoomToggleMicSignal] = useState(0);
+  const [liveStreamExitSignal, setLiveStreamExitSignal] = useState(0);
+  const handleAudioMiniStateChange = useCallback(
+    (next: { isSeated: boolean; isMicMuted: boolean; participantCount: number; seatedCount: number }) => {
+      setAudioRoomMiniMeta((prev) =>
+        prev.isSeated === next.isSeated &&
+        prev.isMicMuted === next.isMicMuted &&
+        prev.participantCount === next.participantCount &&
+        prev.seatedCount === next.seatedCount
+          ? prev
+          : next
+      );
+    },
+    []
+  );
 
   // Reels Pagination & Merged Feed State
   const [firestoreReels, setFirestoreReels] = useState<VideoItem[]>([]);
@@ -1028,14 +1055,29 @@ export default function App() {
       );
     };
 
+    const isStreamActivelyLive = (s?: LiveStream | null): boolean =>
+      Boolean(
+        s &&
+          s.id &&
+          s.isLive === true &&
+          s.status !== 'closed' &&
+          s.status !== 'empty' &&
+          s.hostPresent !== false
+      );
+
     const upsertStream = (incoming: LiveStream) => {
       if (!incoming?.id || endedLiveIdsRef.current.has(incoming.id)) return;
+      if (!isStreamActivelyLive(incoming)) {
+        backendLiveIdsRef.current.delete(incoming.id);
+        setLiveStreams((prev) => prev.filter((s) => s.id !== incoming.id));
+        return;
+      }
       backendLiveIdsRef.current.add(incoming.id);
       setLiveStreams((prev) => {
         const merged = prev.some((s) => s.id === incoming.id)
           ? prev.map((s) => (s.id === incoming.id ? { ...s, ...incoming } : s))
           : [incoming, ...prev];
-        return dedupeLiveStreamsByHost(merged);
+        return dedupeLiveStreamsByHost(merged.filter(isStreamActivelyLive));
       });
       setActiveLiveStream((prev) => (prev && prev.id === incoming.id ? { ...prev, ...incoming } : prev));
     };
@@ -1217,10 +1259,24 @@ export default function App() {
             ? { ...prev, mutedSeatIndices: payload.mutedSeatIndices }
             : prev
         );
+      } else if (event === 'room:room_invited' && payload?.roomId) {
+        setActivePushBanner({
+          id: payload.id || `room_inv_${Date.now()}`,
+          type: 'rooms',
+          title: 'Party Room Invitation',
+          message: `${payload.fromHost?.name || 'Host'} invited you to join "${payload.roomTitle || 'Party Room'}"`,
+          avatar: payload.fromHost?.avatar || '',
+          senderId: payload.fromHost?.id,
+          senderName: payload.fromHost?.name,
+          actionType: 'open_room',
+          targetId: payload.roomId,
+          priority: 'high',
+          createdAtMs: Date.now(),
+        });
       }
     });
 
-    // Lightweight client safety sweep: immediately hide cards whose 5-minute empty countdown has elapsed
+    // Lightweight client safety sweep: immediately hide expired party rooms & any inactive/ended live cards
     const expirySweep = setInterval(() => {
       const now = Date.now();
       setPartyRooms((prev) => {
@@ -1237,8 +1293,7 @@ export default function App() {
       });
       setLiveStreams((prev) => {
         const filtered = prev.filter((s) => {
-          if (s.status === 'closed' || s.isLive === false) return false;
-          if (s.status === 'empty' && typeof s.closesAt === 'number' && s.closesAt <= now) {
+          if (s.status === 'closed' || s.status === 'empty' || s.isLive !== true || s.hostPresent === false) {
             endedLiveIdsRef.current.add(s.id);
             backendLiveIdsRef.current.delete(s.id);
             return false;
@@ -1339,12 +1394,26 @@ export default function App() {
       setLiveStreams((prev) => {
         const merged = new Map<string, LiveStream>();
         remoteStreams.forEach((s) => {
-          if (!endedLiveIdsRef.current.has(s.id) && s.isLive !== false) {
+          if (
+            !endedLiveIdsRef.current.has(s.id) &&
+            s.isLive === true &&
+            s.status !== 'closed' &&
+            s.status !== 'empty' &&
+            s.hostPresent !== false
+          ) {
             merged.set(s.id, s);
           }
         });
         prev.forEach((existing) => {
           if (endedLiveIdsRef.current.has(existing.id)) return;
+          if (
+            existing.isLive !== true ||
+            existing.status === 'closed' ||
+            existing.status === 'empty' ||
+            existing.hostPresent === false
+          ) {
+            return;
+          }
           if (backendLiveIdsRef.current.has(existing.id)) {
             const fsItem = merged.get(existing.id);
             if (fsItem) {
@@ -1370,8 +1439,9 @@ export default function App() {
           .filter(
             (s) =>
               s.status !== 'closed' &&
-              s.isLive !== false &&
-              !(s.status === 'empty' && typeof s.closesAt === 'number' && s.closesAt <= Date.now())
+              s.status !== 'empty' &&
+              s.isLive === true &&
+              s.hostPresent !== false
           )
           .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
           .forEach((s) => {
@@ -1710,7 +1780,19 @@ export default function App() {
       );
       return;
     }
+    // If tapping the currently minimized live stream, simply restore full screen without reconnecting
+    if (activeLiveStream && activeLiveStream.id === stream.id) {
+      setIsLiveStreamMinimized(false);
+      setCurrentScreen('live_active');
+      return;
+    }
+    // Close any active minimized audio room before joining a video live stream
+    if (activeAudioRoom) {
+      setActiveAudioRoom(null);
+      setIsAudioRoomMinimized(false);
+    }
     setActiveLiveStream(stream);
+    setIsLiveStreamMinimized(false);
     setCurrentScreen('live_active');
   };
 
@@ -1725,7 +1807,7 @@ export default function App() {
       return;
     }
     if (room.host.id !== currentUser.id) {
-      const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+      const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id, Date.now(), currentUser.id);
       if (activeKick) {
         showAppToast(
           activeKick.durationType === 'session'
@@ -1735,7 +1817,19 @@ export default function App() {
         return;
       }
     }
+    // If tapping the currently minimized party room, restore full screen seamlessly with zero reconnect!
+    if (activeAudioRoom && activeAudioRoom.id === room.id) {
+      setIsAudioRoomMinimized(false);
+      setCurrentScreen('audio_room');
+      return;
+    }
+    // Close any active minimized live stream before entering a party room
+    if (activeLiveStream) {
+      setActiveLiveStream(null);
+      setIsLiveStreamMinimized(false);
+    }
     setActiveAudioRoom(room);
+    setIsAudioRoomMinimized(false);
     setCurrentScreen('audio_room');
   };
 
@@ -2296,13 +2390,25 @@ export default function App() {
       return;
     }
     setViewingProfileUser(null);
+    if (activeAudioRoom && !isAudioRoomMinimized) {
+      setIsAudioRoomMinimized(true);
+    }
+    if (activeLiveStream && !isLiveStreamMinimized) {
+      setIsLiveStreamMinimized(true);
+    }
     setActiveChatUser(user);
     setCurrentScreen('messages');
   };
 
   // Filter out streams, party rooms, videos, and hosts belonging to users who permanently blocked the current user
+  // Also enforce strict active-broadcast check on Live cards so no offline/stale/empty cards appear
   const visibleLiveStreams = liveStreams.filter(
-    (s) => s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id)
+    (s) =>
+      s.isLive === true &&
+      s.status !== 'closed' &&
+      s.status !== 'empty' &&
+      s.hostPresent !== false &&
+      (s.host.id === currentUser.id || !blockedByUserIds.includes(s.host.id))
   );
   const visiblePartyRooms = partyRooms.filter(
     (r) => r.host.id === currentUser.id || !blockedByUserIds.includes(r.host.id)
@@ -2398,236 +2504,259 @@ export default function App() {
     );
   }
 
-  // Full Screen Live Broadcast View
-  if (currentScreen === 'live_active' && activeLiveStream) {
-    return (
-      <PullToRefresh onRefresh={handleGlobalAppRefresh}>
-        <div className="relative w-full h-dvh-screen bg-black">
-        <ActiveLiveScreen
-          stream={activeLiveStream}
-          currentUser={currentUser}
-          onClose={() => {
-            setActiveLiveStream(null);
-            setActivePKSession(null);
-            setCurrentScreen('home');
-          }}
-          onUpdateStream={(updatedStream) => {
-            setActiveLiveStream(updatedStream);
-            setLiveStreams((prev) =>
-              prev.map((s) => (s.id === updatedStream.id ? updatedStream : s))
-            );
-          }}
-          onEndLive={handleEndLive}
-          onToggleFollow={handleToggleFollow}
-          onOpenGiftShop={(recipient) => {
-            setGiftRecipient(recipient);
-            setIsGiftShopOpen(true);
-          }}
-          onOpenPK={() => setIsPKInviteModalOpen(true)}
-          onSelectUser={(u) => setViewingProfileUser(u)}
-          activeGiftCelebration={activeGiftCelebration}
-          activePKSession={activePKSession}
-          onForfeitPK={handleForfeitPK}
-          onRematchPK={() => setIsPKInviteModalOpen(true)}
-          blockedUserIds={blockedUserIds}
-          blockedByUserIds={blockedByUserIds}
-        />
-        {/* Supporting Modals when inside live stream */}
-        <GiftShopModal
-          isOpen={isGiftShopOpen}
-          onClose={() => setIsGiftShopOpen(false)}
-          currentUser={currentUser}
-          recipientUser={giftRecipient || (activePKSession ? (giftRecipient || activePKSession.host2.user) : activeLiveStream.host)}
-          gifts={gifts}
-          onSendGift={handleSendGift}
-          onOpenWallet={() => setIsWalletOpen(true)}
-        />
-        <PKHostInviteModal
-          isOpen={isPKInviteModalOpen}
-          onClose={() => setIsPKInviteModalOpen(false)}
-          currentUser={currentUser}
-          activeHost={activeLiveStream.host}
-          onMatchStarted={(session) => {
-            setActivePKSession(session);
-            setIsPKInviteModalOpen(false);
-          }}
-        />
-        <PKIncomingChallengeModal
-          invitation={incomingPKInvite}
-          onAccept={handleAcceptPKInvite}
-          onDecline={handleDeclinePKInvite}
-        />
-        <PKWinnerAnnouncementModal
-          session={pkWinnerSession}
-          currentUser={currentUser}
-          isOpen={!!pkWinnerSession}
-          onClose={() => setPkWinnerSession(null)}
-          onRematch={() => {
-            setPkWinnerSession(null);
-            setIsPKInviteModalOpen(true);
-          }}
-          onViewHistory={() => {
-            setPkWinnerSession(null);
-            setCurrentScreen('profile');
-          }}
-        />
-        <UserProfileModal
-          user={viewingProfileUser}
-          currentUserId={currentUser.id}
-          isOpen={!!viewingProfileUser}
-          onClose={() => setViewingProfileUser(null)}
-          onToggleFollow={handleToggleFollow}
-          onSendMessage={handleSendMessageToUser}
-          onSendGift={(u) => {
-            setGiftRecipient(u);
-            setIsGiftShopOpen(true);
-          }}
-          isBlocked={isBlockedByMe(viewingProfileUser?.id)}
-          isBlockedByTarget={isBlockedByTarget(viewingProfileUser?.id)}
-          onBlockUser={handleBlockUser}
-          onUnblockUser={handleUnblockUser}
-          onViewFullProfile={(u) => {
-            if (isBlockedByTarget(u.id)) {
-              setViewingProfileUser(null);
-              showAppToast('You cannot view this user\'s profile or videos.');
-              return;
-            }
-            setViewingProfileUser(null);
-            setActiveLiveStream(null);
-            setActivePKSession(null);
-            setNavigatingProfileUser(u);
-            setCurrentScreen('profile');
-          }}
-        />
-        <Suspense fallback={null}>
-          <WalletModal
-            isOpen={isWalletOpen}
-            onClose={() => setIsWalletOpen(false)}
-            currentUser={currentUser}
-            onRechargeSuccess={handleRechargeSuccess}
-            onSendMessage={handleSendMessageToUser}
-          />
-        </Suspense>
-        {appToast && (
-          <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
-            {appToast}
-          </div>
-        )}
-        <PushNotificationBanner
-          notification={activePushBanner}
-          onDismiss={() => setActivePushBanner(null)}
-          onOpen={(notif) => handleNotificationDeepAction(notif)}
-        />
-        </div>
-      </PullToRefresh>
-    );
-  }
-
-  // Full Screen Audio Room View
-  if (currentScreen === 'audio_room' && activeAudioRoom) {
-    return (
-      <PullToRefresh onRefresh={handleGlobalAppRefresh}>
-        <div className="relative w-full min-h-dvh-screen bg-[#060212]">
-        <AudioRoomScreen
-          room={activeAudioRoom}
-          currentUser={currentUser}
-          onClose={() => {
-            // Owner exits room to rooms list, but the room remains active and persistent in partyRooms!
-            setActiveAudioRoom(null);
-            setCurrentScreen('rooms');
-          }}
-          onUpdateRoom={(updatedRoom) => {
-            const enforced = enforcePartyRoomSeatPolicy(updatedRoom);
-            setActiveAudioRoom(enforced);
-            setPartyRooms((prev) => prev.map((r) => (r.id === enforced.id ? enforced : r)));
-          }}
-          onCloseRoom={(roomId) => {
-            // Intentional permanent close by Room Owner: removes room from directory & Firestore
-            endedRoomIdsRef.current.add(roomId);
-            backendRoomIdsRef.current.delete(roomId);
-            setPartyRooms((prev) => prev.filter((r) => r.id !== roomId));
-            setActiveAudioRoom(null);
-            setCurrentScreen('rooms');
-            deleteFirestorePartyRoom(roomId).catch((err) => {
-              console.warn('[Firestore] Party room delete notice:', err);
-            });
-          }}
-          onOpenGiftShop={(recipient) => {
-            setGiftRecipient(recipient);
-            setIsGiftShopOpen(true);
-          }}
-          onOpenWallet={() => setIsWalletOpen(true)}
-          onSelectUser={(u) => setViewingProfileUser(u)}
-          onOpenPK={handleOpenPKFromNav}
-          activeGiftCelebration={activeGiftCelebration}
-          blockedUserIds={blockedUserIds}
-          blockedByUserIds={blockedByUserIds}
-          activeRoomKicks={activeRoomKicks}
-          onBlockUser={handleBlockUser}
-        />
-        {/* Supporting Modals when inside audio room */}
-        <GiftShopModal
-          isOpen={isGiftShopOpen}
-          onClose={() => setIsGiftShopOpen(false)}
-          currentUser={currentUser}
-          recipientUser={giftRecipient || activeAudioRoom.host}
-          gifts={gifts}
-          onSendGift={handleSendGift}
-          onOpenWallet={() => setIsWalletOpen(true)}
-        />
-        <UserProfileModal
-          user={viewingProfileUser}
-          currentUserId={currentUser.id}
-          isOpen={!!viewingProfileUser}
-          onClose={() => setViewingProfileUser(null)}
-          onToggleFollow={handleToggleFollow}
-          onSendMessage={handleSendMessageToUser}
-          onSendGift={(u) => {
-            setGiftRecipient(u);
-            setIsGiftShopOpen(true);
-          }}
-          isBlocked={isBlockedByMe(viewingProfileUser?.id)}
-          isBlockedByTarget={isBlockedByTarget(viewingProfileUser?.id)}
-          onBlockUser={handleBlockUser}
-          onUnblockUser={handleUnblockUser}
-          onViewFullProfile={(u) => {
-            if (isBlockedByTarget(u.id)) {
-              setViewingProfileUser(null);
-              showAppToast('You cannot view this user\'s profile or videos.');
-              return;
-            }
-            setViewingProfileUser(null);
-            setActiveAudioRoom(null);
-            setNavigatingProfileUser(u);
-            setCurrentScreen('profile');
-          }}
-        />
-        <Suspense fallback={null}>
-          <WalletModal
-            isOpen={isWalletOpen}
-            onClose={() => setIsWalletOpen(false)}
-            currentUser={currentUser}
-            onRechargeSuccess={handleRechargeSuccess}
-            onSendMessage={handleSendMessageToUser}
-          />
-        </Suspense>
-        {appToast && (
-          <div className="fixed safe-top-offset-4 left-1/2 -translate-x-1/2 z-[150] px-4 py-2.5 rounded-2xl bg-[#160b29]/95 border border-rose-500/40 text-white text-xs font-bold shadow-[0_12px_32px_rgba(0,0,0,0.65)] backdrop-blur-md text-center max-w-[90vw]">
-            {appToast}
-          </div>
-        )}
-        <PushNotificationBanner
-          notification={activePushBanner}
-          onDismiss={() => setActivePushBanner(null)}
-          onOpen={(notif) => handleNotificationDeepAction(notif)}
-        />
-        </div>
-      </PullToRefresh>
-    );
-  }
+  const isShowingFullLive = Boolean(activeLiveStream && !isLiveStreamMinimized && currentScreen === 'live_active');
+  const isShowingFullAudioRoom = Boolean(activeAudioRoom && !isAudioRoomMinimized && currentScreen === 'audio_room');
 
   return (
     <div className="min-h-dvh-screen w-full bg-[#090611] text-white flex flex-col md:flex-row antialiased selection:bg-[#F328D5]/30">
+      {/* Persistent Live Broadcast Overlay (stays mounted when minimized so audio/video/stream stay connected) */}
+      {activeLiveStream && (
+        <div className={isShowingFullLive ? 'fixed inset-0 z-50 w-full h-dvh-screen bg-black' : 'hidden'}>
+          <ActiveLiveScreen
+            key={activeLiveStream.id}
+            stream={activeLiveStream}
+            currentUser={currentUser}
+            isMinimized={!isShowingFullLive}
+            onMinimize={() => {
+              setIsLiveStreamMinimized(true);
+              setCurrentScreen('home');
+            }}
+            exitSignal={liveStreamExitSignal}
+            onClose={() => {
+              setActiveLiveStream(null);
+              setIsLiveStreamMinimized(false);
+              setActivePKSession(null);
+              setCurrentScreen((prev) => (prev === 'live_active' ? 'home' : prev));
+            }}
+            onUpdateStream={(updatedStream) => {
+              setActiveLiveStream(updatedStream);
+              setLiveStreams((prev) =>
+                prev.map((s) => (s.id === updatedStream.id ? updatedStream : s))
+              );
+            }}
+            onEndLive={(streamId) => {
+              setIsLiveStreamMinimized(false);
+              handleEndLive(streamId);
+            }}
+            onToggleFollow={handleToggleFollow}
+            onOpenGiftShop={(recipient) => {
+              setGiftRecipient(recipient);
+              setIsGiftShopOpen(true);
+            }}
+            onOpenPK={() => setIsPKInviteModalOpen(true)}
+            onSelectUser={(u) => setViewingProfileUser(u)}
+            activeGiftCelebration={activeGiftCelebration}
+            activePKSession={activePKSession}
+            onForfeitPK={handleForfeitPK}
+            onRematchPK={() => setIsPKInviteModalOpen(true)}
+            blockedUserIds={blockedUserIds}
+            blockedByUserIds={blockedByUserIds}
+          />
+        </div>
+      )}
+
+      {/* Persistent Audio Party Room Overlay (stays mounted when minimized so seat, Agora/WebRTC audio & WS stay connected) */}
+      {activeAudioRoom && (
+        <div className={isShowingFullAudioRoom ? 'fixed inset-0 z-50 w-full h-dvh-screen bg-[#060212]' : 'hidden'}>
+          <AudioRoomScreen
+            key={activeAudioRoom.id}
+            room={activeAudioRoom}
+            currentUser={currentUser}
+            isMinimized={!isShowingFullAudioRoom}
+            onMinimize={() => {
+              setIsAudioRoomMinimized(true);
+              setCurrentScreen('home');
+            }}
+            onMiniStateChange={handleAudioMiniStateChange}
+            exitSignal={audioRoomExitSignal}
+            toggleMicSignal={audioRoomToggleMicSignal}
+            onClose={() => {
+              setActiveAudioRoom(null);
+              setIsAudioRoomMinimized(false);
+              setCurrentScreen((prev) => (prev === 'audio_room' ? 'rooms' : prev));
+            }}
+            onUpdateRoom={(updatedRoom) => {
+              const enforced = enforcePartyRoomSeatPolicy(updatedRoom);
+              setActiveAudioRoom(enforced);
+              setPartyRooms((prev) => prev.map((r) => (r.id === enforced.id ? enforced : r)));
+            }}
+            onCloseRoom={(roomId) => {
+              endedRoomIdsRef.current.add(roomId);
+              backendRoomIdsRef.current.delete(roomId);
+              setPartyRooms((prev) => prev.filter((r) => r.id !== roomId));
+              setActiveAudioRoom(null);
+              setIsAudioRoomMinimized(false);
+              setCurrentScreen((prev) => (prev === 'audio_room' ? 'rooms' : prev));
+              deleteFirestorePartyRoom(roomId).catch((err) => {
+                console.warn('[Firestore] Party room delete notice:', err);
+              });
+            }}
+            onOpenGiftShop={(recipient) => {
+              setGiftRecipient(recipient);
+              setIsGiftShopOpen(true);
+            }}
+            onOpenWallet={() => setIsWalletOpen(true)}
+            onSelectUser={(u) => setViewingProfileUser(u)}
+            onOpenPK={handleOpenPKFromNav}
+            activeGiftCelebration={activeGiftCelebration}
+            blockedUserIds={blockedUserIds}
+            blockedByUserIds={blockedByUserIds}
+            activeRoomKicks={activeRoomKicks}
+            onBlockUser={handleBlockUser}
+          />
+        </div>
+      )}
+
+      {/* Compact Blue Neon Floating Mini-Player Bar (Party Room Minimized) */}
+      {activeAudioRoom && !isShowingFullAudioRoom && (
+        <div className="fixed bottom-[76px] md:bottom-5 right-3 left-3 sm:left-auto sm:w-80 z-[48] animate-fade-in">
+          <div className="flex items-center gap-2.5 p-2 pr-2.5 rounded-2xl bg-[#07152F]/95 backdrop-blur-xl border border-[#00D4FF]/60 shadow-[0_8px_28px_rgba(0,168,255,0.4)]">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAudioRoomMinimized(false);
+                setCurrentScreen('audio_room');
+              }}
+              className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+              title="Tap to return to Party Room"
+            >
+              <div className="relative shrink-0">
+                {activeAudioRoom.host?.avatar ? (
+                  <img
+                    src={activeAudioRoom.host.avatar}
+                    alt={activeAudioRoom.title}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-[#00D4FF] shadow-[0_0_12px_rgba(0,212,255,0.65)]"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A8FF] to-[#2563EB] ring-2 ring-[#00D4FF] flex items-center justify-center text-xs font-black">
+                    {(activeAudioRoom.title || 'P').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#07152F] animate-pulse" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-white truncate leading-tight">
+                  {activeAudioRoom.title}
+                </p>
+                <p className="text-[10px] font-bold text-cyan-300 truncate flex items-center gap-1 mt-0.5">
+                  <Radio className="w-3 h-3 text-[#00D4FF] shrink-0 animate-pulse" />
+                  <span>
+                    {audioRoomMiniMeta.isSeated
+                      ? audioRoomMiniMeta.isMicMuted
+                        ? 'On Seat • Mic Muted'
+                        : 'On Seat • Mic Live'
+                      : `Party Live • ${audioRoomMiniMeta.participantCount} online`}
+                  </span>
+                </p>
+              </div>
+            </button>
+
+            {audioRoomMiniMeta.isSeated && (
+              <button
+                type="button"
+                onClick={() => setAudioRoomToggleMicSignal((n) => n + 1)}
+                className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-all active:scale-95 ${
+                  audioRoomMiniMeta.isMicMuted
+                    ? 'bg-rose-950/90 border-rose-500/60 text-rose-300'
+                    : 'bg-[#0C2A57] border-[#00D4FF]/60 text-cyan-200'
+                }`}
+                title={audioRoomMiniMeta.isMicMuted ? 'Unmute Mic' : 'Mute Mic'}
+              >
+                {audioRoomMiniMeta.isMicMuted ? (
+                  <MicOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsAudioRoomMinimized(false);
+                setCurrentScreen('audio_room');
+              }}
+              className="w-8 h-8 rounded-full bg-[#0C2A57] hover:bg-[#133C7A] border border-[#00D4FF]/55 text-cyan-200 flex items-center justify-center shrink-0 transition-all active:scale-95"
+              title="Restore Full Screen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAudioRoomExitSignal((n) => n + 1)}
+              className="w-8 h-8 rounded-full bg-rose-600/80 hover:bg-rose-600 border border-rose-400/45 text-white flex items-center justify-center shrink-0 transition-all active:scale-95"
+              title="Exit Party Room"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Compact Blue Neon Floating Mini-Player Bar (Solo Live Minimized) */}
+      {activeLiveStream && !isShowingFullLive && (
+        <div className="fixed bottom-[76px] md:bottom-5 right-3 left-3 sm:left-auto sm:w-80 z-[48] animate-fade-in">
+          <div className="flex items-center gap-2.5 p-2 pr-2.5 rounded-2xl bg-[#07152F]/95 backdrop-blur-xl border border-[#00D4FF]/60 shadow-[0_8px_28px_rgba(0,168,255,0.4)]">
+            <button
+              type="button"
+              onClick={() => {
+                setIsLiveStreamMinimized(false);
+                setCurrentScreen('live_active');
+              }}
+              className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+              title="Tap to return to Live Broadcast"
+            >
+              <div className="relative shrink-0">
+                {activeLiveStream.host?.avatar ? (
+                  <img
+                    src={activeLiveStream.host.avatar}
+                    alt={activeLiveStream.title}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-[#00D4FF] shadow-[0_0_12px_rgba(0,212,255,0.65)]"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A8FF] to-[#2563EB] ring-2 ring-[#00D4FF] flex items-center justify-center text-xs font-black">
+                    {(activeLiveStream.host?.name || 'L').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-rose-600 text-[7px] font-black text-white border border-[#07152F]">
+                  LIVE
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-white truncate leading-tight">
+                  {activeLiveStream.title}
+                </p>
+                <p className="text-[10px] font-bold text-cyan-300 truncate flex items-center gap-1 mt-0.5">
+                  <Radio className="w-3 h-3 text-[#00D4FF] shrink-0 animate-pulse" />
+                  <span>{activeLiveStream.host?.name} • Connected</span>
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsLiveStreamMinimized(false);
+                setCurrentScreen('live_active');
+              }}
+              className="w-8 h-8 rounded-full bg-[#0C2A57] hover:bg-[#133C7A] border border-[#00D4FF]/55 text-cyan-200 flex items-center justify-center shrink-0 transition-all active:scale-95"
+              title="Restore Live Screen"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLiveStreamExitSignal((n) => n + 1)}
+              className="w-8 h-8 rounded-full bg-rose-600/80 hover:bg-rose-600 border border-rose-400/45 text-white flex items-center justify-center shrink-0 transition-all active:scale-95"
+              title={activeLiveStream.host.id === currentUser.id ? 'End Live Broadcast' : 'Leave Live'}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Desktop Persistent Left Sidebar (Visible on md: and up) */}
       <DesktopSidebar
@@ -3178,8 +3307,26 @@ export default function App() {
             return;
           }
           setViewingProfileUser(null);
+          if (activeAudioRoom && !isAudioRoomMinimized) {
+            setIsAudioRoomMinimized(true);
+          }
+          if (activeLiveStream && !isLiveStreamMinimized) {
+            setIsLiveStreamMinimized(true);
+          }
           setNavigatingProfileUser(u);
           setCurrentScreen('profile');
+        }}
+      />
+
+      {/* 8b. PK Host Invite Modal (for Live / Party PK battles) */}
+      <PKHostInviteModal
+        isOpen={isPKInviteModalOpen}
+        onClose={() => setIsPKInviteModalOpen(false)}
+        currentUser={currentUser}
+        activeHost={activeLiveStream?.host || activeAudioRoom?.host || currentUser}
+        onMatchStarted={(session) => {
+          setActivePKSession(session);
+          setIsPKInviteModalOpen(false);
         }}
       />
 

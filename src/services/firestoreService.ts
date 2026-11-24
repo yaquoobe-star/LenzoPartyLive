@@ -285,24 +285,29 @@ function isFirestoreRoomStillVisible(data: any, now = Date.now()): boolean {
 
 function isFirestoreStreamStillVisible(data: any, now = Date.now()): boolean {
   if (!data) return false;
-  if (data.isLive === false || data.status === 'closed' || data.status === 'ended') return false;
-  if (data.status === 'empty' && typeof data.closesAt === 'number' && data.closesAt <= now) {
-    return false;
-  }
+  // Bug 9: Only show live cards for genuinely active live broadcasts where the host is actively live
+  if (data.isLive !== true) return false;
+  if (data.status === 'closed' || data.status === 'ended' || data.status === 'empty') return false;
+  if (data.hostPresent === false) return false;
+  if (typeof data.closesAt === 'number' && data.closesAt <= now) return false;
   return true;
 }
 
 function normalizeFirestorePartyRoom(id: string, data: any): PartyRoom {
   const hostCard = sanitizeFirestoreUserCard(data?.host);
   const hostLevel = sanitizeUserLevel(hostCard.level);
-  const maxSeats = clampPartyMaxSeatsForHostLevel(data?.maxSeats, hostLevel);
   const rawSeats = Array.isArray(data?.seats) ? data.seats : [];
+  // Never shrink maxSeats below existing occupied seats or the persisted room capacity
+  const requestedMaxSeats = typeof data?.maxSeats === 'number' && data.maxSeats > 0 ? data.maxSeats : rawSeats.length || 8;
+  const maxSeats = Math.max(
+    clampPartyMaxSeatsForHostLevel(requestedMaxSeats, hostLevel),
+    requestedMaxSeats === 8 || requestedMaxSeats === 16 ? requestedMaxSeats : 5,
+    rawSeats.length
+  );
   const seats: (UserProfile | null)[] = Array(maxSeats).fill(null);
   for (let i = 0; i < Math.min(maxSeats, rawSeats.length); i++) {
-    seats[i] =
-      rawSeats[i] && !isSeatLockedByHostLevel(i, hostLevel)
-        ? sanitizeFirestoreUserCard(rawSeats[i])
-        : null;
+    // Preserve every genuinely occupied seat — never knock a seated user off due to transient level hydration
+    seats[i] = rawSeats[i] ? sanitizeFirestoreUserCard(rawSeats[i]) : null;
   }
   const seatedCount = seats.filter(Boolean).length;
   const numericParticipants =

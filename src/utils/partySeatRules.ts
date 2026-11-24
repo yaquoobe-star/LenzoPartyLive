@@ -201,10 +201,15 @@ export function enforcePartyRoomSeatPolicy<
   }
 >(room: T): T {
   const hostLevel = sanitizeUserLevel(room?.host?.level);
-  const safeMaxSeats = clampPartyMaxSeatsForHostLevel(room?.maxSeats, hostLevel);
-  const safeSeats = Array.isArray(room?.seats)
-    ? sanitizePartySeatsForHostLevel(room.seats, safeMaxSeats, hostLevel)
-    : room?.seats;
+  const storedValidMax =
+    typeof room?.maxSeats === 'number' && [5, 8, 16].includes(room.maxSeats)
+      ? (room.maxSeats as PartySeatCount)
+      : clampPartyMaxSeatsForHostLevel(room?.maxSeats, hostLevel);
+  const rawSeats = Array.isArray(room?.seats) ? room.seats : undefined;
+  const safeMaxSeats = Math.max(storedValidMax, rawSeats ? rawSeats.length : 0);
+  const safeSeats = rawSeats
+    ? Array.from({ length: safeMaxSeats }, (_, idx) => rawSeats[idx] ?? null)
+    : undefined;
   return {
     ...room,
     maxSeats: safeMaxSeats,

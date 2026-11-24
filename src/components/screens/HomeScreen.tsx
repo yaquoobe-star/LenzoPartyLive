@@ -216,8 +216,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     });
 
-    // 1. Add real active live video stream hosts
+    // 1. Add real active live video stream hosts (strictly actively broadcasting via Start Live)
     liveStreams.forEach((stream) => {
+      if (
+        !stream ||
+        stream.isLive !== true ||
+        stream.status === 'closed' ||
+        stream.status === 'empty' ||
+        stream.hostPresent === false
+      ) {
+        return;
+      }
       if (!isOriginalRealHost(stream.host)) return;
       const viewers = Number(stream.numericViewers ?? 0) || 0;
       const likes = Number(stream.likesCount ?? 0) || 0;
@@ -277,6 +286,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [liveStreams, partyRooms, topBroadcasters]);
 
   const filteredStreams = liveStreams.filter((stream) => {
+    if (
+      !stream ||
+      stream.isLive !== true ||
+      stream.status === 'closed' ||
+      stream.status === 'empty' ||
+      stream.hostPresent === false
+    ) {
+      return false;
+    }
     if (activeTab === 'following') {
       return Boolean(stream.host.isFollowing);
     }

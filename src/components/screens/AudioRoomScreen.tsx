@@ -33,7 +33,12 @@ import {
   ArrowDownCircle,
   Reply,
   Eraser,
+  Minimize2,
+  Search,
 } from 'lucide-react';
+import { collection, getDocs, limit, query } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { sendPushNotification } from '../../services/pushNotificationService';
 import { LiveLeaderboardModal } from '../common/LiveLeaderboardModal';
 import {
   PartyBackgroundPickerModal,
@@ -141,6 +146,16 @@ interface AudioRoomScreenProps {
   blockedByUserIds?: string[];
   activeRoomKicks?: RoomKickRecord[];
   onBlockUser?: (user: UserProfile) => Promise<void> | void;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
+  onMiniStateChange?: (state: {
+    isSeated: boolean;
+    isMicMuted: boolean;
+    participantCount: number;
+    seatedCount: number;
+  }) => void;
+  exitSignal?: number;
+  toggleMicSignal?: number;
 }
 
 interface ActivityItem {
@@ -187,6 +202,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   blockedByUserIds = [],
   activeRoomKicks = [],
   onBlockUser,
+  isMinimized = false,
+  onMinimize,
+  onMiniStateChange,
+  exitSignal = 0,
+  toggleMicSignal = 0,
 }) => {
   const isRoomHost = currentUser.id === room.host.id;
   const [hostModerators, setHostModerators] = useState<HostModeratorRecord[]>([]);
@@ -194,10 +214,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const isCurrentUserModerator = !isRoomHost && moderatorIdsSet.has(currentUser.id);
   const canModerate = isRoomHost || isCurrentUserModerator;
   const canModerateTarget = (targetUserId?: string | null): boolean => {
-    if (!targetUserId || targetUserId === currentUser.id) return false;
+    // Permanent Room Owner protection: Room Owner can NEVER be kicked, removed, muted, or blocked by anyone
+    if (!targetUserId || targetUserId === currentUser.id || targetUserId === room.host.id) return false;
     if (isRoomHost) return true;
     if (!isCurrentUserModerator) return false;
-    if (targetUserId === room.host.id) return false;
     if (moderatorIdsSet.has(targetUserId)) return false;
     return true;
   };
@@ -243,10 +263,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   }, [blockedByUserIds, isRoomHost, room.host.id, room.id, onClose]);
 
-  // Real-time Kick enforcement: if Host kicks current user (session / 24h / 15d / 30d), eject immediately
+  // Real-time Kick enforcement: if Host kicks current user (session / 24h / 15d / 30d), eject immediately (Room Owner is permanently immune)
   useEffect(() => {
-    if (isRoomHost) return;
-    const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id);
+    if (isRoomHost || currentUser.id === room.host.id) return;
+    const activeKick = getActiveKickForRoom(activeRoomKicks, room.id, room.host.id, Date.now(), currentUser.id);
     if (activeKick) {
       hasExplicitlyLeftRef.current = true;
       webrtcMediaService.stopPartyVoice();
@@ -302,6 +322,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [requestTargetSeat, setRequestTargetSeat] = useState<number | null>(null);
   const [showRequestConfirmModal, setShowRequestConfirmModal] = useState(false);
   const [showInviteToSeatModal, setShowInviteToSeatModal] = useState<number | null>(null);
+  const [inviteModalTab, setInviteModalTab] = useState<'room' | 'users'>('room');
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('');
+  const [invitableUsers, setInvitableUsers] = useState<UserProfile[]>([]);
+  const [inviteUsersLoading, setInviteUsersLoading] = useState(false);
+  const [invitedUserIds, setInvitedUserIds] = useState<Record<string, boolean>>({});
   const [incomingSeatInvite, setIncomingSeatInvite] = useState<SeatInvitation | null>(null);
   const [selectedSeatMember, setSelectedSeatMember] = useState<{ index: number | null; user: UserProfile } | null>(null);
   const [showKickDurationPicker, setShowKickDurationPicker] = useState(false);
@@ -502,32 +527,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     });
   }, [canModerate, room.id, room.host.id]);
 
-  // Keep maxSeats, locked Seat #2, and host.level strictly synchronized if Host level changes or hydrates
+  // Keep maxSeats and host.level synchronized WITHOUT ever wiping already-occupied seats
   useEffect(() => {
-    const safeMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
-    const sanitized = normalizeSeats(seatsRef.current, safeMax, hostLevel);
-    const hadInvalidLength = seatsRef.current.length !== safeMax;
-    const hadLockedSeatOccupant = isSeatLockedByHostLevel(1, hostLevel) && Boolean(seatsRef.current[1]);
+    const occupiedCount = seatsRef.current.length;
+    const desiredMax = clampPartyMaxSeatsForHostLevel(maxSeatsRef.current, hostLevel);
+    const safeMax: PartySeatCount =
+      occupiedCount >= 16 ? 16 : occupiedCount >= 8 ? Math.max(8, desiredMax) as PartySeatCount : desiredMax;
 
     if (safeMax !== maxSeatsRef.current) {
       setMaxSeats(safeMax);
       maxSeatsRef.current = safeMax;
     }
-    if (hadInvalidLength || hadLockedSeatOccupant) {
-      setSeats(sanitized);
-      seatsRef.current = sanitized;
-      setMutedSeatIndices((prev) => prev.filter((idx) => idx < safeMax));
-    }
 
     if (isRoomHost) {
       const storedHostLevel = sanitizeUserLevel(room.host?.level);
-      const storedMaxSeats = Number(room.maxSeats);
-      if (hadInvalidLength || hadLockedSeatOccupant || storedHostLevel !== hostLevel || storedMaxSeats > safeMax) {
+      if (storedHostLevel !== hostLevel) {
         void syncFirestorePartyRoomState(room.id, true, {
           host: { ...room.host, ...currentUser, level: hostLevel },
           hostLevel,
-          maxSeats: safeMax,
-          seats: sanitized,
         });
       }
     }
@@ -608,7 +625,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       seatsRef.current.some((s) => s?.id === currentUser.id)
     );
 
-    const applyServerRoomState = (nextRoom: PartyRoom) => {
+    const applyServerRoomState = (nextRoom: PartyRoom, allowSeatClear = false) => {
       const effectiveLevel = isRoomHost
         ? hostLevelRef.current
         : typeof nextRoom.host?.level === 'number'
@@ -617,10 +634,24 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (!isRoomHost && typeof nextRoom.host?.level === 'number') {
         setLiveHostLevel(effectiveLevel);
       }
-      const nextMax = clampPartyMaxSeatsForHostLevel(nextRoom.maxSeats ?? maxSeatsRef.current, effectiveLevel);
-      const nextSeats = normalizeSeats(nextRoom.seats, nextMax, effectiveLevel);
-      setMaxSeats(nextMax);
-      setSeats(nextSeats);
+      const incomingMax = [5, 8, 16].includes(Number(nextRoom.maxSeats))
+        ? Number(nextRoom.maxSeats)
+        : clampPartyMaxSeatsForHostLevel(nextRoom.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+      const nextMax = Math.max(incomingMax, maxSeatsRef.current, Array.isArray(nextRoom.seats) ? nextRoom.seats.length : 0);
+      const incomingSeatsRaw: (UserProfile | null)[] = Array.isArray(nextRoom.seats) ? nextRoom.seats : [];
+      const currentSeats = seatsRef.current;
+      // Prevent stale/freshly-hydrated server memory (which may have all-null seats after restart)
+      // from knocking the Host or seated speakers off their active seats!
+      const mergedSeats: (UserProfile | null)[] = Array.from({ length: nextMax }, (_, idx) => {
+        const inc = incomingSeatsRaw[idx] || null;
+        if (inc) return inc;
+        if (!allowSeatClear && currentSeats[idx]) {
+          return currentSeats[idx];
+        }
+        return null;
+      });
+      setMaxSeats(nextMax as PartySeatCount);
+      setSeats(mergedSeats);
       if (Array.isArray(nextRoom.mutedSeatIndices)) {
         setMutedSeatIndices(nextRoom.mutedSeatIndices.filter((i) => i < nextMax));
       }
@@ -642,7 +673,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (typeof nextRoom.numericParticipants === 'number') {
         setParticipantTotal(Math.max(0, nextRoom.numericParticipants || 0));
       }
-      onUpdateRoom?.({ ...nextRoom, maxSeats: nextMax, seats: nextSeats });
+      onUpdateRoom?.({ ...nextRoom, maxSeats: nextMax as PartySeatCount, seats: mergedSeats });
     };
 
     const refreshRealTimeParticipants = () => {
@@ -861,10 +892,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         if (!isRoomHost && typeof data.host?.level === 'number') {
           setLiveHostLevel(effectiveLevel);
         }
-        const nextMax = clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsRef.current, effectiveLevel);
-        setMaxSeats(nextMax);
+        const rawFsSeats: (UserProfile | null)[] = Array.isArray(data.seats) ? data.seats : [];
+        const storedFsMax = [5, 8, 16].includes(Number(data.maxSeats))
+          ? Number(data.maxSeats)
+          : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsRef.current, effectiveLevel);
+        const nextMax = Math.max(storedFsMax, rawFsSeats.length);
+        setMaxSeats(nextMax as PartySeatCount);
         if (Array.isArray(data.seats)) {
-          setSeats(normalizeSeats(data.seats, nextMax, effectiveLevel));
+          const preservedSeats: (UserProfile | null)[] = Array.from(
+            { length: nextMax },
+            (_, idx) => rawFsSeats[idx] || null
+          );
+          setSeats(preservedSeats);
         }
         if (Array.isArray(data.mutedSeatIndices)) {
           setMutedSeatIndices(data.mutedSeatIndices.filter((i: number) => i < nextMax));
@@ -986,7 +1025,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           event === 'room:reactivated') &&
         payload.room
       ) {
-        applyServerRoomState(payload.room as PartyRoom);
+        applyServerRoomState(
+          payload.room as PartyRoom,
+          event === 'room:seat_vacated'
+        );
         if (Array.isArray(payload.participants)) {
           const filtered = isRoomHost
             ? payload.participants.filter((p: LiveViewerInfo) => !blockedUserIdsRef.current.has(p.userId))
@@ -1138,8 +1180,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:seat_request_rejected') {
         hadPendingSeatReqRef.current = false;
         showToast('Host declined your seat request');
+      } else if (event === 'room:seat_invited') {
+        if (payload.toUserId === currentUser.id && !isCurrentlySeated) {
+          setIncomingSeatInvite({
+            id: payload.id || `inv_${Date.now()}`,
+            fromHost: payload.fromHost || room.host,
+            toUser: currentUser,
+            seatIndex: typeof payload.seatIndex === 'number' ? payload.seatIndex : 1,
+            sentAt: payload.createdAt || Date.now(),
+          });
+          showToast(`${payload.fromHost?.name || room.host.name} invited you to Seat #${(payload.seatIndex ?? 1) + 1}`);
+        }
       } else if (event === 'room:seat_kicked') {
-        if (!isRoomHost) {
+        // Room Owner is permanently immune to seat kick events
+        if (!isRoomHost && currentUser.id !== room.host.id) {
           const now = Date.now();
           if (now - kickedToastShownAtRef.current > 2500) {
             kickedToastShownAtRef.current = now;
@@ -1235,12 +1289,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       void leaveFirestoreRoomParticipant(room.id).catch(() => {});
     };
 
-    window.addEventListener('pagehide', cleanupOnUnexpectedExit);
     window.addEventListener('beforeunload', cleanupOnUnexpectedExit);
 
     return () => {
       active = false;
-      window.removeEventListener('pagehide', cleanupOnUnexpectedExit);
       window.removeEventListener('beforeunload', cleanupOnUnexpectedExit);
       clearInterval(heartbeatInterval);
       if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
@@ -1299,7 +1351,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           currentUser.id,
           initiallySeated ? 'broadcaster' : 'audience',
           false,
-          1800
+          5000
         );
 
         const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
@@ -1545,7 +1597,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     return () => {
       active = false;
     };
-  }, [isCurrentlySeated, voiceTransport]);
+  }, [isCurrentlySeated, voiceTransport, agoraVoiceState]);
 
   // Lightweight local mute toggle & speaking volume meter (Zero track teardown!)
   useEffect(() => {
@@ -1555,7 +1607,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         t.enabled = !effectiveMuted;
       });
     }
-    agoraRtcService.setMicrophoneMuted(effectiveMuted);
+    if (!effectiveMuted && voiceTransportRef.current === 'agora' && voiceJoinedRef.current) {
+      void agoraRtcService.ensureLocalAudioPublished(false);
+    } else {
+      void agoraRtcService.setMicrophoneMuted(effectiveMuted);
+    }
     webrtcMediaService.setPartyMicMuted(effectiveMuted);
 
     let active = true;
@@ -1726,6 +1782,94 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     const next = !isMicMuted;
     setIsMicMuted(next);
     showToast(next ? 'Mic muted' : 'Mic ON — speaking live');
+  };
+
+  // Sync compact state to App.tsx floating mini-player bar when minimized
+  useEffect(() => {
+    onMiniStateChange?.({
+      isSeated: isCurrentlySeated,
+      isMicMuted: isMicMuted || isHostMutedOnMySeat,
+      participantCount: participantTotal,
+      seatedCount: seats.filter(Boolean).length,
+    });
+  }, [isCurrentlySeated, isMicMuted, isHostMutedOnMySeat, participantTotal, seats, onMiniStateChange]);
+
+  // React to mic toggle & exit triggers from the minimized floating mini-room bar
+  const lastToggleMicSignalRef = useRef<number>(toggleMicSignal);
+  useEffect(() => {
+    if (toggleMicSignal > 0 && toggleMicSignal !== lastToggleMicSignalRef.current) {
+      lastToggleMicSignalRef.current = toggleMicSignal;
+      handleToggleMyMic();
+    }
+  }, [toggleMicSignal]);
+
+  const lastExitSignalRef = useRef<number>(exitSignal);
+  useEffect(() => {
+    if (exitSignal > 0 && exitSignal !== lastExitSignalRef.current) {
+      lastExitSignalRef.current = exitSignal;
+      void handleCleanLeaveParty();
+    }
+  }, [exitSignal]);
+
+  // Load registered Lenzo users for the Host "Invite Users" modal tab
+  const loadInvitableUsers = async () => {
+    if (inviteUsersLoading) return;
+    setInviteUsersLoading(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'users'), limit(40)));
+      const list: UserProfile[] = [];
+      snap.forEach((docSnap) => {
+        const d = docSnap.data() as Record<string, any>;
+        const uid = docSnap.id;
+        if (!uid || uid === currentUser.id || blockedUserIdsRef.current.has(uid)) return;
+        list.push({
+          id: uid,
+          displayId: String(d.displayId || uid.slice(-6).toUpperCase()),
+          name: String(d.name || d.displayName || 'Lenzo User'),
+          username: String(d.username || `@${uid.slice(0, 6)}`),
+          avatar: String(d.avatar || d.photoURL || ''),
+          bio: String(d.bio || ''),
+          level: typeof d.level === 'number' ? d.level : 1,
+          vipLevel: typeof d.vipLevel === 'number' ? d.vipLevel : 0,
+          isVIP: Boolean(d.isVIP || (d.vipLevel || 0) > 0),
+          fansCount: String(d.fansCount || '0'),
+          followingCount: Number(d.followingCount || 0),
+          likesCount: String(d.likesCount || '0'),
+          coins: 0,
+          diamonds: 0,
+        });
+      });
+      setInvitableUsers(list);
+    } catch {
+      // Non-fatal
+    } finally {
+      setInviteUsersLoading(false);
+    }
+  };
+
+  const openHostInviteModal = (preferredSeat?: number) => {
+    const firstOpenSeat = seats.findIndex(
+      (s, i) => i > 0 && !s && isSeatIndexAllowedForRoom(i, maxSeats, hostLevel)
+    );
+    const resolvedSeat =
+      typeof preferredSeat === 'number'
+        ? preferredSeat
+        : firstOpenSeat !== -1
+        ? firstOpenSeat
+        : Math.min(2, maxSeats - 1);
+    setInviteModalTab(typeof preferredSeat === 'number' ? 'room' : 'users');
+    setShowInviteToSeatModal(resolvedSeat);
+    void loadInvitableUsers();
+    liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+      if (r.participants.length > 0) {
+        setParticipantsList((prev) => {
+          const map = new Map<string, LiveViewerInfo>();
+          prev.forEach((p) => map.set(p.userId, p));
+          r.participants.forEach((p) => map.set(p.userId, p));
+          return Array.from(map.values());
+        });
+      }
+    });
   };
 
   const handleChangeSeatMode = (targetSeats: PartySeatCount) => {
@@ -2347,10 +2491,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }, 30);
   };
 
-  const handleSendSeatInvite = async (targetUser: UserProfile) => {
+  const handleSendSeatInvite = async (targetUser: UserProfile, directSeat = false) => {
     if (showInviteToSeatModal === null) return;
     const targetSeat = showInviteToSeatModal;
-    setShowInviteToSeatModal(null);
     if (!isSeatIndexAllowedForRoom(targetSeat, maxSeats, hostLevel)) {
       showToast(
         isSeatLockedByHostLevel(targetSeat, hostLevel)
@@ -2359,28 +2502,96 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       );
       return;
     }
-    const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
-    void liveAndRoomService
-      .takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser)
-      .catch(() => null);
 
-    if (fsRes.success && Array.isArray(fsRes.seats)) {
-      const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
-      const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
-      setSeats(nextSeats);
-      setSeatRequests(nextRequests);
-      syncRoom(nextSeats, nextRequests, undefined, undefined, undefined, true);
+    if (directSeat) {
+      setShowInviteToSeatModal(null);
+      const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
+      void liveAndRoomService
+        .takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser)
+        .catch(() => null);
+
+      if (fsRes.success && Array.isArray(fsRes.seats)) {
+        const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
+        const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
+        setSeats(nextSeats);
+        setSeatRequests(nextRequests);
+        syncRoom(nextSeats, nextRequests, undefined, undefined, undefined, true);
+        showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+        return;
+      }
+
+      const updated = Array.from({ length: maxSeats }, (_, idx) => seats[idx] || null);
+      const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
+      if (prevIdx !== -1) updated[prevIdx] = null;
+      updated[targetSeat] = targetUser;
+      setSeats(updated);
+      syncRoom(updated);
       showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
       return;
     }
 
-    const updated = normalizeSeats(seats, maxSeats, hostLevel);
-    const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
-    if (prevIdx !== -1) updated[prevIdx] = null;
-    updated[targetSeat] = targetUser;
-    setSeats(updated);
-    syncRoom(updated);
-    showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+    // Send real-time seat invitation to listener (popup with Accept/Decline + push notification)
+    setInvitedUserIds((prev) => ({ ...prev, [targetUser.id]: true }));
+    const [wsRes] = await Promise.all([
+      liveAndRoomService.sendRoomInvite({
+        roomId: room.id,
+        hostId: currentUser.id,
+        targetUserId: targetUser.id,
+        targetUser,
+        seatIndex: targetSeat,
+        inviteType: 'seat',
+        roomMeta: { host: room.host, title: room.title, maxSeats },
+      }),
+      sendPushNotification({
+        targetUserId: targetUser.id,
+        type: 'rooms',
+        title: 'Seat Invitation',
+        message: `${currentUser.name} invited you to Seat #${targetSeat + 1} in "${room.title}"`,
+        avatar: currentUser.avatar,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        actionType: 'open_room',
+        targetId: room.id,
+        priority: 'high',
+      }).catch(() => {}),
+    ]);
+    if (wsRes.success) {
+      showToast(`Invitation sent to ${targetUser.name} for Seat #${targetSeat + 1}`);
+    } else {
+      showToast(`Invitation notification sent to ${targetUser.name}`);
+    }
+  };
+
+  const handleSendRoomInviteToUser = async (targetUser: UserProfile) => {
+    if (!targetUser?.id || targetUser.id === currentUser.id) return;
+    setInvitedUserIds((prev) => ({ ...prev, [targetUser.id]: true }));
+    const [wsRes] = await Promise.all([
+      liveAndRoomService.sendRoomInvite({
+        roomId: room.id,
+        hostId: currentUser.id,
+        targetUserId: targetUser.id,
+        targetUser,
+        inviteType: 'room',
+        roomMeta: { host: room.host, title: room.title, maxSeats },
+      }),
+      sendPushNotification({
+        targetUserId: targetUser.id,
+        type: 'rooms',
+        title: 'Party Room Invitation',
+        message: `${currentUser.name} invited you to join "${room.title}"`,
+        avatar: currentUser.avatar,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        actionType: 'open_room',
+        targetId: room.id,
+        priority: 'high',
+      }).catch(() => {}),
+    ]);
+    if (wsRes.success) {
+      showToast(`Invited ${targetUser.name} to join this room!`);
+    } else {
+      showToast(`Room invitation sent to ${targetUser.name}!`);
+    }
   };
 
   const handleAcceptSeatInvitation = async () => {
@@ -2398,9 +2609,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
     const updated =
       fsRes.success && Array.isArray(fsRes.seats)
-        ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
+        ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null)
         : (() => {
-            const copy = normalizeSeats(seats, maxSeats, hostLevel);
+            const copy = Array.from({ length: maxSeats }, (_, i) => seats[i] || null);
             const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
             if (prevSeat !== -1) copy[prevSeat] = null;
             copy[idx] = incomingSeatInvite.toUser;
@@ -2408,7 +2619,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           })();
     setSeats(updated);
     syncRoom(updated, undefined, undefined, undefined, undefined, fsRes.success);
-    showToast(`Joined Seat #${idx + 1}`);
+    showToast(`Joined Seat #${idx + 1} — mic is live`);
     setIncomingSeatInvite(null);
   };
 
@@ -2879,6 +3090,18 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             )}
           </button>
 
+          {/* Host Quick Invite Button (Invite Friends/Users or Listeners to Seat) */}
+          {isRoomHost && (
+            <button
+              type="button"
+              onClick={() => openHostInviteModal()}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#071A38]/85 hover:bg-[#0D2B59] border border-[#00D4FF]/55 flex items-center justify-center text-cyan-300 shadow-[0_0_10px_rgba(0,212,255,0.3)] transition-all active:scale-95 shrink-0"
+              title="Invite Users to Room or Seat"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {/* Host Quick Background Picker Button */}
           {isRoomHost && (
             <button
@@ -2904,6 +3127,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               </span>
             )}
           </button>
+
+          {/* Minimize Live Room Button (Keep Audio & Seat Connected in Floating Blue Neon Bar) */}
+          {onMinimize && !isMinimized && (
+            <button
+              type="button"
+              onClick={onMinimize}
+              aria-label="Minimize Party Room"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#071A38]/90 hover:bg-[#0D2B59] border border-[#00D4FF]/60 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,212,255,0.38)] transition-all active:scale-95 shrink-0"
+              title="Minimize Room (Stay Connected)"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Dedicated Exit Button (Host & Audience Exit Menu) */}
           <button
@@ -4054,6 +4290,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               </button>
             </div>
 
+            {onMinimize && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitRoomModal(false);
+                  onMinimize();
+                }}
+                className="w-full py-3 px-4 rounded-2xl bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 border border-[#00D4FF]/45 text-cyan-200 text-xs font-extrabold flex items-center justify-between transition-all"
+              >
+                <span>Minimize Room (Keep Audio & Seat Active)</span>
+                <Minimize2 className="w-4 h-4 text-cyan-300" />
+              </button>
+            )}
+
             {isCurrentlySeated && (
               <button
                 onClick={() => handleLeaveSeat(userSeatIndex)}
@@ -4297,77 +4547,218 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       )}
 
-      {/* INVITE CONNECTED PARTICIPANT TO SEAT MODAL */}
+      {/* HOST INVITE MODAL (INVITE LISTENERS TO SEAT + INVITE USERS TO ROOM) */}
       {showInviteToSeatModal !== null && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-[#160A2B] border-t border-white/15 rounded-t-3xl p-5 shadow-2xl flex flex-col max-h-[75vh]">
+        <div
+          onClick={() => setShowInviteToSeatModal(null)}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#120A26] border-t border-[#00D4FF]/30 rounded-t-3xl p-5 shadow-2xl flex flex-col max-h-[80vh]"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
               <div>
-                <h3 className="text-sm font-black text-white">Invite to Seat #{showInviteToSeatModal + 1}</h3>
-                <p className="text-[10px] text-white/60">Select a connected listener to invite</p>
+                <h3 className="text-sm font-black text-white flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4 text-cyan-300" />
+                  <span>Invite to Party Room</span>
+                </h3>
+                <p className="text-[10px] text-white/60">
+                  {inviteModalTab === 'room'
+                    ? `Invite a connected listener to Seat #${showInviteToSeatModal + 1}`
+                    : 'Send a live room invitation to friends & users'}
+                </p>
               </div>
               <button
                 onClick={() => setShowInviteToSeatModal(null)}
-                className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-white"
+                className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
+            {/* Mode Tabs: In-Room Listeners vs Invite Users */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white/5 border border-white/10 mb-3">
+              <button
+                type="button"
+                onClick={() => setInviteModalTab('room')}
+                className={`py-2 rounded-xl text-xs font-black transition-all ${
+                  inviteModalTab === 'room'
+                    ? 'bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                In Room (Seat #{showInviteToSeatModal + 1})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInviteModalTab('users');
+                  if (invitableUsers.length === 0) void loadInvitableUsers();
+                }}
+                className={`py-2 rounded-xl text-xs font-black transition-all ${
+                  inviteModalTab === 'users'
+                    ? 'bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                Invite Users
+              </button>
+            </div>
+
+            {inviteModalTab === 'users' && (
+              <div className="relative mb-3">
+                <Search className="w-3.5 h-3.5 text-white/45 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={inviteSearchQuery}
+                  onChange={(e) => setInviteSearchQuery(e.target.value)}
+                  placeholder="Search user name or ID..."
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/40 focus:outline-none focus:border-cyan-400/60"
+                />
+              </div>
+            )}
+
             <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 py-1">
-              {(() => {
-                const eligibleListeners = participantsList.filter(
-                  (p) => !seats.some((s) => s?.id === p.userId)
-                );
-                if (eligibleListeners.length === 0) {
-                  return (
-                    <p className="text-xs text-white/60 text-center py-8">
-                      No unseated listeners are in the room right now.
-                    </p>
+              {inviteModalTab === 'room' ? (
+                (() => {
+                  const eligibleListeners = participantsList.filter(
+                    (p) => p.userId !== currentUser.id && !seats.some((s) => s?.id === p.userId)
                   );
-                }
-                return eligibleListeners.map((p) => {
-                  const memberProfile: UserProfile = {
-                    id: p.userId,
-                    displayId: p.userId.slice(-6).toUpperCase(),
-                    name: p.name,
-                    username: p.username,
-                    avatar: p.avatar,
-                    bio: '',
-                    level: p.level || 1,
-                    vipLevel: p.vipLevel || 0,
-                    isVIP: Boolean(p.isVIP),
-                    fansCount: '0',
-                    followingCount: 0,
-                    likesCount: '0',
-                    coins: 0,
-                    diamonds: 0,
-                  };
-                  return (
-                    <div
-                      key={p.userId}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-[#200E38] border border-white/5"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {p.avatar ? (
-                          <img src={p.avatar} alt={p.name} className="w-9 h-9 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-[#8B20FF] text-xs font-black flex items-center justify-center">
-                            {(p.name || 'U').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                  if (eligibleListeners.length === 0) {
+                    return (
+                      <div className="text-center py-8 space-y-2">
+                        <p className="text-xs text-white/60">
+                          No unseated listeners are in the room right now.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInviteModalTab('users');
+                            if (invitableUsers.length === 0) void loadInvitableUsers();
+                          }}
+                          className="px-4 py-1.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs font-bold"
+                        >
+                          Invite Friends to Room
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleSendSeatInvite(memberProfile)}
-                        className="px-3.5 py-1.5 rounded-full bg-[#FA26A0] text-white text-xs font-bold shrink-0"
+                    );
+                  }
+                  return eligibleListeners.map((p) => {
+                    const memberProfile: UserProfile = {
+                      id: p.userId,
+                      displayId: p.userId.slice(-6).toUpperCase(),
+                      name: p.name,
+                      username: p.username,
+                      avatar: p.avatar,
+                      bio: '',
+                      level: p.level || 1,
+                      vipLevel: p.vipLevel || 0,
+                      isVIP: Boolean(p.isVIP),
+                      fansCount: '0',
+                      followingCount: 0,
+                      likesCount: '0',
+                      coins: 0,
+                      diamonds: 0,
+                    };
+                    const alreadyInvited = Boolean(invitedUserIds[p.userId]);
+                    return (
+                      <div
+                        key={p.userId}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#1C1238] border border-white/10"
                       >
-                        Seat User
-                      </button>
-                    </div>
-                  );
-                });
-              })()}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {p.avatar ? (
+                            <img src={p.avatar} alt={p.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-[#2563EB] text-xs font-black flex items-center justify-center shrink-0">
+                              {(p.name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-xs font-bold text-white truncate">{p.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => void handleSendSeatInvite(memberProfile, false)}
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                              alreadyInvited
+                                ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-200'
+                                : 'bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white'
+                            }`}
+                          >
+                            {alreadyInvited ? 'Invited' : 'Invite'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSendSeatInvite(memberProfile, true)}
+                            className="px-2.5 py-1.5 rounded-full bg-[#FA26A0]/85 hover:bg-[#FA26A0] text-white text-[11px] font-bold"
+                          >
+                            Seat
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()
+              ) : inviteUsersLoading ? (
+                <p className="text-xs text-white/60 text-center py-8">Loading users...</p>
+              ) : (
+                (() => {
+                  const q = inviteSearchQuery.trim().toLowerCase();
+                  const filteredUsers = invitableUsers.filter((u) => {
+                    if (!q) return true;
+                    return (
+                      (u.name || '').toLowerCase().includes(q) ||
+                      (u.username || '').toLowerCase().includes(q) ||
+                      String(u.displayId || '').toLowerCase().includes(q)
+                    );
+                  });
+                  if (filteredUsers.length === 0) {
+                    return (
+                      <p className="text-xs text-white/60 text-center py-8">
+                        No matching users found.
+                      </p>
+                    );
+                  }
+                  return filteredUsers.map((u) => {
+                    const alreadyInvited = Boolean(invitedUserIds[u.id]);
+                    return (
+                      <div
+                        key={u.id}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#1C1238] border border-white/10"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-[#2563EB] text-xs font-black flex items-center justify-center shrink-0">
+                              {(u.name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white truncate block">{u.name}</span>
+                            <span className="text-[10px] text-white/55 font-mono truncate block">
+                              ID: {u.displayId}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleSendRoomInviteToUser(u)}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 transition-all ${
+                            alreadyInvited
+                              ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-200'
+                              : 'bg-gradient-to-r from-[#00A8FF] to-[#2563EB] text-white shadow'
+                          }`}
+                        >
+                          {alreadyInvited ? 'Invited ✓' : 'Invite'}
+                        </button>
+                      </div>
+                    );
+                  });
+                })()
+              )}
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -106,10 +107,16 @@ export function getActiveKickForRoom(
   kicks: RoomKickRecord[],
   roomId: string,
   hostId?: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  currentUserId?: string
 ): RoomKickRecord | null {
+  // Permanent Room Owner Protection: Room Owner can NEVER be kicked from their own room!
+  if (currentUserId && hostId && currentUserId === hostId) {
+    return null;
+  }
   for (const kick of kicks) {
     if (!isKickRecordActive(kick, now)) continue;
+    if (hostId && kick.targetUserId === hostId) continue;
     if (kick.durationType === 'session') {
       if (kick.roomId === roomId) return kick;
     } else if (kick.roomId === roomId || (hostId && kick.hostId === hostId)) {
@@ -194,7 +201,22 @@ export async function kickUserFromRoom(params: {
     return { success: false, error: 'Invalid room or user.' };
   }
   if (hostId === targetUser.id) {
-    return { success: false, error: 'You cannot kick yourself.' };
+    return { success: false, error: 'Room owner cannot be kicked.' };
+  }
+
+  // Authoritative Room Owner check against Firestore room document so even moderators or spoofed params can NEVER kick the owner
+  if (auth.currentUser) {
+    try {
+      const roomSnap = await getDoc(doc(db, 'party_rooms', roomId));
+      if (roomSnap.exists()) {
+        const ownerId = (roomSnap.data() as Record<string, any>)?.host?.id;
+        if (ownerId && ownerId === targetUser.id) {
+          return { success: false, error: 'Room owner cannot be kicked.' };
+        }
+      }
+    } catch {
+      // Fall through to hostId check above
+    }
   }
 
   const opt = ROOM_KICK_OPTIONS.find((o) => o.type === durationType) || ROOM_KICK_OPTIONS[0];

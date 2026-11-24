@@ -73,6 +73,8 @@ class AgoraRtcService {
   // Serialize join / leave / role transitions to prevent duplicate sessions or WS_ABORT
   private activeJoinPromise: Promise<UID> | null = null;
   private activeLeavePromise: Promise<void> | null = null;
+  private roleSwitchQueue: Promise<any> = Promise.resolve();
+  private inFlightSubscribes: Map<string, Promise<void>> = new Map();
   private isLeaving: boolean = false;
   private isRenewingToken: boolean = false;
   private backendUnavailableUntil: number = 0;
@@ -155,9 +157,10 @@ class AgoraRtcService {
       return { configured: false, appId: '', tokenRequired: true, mode: 'unconfigured' };
     }
     try {
-      const res = await apiFetch('/api/agora/config', { timeoutMs: 2200 });
+      const res = await apiFetch('/api/agora/config', { timeoutMs: 5000 });
       if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
         const data = await res.json();
+        this.backendUnavailableUntil = 0;
         return {
           configured: Boolean(data.configured && data.appId),
           appId: String(data.appId || ''),
@@ -167,10 +170,10 @@ class AgoraRtcService {
         };
       }
       if (res.status >= 500 || !res.headers.get('content-type')?.includes('application/json')) {
-        this.backendUnavailableUntil = Date.now() + 25_000;
+        this.backendUnavailableUntil = Date.now() + 4_000;
       }
     } catch (e) {
-      this.backendUnavailableUntil = Date.now() + 25_000;
+      this.backendUnavailableUntil = Date.now() + 4_000;
       console.warn('[Agora RTC] Failed to fetch Agora config:', e);
     }
     return { configured: false, appId: '', tokenRequired: true, mode: 'unconfigured' };
@@ -191,56 +194,73 @@ class AgoraRtcService {
         token: null,
         appId: '',
         configured: false,
-        error: 'Agora token backend temporarily unavailable (using fast WebRTC fallback)',
+        error: 'Agora token backend temporarily unavailable',
       };
     }
-    try {
-      const endpoint = isRefresh ? '/api/agora/refresh-token' : '/api/agora/token';
-      const res = await apiFetch(endpoint, {
-        method: 'POST',
-        timeoutMs: timeoutMs ?? (isRefresh ? 5000 : 2000),
-        body: JSON.stringify({
-          channelName,
-          uid: userAccount,
-          role,
-        }),
-      });
+    const effectiveTimeout = Math.max(timeoutMs ?? 0, isRefresh ? 6000 : 5000);
+    const maxAttempts = isRefresh ? 2 : 2;
+    let lastError = 'Token request failed';
 
-      if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) {
-        if (!isRefresh && (res.status >= 500 || !res.headers.get('content-type')?.includes('application/json'))) {
-          this.backendUnavailableUntil = Date.now() + 25_000;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const endpoint = isRefresh ? '/api/agora/refresh-token' : '/api/agora/token';
+        const res = await apiFetch(endpoint, {
+          method: 'POST',
+          timeoutMs: effectiveTimeout,
+          body: JSON.stringify({
+            channelName,
+            uid: userAccount,
+            role,
+          }),
+        });
+
+        if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) {
+          const errText = await res.text().catch(() => '');
+          lastError = errText || `Agora token endpoint returned ${res.status}`;
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 350));
+            continue;
+          }
+          if (!isRefresh && (res.status >= 500 || !res.headers.get('content-type')?.includes('application/json'))) {
+            this.backendUnavailableUntil = Date.now() + 4_000;
+          }
+          return {
+            token: null,
+            appId: '',
+            configured: false,
+            error: lastError,
+          };
         }
-        const errText = await res.text().catch(() => '');
-        return {
-          token: null,
-          appId: '',
-          configured: false,
-          error: errText || `Agora token endpoint returned ${res.status}`,
-        };
-      }
 
-      const data = await res.json();
-      this.backendUnavailableUntil = 0;
-      return {
-        token: data.token ?? null,
-        appId: String(data.appId || ''),
-        configured: Boolean(data.configured),
-        tokenRequired: data.tokenRequired !== false,
-        expiresAt: data.expiresAt ?? null,
-        error: data.error,
-      };
-    } catch (err: any) {
-      if (!isRefresh) {
-        this.backendUnavailableUntil = Date.now() + 25_000;
+        const data = await res.json();
+        this.backendUnavailableUntil = 0;
+        return {
+          token: data.token ?? null,
+          appId: String(data.appId || ''),
+          configured: Boolean(data.configured),
+          tokenRequired: data.tokenRequired !== false,
+          expiresAt: data.expiresAt ?? null,
+          error: data.error,
+        };
+      } catch (err: any) {
+        lastError = err?.message || 'Token request failed';
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 350));
+          continue;
+        }
+        if (!isRefresh) {
+          this.backendUnavailableUntil = Date.now() + 4_000;
+        }
+        console.warn('[Agora RTC] Failed to request RTC token:', lastError);
       }
-      console.warn('[Agora RTC] Failed to request RTC token:', err?.message || err);
-      return {
-        token: null,
-        appId: '',
-        configured: false,
-        error: err?.message || 'Token request failed',
-      };
     }
+
+    return {
+      token: null,
+      appId: '',
+      configured: false,
+      error: lastError,
+    };
   }
 
   /**
@@ -263,46 +283,109 @@ class AgoraRtcService {
     user: any,
     mediaType: 'audio' | 'video'
   ): Promise<void> {
-    try {
-      await client.subscribe(user, mediaType);
-      const key = String(user.uid);
+    if (!user || user.uid === undefined || user.uid === null) return;
+    const key = String(user.uid);
+    const lockKey = `${key}:${mediaType}`;
 
-      let remote = this.remoteHosts.get(key);
-      if (!remote) {
-        remote = {
-          uid: user.uid,
-          hasVideo: false,
-          hasAudio: false,
-          isCameraOn: false,
-          isMicMuted: false,
-        };
-        this.remoteHosts.set(key, remote);
-      }
+    const existingPromise = this.inFlightSubscribes.get(lockKey);
+    if (existingPromise) {
+      return existingPromise;
+    }
 
-      if (mediaType === 'video') {
-        remote.videoTrack = user.videoTrack;
-        remote.hasVideo = Boolean(user.videoTrack);
-        remote.isCameraOn = Boolean(user.videoTrack);
-      }
-
-      if (mediaType === 'audio') {
-        remote.audioTrack = user.audioTrack;
-        remote.hasAudio = Boolean(user.audioTrack);
-        remote.isMicMuted = false;
-        if (!this.isSpeakerMuted && user.audioTrack) {
-          try {
-            user.audioTrack.play();
-          } catch (e) {
-            console.warn('[Agora RTC] Remote audio play blocked:', e);
-            this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+    const op = (async () => {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          if (this.client !== client || client.connectionState !== 'CONNECTED') {
+            return;
           }
+          // Skip redundant subscribe if Agora already attached the track
+          const alreadyHasTrack =
+            (mediaType === 'audio' && Boolean(user.audioTrack)) ||
+            (mediaType === 'video' && Boolean(user.videoTrack));
+          if (!alreadyHasTrack) {
+            await client.subscribe(user, mediaType);
+          }
+
+          let remote = this.remoteHosts.get(key);
+          if (!remote) {
+            remote = {
+              uid: user.uid,
+              hasVideo: false,
+              hasAudio: false,
+              isCameraOn: false,
+              isMicMuted: false,
+            };
+            this.remoteHosts.set(key, remote);
+          }
+
+          if (mediaType === 'video') {
+            remote.videoTrack = user.videoTrack;
+            remote.hasVideo = Boolean(user.videoTrack);
+            remote.isCameraOn = Boolean(user.videoTrack);
+          }
+
+          if (mediaType === 'audio') {
+            remote.audioTrack = user.audioTrack;
+            remote.hasAudio = Boolean(user.audioTrack);
+            remote.isMicMuted = false;
+            if (!this.isSpeakerMuted && user.audioTrack) {
+              try {
+                const playResult: any = user.audioTrack.play();
+                if (playResult && typeof playResult.catch === 'function') {
+                  playResult.catch((e: any) => {
+                    console.warn('[Agora RTC] Remote audio play promise rejected:', e);
+                    this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+                  });
+                }
+              } catch (e) {
+                console.warn('[Agora RTC] Remote audio play blocked:', e);
+                this.onAutoplayBlockedCallbacks.forEach((cb) => cb());
+              }
+            }
+          }
+
+          this.notifyRemoteTrackListeners(remote);
+          return;
+        } catch (err) {
+          if (attempt < 2 && this.client === client && client.connectionState === 'CONNECTED') {
+            await new Promise((r) => setTimeout(r, 250 * attempt));
+            continue;
+          }
+          console.warn(`[Agora RTC] Subscribe ${mediaType} warning for uid=${user?.uid}:`, err);
         }
       }
+    })().finally(() => {
+      if (this.inFlightSubscribes.get(lockKey) === op) {
+        this.inFlightSubscribes.delete(lockKey);
+      }
+    });
 
-      this.notifyRemoteTrackListeners(remote);
-    } catch (err) {
-      console.warn(`[Agora RTC] Subscribe ${mediaType} warning for uid=${user?.uid}:`, err);
+    this.inFlightSubscribes.set(lockKey, op);
+    return op;
+  }
+
+  /**
+   * Sweep all remote users in the active channel to guarantee every published audio/video track
+   * is subscribed and playing (critical for multi-participant rooms and post-reconnect recovery).
+   */
+  public async syncAllRemoteSubscriptions(): Promise<void> {
+    const client = this.client;
+    if (!client || client.connectionState !== 'CONNECTED' || !Array.isArray(client.remoteUsers)) {
+      return;
     }
+    const tasks: Promise<void>[] = [];
+    for (const remoteUser of client.remoteUsers) {
+      if (remoteUser.hasAudio) {
+        tasks.push(this.handleRemoteSubscribe(client, remoteUser, 'audio'));
+      }
+      if (remoteUser.hasVideo) {
+        tasks.push(this.handleRemoteSubscribe(client, remoteUser, 'video'));
+      }
+    }
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+    this.resumeRemoteAudio();
   }
 
   private async renewCurrentToken(client: IAgoraRTCClient): Promise<void> {
@@ -356,6 +439,11 @@ class AgoraRtcService {
           remote.isCameraOn = false;
         }
         if (mediaType === 'audio') {
+          try {
+            remote.audioTrack?.stop();
+          } catch {
+            // ignore
+          }
           remote.audioTrack = undefined;
           remote.hasAudio = false;
           remote.isMicMuted = true;
@@ -366,13 +454,22 @@ class AgoraRtcService {
 
     // 3. Remote user left channel
     client.on('user-left', (user) => {
-      this.remoteHosts.delete(String(user.uid));
+      const key = String(user.uid);
+      const existing = this.remoteHosts.get(key);
+      if (existing?.audioTrack) {
+        try {
+          existing.audioTrack.stop();
+        } catch {
+          // ignore
+        }
+      }
+      this.remoteHosts.delete(key);
       this.onUserLeftCallbacks.forEach((cb) => cb(user.uid));
     });
 
-    // 4. Connection state change
-    client.on('connection-state-change', (curState, _revState, reason) => {
-      console.log(`[Agora RTC] Connection state -> ${curState} (reason: ${reason || 'normal'})`);
+    // 4. Connection state change (resync remote tracks & local audio on reconnect)
+    client.on('connection-state-change', (curState, prevState, reason) => {
+      console.log(`[Agora RTC] Connection state ${prevState} -> ${curState} (reason: ${reason || 'normal'})`);
       this.notifyStatusListeners({
         state: curState,
         reason,
@@ -380,6 +477,12 @@ class AgoraRtcService {
         channelName: this.currentChannel || '',
         uid: this.currentUid || this.currentUserAccount || '',
       });
+      if (curState === 'CONNECTED' && (prevState === 'RECONNECTING' || prevState === 'CONNECTING')) {
+        void this.syncAllRemoteSubscriptions();
+        if (this.currentRole === 'host' && (!this.isPublishingAudioFlag || !this.localAudioTrack)) {
+          void this.ensureLocalAudioPublished(this.isMicMuted);
+        }
+      }
     });
 
     // 5. Automatic token renewal before and on expiry (prevents 1-hour disconnects)
@@ -427,38 +530,62 @@ class AgoraRtcService {
     const shouldEnableVideo = options?.enableVideo !== false;
     const shouldEnableAudio = options?.enableAudio !== false;
 
-    // Fast-path: Clone live tracks from existing MediaStream so Agora owns its own clones
-    if (options?.mediaStream) {
-      const liveAudioTrack = options.mediaStream
-        .getAudioTracks()
-        .find((t) => t.readyState === 'live');
-      const liveVideoTrack = options.mediaStream
-        .getVideoTracks()
-        .find((t) => t.readyState === 'live');
-
-      if (shouldEnableAudio && liveAudioTrack) {
+    // 1. AUDIO: Always prefer Agora native createMicrophoneAudioTrack (hardware AEC/ANS/AGC, reliable on Android WebView & Chrome).
+    //    Fall back to cloning an external MediaStreamTrack ONLY if native acquisition fails.
+    if (shouldEnableAudio) {
+      if (this.localAudioTrack) {
         try {
-          if (this.localAudioTrack) {
-            try {
-              this.localAudioTrack.stop();
-              this.localAudioTrack.close();
-            } catch {
-              // ignore
-            }
-            this.localAudioTrack = null;
-          }
-          const clonedAudio = liveAudioTrack.clone();
-          clonedAudio.enabled = !this.isMicMuted;
-          this.localAudioTrack = AgoraRTC.createCustomAudioTrack({
-            mediaStreamTrack: clonedAudio,
-          });
-          this.micPermissionDenied = false;
-        } catch (err: any) {
-          console.warn('[Agora RTC] Could not create custom audio track from stream:', err?.message || err);
+          this.localAudioTrack.stop();
+          this.localAudioTrack.close();
+        } catch {
+          // ignore
         }
+        this.localAudioTrack = null;
       }
 
-      if (shouldEnableVideo && liveVideoTrack) {
+      try {
+        this.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+          encoderConfig: 'speech_standard',
+          AEC: true,
+          ANS: true,
+          AGC: true,
+        });
+        await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+        this.micPermissionDenied = false;
+      } catch (nativeErr: any) {
+        const liveAudioTrack = options?.mediaStream
+          ?.getAudioTracks()
+          .find((t) => t.readyState === 'live');
+        if (liveAudioTrack) {
+          try {
+            const clonedAudio = liveAudioTrack.clone();
+            clonedAudio.enabled = !this.isMicMuted;
+            this.localAudioTrack = AgoraRTC.createCustomAudioTrack({
+              mediaStreamTrack: clonedAudio,
+            });
+            await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+            this.micPermissionDenied = false;
+          } catch (customErr: any) {
+            console.warn('[Agora RTC] Fallback custom audio track failed:', customErr?.message || customErr);
+            this.localAudioTrack = null;
+            this.micPermissionDenied = true;
+          }
+        } else {
+          console.warn('[Agora RTC] Microphone permission not granted or device unavailable:', nativeErr?.message || nativeErr);
+          this.localAudioTrack = null;
+          this.micPermissionDenied = true;
+        }
+      }
+    }
+
+    // 2. VIDEO: Reuse cloned live video track from staged hardware camera stream if provided (prevents Android camera lock),
+    //    otherwise create native Agora camera track.
+    if (shouldEnableVideo) {
+      const liveVideoTrack = options?.mediaStream
+        ?.getVideoTracks()
+        .find((t) => t.readyState === 'live');
+
+      if (liveVideoTrack) {
         try {
           if (this.localVideoTrack) {
             try {
@@ -480,68 +607,37 @@ class AgoraRtcService {
         }
       }
 
-      if ((shouldEnableAudio && this.localAudioTrack) || (shouldEnableVideo && this.localVideoTrack)) {
-        return {
-          videoTrack: this.localVideoTrack,
-          audioTrack: this.localAudioTrack,
-          hasAudio: Boolean(this.localAudioTrack),
-          hasVideo: Boolean(this.localVideoTrack),
-        };
-      }
-    }
-
-    // Standard device acquisition with safe try/catch for both audio and video
-    if (shouldEnableVideo) {
-      await this.enumerateVideoDevices();
-    }
-
-    if (shouldEnableAudio && !this.localAudioTrack) {
-      try {
-        this.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-          AEC: true,
-          ANS: true,
-          AGC: true,
-        });
-        if (this.isMicMuted) {
-          await this.localAudioTrack.setEnabled(false).catch(() => {});
-        }
-        this.micPermissionDenied = false;
-      } catch (err: any) {
-        console.warn('[Agora RTC] Microphone permission not granted or device unavailable:', err?.message || err);
-        this.localAudioTrack = null;
-        this.micPermissionDenied = true;
-      }
-    }
-
-    if (shouldEnableVideo && !this.localVideoTrack) {
-      try {
-        let chosenCameraId: string | undefined;
-        if (this.availableCameras.length > 0) {
-          const searchTerms = facing ? ['front', 'user', 'face'] : ['back', 'rear', 'environment'];
-          const matched = this.availableCameras.find((cam) =>
-            searchTerms.some((t) => cam.label.toLowerCase().includes(t))
-          );
-          if (matched) {
-            chosenCameraId = matched.deviceId;
+      if (!this.localVideoTrack) {
+        await this.enumerateVideoDevices();
+        try {
+          let chosenCameraId: string | undefined;
+          if (this.availableCameras.length > 0) {
+            const searchTerms = facing ? ['front', 'user', 'face'] : ['back', 'rear', 'environment'];
+            const matched = this.availableCameras.find((cam) =>
+              searchTerms.some((t) => cam.label.toLowerCase().includes(t))
+            );
+            if (matched) {
+              chosenCameraId = matched.deviceId;
+            }
           }
-        }
 
-        this.localVideoTrack = await AgoraRTC.createCameraVideoTrack({
-          cameraId: chosenCameraId,
-          facingMode: facing ? 'user' : 'environment',
-          encoderConfig: {
-            width: 1280,
-            height: 720,
-            frameRate: 30,
-            bitrateMin: 600,
-            bitrateMax: 1500,
-          },
-        });
-        this.cameraPermissionDenied = false;
-      } catch (err: any) {
-        console.warn('[Agora RTC] Camera permission not granted or device unavailable:', err?.message || err);
-        this.localVideoTrack = null;
-        this.cameraPermissionDenied = true;
+          this.localVideoTrack = await AgoraRTC.createCameraVideoTrack({
+            cameraId: chosenCameraId,
+            facingMode: facing ? 'user' : 'environment',
+            encoderConfig: {
+              width: 1280,
+              height: 720,
+              frameRate: 30,
+              bitrateMin: 600,
+              bitrateMax: 1500,
+            },
+          });
+          this.cameraPermissionDenied = false;
+        } catch (err: any) {
+          console.warn('[Agora RTC] Camera permission not granted or device unavailable:', err?.message || err);
+          this.localVideoTrack = null;
+          this.cameraPermissionDenied = true;
+        }
       }
     }
 
@@ -644,17 +740,8 @@ class AgoraRtcService {
       this.currentUid = uid;
       console.log(`[Agora RTC] Joined channel=${params.channelName} role=${params.role} uid=${uid}`);
 
-      // Catch up on any remote hosts who were already publishing before/during join
-      if (client.remoteUsers && client.remoteUsers.length > 0) {
-        for (const remoteUser of client.remoteUsers) {
-          if (remoteUser.hasVideo) {
-            await this.handleRemoteSubscribe(client, remoteUser, 'video');
-          }
-          if (remoteUser.hasAudio) {
-            await this.handleRemoteSubscribe(client, remoteUser, 'audio');
-          }
-        }
-      }
+      // Catch up on ALL remote users already publishing before/during join in parallel
+      await this.syncAllRemoteSubscriptions();
 
       // If host/broadcaster, publish local media tracks to the channel
       if (params.role === 'host') {
@@ -674,9 +761,21 @@ class AgoraRtcService {
             await client.publish(tracksToPublish);
             this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
             this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+            if (this.localAudioTrack) {
+              await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+            }
             console.log('[Agora RTC] Published local tracks:', tracksToPublish.map((t) => t.trackMediaType));
           } catch (pubErr) {
-            console.warn('[Agora RTC] Warning publishing local tracks:', pubErr);
+            console.warn('[Agora RTC] Warning publishing local tracks (retrying once):', pubErr);
+            await new Promise((r) => setTimeout(r, 300));
+            if (client.connectionState === 'CONNECTED') {
+              await client.publish(tracksToPublish).then(() => {
+                this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+                this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+              }).catch((retryErr) => {
+                console.warn('[Agora RTC] Retry publish warning:', retryErr);
+              });
+            }
           }
         }
       }
@@ -705,8 +804,7 @@ class AgoraRtcService {
 
   /**
    * Dynamically switch client role (Host <-> Audience) for Party Live seat actions.
-   * Waits for any in-flight join, renews broadcaster token before promoting role,
-   * and avoids destructive track churn if already publishing in the target role.
+   * Serialized via roleSwitchQueue so rapid seat updates never race or drop audio publishing.
    */
   async switchRole(
     newRole: 'host' | 'audience',
@@ -719,110 +817,161 @@ class AgoraRtcService {
       forceRepublish?: boolean;
     }
   ): Promise<boolean> {
-    if (this.activeJoinPromise) {
-      try {
-        await this.activeJoinPromise;
-      } catch {
+    const runSwitch = async (): Promise<boolean> => {
+      if (this.activeJoinPromise) {
+        try {
+          await this.activeJoinPromise;
+        } catch {
+          return false;
+        }
+      }
+      if (!this.client || this.client.connectionState !== 'CONNECTED') {
+        console.warn('[Agora RTC] switchRole skipped: client not connected');
         return false;
       }
-    }
-    if (!this.client || this.client.connectionState !== 'CONNECTED') {
-      console.warn('[Agora RTC] switchRole skipped: client not connected');
-      return false;
-    }
 
-    // Avoid destructive teardown if already publishing in the exact same role
-    if (
-      newRole === 'host' &&
-      this.currentRole === 'host' &&
-      this.isPublishingAudioFlag &&
-      this.localAudioTrack &&
-      !options?.forceRepublish
-    ) {
-      return true;
-    }
-    if (newRole === 'audience' && this.currentRole === 'audience' && !this.localAudioTrack && !this.localVideoTrack) {
-      return true;
-    }
-
-    try {
       if (newRole === 'host') {
-        // Renew token with publisher (broadcaster) privilege BEFORE role switch
-        let freshToken = options?.token ?? null;
-        if (!freshToken && this.currentChannel && this.currentUserAccount) {
-          const tokenRes = await this.requestRtcToken(
-            this.currentChannel,
-            this.currentUserAccount,
-            'broadcaster',
-            true
-          );
-          freshToken = tokenRes.token;
+        const wantAudio = options?.enableAudio !== false;
+        // CRITICAL: Reset isMicMuted when promoting from audience -> host so seated speakers are never stuck muted!
+        this.isMicMuted = !wantAudio;
+
+        // Avoid destructive teardown if already publishing in the exact same role
+        if (
+          this.currentRole === 'host' &&
+          this.isPublishingAudioFlag &&
+          this.localAudioTrack &&
+          !options?.forceRepublish
+        ) {
+          await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+          void this.syncAllRemoteSubscriptions();
+          return true;
         }
-        if (freshToken) {
-          try {
-            await this.client.renewToken(freshToken);
-          } catch (renewErr) {
-            console.warn('[Agora RTC] Token renewal notice before host promotion:', renewErr);
-          }
-        }
-
-        // Unpublish any old tracks before creating fresh ones
-        const oldTracks: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
-        if (this.localAudioTrack) oldTracks.push(this.localAudioTrack);
-        if (this.localVideoTrack) oldTracks.push(this.localVideoTrack);
-        if (oldTracks.length > 0) {
-          try {
-            await this.client.unpublish(oldTracks);
-          } catch {
-            // ignore
-          }
-          this.stopLocalTracks();
-        }
-
-        this.currentRole = 'host';
-        await this.client.setClientRole('host');
-
-        await this.createLocalTracks({
-          isFront: options?.isFront ?? this.isFrontCamera,
-          enableVideo: options?.enableVideo ?? false,
-          enableAudio: options?.enableAudio ?? true,
-          mediaStream: options?.mediaStream ?? null,
-        });
-
-        const tracks: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
-        if (this.localAudioTrack && options?.enableAudio !== false) tracks.push(this.localAudioTrack);
-        if (this.localVideoTrack && options?.enableVideo === true) tracks.push(this.localVideoTrack);
-
-        if (tracks.length > 0 && this.client.connectionState === 'CONNECTED') {
-          await this.client.publish(tracks);
-          this.isPublishingAudioFlag = Boolean(this.localAudioTrack && options?.enableAudio !== false);
-          this.isPublishingVideoFlag = Boolean(this.localVideoTrack && options?.enableVideo === true);
-          console.log('[Agora RTC] Role upgraded to broadcaster, published tracks:', tracks.map((t) => t.trackMediaType));
-        }
-        return true;
-      } else {
-        // Downgrade to Audience: unpublish and stop local tracks
-        const tracksToUnpublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
-        if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
-        if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
-
-        if (tracksToUnpublish.length > 0) {
-          try {
-            await this.client.unpublish(tracksToUnpublish);
-          } catch (e) {
-            console.warn('[Agora RTC] Unpublish warning on role downgrade:', e);
-          }
-        }
-        this.stopLocalTracks();
-        this.currentRole = 'audience';
-        await this.client.setClientRole('audience', { level: 1 });
-        console.log('[Agora RTC] Role downgraded to ultra-low-latency audience');
+      } else if (
+        this.currentRole === 'audience' &&
+        !this.localAudioTrack &&
+        !this.localVideoTrack
+      ) {
         return true;
       }
-    } catch (err: any) {
-      console.warn('[Agora RTC] Error switching role:', err?.message || err);
-      return false;
+
+      try {
+        if (newRole === 'host') {
+          // Renew token with publisher (broadcaster) privilege BEFORE role switch
+          let freshToken = options?.token ?? null;
+          if (!freshToken && this.currentChannel && this.currentUserAccount) {
+            const tokenRes = await this.requestRtcToken(
+              this.currentChannel,
+              this.currentUserAccount,
+              'broadcaster',
+              true
+            );
+            freshToken = tokenRes.token;
+          }
+          if (freshToken && this.client) {
+            try {
+              await this.client.renewToken(freshToken);
+            } catch (renewErr) {
+              console.warn('[Agora RTC] Token renewal notice before host promotion:', renewErr);
+            }
+          }
+
+          // Unpublish any old tracks before creating fresh ones
+          const oldTracks: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
+          if (this.localAudioTrack) oldTracks.push(this.localAudioTrack);
+          if (this.localVideoTrack) oldTracks.push(this.localVideoTrack);
+          if (oldTracks.length > 0 && this.client) {
+            try {
+              await this.client.unpublish(oldTracks);
+            } catch {
+              // ignore
+            }
+            this.stopLocalTracks();
+          }
+
+          this.currentRole = 'host';
+          await this.client.setClientRole('host');
+
+          await this.createLocalTracks({
+            isFront: options?.isFront ?? this.isFrontCamera,
+            enableVideo: options?.enableVideo ?? false,
+            enableAudio: true,
+            mediaStream: options?.mediaStream ?? null,
+          });
+
+          const tracks: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
+          if (this.localAudioTrack) tracks.push(this.localAudioTrack);
+          if (this.localVideoTrack && options?.enableVideo === true) tracks.push(this.localVideoTrack);
+
+          if (tracks.length > 0 && this.client.connectionState === 'CONNECTED') {
+            try {
+              await this.client.publish(tracks);
+            } catch (pubErr) {
+              console.warn('[Agora RTC] First publish attempt failed on switchRole, retrying:', pubErr);
+              await new Promise((r) => setTimeout(r, 300));
+              if (this.client?.connectionState === 'CONNECTED') {
+                await this.client.publish(tracks);
+              }
+            }
+            this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+            this.isPublishingVideoFlag = Boolean(this.localVideoTrack && options?.enableVideo === true);
+            if (this.localAudioTrack) {
+              await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
+            }
+            console.log('[Agora RTC] Role upgraded to broadcaster, published tracks:', tracks.map((t) => t.trackMediaType));
+          }
+          // Ensure we are subscribed to all other seated speakers as well
+          void this.syncAllRemoteSubscriptions();
+          return this.isPublishingAudioFlag;
+        } else {
+          // Downgrade to Audience: unpublish and stop local tracks
+          const tracksToUnpublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
+          if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
+          if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
+
+          if (tracksToUnpublish.length > 0 && this.client) {
+            try {
+              await this.client.unpublish(tracksToUnpublish);
+            } catch (e) {
+              console.warn('[Agora RTC] Unpublish warning on role downgrade:', e);
+            }
+          }
+          this.stopLocalTracks();
+          this.currentRole = 'audience';
+          await this.client.setClientRole('audience', { level: 1 });
+          void this.syncAllRemoteSubscriptions();
+          console.log('[Agora RTC] Role downgraded to ultra-low-latency audience');
+          return true;
+        }
+      } catch (err: any) {
+        console.warn('[Agora RTC] Error switching role:', err?.message || err);
+        return false;
+      }
+    };
+
+    const next = this.roleSwitchQueue.then(runSwitch, runSwitch);
+    this.roleSwitchQueue = next.catch(() => false);
+    return next;
+  }
+
+  /**
+   * Guarantee that an active host/seated speaker has a live published local audio track.
+   */
+  async ensureLocalAudioPublished(muted: boolean = false): Promise<boolean> {
+    this.isMicMuted = muted;
+    if (!this.client || this.client.connectionState !== 'CONNECTED') return false;
+    if (this.currentRole === 'host' && this.isPublishingAudioFlag && this.localAudioTrack) {
+      await this.localAudioTrack.setEnabled(!muted).catch(() => {});
+      return true;
     }
+    const ok = await this.switchRole('host', {
+      enableVideo: this.isPublishingVideoFlag,
+      enableAudio: !muted,
+      forceRepublish: !this.localAudioTrack || !this.isPublishingAudioFlag,
+    });
+    if (this.localAudioTrack) {
+      await this.localAudioTrack.setEnabled(!muted).catch(() => {});
+    }
+    return ok;
   }
 
   /**
@@ -956,6 +1105,8 @@ class AgoraRtcService {
       } catch (e) {
         console.warn('[Agora RTC] Error setting microphone muted:', e);
       }
+    } else if (!muted && this.currentRole === 'host' && this.client?.connectionState === 'CONNECTED') {
+      await this.ensureLocalAudioPublished(false);
     }
   }
 
@@ -1081,6 +1232,7 @@ class AgoraRtcService {
         this.currentUid = null;
         this.currentRole = 'audience';
         this.remoteHosts.clear();
+        this.inFlightSubscribes.clear();
         this.client = null;
         this.isLeaving = false;
         this.activeLeavePromise = null;

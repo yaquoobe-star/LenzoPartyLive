@@ -497,11 +497,11 @@ const SERVER_EMPTY_ROOM_CLEANUP_MS = Math.max(
   Number(process.env.LENZO_EMPTY_ROOM_CLEANUP_MS) || EMPTY_ROOM_CLEANUP_MS
 );
 const SERVER_DISCONNECT_GRACE_MS = Math.max(
-  500,
+  45_000,
   Number(process.env.LENZO_DISCONNECT_GRACE_MS) || DISCONNECT_GRACE_MS
 );
 const SERVER_HEARTBEAT_STALE_MS = Math.max(
-  2000,
+  60_000,
   Number(process.env.LENZO_HEARTBEAT_STALE_MS) || HEARTBEAT_STALE_MS
 );
 
@@ -768,10 +768,14 @@ function serializeLiveStream(stream: ServerLiveStream) {
 }
 
 function serializePartyRoom(room: ServerPartyRoom) {
-  const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  const safeMaxSeats = Math.max(
+    clampServerMaxSeatsForHostLevel(room.maxSeats, room.host),
+    [5, 8, 16].includes(room.maxSeats) ? room.maxSeats : 5,
+    room.seats.length
+  );
   const safeSeats = Array(safeMaxSeats).fill(null);
   for (let i = 0; i < Math.min(safeMaxSeats, room.seats.length); i++) {
-    if (room.seats[i] && !isServerSeatLockedByHostLevel(i, room.host)) {
+    if (room.seats[i]) {
       safeSeats[i] = room.seats[i];
     }
   }
@@ -1105,6 +1109,11 @@ function markLiveParticipantLeft(stream: ServerLiveStream, userId: string, reaso
   let changed = false;
 
   if (isHost) {
+    // When a Solo Live Host ends or exits their broadcast, immediately close the stream so no stale/inactive live card remains.
+    if (reason === 'explicit_leave' || reason === 'host_ended') {
+      closeLiveStreamAuthoritatively(stream, 'Host ended the live broadcast.');
+      return;
+    }
     if (stream.hostPresent) {
       stream.hostPresent = false;
       changed = true;
@@ -3689,6 +3698,9 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
   }
+  if (typeof targetUserId === 'string' && targetUserId.trim() && targetUserId.trim() === room.host.id) {
+    return res.status(403).json({ error: 'Room owner cannot be kicked or removed from their seat.' });
+  }
   if (room.host.id !== hostId) {
     return res.status(403).json({ error: 'Unauthorized. Only room host can kick participants from seats.' });
   }
@@ -3708,15 +3720,15 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
 
   if (resolvedSeatIdx >= 0 && resolvedSeatIdx < room.maxSeats) {
     const removedUser = room.seats[resolvedSeatIdx];
-    if (removedUser && removedUser.id === hostId) {
-      return res.status(400).json({ error: 'Use Leave Seat to step down from your own seat.' });
+    if (removedUser && (removedUser.id === room.host.id || removedUser.id === hostId)) {
+      return res.status(403).json({ error: 'Room owner cannot be kicked or removed from their seat.' });
     }
     room.seats[resolvedSeatIdx] = null;
     room.mutedSeatIndices.delete(resolvedSeatIdx);
-    // Also clear any duplicate occurrence of targetUserId if present
-    if (typeof targetUserId === 'string' && targetUserId.trim()) {
+    // Also clear any duplicate occurrence of targetUserId if present (never clear room owner)
+    if (typeof targetUserId === 'string' && targetUserId.trim() && targetUserId.trim() !== room.host.id) {
       for (let i = 0; i < room.seats.length; i++) {
-        if (room.seats[i]?.id === targetUserId.trim() && room.seats[i]?.id !== hostId) {
+        if (room.seats[i]?.id === targetUserId.trim() && room.seats[i]?.id !== room.host.id) {
           room.seats[i] = null;
           room.mutedSeatIndices.delete(i);
         }
@@ -3811,6 +3823,53 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
   res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
 });
 
+app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const hostId = req.firebaseUser?.uid || req.body?.hostId;
+  const { targetUserId, targetUser, seatIndex, inviteType, roomMeta } = req.body || {};
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, hostId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (room.host.id !== hostId) {
+    return res.status(403).json({ error: 'Only the room host can send invitations.' });
+  }
+  const cleanTargetId = sanitizeText(targetUserId || targetUser?.id, 128);
+  if (!cleanTargetId) {
+    return res.status(400).json({ error: 'Target user is required.' });
+  }
+  if (cleanTargetId === room.host.id) {
+    return res.status(400).json({ error: 'Cannot invite yourself.' });
+  }
+
+  const mode: 'seat' | 'room' = inviteType === 'room' ? 'room' : 'seat';
+  const safeSeatIndex =
+    typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats
+      ? seatIndex
+      : Math.max(1, room.seats.findIndex((s, i) => i > 0 && !s));
+
+  const invitePayload = {
+    id: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    roomId: room.id,
+    roomTitle: room.title,
+    inviteType: mode,
+    seatIndex: safeSeatIndex,
+    fromHost: room.host,
+    toUserId: cleanTargetId,
+    toUser: targetUser || { id: cleanTargetId },
+    createdAt: Date.now(),
+  };
+
+  if (mode === 'seat') {
+    broadcastToUser(cleanTargetId, 'room:seat_invited', invitePayload);
+    broadcastToRoom(room.id, 'room:seat_invited', invitePayload);
+  } else {
+    broadcastToUser(cleanTargetId, 'room:room_invited', invitePayload);
+  }
+
+  return res.json({ success: true, invite: invitePayload });
+});
+
 app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
@@ -3823,6 +3882,10 @@ app.post('/api/rooms/:roomId/mute_seat', (req: AuthenticatedRequest, res: Respon
     return res.status(403).json({ error: 'Only room host can mute or unmute stage seats.' });
   }
   if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats) {
+    const seatOccupant = room.seats[seatIndex];
+    if (seatOccupant && seatOccupant.id === room.host.id && muted) {
+      return res.status(403).json({ error: 'Room owner cannot be muted by moderation.' });
+    }
     if (muted) {
       room.mutedSeatIndices.add(seatIndex);
     } else {
@@ -5276,7 +5339,7 @@ function ensureLiveStreamHydrated(
 
 app.get('/api/live/active_streams', (_req: Request, res: Response) => {
   const activeSorted = Array.from(liveStreamsMap.values())
-    .filter((s) => s.isLive && s.status !== 'closed')
+    .filter((s) => s.isLive && s.status === 'active' && s.hostPresent)
     .sort((a, b) => b.startTime - a.startTime);
   const byHost = new Map<string, ServerLiveStream>();
   for (const s of activeSorted) {
@@ -5291,7 +5354,7 @@ app.get('/api/live/active_streams', (_req: Request, res: Response) => {
 
 app.get('/api/live/stream/:streamId', (req: Request, res: Response) => {
   const stream = liveStreamsMap.get(req.params.streamId);
-  if (!stream || !stream.isLive || stream.status === 'closed') {
+  if (!stream || !stream.isLive || stream.status !== 'active' || !stream.hostPresent) {
     return res.status(404).json({ error: 'Stream not found or offline', isLive: false });
   }
   res.json({ ...serializeLiveStream(stream), isLive: true, comments: stream.comments.slice(-50) });

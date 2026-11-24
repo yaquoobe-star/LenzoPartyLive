@@ -32,7 +32,8 @@ import {
   ChevronDown,
   CheckCircle2,
   Info,
-  Trophy
+  Trophy,
+  Minimize2
 } from 'lucide-react';
 import { 
   LiveStream, 
@@ -95,6 +96,9 @@ interface ActiveLiveScreenProps {
   onRematchPK?: () => void;
   blockedUserIds?: string[];
   blockedByUserIds?: string[];
+  isMinimized?: boolean;
+  onMinimize?: () => void;
+  exitSignal?: number;
 }
 
 interface BurstParticle {
@@ -141,6 +145,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   onRematchPK,
   blockedUserIds = [],
   blockedByUserIds = [],
+  isMinimized = false,
+  onMinimize,
+  exitSignal = 0,
 }) => {
   // Permission rule: user is stream creator / live broadcast owner
   const isActualHost = currentUser.id === stream.host.id;
@@ -728,12 +735,10 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       }).catch(() => {});
     };
 
-    window.addEventListener('pagehide', cleanupOnUnexpectedLiveExit);
     window.addEventListener('beforeunload', cleanupOnUnexpectedLiveExit);
 
     return () => {
       active = false;
-      window.removeEventListener('pagehide', cleanupOnUnexpectedLiveExit);
       window.removeEventListener('beforeunload', cleanupOnUnexpectedLiveExit);
       clearInterval(heartbeat);
       if (entryTimerRef.current) clearTimeout(entryTimerRef.current);
@@ -745,6 +750,51 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       cleanupOnUnexpectedLiveExit();
     };
   }, [stream.id, currentUser.id, isActualHost]);
+
+  // Allow minimized floating bar exit button to cleanly end/leave live stream
+  const lastLiveExitSignalRef = useRef<number>(exitSignal);
+  useEffect(() => {
+    if (exitSignal > 0 && exitSignal !== lastLiveExitSignalRef.current) {
+      lastLiveExitSignalRef.current = exitSignal;
+      if (isActualHost) {
+        hasExplicitlyLeftLiveRef.current = true;
+        if (audioAnalyserControllerRef.current) {
+          audioAnalyserControllerRef.current.cleanup();
+          audioAnalyserControllerRef.current = null;
+        }
+        if (mediaStreamRef.current) {
+          stopMediaStream(mediaStreamRef.current);
+          mediaStreamRef.current = null;
+        }
+        webrtcMediaService.stopLive();
+        void agoraRtcService.leaveChannel().catch(() => {});
+        void setNativeLiveAudioMode(false);
+        void Promise.all([
+          leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+          liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
+        ]).finally(() => {
+          onEndLive?.(stream.id);
+          onClose();
+        });
+      } else {
+        void handleCleanLeaveLive();
+      }
+    }
+  }, [exitSignal, isActualHost, stream.id, currentUser.id]);
+
+  // Ensure remote audio unlocks automatically on first viewer interaction
+  useEffect(() => {
+    if (isActualHost || isMuted) return;
+    const unlockLiveAudio = () => {
+      agoraRtcService.resumeRemoteAudio();
+    };
+    window.addEventListener('pointerdown', unlockLiveAudio, { passive: true });
+    window.addEventListener('touchstart', unlockLiveAudio, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockLiveAudio);
+      window.removeEventListener('touchstart', unlockLiveAudio);
+    };
+  }, [isActualHost, isMuted]);
 
   // Web Camera & Realtime Microphone Initialization & Lifecycle (Returns acquired MediaStream)
   const startCamera = async (front = isFrontCamera): Promise<MediaStream | null> => {
@@ -1646,42 +1696,46 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowEndLiveConfirm(false);
+                  hasExplicitlyLeftLiveRef.current = true;
+                  if (audioAnalyserControllerRef.current) {
+                    audioAnalyserControllerRef.current.cleanup();
+                    audioAnalyserControllerRef.current = null;
+                  }
+                  if (mediaStreamRef.current) {
+                    stopMediaStream(mediaStreamRef.current);
+                    mediaStreamRef.current = null;
+                  }
+                  webrtcMediaService.stopLive();
+                  await agoraRtcService.leaveChannel().catch(() => {});
+                  void setNativeLiveAudioMode(false);
+                  await Promise.all([
+                    leaveFirestoreLiveViewer(stream.id).catch(() => {}),
+                    liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
+                  ]);
+                  onEndLive?.(stream.id);
+                  onClose();
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all"
+              >
+                End Broadcast Now
+              </button>
+              {onMinimize && (
                 <button
                   type="button"
-                  onClick={handleCleanLeaveLive}
-                  className="flex-1 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-extrabold transition-colors"
-                >
-                  Exit Room
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
+                  onClick={() => {
                     setShowEndLiveConfirm(false);
-                    hasExplicitlyLeftLiveRef.current = true;
-                    if (audioAnalyserControllerRef.current) {
-                      audioAnalyserControllerRef.current.cleanup();
-                      audioAnalyserControllerRef.current = null;
-                    }
-                    if (mediaStreamRef.current) {
-                      stopMediaStream(mediaStreamRef.current);
-                      mediaStreamRef.current = null;
-                    }
-                    webrtcMediaService.stopLive();
-                    await agoraRtcService.leaveChannel().catch(() => {});
-                    void setNativeLiveAudioMode(false);
-                    await Promise.all([
-                      leaveFirestoreLiveViewer(stream.id).catch(() => {}),
-                      liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {}),
-                    ]);
-                    onEndLive?.(stream.id);
-                    onClose();
+                    onMinimize();
                   }}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white text-xs font-extrabold shadow-lg shadow-red-600/30 transition-all"
+                  className="w-full py-2.5 rounded-xl bg-[#00D4FF]/15 hover:bg-[#00D4FF]/25 border border-[#00D4FF]/40 text-cyan-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
                 >
-                  End Broadcast
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>Minimize Live (Stay Connected)</span>
                 </button>
-              </div>
+              )}
               <button
                 type="button"
                 onClick={() => setShowEndLiveConfirm(false)}
@@ -2670,6 +2724,19 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
             </button>
+
+            {/* Minimize Live Button (Blue Neon floating mini-player) */}
+            {onMinimize && !isMinimized && (
+              <button
+                type="button"
+                onClick={onMinimize}
+                aria-label="Minimize Live Broadcast"
+                className="w-8 h-8 rounded-full bg-[#071A38]/85 hover:bg-[#0D2B59] backdrop-blur-md border border-[#00D4FF]/55 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,212,255,0.35)] transition-all active:scale-95 shrink-0"
+                title="Minimize Live (Stay Connected)"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Prominent Top-Right Exit / End Broadcast Button (Always Visible on Mobile & Desktop) */}
             <button

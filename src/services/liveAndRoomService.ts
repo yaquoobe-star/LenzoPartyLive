@@ -551,6 +551,37 @@ class LiveAndRoomService {
     return data.seats || [];
   }
 
+  public async sendRoomInvite(params: {
+    roomId: string;
+    hostId: string;
+    targetUserId: string;
+    targetUser?: UserProfile;
+    seatIndex?: number;
+    inviteType?: 'seat' | 'room';
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number };
+  }): Promise<{ success: boolean; invite?: any; error?: string }> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(params.roomId)}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({
+          hostId: params.hostId,
+          targetUserId: params.targetUserId,
+          targetUser: params.targetUser,
+          seatIndex: params.seatIndex,
+          inviteType: params.inviteType || 'seat',
+          roomMeta: params.roomMeta,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Could not send invitation' };
+      }
+      return { success: true, invite: data.invite };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Could not send invitation' };
+    }
+  }
+
   public async updateRoomSettings(
     roomId: string,
     hostId: string,
