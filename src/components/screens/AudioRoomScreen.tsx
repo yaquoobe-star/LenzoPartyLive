@@ -101,6 +101,7 @@ import {
   cancelFirestoreSeatRequest,
   clearFirestoreRoomMessages,
   deleteFirestoreRoomMessage,
+  editFirestoreRoomMessage,
   evictFirestoreRoomParticipant,
   FirestoreRoomHeartEvent,
   joinFirestoreRoomParticipant,
@@ -188,7 +189,8 @@ interface ActivityItem {
   superVipLevel?: number;
   isVIP?: boolean;
   isHost?: boolean;
-  type?: 'join' | 'vip' | 'chat' | 'gift';
+  type?: 'join' | 'leave' | 'vip' | 'chat' | 'gift';
+  isEdited?: boolean;
   replyTo?: {
     id: string;
     senderId?: string;
@@ -441,6 +443,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const heartBatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const partyEntryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenPartyEntriesRef = useRef<Map<string, number>>(new Map());
+  const seenPartyLeavesRef = useRef<Map<string, number>>(new Map());
   const voiceTransportRef = useRef<'agora' | 'webrtc' | 'connecting'>('connecting');
   voiceTransportRef.current = voiceTransport;
   const isMicMutedRef = useRef<boolean>(isMicMuted);
@@ -605,6 +608,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     senderId?: string;
     senderName: string;
     text: string;
+  } | null>(null);
+  const [editingComment, setEditingComment] = useState<{
+    id: string;
+    originalText: string;
   } | null>(null);
   const [swipingMsgId, setSwipingMsgId] = useState<string | null>(null);
   const [swipeOffsetX, setSwipeOffsetX] = useState(0);
@@ -1053,8 +1060,45 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         console.warn('[AudioRoom] Backend join fallback to Firestore:', msg);
       });
 
+    const emitPartyLeaveNotification = (departed: {
+      userId: string;
+      name: string;
+      avatar?: string;
+      level?: number;
+      vipLevel?: number;
+      superVipLevel?: number;
+      isVIP?: boolean;
+      isHost?: boolean;
+    }) => {
+      if (!departed.userId || departed.userId === currentUser.id) return;
+      if (isRoomHost && blockedUserIdsRef.current.has(departed.userId)) return;
+      const now = Date.now();
+      const lastLeftAt = seenPartyLeavesRef.current.get(departed.userId) || 0;
+      if (now - lastLeftAt < 10000) return;
+      seenPartyLeavesRef.current.set(departed.userId, now);
+      setActivities((prev) => [
+        ...prev.slice(-49),
+        {
+          id: `leave_${departed.userId}_${now}`,
+          userId: departed.userId,
+          name: departed.name || 'Viewer',
+          avatar: departed.avatar || '',
+          text: 'left the party.',
+          level: typeof departed.level === 'number' ? departed.level : 0,
+          vipLevel: typeof departed.vipLevel === 'number' ? departed.vipLevel : 0,
+          superVipLevel: typeof departed.superVipLevel === 'number' ? departed.superVipLevel : 0,
+          isVIP: Boolean(departed.isVIP || (departed.vipLevel || 0) > 0),
+          isHost: Boolean(departed.isHost),
+          type: 'leave',
+        },
+      ]);
+      setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
+    };
+
     // Cloud Firestore real-time participants subscription (authoritative for live joins & leaves)
-    const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants) => {
+    const unsubFsParticipants = subscribeFirestoreRoomParticipants(
+      room.id,
+      (rawFsParticipants, _rawDocs, removedParticipants) => {
       if (!active) return;
       hasFsParticipantsRef.current = true;
       const fsParticipants = isRoomHost
@@ -1076,6 +1120,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         fsParticipantsInitialized = true;
         fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
       } else {
+        // Explicit leave notifications ONLY for Firestore doc deletions (not temporary disconnects or minimizes)
+        removedParticipants.forEach((removedUser) => {
+          if (!removedUser?.userId || removedUser.userId === currentUser.id) return;
+          const cachedPrev = participantsListRef.current.find((p) => p.userId === removedUser.userId);
+          const seatedPrev = seatsRef.current.find((s) => s?.id === removedUser.userId);
+          const resolvedName =
+            removedUser.name && removedUser.name !== 'User'
+              ? removedUser.name
+              : cachedPrev?.name || seatedPrev?.name || (removedUser.userId === room.host.id ? room.host.name : 'Viewer');
+          emitPartyLeaveNotification({
+            userId: removedUser.userId,
+            name: resolvedName,
+            avatar: removedUser.avatar || cachedPrev?.avatar || seatedPrev?.avatar || '',
+            level: removedUser.level ?? cachedPrev?.level ?? seatedPrev?.level ?? 0,
+            vipLevel: removedUser.vipLevel ?? cachedPrev?.vipLevel ?? seatedPrev?.vipLevel ?? 0,
+            superVipLevel: removedUser.superVipLevel ?? cachedPrev?.superVipLevel ?? seatedPrev?.superVipLevel ?? 0,
+            isVIP: Boolean(removedUser.isVIP || cachedPrev?.isVIP || seatedPrev?.isVIP),
+            isHost: Boolean(removedUser.isHost || removedUser.userId === room.host.id),
+          });
+        });
+
         // Detect users who left the room (or timed out) and immediately remove them everywhere
         prevFsParticipantIds.forEach((prevId) => {
           if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
@@ -1089,6 +1154,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
             knownParticipantIds.add(p.userId);
             clearUserRecentlyLeft(p.userId);
+            seenPartyLeavesRef.current.delete(p.userId);
             const now = Date.now();
             const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
             if (now - lastSeen > 10000) {
@@ -1224,16 +1290,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
               isHost: m.isHost,
               type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
+              isEdited: Boolean(m.isEdited),
               ...(m.replyTo ? { replyTo: m.replyTo } : {}),
               fromFirestore: true,
             });
             changed = true;
           } else {
-            // Upgrade any local optimistic item with Firestore reply/synced metadata
+            // Upgrade any local optimistic item with Firestore reply/synced metadata & real-time edits
             const idx = next.findIndex((a) => a.id === m.id);
-            if (idx !== -1 && (!next[idx].fromFirestore || (!next[idx].replyTo && m.replyTo))) {
+            if (
+              idx !== -1 &&
+              (!next[idx].fromFirestore ||
+                (!next[idx].replyTo && m.replyTo) ||
+                next[idx].text !== m.text ||
+                Boolean(next[idx].isEdited) !== Boolean(m.isEdited))
+            ) {
               next[idx] = {
                 ...next[idx],
+                text: m.text,
+                isEdited: Boolean(m.isEdited),
                 ...(m.replyTo ? { replyTo: m.replyTo } : {}),
                 fromFirestore: true,
               };
@@ -1480,6 +1555,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:participant_joined') {
         if (payload.participant?.userId) {
           clearUserRecentlyLeft(payload.participant.userId);
+          seenPartyLeavesRef.current.delete(payload.participant.userId);
           knownParticipantIds.add(payload.participant.userId);
         }
         if (payload.room) applyServerRoomState(payload.room as PartyRoom);
@@ -1559,6 +1635,49 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           return;
         }
         const departedUserId = typeof payload.userId === 'string' ? payload.userId : '';
+        // Capture departing user metadata BEFORE removing them so leave notification has the exact username
+        const cachedParticipantBeforeLeave = departedUserId
+          ? participantsListRef.current.find((p) => p.userId === departedUserId)
+          : undefined;
+        const cachedSeatBeforeLeave = departedUserId
+          ? seatsRef.current.find((s) => s?.id === departedUserId)
+          : undefined;
+        const serverDeparted = payload.participant as LiveViewerInfo | null | undefined;
+        if (departedUserId && payload.reason === 'explicit_leave') {
+          const resolvedName =
+            (serverDeparted?.name && serverDeparted.name !== 'User' ? serverDeparted.name : '') ||
+            cachedParticipantBeforeLeave?.name ||
+            cachedSeatBeforeLeave?.name ||
+            (departedUserId === room.host.id ? room.host.name : 'Viewer');
+          emitPartyLeaveNotification({
+            userId: departedUserId,
+            name: resolvedName,
+            avatar:
+              serverDeparted?.avatar ||
+              cachedParticipantBeforeLeave?.avatar ||
+              cachedSeatBeforeLeave?.avatar ||
+              '',
+            level:
+              serverDeparted?.level ??
+              cachedParticipantBeforeLeave?.level ??
+              cachedSeatBeforeLeave?.level ??
+              0,
+            vipLevel:
+              serverDeparted?.vipLevel ??
+              cachedParticipantBeforeLeave?.vipLevel ??
+              cachedSeatBeforeLeave?.vipLevel ??
+              0,
+            superVipLevel:
+              serverDeparted?.superVipLevel ??
+              cachedParticipantBeforeLeave?.superVipLevel ??
+              cachedSeatBeforeLeave?.superVipLevel ??
+              0,
+            isVIP: Boolean(
+              serverDeparted?.isVIP || cachedParticipantBeforeLeave?.isVIP || cachedSeatBeforeLeave?.isVIP
+            ),
+            isHost: Boolean(payload.isHost || serverDeparted?.isHost || departedUserId === room.host.id),
+          });
+        }
         if (departedUserId) {
           markUserRecentlyLeft(departedUserId);
           knownParticipantIds.delete(departedUserId);
@@ -1692,10 +1811,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
                   isHost: m.isHost,
                   type: m.gift ? 'gift' : m.isSystem ? 'join' : 'chat',
+                  isEdited: Boolean(m.isEdited),
                 },
               ]
         );
         setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 40);
+      } else if (event === 'room:chat_edited' && payload.messageId && typeof payload.text === 'string') {
+        const editedId = String(payload.messageId);
+        const editedText = String(payload.text);
+        setActivities((prev) =>
+          prev.map((a) =>
+            a.id === editedId
+              ? {
+                  ...a,
+                  text: editedText,
+                  isEdited: true,
+                }
+              : a
+          )
+        );
       } else if (event === 'room:closed') {
         if (!isRoomHost || payload.autoClosed) {
           showToast(
@@ -2984,7 +3118,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (!canDelete) return;
     setActivities((prev) => prev.filter((item) => item.id !== act.id));
     if (replyTarget?.id === act.id) setReplyTarget(null);
-    if (act.type !== 'join') {
+    if (editingComment?.id === act.id) {
+      setEditingComment(null);
+      setInputMessage('');
+    }
+    if (act.type !== 'join' && act.type !== 'leave') {
       await deleteFirestoreRoomMessage(room.id, act.id);
     }
     showToast('Comment deleted');
@@ -2999,6 +3137,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       lastChatClearedAtRef.current = Date.now();
       setActivities([]);
       setReplyTarget(null);
+      setEditingComment(null);
       setShowClearChatConfirmModal(false);
       showToast(ok ? 'All chat comments cleared' : 'Chat cleared locally');
     } finally {
@@ -3009,12 +3148,28 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   // Start swipe/tap reply & @mention for a comment
   const handleStartReply = (act: ActivityItem) => {
     if (!act?.name) return;
+    setEditingComment(null);
     setReplyTarget({
       id: act.id,
       senderId: act.userId,
       senderName: act.name,
       text: act.text,
     });
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 30);
+  };
+
+  // Start editing own comment (strictly author-only)
+  const handleStartEditComment = (act: ActivityItem) => {
+    if (!act?.id || act.userId !== currentUser.id) return;
+    if (act.type === 'join' || act.type === 'leave' || act.type === 'gift') return;
+    setReplyTarget(null);
+    setEditingComment({
+      id: act.id,
+      originalText: act.text,
+    });
+    setInputMessage(act.text);
     setTimeout(() => {
       chatInputRef.current?.focus();
     }, 30);
@@ -3691,10 +3846,56 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const rawText = inputMessage.trim();
-    if (!rawText) return;
+    if (!rawText) {
+      if (editingComment) {
+        showToast('Comment cannot be empty');
+      }
+      return;
+    }
 
     if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
       showToast('You are blocked from chatting in this room.');
+      return;
+    }
+
+    // Save edited comment in-place (preserving ID, author, timestamp, replies, and metadata)
+    if (editingComment) {
+      const targetEdit = editingComment;
+      setEditingComment(null);
+      setInputMessage('');
+      setShowEmojiPicker(false);
+
+      if (rawText === targetEdit.originalText) {
+        return;
+      }
+
+      // Update immediately in local comment feed
+      setActivities((prev) =>
+        prev.map((item) =>
+          item.id === targetEdit.id && item.userId === currentUser.id
+            ? { ...item, text: rawText, isEdited: true }
+            : item
+        )
+      );
+
+      const [fsEdited, wsEdited] = await Promise.all([
+        editFirestoreRoomMessage(room.id, targetEdit.id, rawText),
+        liveAndRoomService.editRoomChat(room.id, currentUser.id, targetEdit.id, rawText),
+      ]);
+
+      if (fsEdited || wsEdited) {
+        showToast('Comment updated');
+      } else {
+        // Roll back local edit if both Firestore and backend failed
+        setActivities((prev) =>
+          prev.map((item) =>
+            item.id === targetEdit.id
+              ? { ...item, text: targetEdit.originalText }
+              : item
+          )
+        );
+        showToast('Could not update comment. Please try again.');
+      }
       return;
     }
 
@@ -4590,25 +4791,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           <PartySofaSeat
             seatIndex={1}
             variant="cohost"
-            occupant={isCoHostSeatLevelLocked ? null : seatOne}
+            occupant={seatOne}
             isMuted={Boolean(
-              !isCoHostSeatLevelLocked &&
-                seatOne &&
+              seatOne &&
                 (mutedSeatIndices.includes(1) || (seatOne.id === currentUser.id && isMicMuted))
             )}
             isSpeaking={Boolean(
-              !isCoHostSeatLevelLocked &&
-                speakingSeats[1] &&
+              speakingSeats[1] &&
                 seatOne &&
                 !mutedSeatIndices.includes(1) &&
                 !(seatOne.id === currentUser.id && isMicMuted)
             )}
             isLocked={isSeatLocked}
-            isLevelLocked={isCoHostSeatLevelLocked}
-            levelLockText="Lv.5"
-            badgeText={isCoHostSeatLevelLocked ? 'Lv.5 Lock' : 'Seat 2'}
-            isModerator={Boolean(!isCoHostSeatLevelLocked && seatOne && moderatorIdsSet.has(seatOne.id))}
-            label={isCoHostSeatLevelLocked ? 'Unlocks Lv.5' : seatOne ? seatOne.name : 'Join'}
+            isLevelLocked={false}
+            badgeText="Seat 2"
+            isModerator={Boolean(seatOne && moderatorIdsSet.has(seatOne.id))}
+            label={seatOne ? seatOne.name : 'Join'}
             seatTheme={seatTheme}
             onClick={() => handleSeatClick(1)}
           />
@@ -4690,6 +4888,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     ? act.superVipLevel
                     : matchedSeatedUser?.superVipLevel ?? matchedParticipant?.superVipLevel ?? 0;
                 const isActModerator = Boolean(act.userId && moderatorIdsSet.has(act.userId));
+                const isSystemNotice = act.type === 'join' || act.type === 'leave';
+                const canEditThisComment =
+                  act.userId === currentUser.id && !isSystemNotice && act.type !== 'gift';
                 const canDeleteThisComment = canModerate || act.userId === currentUser.id;
                 const isBeingSwiped = swipingMsgId === act.id && swipeOffsetX > 4;
 
@@ -4743,7 +4944,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                     data-no-doubletap="true"
                     className="relative flex items-center gap-1 max-w-full group"
                     onTouchStart={(e) => {
-                      if (act.type === 'join' || !e.touches[0]) return;
+                      if (isSystemNotice || !e.touches[0]) return;
                       swipeTouchRef.current = {
                         id: act.id,
                         startX: e.touches[0].clientX,
@@ -4800,6 +5001,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                       } ${
                         act.type === 'join'
                           ? 'bg-[#210D40]/85 border-[#FA26A0]/35'
+                          : act.type === 'leave'
+                          ? 'bg-[#1D0C36]/85 border-white/15'
                           : 'bg-[#17092E]/88 border-purple-500/30'
                       }`}
                     >
@@ -4840,20 +5043,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                           )}
                           <span className="font-extrabold text-[#FFE043] shrink-0">
                             {act.name}
-                            {act.type === 'join' ? '' : ':'}
+                            {isSystemNotice ? '' : ':'}
                           </span>
                           <span
                             className={`font-medium break-words ${
-                              act.type === 'join' ? 'text-[#FFB3DE]' : 'text-white/95'
+                              act.type === 'join'
+                                ? 'text-[#FFB3DE]'
+                                : act.type === 'leave'
+                                ? 'text-[#D6C7F0]'
+                                : 'text-white/95'
                             }`}
                           >
-                            {act.type === 'join' ? act.text : renderTextWithMentions(act.text)}
+                            {isSystemNotice ? act.text : renderTextWithMentions(act.text)}
+                            {act.isEdited && !isSystemNotice && (
+                              <span className="ml-1 text-[9px] text-white/45 italic">(edited)</span>
+                            )}
                           </span>
                         </div>
                       </div>
 
-                      {/* Quick Tap Reply + Delete Actions */}
-                      {act.type !== 'join' && (
+                      {/* Quick Tap Reply + Edit + Delete Actions */}
+                      {!isSystemNotice && (
                         <div className="flex items-center gap-1 ml-1 shrink-0">
                           <button
                             type="button"
@@ -4866,6 +5076,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                           >
                             <Reply className="w-3 h-3" />
                           </button>
+                          {canEditThisComment && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEditComment(act);
+                              }}
+                              title="Edit comment"
+                              className="w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
                           {canDeleteThisComment && (
                             <button
                               type="button"
@@ -4891,9 +5114,36 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         </div>
       </main>
 
-      {/* BOTTOM BAR (Reply Preview + Single Gift Box + Seated Guest/Host Mic Toggle + Chat Input + Heart) */}
+      {/* BOTTOM BAR (Reply/Edit Preview + Single Gift Box + Seated Guest/Host Mic Toggle + Chat Input + Heart) */}
       <footer className="relative z-30 px-3 safe-pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent">
-        {replyTarget && (
+        {editingComment && (
+          <div className="max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-amber-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in">
+            <div className="flex items-center gap-2 min-w-0">
+              <Edit2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] font-black text-amber-300 block truncate">
+                  Editing comment
+                </span>
+                <span className="text-[10px] text-white/70 block truncate">
+                  {editingComment.originalText}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingComment(null);
+                setInputMessage('');
+              }}
+              className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0"
+              aria-label="Cancel edit"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {replyTarget && !editingComment && (
           <div className="max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-cyan-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in">
             <div className="flex items-center gap-2 min-w-0">
               <Reply className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
@@ -4967,7 +5217,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             <input
               ref={chatInputRef}
               type="text"
-              placeholder={replyTarget ? `Reply to @${replyTarget.senderName}...` : 'Say Hi...'}
+              placeholder={
+                editingComment
+                  ? 'Edit your comment...'
+                  : replyTarget
+                  ? `Reply to @${replyTarget.senderName}...`
+                  : 'Say Hi...'
+              }
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               className="w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
@@ -4976,8 +5232,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               <button
                 type="submit"
                 className="w-7 h-7 rounded-full bg-[#FA26A0] text-white flex items-center justify-center shrink-0 ml-1 shadow"
+                title={editingComment ? 'Save comment' : 'Send message'}
               >
-                <Send className="w-3.5 h-3.5" />
+                {editingComment ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
               </button>
             )}
           </form>

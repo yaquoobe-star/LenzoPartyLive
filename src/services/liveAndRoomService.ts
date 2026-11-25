@@ -510,6 +510,23 @@ class LiveAndRoomService {
     return data.message;
   }
 
+  public async editRoomChat(
+    roomId: string,
+    userId: string,
+    messageId: string,
+    text: string
+  ): Promise<boolean> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/chat/edit`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, messageId, text }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   public async sendRoomHeart(
     roomId: string,
     senderId: string,

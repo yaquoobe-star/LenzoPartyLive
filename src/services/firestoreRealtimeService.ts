@@ -587,7 +587,8 @@ export function subscribeFirestoreRoomParticipants(
   roomId: string,
   onUpdate: (
     participants: LiveViewerInfo[],
-    rawDocs: Map<string, FirestoreRoomParticipantDoc>
+    rawDocs: Map<string, FirestoreRoomParticipantDoc>,
+    removedParticipants: LiveViewerInfo[]
   ) => void
 ): () => void {
   if (!auth.currentUser || !isValidFirestoreId(roomId)) {
@@ -600,6 +601,14 @@ export function subscribeFirestoreRoomParticipants(
       const now = Date.now();
       const participants: LiveViewerInfo[] = [];
       const rawDocs = new Map<string, FirestoreRoomParticipantDoc>();
+      const removedParticipants: LiveViewerInfo[] = [];
+
+      snap.docChanges().forEach((change) => {
+        if (change.type === 'removed') {
+          const removedData = change.doc.data() as FirestoreRoomParticipantDoc;
+          removedParticipants.push(mapViewerInfo(removedData, change.doc.id));
+        }
+      });
 
       snap.docs.forEach((docSnap) => {
         const data = docSnap.data() as FirestoreRoomParticipantDoc;
@@ -612,7 +621,7 @@ export function subscribeFirestoreRoomParticipants(
       });
 
       participants.sort((a, b) => (a.isHost ? -1 : b.isHost ? 1 : (a.joinedAt || 0) - (b.joinedAt || 0)));
-      onUpdate(participants, rawDocs);
+      onUpdate(participants, rawDocs, removedParticipants);
     },
     (err) => {
       console.warn('[Firestore Room] Participants subscription notice:', err?.message || err);
@@ -684,6 +693,29 @@ export async function sendFirestoreRoomMessage(
   } catch (err) {
     console.warn('[Firestore Room] sendMessage notice:', err);
     return null;
+  }
+}
+
+export async function editFirestoreRoomMessage(
+  roomId: string,
+  messageId: string,
+  newText: string
+): Promise<boolean> {
+  const uid = auth.currentUser?.uid;
+  const trimmed = newText.trim().slice(0, 500);
+  if (!uid || !trimmed || !isValidFirestoreId(roomId) || !isValidFirestoreId(messageId)) {
+    return false;
+  }
+  try {
+    await updateDoc(doc(db, 'party_rooms', roomId, 'messages', messageId), {
+      text: trimmed,
+      isEdited: true,
+      editedAt: Date.now(),
+    });
+    return true;
+  } catch (err) {
+    console.warn('[Firestore Room] editMessage notice:', err);
+    return false;
   }
 }
 
@@ -765,6 +797,7 @@ export function subscribeFirestoreRoomMessages(
               senderSuperVip: typeof data.senderSuperVip === 'number' ? data.senderSuperVip : typeof data.superVipLevel === 'number' ? data.superVipLevel : 0,
               senderIsVip: Boolean(data.senderIsVip || data.isVIP || (typeof data.senderVip === 'number' && data.senderVip > 0)),
               isSystem: Boolean(data.isSystem),
+              isEdited: Boolean(data.isEdited),
               ...(replyTo ? { replyTo } : {}),
             } as ChatMessage,
           };

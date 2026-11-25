@@ -528,7 +528,18 @@ service cloud.firestore {
                       && (!('replyToUserId' in incoming()) || (incoming().replyToUserId is string && incoming().replyToUserId.size() <= 128))
                       && (!('replyToUserName' in incoming()) || (incoming().replyToUserName is string && incoming().replyToUserName.size() <= 64))
                       && (!('replyToText' in incoming()) || (incoming().replyToText is string && incoming().replyToText.size() <= 180));
-        allow update: if false;
+        allow update: if isSignedIn()
+                      && isValidId(roomId)
+                      && isValidId(messageId)
+                      && exists(/databases/$(database)/documents/party_rooms/$(roomId))
+                      && existing().userId == request.auth.uid
+                      && incoming().userId == existing().userId
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'isEdited', 'editedAt'])
+                      && incoming().text is string
+                      && incoming().text.size() > 0
+                      && incoming().text.size() <= 500
+                      && (!('isEdited' in incoming()) || incoming().isEdited is bool)
+                      && (!('editedAt' in incoming()) || incoming().editedAt is number);
         allow delete: if isSignedIn()
                       && isValidId(roomId)
                       && isValidId(messageId)

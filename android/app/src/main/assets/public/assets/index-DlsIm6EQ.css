@@ -4534,6 +4534,10 @@
     background-color: oklab(20.63% .0377128 -.0700856 / .9);
   }
 
+  .bg-\[\#1D0C36\]\/85 {
+    background-color: oklab(20.7967% .0363864 -.0689815 / .85);
+  }
+
   .bg-\[\#1D0E36\] {
     background-color: #1d0e36;
   }
@@ -10143,6 +10147,10 @@
 
   .text-\[\#D5CBE8\] {
     color: #d5cbe8;
+  }
+
+  .text-\[\#D6C7F0\] {
+    color: #d6c7f0;
   }
 
   .text-\[\#D6CCE9\] {

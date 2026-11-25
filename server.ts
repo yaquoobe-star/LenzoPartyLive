@@ -1153,6 +1153,33 @@ function markPartyParticipantLeft(room: ServerPartyRoom, userId: string, reason 
   clearRoomUserDisconnectTimer(room, userId);
 
   const isHost = userId === room.host?.id;
+  const cachedParticipant = room.participants.get(userId);
+  const seatedMatch = room.seats.find((s) => s && s.id === userId) || null;
+  const departedParticipant = cachedParticipant
+    ? { ...cachedParticipant }
+    : seatedMatch
+    ? {
+        userId: seatedMatch.id,
+        name: seatedMatch.name || 'User',
+        username: seatedMatch.username || '',
+        avatar: seatedMatch.avatar || '',
+        level: typeof seatedMatch.level === 'number' ? seatedMatch.level : 0,
+        vipLevel: typeof seatedMatch.vipLevel === 'number' ? seatedMatch.vipLevel : 0,
+        isVIP: Boolean(seatedMatch.isVIP || (seatedMatch.vipLevel || 0) > 0),
+        isHost,
+      }
+    : isHost && room.host
+    ? {
+        userId: room.host.id,
+        name: room.host.name || 'Host',
+        username: room.host.username || '',
+        avatar: room.host.avatar || '',
+        level: typeof room.host.level === 'number' ? room.host.level : 0,
+        vipLevel: typeof room.host.vipLevel === 'number' ? room.host.vipLevel : 0,
+        isVIP: Boolean(room.host.isVIP || (room.host.vipLevel || 0) > 0),
+        isHost: true,
+      }
+    : null;
   const wasParticipant = room.participants.delete(userId);
   if (isHost) {
     room.hostPresent = false;
@@ -1217,6 +1244,7 @@ function markPartyParticipantLeft(room: ServerPartyRoom, userId: string, reason 
       userId,
       isHost,
       reason,
+      participant: departedParticipant,
       participants: participantsSnapshot,
       room: serialized,
     });
@@ -4401,6 +4429,42 @@ app.post('/api/rooms/:roomId/chat', (req: Request, res: Response) => {
 
   broadcastToRoom(roomId, 'room:chat', { roomId, message: chatMsg });
   res.json({ success: true, message: chatMsg });
+});
+
+app.post('/api/rooms/:roomId/chat/edit', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const { messageId, userId: bodyUserId, text } = req.body || {};
+  const actorId = req.firebaseUser?.uid || bodyUserId;
+  const room = partyRoomsMap.get(roomId);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  if (!actorId || !messageId) {
+    return res.status(400).json({ error: 'Message ID and user ID are required.' });
+  }
+  const cleanText = sanitizeText(text, 500);
+  if (!cleanText) {
+    return res.status(400).json({ error: 'Message text cannot be empty.' });
+  }
+  const existingMsg = room.messages.find((m) => m.id === messageId);
+  if (existingMsg) {
+    if (existingMsg.senderId !== actorId) {
+      return res.status(403).json({ error: 'You can only edit your own comments.' });
+    }
+    existingMsg.text = cleanText;
+    existingMsg.isEdited = true;
+    existingMsg.editedAt = Date.now();
+  }
+  const editedAt = existingMsg?.editedAt || Date.now();
+  broadcastToRoom(roomId, 'room:chat_edited', {
+    roomId,
+    messageId,
+    senderId: actorId,
+    text: cleanText,
+    isEdited: true,
+    editedAt,
+  });
+  res.json({ success: true, messageId, text: cleanText, isEdited: true, editedAt });
 });
 
 app.post('/api/rooms/:roomId/heart', (req: Request, res: Response) => {

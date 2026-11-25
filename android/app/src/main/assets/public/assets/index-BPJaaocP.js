@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DJRefFbo.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-BOV60rvF.js","assets/RankingsScreen-ncBIzTfW.js","assets/StoreScreen-Bg4ctGd9.js","assets/StoreAssetPreview-CHaQ_FNt.js","assets/SettingsScreen-Db0JO3if.js","assets/UploadVideoScreen-BIumHvFB.js","assets/WalletModal-BUi6L8R1.js","assets/LevelAndVIPModal-oR6blway.js","assets/AdminProgressionModal-BRAxX_72.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CVpg0tHH.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-C-0f9UiE.js","assets/RankingsScreen-C7xGSh8b.js","assets/StoreScreen-VLPyGXE5.js","assets/StoreAssetPreview-Dsl8yfZg.js","assets/SettingsScreen-B3ABuySM.js","assets/UploadVideoScreen-B4NUTUCP.js","assets/WalletModal-gNWsPIKr.js","assets/LevelAndVIPModal-CkZKc9wO.js","assets/AdminProgressionModal-CE7PrW3f.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-Tn0LUUjq.js";
 import { $ as Phone, A as SlidersHorizontal, An as Ban, At as History, B as Settings, Bt as Flag, C as Swords, Cn as Calendar, D as Sparkles, Dn as Bell, Dt as Image$1, E as Square, En as BookmarkCheck, Et as Info, F as Shield, Fn as ArrowRight, Ft as Globe, G as Reply, Gt as FileAudio, H as Search, Ht as FileText, I as ShieldOff, In as ArrowRightLeft, It as Gift, J as Receipt, Jt as ExternalLink, K as Repeat2, Kt as Eye, L as ShieldCheck, Ln as ArrowLeft, Lt as Gem, M as SkipForward, Mn as Award, Mt as Heart, N as SkipBack, Nn as AtSign, Nt as Headphones, O as Smile, On as BellRing, P as ShoppingBag, Pt as Hash, Q as Pin, R as ShieldAlert, S as Target, Sn as CameraOff, St as LayoutGrid, T as Star, Tn as Bookmark, Tt as KeyRound, U as Save, V as Send, Vt as Film, W as RotateCcw, X as Plus, Xt as Ellipsis, Y as Radio, Yt as Eraser, Z as Play, _ as Trophy, _n as ChevronDown, _t as LogOut, a as WifiOff, an as Compass, at as Music, b as Trash2, bn as ChartColumn, bt as LoaderCircle, c as Volume2, cn as ClipboardPaste, ct as Minimize2, d as Users, dn as CircleCheck, dt as MessageSquare, et as Percent, f as User, fn as CircleArrowDown, ft as MessageCircle, g as Upload, gn as ChevronLeft, gt as Mail, h as UserCheck, hn as ChevronRight, i as X, in as Copy, it as Paperclip, jn as BadgeCheck, jt as Hexagon, k as Smartphone, kn as BellOff, kt as House, l as Video, ln as CircleX, lt as Mic, m as UserPlus, mn as ChevronUp, mt as Maximize2, n as Zap, nn as Crop, nt as PenLine, o as Wallet, on as Coins, p as UserX, pn as CircleAlert, q as RefreshCw, qt as EyeOff, r as Youtube, rn as CornerUpLeft, rt as Pause, s as VolumeX, sn as Clock, t as ZoomIn, tn as Crown, tt as Pen, ut as MicOff, v as TriangleAlert, vn as Check, vt as Lock, wn as Building2, x as Timer, xn as Camera, xt as Link2, y as TrendingUp, yn as CheckCheck, yt as LockOpen, z as Share2, zn as require_react, zt as Flame } from "./vendor-icons-RA12uJu8.js";
@@ -7590,6 +7590,20 @@ var LiveAndRoomService = class {
 		}
 		return (await res.json()).message;
 	}
+	async editRoomChat(roomId, userId, messageId, text) {
+		try {
+			return (await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/chat/edit`, {
+				method: "POST",
+				body: JSON.stringify({
+					userId,
+					messageId,
+					text
+				})
+			})).ok;
+		} catch {
+			return false;
+		}
+	}
 	async sendRoomHeart(roomId, senderId, count = 1, options) {
 		try {
 			const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/heart`, {
@@ -9901,6 +9915,13 @@ function subscribeFirestoreRoomParticipants(roomId, onUpdate) {
 		const now = Date.now();
 		const participants = [];
 		const rawDocs = /* @__PURE__ */ new Map();
+		const removedParticipants = [];
+		snap.docChanges().forEach((change) => {
+			if (change.type === "removed") {
+				const removedData = change.doc.data();
+				removedParticipants.push(mapViewerInfo(removedData, change.doc.id));
+			}
+		});
 		snap.docs.forEach((docSnap) => {
 			const data = docSnap.data();
 			const lastSeen = typeof data.lastSeen === "number" ? data.lastSeen : data.joinedAt || now;
@@ -9912,7 +9933,7 @@ function subscribeFirestoreRoomParticipants(roomId, onUpdate) {
 			participants.push(mapViewerInfo(data, docSnap.id));
 		});
 		participants.sort((a, b) => a.isHost ? -1 : b.isHost ? 1 : (a.joinedAt || 0) - (b.joinedAt || 0));
-		onUpdate(participants, rawDocs);
+		onUpdate(participants, rawDocs, removedParticipants);
 	}, (err) => {
 		console.warn("[Firestore Room] Participants subscription notice:", err?.message || err);
 	});
@@ -9963,6 +9984,22 @@ async function sendFirestoreRoomMessage(roomId, sender, text, isHost, customId, 
 	} catch (err) {
 		console.warn("[Firestore Room] sendMessage notice:", err);
 		return null;
+	}
+}
+async function editFirestoreRoomMessage(roomId, messageId, newText) {
+	const uid = auth.currentUser?.uid;
+	const trimmed = newText.trim().slice(0, 500);
+	if (!uid || !trimmed || !isValidFirestoreId(roomId) || !isValidFirestoreId(messageId)) return false;
+	try {
+		await updateDoc(doc(db, "party_rooms", roomId, "messages", messageId), {
+			text: trimmed,
+			isEdited: true,
+			editedAt: Date.now()
+		});
+		return true;
+	} catch (err) {
+		console.warn("[Firestore Room] editMessage notice:", err);
+		return false;
 	}
 }
 async function deleteFirestoreRoomMessage(roomId, messageId) {
@@ -10020,6 +10057,7 @@ function subscribeFirestoreRoomMessages(roomId, onUpdate) {
 					senderSuperVip: typeof data.senderSuperVip === "number" ? data.senderSuperVip : typeof data.superVipLevel === "number" ? data.superVipLevel : 0,
 					senderIsVip: Boolean(data.senderIsVip || data.isVIP || typeof data.senderVip === "number" && data.senderVip > 0),
 					isSystem: Boolean(data.isSystem),
+					isEdited: Boolean(data.isEdited),
 					...replyTo ? { replyTo } : {}
 				}
 			};
@@ -27428,7 +27466,6 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [maxSeats, setMaxSeats] = (0, import_react.useState)(() => clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel));
 	const maxSeatsRef = (0, import_react.useRef)(maxSeats);
 	maxSeatsRef.current = maxSeats;
-	const isCoHostSeatLevelLocked = isSeatLockedByHostLevel(1, hostLevel);
 	const normalizeSeats = (raw, count = maxSeatsRef.current, level = hostLevelRef.current) => sanitizePartySeatsForHostLevel(raw, count, level);
 	const profileToViewerInfo = (u, isHostFlag) => {
 		const now = Date.now();
@@ -27520,6 +27557,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const heartBatchTimerRef = (0, import_react.useRef)(null);
 	const partyEntryTimerRef = (0, import_react.useRef)(null);
 	const seenPartyEntriesRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
+	const seenPartyLeavesRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
 	const voiceTransportRef = (0, import_react.useRef)("connecting");
 	voiceTransportRef.current = voiceTransport;
 	const isMicMutedRef = (0, import_react.useRef)(isMicMuted);
@@ -27650,6 +27688,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const [showEmojiPicker, setShowEmojiPicker] = (0, import_react.useState)(false);
 	const [activities, setActivities] = (0, import_react.useState)([]);
 	const [replyTarget, setReplyTarget] = (0, import_react.useState)(null);
+	const [editingComment, setEditingComment] = (0, import_react.useState)(null);
 	const [swipingMsgId, setSwipingMsgId] = (0, import_react.useState)(null);
 	const [swipeOffsetX, setSwipeOffsetX] = (0, import_react.useState)(0);
 	const swipeTouchRef = (0, import_react.useRef)(null);
@@ -28005,7 +28044,28 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			}
 			console.warn("[AudioRoom] Backend join fallback to Firestore:", msg);
 		});
-		const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants) => {
+		const emitPartyLeaveNotification = (departed) => {
+			if (!departed.userId || departed.userId === currentUser.id) return;
+			if (isRoomHost && blockedUserIdsRef.current.has(departed.userId)) return;
+			const now = Date.now();
+			if (now - (seenPartyLeavesRef.current.get(departed.userId) || 0) < 1e4) return;
+			seenPartyLeavesRef.current.set(departed.userId, now);
+			setActivities((prev) => [...prev.slice(-49), {
+				id: `leave_${departed.userId}_${now}`,
+				userId: departed.userId,
+				name: departed.name || "Viewer",
+				avatar: departed.avatar || "",
+				text: "left the party.",
+				level: typeof departed.level === "number" ? departed.level : 0,
+				vipLevel: typeof departed.vipLevel === "number" ? departed.vipLevel : 0,
+				superVipLevel: typeof departed.superVipLevel === "number" ? departed.superVipLevel : 0,
+				isVIP: Boolean(departed.isVIP || (departed.vipLevel || 0) > 0),
+				isHost: Boolean(departed.isHost),
+				type: "leave"
+			}]);
+			setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
+		};
+		const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants, _rawDocs, removedParticipants) => {
 			if (!active) return;
 			hasFsParticipantsRef.current = true;
 			const fsParticipants = isRoomHost ? rawFsParticipants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : rawFsParticipants;
@@ -28020,6 +28080,22 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				fsParticipantsInitialized = true;
 				fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
 			} else {
+				removedParticipants.forEach((removedUser) => {
+					if (!removedUser?.userId || removedUser.userId === currentUser.id) return;
+					const cachedPrev = participantsListRef.current.find((p) => p.userId === removedUser.userId);
+					const seatedPrev = seatsRef.current.find((s) => s?.id === removedUser.userId);
+					const resolvedName = removedUser.name && removedUser.name !== "User" ? removedUser.name : cachedPrev?.name || seatedPrev?.name || (removedUser.userId === room.host.id ? room.host.name : "Viewer");
+					emitPartyLeaveNotification({
+						userId: removedUser.userId,
+						name: resolvedName,
+						avatar: removedUser.avatar || cachedPrev?.avatar || seatedPrev?.avatar || "",
+						level: removedUser.level ?? cachedPrev?.level ?? seatedPrev?.level ?? 0,
+						vipLevel: removedUser.vipLevel ?? cachedPrev?.vipLevel ?? seatedPrev?.vipLevel ?? 0,
+						superVipLevel: removedUser.superVipLevel ?? cachedPrev?.superVipLevel ?? seatedPrev?.superVipLevel ?? 0,
+						isVIP: Boolean(removedUser.isVIP || cachedPrev?.isVIP || seatedPrev?.isVIP),
+						isHost: Boolean(removedUser.isHost || removedUser.userId === room.host.id)
+					});
+				});
 				prevFsParticipantIds.forEach((prevId) => {
 					if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
 						departedIds.add(prevId);
@@ -28031,6 +28107,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
 						knownParticipantIds.add(p.userId);
 						clearUserRecentlyLeft(p.userId);
+						seenPartyLeavesRef.current.delete(p.userId);
 						const now = Date.now();
 						if (now - (seenPartyEntriesRef.current.get(p.userId) || 0) > 1e4) {
 							seenPartyEntriesRef.current.set(p.userId, now);
@@ -28134,15 +28211,18 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 							isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
 							isHost: m.isHost,
 							type: m.gift ? "gift" : m.isSystem ? "join" : "chat",
+							isEdited: Boolean(m.isEdited),
 							...m.replyTo ? { replyTo: m.replyTo } : {},
 							fromFirestore: true
 						});
 						changed = true;
 					} else {
 						const idx = next.findIndex((a) => a.id === m.id);
-						if (idx !== -1 && (!next[idx].fromFirestore || !next[idx].replyTo && m.replyTo)) {
+						if (idx !== -1 && (!next[idx].fromFirestore || !next[idx].replyTo && m.replyTo || next[idx].text !== m.text || Boolean(next[idx].isEdited) !== Boolean(m.isEdited))) {
 							next[idx] = {
 								...next[idx],
+								text: m.text,
+								isEdited: Boolean(m.isEdited),
 								...m.replyTo ? { replyTo: m.replyTo } : {},
 								fromFirestore: true
 							};
@@ -28300,6 +28380,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			else if (event === "room:participant_joined") {
 				if (payload.participant?.userId) {
 					clearUserRecentlyLeft(payload.participant.userId);
+					seenPartyLeavesRef.current.delete(payload.participant.userId);
 					knownParticipantIds.add(payload.participant.userId);
 				}
 				if (payload.room) applyServerRoomState(payload.room);
@@ -28361,6 +28442,22 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					return;
 				}
 				const departedUserId = typeof payload.userId === "string" ? payload.userId : "";
+				const cachedParticipantBeforeLeave = departedUserId ? participantsListRef.current.find((p) => p.userId === departedUserId) : void 0;
+				const cachedSeatBeforeLeave = departedUserId ? seatsRef.current.find((s) => s?.id === departedUserId) : void 0;
+				const serverDeparted = payload.participant;
+				if (departedUserId && payload.reason === "explicit_leave") {
+					const resolvedName = (serverDeparted?.name && serverDeparted.name !== "User" ? serverDeparted.name : "") || cachedParticipantBeforeLeave?.name || cachedSeatBeforeLeave?.name || (departedUserId === room.host.id ? room.host.name : "Viewer");
+					emitPartyLeaveNotification({
+						userId: departedUserId,
+						name: resolvedName,
+						avatar: serverDeparted?.avatar || cachedParticipantBeforeLeave?.avatar || cachedSeatBeforeLeave?.avatar || "",
+						level: serverDeparted?.level ?? cachedParticipantBeforeLeave?.level ?? cachedSeatBeforeLeave?.level ?? 0,
+						vipLevel: serverDeparted?.vipLevel ?? cachedParticipantBeforeLeave?.vipLevel ?? cachedSeatBeforeLeave?.vipLevel ?? 0,
+						superVipLevel: serverDeparted?.superVipLevel ?? cachedParticipantBeforeLeave?.superVipLevel ?? cachedSeatBeforeLeave?.superVipLevel ?? 0,
+						isVIP: Boolean(serverDeparted?.isVIP || cachedParticipantBeforeLeave?.isVIP || cachedSeatBeforeLeave?.isVIP),
+						isHost: Boolean(payload.isHost || serverDeparted?.isHost || departedUserId === room.host.id)
+					});
+				}
 				if (departedUserId) {
 					markUserRecentlyLeft(departedUserId);
 					knownParticipantIds.delete(departedUserId);
@@ -28455,9 +28552,18 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					superVipLevel: typeof m.senderSuperVip === "number" ? m.senderSuperVip : 0,
 					isVIP: Boolean(m.senderIsVip || (m.senderVip || 0) > 0),
 					isHost: m.isHost,
-					type: m.gift ? "gift" : m.isSystem ? "join" : "chat"
+					type: m.gift ? "gift" : m.isSystem ? "join" : "chat",
+					isEdited: Boolean(m.isEdited)
 				}]);
 				setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
+			} else if (event === "room:chat_edited" && payload.messageId && typeof payload.text === "string") {
+				const editedId = String(payload.messageId);
+				const editedText = String(payload.text);
+				setActivities((prev) => prev.map((a) => a.id === editedId ? {
+					...a,
+					text: editedText,
+					isEdited: true
+				} : a));
 			} else if (event === "room:closed") {
 				if (!isRoomHost || payload.autoClosed) {
 					showToast(payload.autoClosed ? "Party room closed automatically after 5 minutes of inactivity" : "Host has closed this party room");
@@ -29462,7 +29568,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		if (!(canModerate || act.userId === currentUser.id)) return;
 		setActivities((prev) => prev.filter((item) => item.id !== act.id));
 		if (replyTarget?.id === act.id) setReplyTarget(null);
-		if (act.type !== "join") await deleteFirestoreRoomMessage(room.id, act.id);
+		if (editingComment?.id === act.id) {
+			setEditingComment(null);
+			setInputMessage("");
+		}
+		if (act.type !== "join" && act.type !== "leave") await deleteFirestoreRoomMessage(room.id, act.id);
 		showToast("Comment deleted");
 	};
 	const handleClearAllComments = async () => {
@@ -29473,6 +29583,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			lastChatClearedAtRef.current = Date.now();
 			setActivities([]);
 			setReplyTarget(null);
+			setEditingComment(null);
 			setShowClearChatConfirmModal(false);
 			showToast(ok ? "All chat comments cleared" : "Chat cleared locally");
 		} finally {
@@ -29481,12 +29592,26 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	};
 	const handleStartReply = (act) => {
 		if (!act?.name) return;
+		setEditingComment(null);
 		setReplyTarget({
 			id: act.id,
 			senderId: act.userId,
 			senderName: act.name,
 			text: act.text
 		});
+		setTimeout(() => {
+			chatInputRef.current?.focus();
+		}, 30);
+	};
+	const handleStartEditComment = (act) => {
+		if (!act?.id || act.userId !== currentUser.id) return;
+		if (act.type === "join" || act.type === "leave" || act.type === "gift") return;
+		setReplyTarget(null);
+		setEditingComment({
+			id: act.id,
+			originalText: act.text
+		});
+		setInputMessage(act.text);
 		setTimeout(() => {
 			chatInputRef.current?.focus();
 		}, 30);
@@ -30042,9 +30167,34 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const handleSendMessage = async (e) => {
 		if (e) e.preventDefault();
 		const rawText = inputMessage.trim();
-		if (!rawText) return;
+		if (!rawText) {
+			if (editingComment) showToast("Comment cannot be empty");
+			return;
+		}
 		if (!isRoomHost && blockedByUserIdsRef.current.has(room.host.id)) {
 			showToast("You are blocked from chatting in this room.");
+			return;
+		}
+		if (editingComment) {
+			const targetEdit = editingComment;
+			setEditingComment(null);
+			setInputMessage("");
+			setShowEmojiPicker(false);
+			if (rawText === targetEdit.originalText) return;
+			setActivities((prev) => prev.map((item) => item.id === targetEdit.id && item.userId === currentUser.id ? {
+				...item,
+				text: rawText,
+				isEdited: true
+			} : item));
+			const [fsEdited, wsEdited] = await Promise.all([editFirestoreRoomMessage(room.id, targetEdit.id, rawText), liveAndRoomService.editRoomChat(room.id, currentUser.id, targetEdit.id, rawText)]);
+			if (fsEdited || wsEdited) showToast("Comment updated");
+			else {
+				setActivities((prev) => prev.map((item) => item.id === targetEdit.id ? {
+					...item,
+					text: targetEdit.originalText
+				} : item));
+				showToast("Could not update comment. Please try again.");
+			}
 			return;
 		}
 		const activeReply = replyTarget;
@@ -30708,15 +30858,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PartySofaSeat, {
 							seatIndex: 1,
 							variant: "cohost",
-							occupant: isCoHostSeatLevelLocked ? null : seatOne,
-							isMuted: Boolean(!isCoHostSeatLevelLocked && seatOne && (mutedSeatIndices.includes(1) || seatOne.id === currentUser.id && isMicMuted)),
-							isSpeaking: Boolean(!isCoHostSeatLevelLocked && speakingSeats[1] && seatOne && !mutedSeatIndices.includes(1) && !(seatOne.id === currentUser.id && isMicMuted)),
+							occupant: seatOne,
+							isMuted: Boolean(seatOne && (mutedSeatIndices.includes(1) || seatOne.id === currentUser.id && isMicMuted)),
+							isSpeaking: Boolean(speakingSeats[1] && seatOne && !mutedSeatIndices.includes(1) && !(seatOne.id === currentUser.id && isMicMuted)),
 							isLocked: isSeatLocked,
-							isLevelLocked: isCoHostSeatLevelLocked,
-							levelLockText: "Lv.5",
-							badgeText: isCoHostSeatLevelLocked ? "Lv.5 Lock" : "Seat 2",
-							isModerator: Boolean(!isCoHostSeatLevelLocked && seatOne && moderatorIdsSet.has(seatOne.id)),
-							label: isCoHostSeatLevelLocked ? "Unlocks Lv.5" : seatOne ? seatOne.name : "Join",
+							isLevelLocked: false,
+							badgeText: "Seat 2",
+							isModerator: Boolean(seatOne && moderatorIdsSet.has(seatOne.id)),
+							label: seatOne ? seatOne.name : "Join",
 							seatTheme,
 							onClick: () => handleSeatClick(1)
 						})]
@@ -30773,6 +30922,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 								const resolvedVip = typeof act.vipLevel === "number" ? act.vipLevel : matchedSeatedUser?.vipLevel ?? matchedParticipant?.vipLevel ?? 0;
 								const resolvedSuperVip = typeof act.superVipLevel === "number" ? act.superVipLevel : matchedSeatedUser?.superVipLevel ?? matchedParticipant?.superVipLevel ?? 0;
 								const isActModerator = Boolean(act.userId && moderatorIdsSet.has(act.userId));
+								const isSystemNotice = act.type === "join" || act.type === "leave";
+								const canEditThisComment = act.userId === currentUser.id && !isSystemNotice && act.type !== "gift";
 								const canDeleteThisComment = canModerate || act.userId === currentUser.id;
 								const isBeingSwiped = swipingMsgId === act.id && swipeOffsetX > 4;
 								const handleTapActivityUser = () => {
@@ -30813,7 +30964,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									"data-no-doubletap": "true",
 									className: "relative flex items-center gap-1 max-w-full group",
 									onTouchStart: (e) => {
-										if (act.type === "join" || !e.touches[0]) return;
+										if (isSystemNotice || !e.touches[0]) return;
 										swipeTouchRef.current = {
 											id: act.id,
 											startX: e.touches[0].clientX,
@@ -30862,7 +31013,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 											transition: "transform 180ms ease-out"
 										},
 										onClick: handleTapActivityUser,
-										className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${act.type === "join" ? "bg-[#210D40]/85 border-[#FA26A0]/35" : "bg-[#17092E]/88 border-purple-500/30"}`,
+										className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${act.type === "join" ? "bg-[#210D40]/85 border-[#FA26A0]/35" : act.type === "leave" ? "bg-[#1D0C36]/85 border-white/15" : "bg-[#17092E]/88 border-purple-500/30"}`,
 										children: [
 											act.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 												src: act.avatar,
@@ -30908,36 +31059,52 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 														}),
 														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
 															className: "font-extrabold text-[#FFE043] shrink-0",
-															children: [act.name, act.type === "join" ? "" : ":"]
+															children: [act.name, isSystemNotice ? "" : ":"]
 														}),
-														/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-															className: `font-medium break-words ${act.type === "join" ? "text-[#FFB3DE]" : "text-white/95"}`,
-															children: act.type === "join" ? act.text : renderTextWithMentions(act.text)
+														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+															className: `font-medium break-words ${act.type === "join" ? "text-[#FFB3DE]" : act.type === "leave" ? "text-[#D6C7F0]" : "text-white/95"}`,
+															children: [isSystemNotice ? act.text : renderTextWithMentions(act.text), act.isEdited && !isSystemNotice && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+																className: "ml-1 text-[9px] text-white/45 italic",
+																children: "(edited)"
+															})]
 														})
 													]
 												})]
 											}),
-											act.type !== "join" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+											!isSystemNotice && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 												className: "flex items-center gap-1 ml-1 shrink-0",
-												children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													type: "button",
-													onClick: (e) => {
-														e.stopPropagation();
-														handleStartReply(act);
-													},
-													title: `Reply to @${act.name}`,
-													className: "w-5 h-5 rounded-full bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center text-cyan-200/80 hover:text-cyan-200 transition-colors",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3 h-3" })
-												}), canDeleteThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-													type: "button",
-													onClick: (e) => {
-														e.stopPropagation();
-														handleDeleteSingleComment(act);
-													},
-													title: "Delete comment",
-													className: "w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors",
-													children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-2.5 h-2.5" })
-												})]
+												children: [
+													/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+														type: "button",
+														onClick: (e) => {
+															e.stopPropagation();
+															handleStartReply(act);
+														},
+														title: `Reply to @${act.name}`,
+														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center text-cyan-200/80 hover:text-cyan-200 transition-colors",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3 h-3" })
+													}),
+													canEditThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+														type: "button",
+														onClick: (e) => {
+															e.stopPropagation();
+															handleStartEditComment(act);
+														},
+														title: "Edit comment",
+														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pen, { className: "w-2.5 h-2.5" })
+													}),
+													canDeleteThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+														type: "button",
+														onClick: (e) => {
+															e.stopPropagation();
+															handleDeleteSingleComment(act);
+														},
+														title: "Delete comment",
+														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-2.5 h-2.5" })
+													})
+												]
 											})
 										]
 									})]
@@ -30950,7 +31117,32 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("footer", {
 				className: "relative z-30 px-3 safe-pb-3 pt-2 bg-gradient-to-t from-[#060212] via-[#0D041B]/95 to-transparent",
 				children: [
-					replyTarget && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					editingComment && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: "max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-amber-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-2 min-w-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pen, { className: "w-3.5 h-3.5 text-amber-300 shrink-0" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "min-w-0",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] font-black text-amber-300 block truncate",
+									children: "Editing comment"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "text-[10px] text-white/70 block truncate",
+									children: editingComment.originalText
+								})]
+							})]
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
+							onClick: () => {
+								setEditingComment(null);
+								setInputMessage("");
+							},
+							className: "w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0",
+							"aria-label": "Cancel edit",
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						})]
+					}),
+					replyTarget && !editingComment && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "max-w-md mx-auto mb-1.5 px-3 py-1.5 rounded-2xl bg-[#1C0D38]/95 border border-cyan-400/45 flex items-center justify-between gap-2 shadow-lg animate-fade-in",
 						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 							className: "flex items-center gap-2 min-w-0",
@@ -31012,7 +31204,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 										ref: chatInputRef,
 										type: "text",
-										placeholder: replyTarget ? `Reply to @${replyTarget.senderName}...` : "Say Hi...",
+										placeholder: editingComment ? "Edit your comment..." : replyTarget ? `Reply to @${replyTarget.senderName}...` : "Say Hi...",
 										value: inputMessage,
 										onChange: (e) => setInputMessage(e.target.value),
 										className: "w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
@@ -31020,7 +31212,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									inputMessage.trim() && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 										type: "submit",
 										className: "w-7 h-7 rounded-full bg-[#FA26A0] text-white flex items-center justify-center shrink-0 ml-1 shadow",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" })
+										title: editingComment ? "Save comment" : "Send message",
+										children: editingComment ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Check, { className: "w-3.5 h-3.5" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Send, { className: "w-3.5 h-3.5" })
 									})
 								]
 							}),
@@ -44620,15 +44813,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DJRefFbo.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BOV60rvF.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-ncBIzTfW.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-Bg4ctGd9.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Db0JO3if.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BIumHvFB.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BUi6L8R1.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-oR6blway.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BRAxX_72.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CVpg0tHH.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C-0f9UiE.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-C7xGSh8b.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-VLPyGXE5.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-B3ABuySM.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B4NUTUCP.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-gNWsPIKr.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-CkZKc9wO.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-CE7PrW3f.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
