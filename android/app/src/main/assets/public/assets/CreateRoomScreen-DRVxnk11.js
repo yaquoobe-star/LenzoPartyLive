@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { D as Sparkles, Dt as Image, Kt as Eye, Ln as ArrowLeft, bt as LoaderCircle, d as Users, g as Upload, qt as EyeOff, tn as Crown, vn as Check, vt as Lock, xn as Camera, zn as require_react } from "./vendor-icons-RA12uJu8.js";
 import { r as auth } from "./firebase-CIREZBAE.js";
-import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-DK5iPoaL.js";
+import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-DuNFmwBw.js";
 import { i as require_jsx_runtime } from "./vendor-motion-BNHB1rOc.js";
 // src/components/screens/CreateRoomScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
@@ -118,8 +118,9 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 		const activeCapacity = getActiveSeatCapacity(effectiveMaxSeats, hostLevel);
 		const emptySeats = Array(effectiveMaxSeats).fill(null);
 		emptySeats[0] = hostProfile;
+		const uniqueSuffix = Math.random().toString(36).slice(2, 8);
 		onCreateRoom({
-			id: `room_${Date.now()}`,
+			id: `room_${Date.now()}_${uniqueSuffix}`,
 			displayId: Math.floor(1e4 + Math.random() * 9e4).toString(),
 			title: roomName.trim(),
 			category: "Party",

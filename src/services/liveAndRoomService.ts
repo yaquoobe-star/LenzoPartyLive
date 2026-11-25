@@ -621,6 +621,43 @@ class LiveAndRoomService {
     return data.seats || [];
   }
 
+  public async acceptSeatInvite(
+    roomId: string,
+    userId: string,
+    seatIndex: number,
+    user: UserProfile,
+    roomMeta?: { host?: UserProfile; title?: string; maxSeats?: number }
+  ): Promise<{
+    success: boolean;
+    conflict?: boolean;
+    seats?: (UserProfile | null)[];
+    agoraToken?: string | null;
+    error?: string;
+  }> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/accept_invite`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, seatIndex, user, roomMeta }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          success: false,
+          conflict: res.status === 409,
+          seats: Array.isArray(data.seats) ? data.seats : undefined,
+          error: data.error || 'Could not accept seat invitation',
+        };
+      }
+      return {
+        success: true,
+        seats: Array.isArray(data.seats) ? data.seats : undefined,
+        agoraToken: data.agoraToken ?? null,
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Could not accept seat invitation' };
+    }
+  }
+
   public async sendRoomInvite(params: {
     roomId: string;
     hostId: string;

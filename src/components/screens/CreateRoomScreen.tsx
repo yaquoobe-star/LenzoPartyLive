@@ -172,8 +172,9 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
     // Host sits in seat 0
     emptySeats[0] = hostProfile;
 
+    const uniqueSuffix = Math.random().toString(36).slice(2, 8);
     const newRoom: PartyRoom = {
-      id: `room_${Date.now()}`,
+      id: `room_${Date.now()}_${uniqueSuffix}`,
       displayId: Math.floor(10000 + Math.random() * 90000).toString(),
       title: roomName.trim(),
       category: 'Party',

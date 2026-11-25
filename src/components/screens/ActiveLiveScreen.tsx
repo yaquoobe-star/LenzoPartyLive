@@ -1299,8 +1299,9 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
               return;
             }
           } catch (agoraErr: any) {
+            if ((agoraErr as Error)?.message === 'AGORA_JOIN_SUPERSEDED' || !isSubscribed) return;
             console.warn('[Live Media] Agora connection failed, falling back to real-time WebRTC:', agoraErr?.message || agoraErr);
-            await agoraRtcService.leaveChannel().catch(() => {});
+            await agoraRtcService.leaveChannel(stream.id).catch(() => {});
           }
         }
 
@@ -1326,6 +1327,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
 
     const unsubAgoraStatus = agoraRtcService.onStatusChange((status) => {
       if (!isSubscribed || mediaTransportRef.current !== 'agora') return;
+      if (status.channelName && status.channelName !== stream.id) return;
       if (status.state === 'CONNECTED') {
         setAgoraConnected(true);
         setAgoraConnectionState('connected');
@@ -1338,7 +1340,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
     });
 
     const unsubRemote = agoraRtcService.onRemoteTrack((remoteHost) => {
-      if (!isSubscribed) return;
+      if (!isSubscribed || agoraRtcService.getCurrentChannel() !== stream.id) return;
       try {
         if (remoteHost.videoTrack || remoteHost.audioTrack) {
           hasAgoraTrack = true;
@@ -1403,7 +1405,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       unsubAutoplay();
       unsubUserLeft();
       webrtcMediaService.stopLive();
-      agoraRtcService.leaveChannel().catch(() => {});
+      agoraRtcService.leaveChannel(stream.id).catch(() => {});
       void setNativeLiveAudioMode(false);
       if (audioAnalyserControllerRef.current) {
         audioAnalyserControllerRef.current.cleanup();

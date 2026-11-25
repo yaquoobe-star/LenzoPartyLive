@@ -1911,6 +1911,8 @@ export default function App() {
         ...prev.filter((s) => s.id !== finalStream.id && s.host?.id !== activeUid),
       ];
     });
+    setActiveAudioRoom(null);
+    setIsAudioRoomMinimized(false);
     setActiveLiveStream(finalStream);
     setCurrentScreen('live_active');
 
@@ -2029,6 +2031,9 @@ export default function App() {
     });
 
     setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
+    setActiveLiveStream(null);
+    setIsLiveStreamMinimized(false);
+    setActivePKSession(null);
     setActiveAudioRoom(finalRoom);
     setCurrentScreen('audio_room');
 

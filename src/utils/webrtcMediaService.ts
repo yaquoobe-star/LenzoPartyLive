@@ -110,6 +110,7 @@ class WebRtcMediaService {
   private partyUserId: string | null = null;
   private partyIsSpeaker = false;
   private partyStartedAt = 0;
+  private partySessionGen = 0;
   private partyLocalStream: MediaStream | null = null;
   private partyKnownPeers = new Map<string, { isSpeaker: boolean }>();
   private partyPendingOfferPeers = new Set<string>();
@@ -996,6 +997,7 @@ class WebRtcMediaService {
 
     void this.refreshIceServers();
 
+    const mySessionGen = ++this.partySessionGen;
     this.partyRoomId = roomId;
     this.partyUserId = userId;
     this.partyIsSpeaker = isSpeaker;
@@ -1032,7 +1034,7 @@ class WebRtcMediaService {
 
     // 1. WebSocket signaling listener
     this.partyUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
-      if (!this.partyRoomId || !payload || payload.roomId !== this.partyRoomId) return;
+      if (this.partySessionGen !== mySessionGen || !this.partyRoomId || this.partyRoomId !== roomId || !payload || payload.roomId !== roomId) return;
       const fromUserId = String(payload.fromUserId || '');
       if (!fromUserId || fromUserId === this.partyUserId) return;
 
@@ -1072,7 +1074,7 @@ class WebRtcMediaService {
 
     // 2. Cloud Firestore failover signaling listener on party_rooms/{roomId}/participants/*
     this.partyUnsubscribeFs = subscribeFirestoreRoomParticipants(roomId, (_list, rawDocs) => {
-      if (!this.partyRoomId || this.partyRoomId !== roomId || !this.partyUserId) return;
+      if (this.partySessionGen !== mySessionGen || !this.partyRoomId || this.partyRoomId !== roomId || !this.partyUserId) return;
 
       rawDocs.forEach((pDoc: FirestoreRoomParticipantDoc, docId: string) => {
         const peerId = String(pDoc.userId || docId);
@@ -1414,13 +1416,30 @@ class WebRtcMediaService {
       });
     }
 
+    const sessionGen = this.partySessionGen;
+    const activeRoomId = this.partyRoomId;
+
     pc.ontrack = (ev) => {
+      if (this.partySessionGen !== sessionGen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try {
+          ev.track.stop();
+        } catch {
+          // ignore
+        }
+        return;
+      }
       const stream = ev.streams && ev.streams[0] ? ev.streams[0] : new MediaStream([ev.track]);
       this.attachRemotePartyAudio(peerId, stream);
     };
 
     pc.onicecandidate = (ev) => {
-      if (ev.candidate && this.partyRoomId && this.partyUserId) {
+      if (
+        ev.candidate &&
+        this.partySessionGen === sessionGen &&
+        this.partyRoomId === activeRoomId &&
+        this.partyRoomId &&
+        this.partyUserId
+      ) {
         const candJson = ev.candidate.toJSON();
         liveAndRoomService.sendSignal({
           signalType: 'webrtc:room_ice',
@@ -1437,10 +1456,13 @@ class WebRtcMediaService {
     };
 
     pc.onconnectionstatechange = () => {
+      if (this.partySessionGen !== sessionGen || this.partyRoomId !== activeRoomId) return;
       if (pc.connectionState === 'connected') {
         this.partyCallbacks?.onStatusChange?.('connected');
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        this.closePartyPeer(peerId);
+        if (this.partyPeers.get(peerId) === pc) {
+          this.closePartyPeer(peerId);
+        }
       }
     };
 
@@ -1453,11 +1475,21 @@ class WebRtcMediaService {
       this.partyPendingOfferPeers.add(peerId);
       return;
     }
+    const gen = this.partySessionGen;
+    const activeRoomId = this.partyRoomId;
     const sessionId = makeSessionId('pr');
     const pc = this.setupPartyPeerConnection(peerId, 'offer', sessionId);
     try {
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+      if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try { pc.close(); } catch {}
+        return;
+      }
       await pc.setLocalDescription(offer);
+      if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try { pc.close(); } catch {}
+        return;
+      }
       const localSdp: RTCSessionDescriptionInit = {
         type: pc.localDescription?.type || offer.type,
         sdp: pc.localDescription?.sdp || offer.sdp,
@@ -1468,10 +1500,10 @@ class WebRtcMediaService {
         signalType: 'webrtc:room_offer',
         fromUserId: this.partyUserId,
         targetUserId: peerId,
-        roomId: this.partyRoomId,
+        roomId: activeRoomId,
         payload: { sdp: localSdp, sessionId },
       });
-      void writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
+      void writeFirestorePartyPeerSignal(activeRoomId, peerId, {
         type: 'offer',
         sdp: localSdp,
         sessionId,
@@ -1479,7 +1511,9 @@ class WebRtcMediaService {
       });
     } catch (err) {
       console.warn('[WebRTC Party] Offer error:', err);
-      this.closePartyPeer(peerId);
+      if (this.partySessionGen === gen && this.partyPeers.get(peerId) === pc) {
+        this.closePartyPeer(peerId);
+      }
     }
   }
 
@@ -1507,18 +1541,32 @@ class WebRtcMediaService {
       return;
     }
 
+    const gen = this.partySessionGen;
+    const activeRoomId = this.partyRoomId;
     this.partyHandledOfferSessions.set(peerId, sessionId);
 
     const pc = this.setupPartyPeerConnection(peerId, 'answer', sessionId);
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try { pc.close(); } catch {}
+        return;
+      }
       const queued = this.partyPendingIce.get(peerId) || [];
       this.partyPendingIce.set(peerId, []);
       for (const cand of queued) {
         await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
       }
       const answer = await pc.createAnswer();
+      if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try { pc.close(); } catch {}
+        return;
+      }
       await pc.setLocalDescription(answer);
+      if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+        try { pc.close(); } catch {}
+        return;
+      }
       const localSdp: RTCSessionDescriptionInit = {
         type: pc.localDescription?.type || answer.type,
         sdp: pc.localDescription?.sdp || answer.sdp,
@@ -1529,10 +1577,10 @@ class WebRtcMediaService {
         signalType: 'webrtc:room_answer',
         fromUserId: this.partyUserId,
         targetUserId: peerId,
-        roomId: this.partyRoomId,
+        roomId: activeRoomId,
         payload: { sdp: localSdp, sessionId },
       });
-      void writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
+      void writeFirestorePartyPeerSignal(activeRoomId, peerId, {
         type: 'answer',
         sdp: localSdp,
         sessionId,
@@ -1540,7 +1588,9 @@ class WebRtcMediaService {
       });
     } catch (err) {
       console.warn('[WebRTC Party] Answer error:', err);
-      this.closePartyPeer(peerId);
+      if (this.partySessionGen === gen && this.partyPeers.get(peerId) === pc) {
+        this.closePartyPeer(peerId);
+      }
     }
   }
 
@@ -1706,7 +1756,11 @@ class WebRtcMediaService {
     this.partyCallbacks?.onRemoteSpeakersChange?.(Array.from(this.partyRemoteAudioEls.keys()));
   }
 
-  public stopPartyVoice() {
+  public stopPartyVoice(expectedRoomId?: string) {
+    if (expectedRoomId && this.partyRoomId && this.partyRoomId !== expectedRoomId) {
+      return;
+    }
+    this.partySessionGen += 1;
     if (this.partyQuickPresenceTimer) {
       clearTimeout(this.partyQuickPresenceTimer);
       this.partyQuickPresenceTimer = null;

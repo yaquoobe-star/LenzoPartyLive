@@ -476,6 +476,7 @@ interface ServerPartyRoom {
   seats: (any | null)[];
   mutedSeatIndices: Set<number>;
   pendingRequests: Map<string, any>;
+  pendingSeatInvites?: Map<string, { seatIndex: number; expiresAt: number }>;
   participants: Map<string, ServerViewerRecord>;
   recentJoinAnnouncements: Map<string, number>;
   messages: any[];
@@ -859,18 +860,46 @@ function sanitizeMusicTrackMeta(raw: any): ServerPartyMusicTrack | null {
   };
 }
 
+function buildServerPartyAgoraChannel(roomId: string): string {
+  const raw = String(roomId || '').trim();
+  const clean = raw.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const candidate = `party_${clean || 'room'}`;
+  if (candidate.length <= 64 && clean === raw && clean.length > 0) {
+    return candidate;
+  }
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i++) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const suffix = `_${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  const maxCoreLen = 64 - 'party_'.length - suffix.length;
+  return `party_${(clean || 'room').slice(0, Math.max(1, maxCoreLen))}${suffix}`;
+}
+
+function deduplicateServerSeats(seats: (any | null)[], targetLen: number): (any | null)[] {
+  const next: (any | null)[] = Array(targetLen).fill(null);
+  const seen = new Set<string>();
+  for (let i = 0; i < Math.min(targetLen, seats.length); i++) {
+    const occupant = seats[i];
+    if (occupant && occupant.id) {
+      const uid = String(occupant.id);
+      if (seen.has(uid)) continue;
+      seen.add(uid);
+      next[i] = occupant;
+    }
+  }
+  return next;
+}
+
 function serializePartyRoom(room: ServerPartyRoom) {
   const safeMaxSeats = Math.max(
     clampServerMaxSeatsForHostLevel(room.maxSeats, room.host),
     [5, 8, 16].includes(room.maxSeats) ? room.maxSeats : 5,
     room.seats.length
   );
-  const safeSeats = Array(safeMaxSeats).fill(null);
-  for (let i = 0; i < Math.min(safeMaxSeats, room.seats.length); i++) {
-    if (room.seats[i]) {
-      safeSeats[i] = room.seats[i];
-    }
-  }
+  const safeSeats = deduplicateServerSeats(room.seats, safeMaxSeats);
+  room.seats = safeSeats;
   const occupiedSeats = safeSeats.filter(Boolean).length;
   const numericParticipants = room.participants.size;
   const hostPresent = room.participants.has(room.host?.id);
@@ -1415,6 +1444,34 @@ function broadcastToUser(userId: string, event: string, payload: any) {
   });
 }
 
+function broadcastToUserInRoom(userId: string, roomId: string, event: string, payload: any) {
+  const message = JSON.stringify({ event, payload, timestamp: Date.now() });
+  wss.clients.forEach((client: WebSocket) => {
+    const extClient = client as ExtendedWebSocket;
+    if (
+      extClient.readyState === WebSocket.OPEN &&
+      extClient.userId === userId &&
+      extClient.subscribedRoomId === roomId
+    ) {
+      extClient.send(message);
+    }
+  });
+}
+
+function broadcastToUserInStream(userId: string, streamId: string, event: string, payload: any) {
+  const message = JSON.stringify({ event, payload, timestamp: Date.now() });
+  wss.clients.forEach((client: WebSocket) => {
+    const extClient = client as ExtendedWebSocket;
+    if (
+      extClient.readyState === WebSocket.OPEN &&
+      extClient.userId === userId &&
+      extClient.subscribedStreamId === streamId
+    ) {
+      extClient.send(message);
+    }
+  });
+}
+
 function broadcastAll(event: string, payload: any) {
   const message = JSON.stringify({ event, payload, timestamp: Date.now() });
   wss.clients.forEach((client: WebSocket) => {
@@ -1480,6 +1537,8 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
       } else if (msg.type === 'unsubscribe_match') {
         ws.subscribedMatchId = undefined;
       } else if (msg.type === 'subscribe_live' && msg.streamId) {
+        // Strict room/live isolation: a socket cannot stay subscribed to a party room while joining a live stream
+        ws.subscribedRoomId = undefined;
         ws.subscribedStreamId = String(msg.streamId);
         if (msg.userId) ws.userId = String(msg.userId);
         const stream = liveStreamsMap.get(ws.subscribedStreamId);
@@ -1511,6 +1570,8 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
       } else if (msg.type === 'unsubscribe_live') {
         ws.subscribedStreamId = undefined;
       } else if (msg.type === 'subscribe_room' && msg.roomId) {
+        // Strict room/live isolation: a socket cannot stay subscribed to a live stream while joining a party room
+        ws.subscribedStreamId = undefined;
         ws.subscribedRoomId = String(msg.roomId);
         if (msg.userId) ws.userId = String(msg.userId);
         const room = partyRoomsMap.get(ws.subscribedRoomId);
@@ -1537,37 +1598,49 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
       } else if (msg.type === 'unsubscribe_room') {
         ws.subscribedRoomId = undefined;
       } else if (msg.type === 'webrtc:signal' && msg.signalType) {
-        // Real-time WebRTC signaling relay for live streams & party voice rooms
+        // Real-time WebRTC signaling relay strictly scoped to the sender & recipient's active room/stream
         const fromUserId = String(msg.fromUserId || ws.userId || '');
         if (!fromUserId) return;
+        const cleanRoomId = msg.roomId ? String(msg.roomId) : undefined;
+        const cleanStreamId = msg.streamId ? String(msg.streamId) : undefined;
+        // Reject cross-room / cross-stream signal injection
+        if (cleanRoomId && ws.subscribedRoomId !== cleanRoomId) return;
+        if (cleanStreamId && ws.subscribedStreamId !== cleanStreamId) return;
+        if (!cleanRoomId && !cleanStreamId) return;
+
         const payload = {
           ...(msg.payload || {}),
           fromUserId,
-          streamId: msg.streamId,
-          roomId: msg.roomId,
+          streamId: cleanStreamId,
+          roomId: cleanRoomId,
         };
         if (msg.targetUserId) {
-          broadcastToUser(String(msg.targetUserId), String(msg.signalType), payload);
-        } else if (msg.streamId) {
+          const targetUid = String(msg.targetUserId);
+          if (cleanRoomId) {
+            broadcastToUserInRoom(targetUid, cleanRoomId, String(msg.signalType), payload);
+          } else if (cleanStreamId) {
+            broadcastToUserInStream(targetUid, cleanStreamId, String(msg.signalType), payload);
+          }
+        } else if (cleanStreamId) {
           const message = JSON.stringify({ event: String(msg.signalType), payload, timestamp: Date.now() });
           wss.clients.forEach((client: WebSocket) => {
             const extClient = client as ExtendedWebSocket;
             if (
               extClient !== ws &&
               extClient.readyState === WebSocket.OPEN &&
-              extClient.subscribedStreamId === String(msg.streamId)
+              extClient.subscribedStreamId === cleanStreamId
             ) {
               extClient.send(message);
             }
           });
-        } else if (msg.roomId) {
+        } else if (cleanRoomId) {
           const message = JSON.stringify({ event: String(msg.signalType), payload, timestamp: Date.now() });
           wss.clients.forEach((client: WebSocket) => {
             const extClient = client as ExtendedWebSocket;
             if (
               extClient !== ws &&
               extClient.readyState === WebSocket.OPEN &&
-              extClient.subscribedRoomId === String(msg.roomId)
+              extClient.subscribedRoomId === cleanRoomId
             ) {
               extClient.send(message);
             }
@@ -3369,7 +3442,7 @@ app.post('/api/rooms/create', (req: AuthenticatedRequest, res: Response) => {
   }
 
   const normalizedMaxSeats: 5 | 8 | 16 = clampServerMaxSeatsForHostLevel(maxSeats, host);
-  const roomId = sanitizeText(id, 128) || `room_${Date.now()}`;
+  const roomId = sanitizeText(id, 128) || `room_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const seats = Array(normalizedMaxSeats).fill(null);
   seats[0] = host;
   const safeBgType = sanitizeRoomBackgroundType(backgroundType);
@@ -3785,27 +3858,30 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
     return res.json({ success: true, status: 'rejected' });
   }
 
-  let seatIdx = typeof targetSeatIndex === 'number' ? targetSeatIndex : requestObj.requestedSeatIndex;
-  if (
-    seatIdx < 0 ||
-    seatIdx >= room.maxSeats ||
-    room.seats[seatIdx] !== null ||
-    isServerSeatLockedByHostLevel(seatIdx, room.host)
-  ) {
-    seatIdx = room.seats.findIndex((s, idx) => s === null && !isServerSeatLockedByHostLevel(idx, room.host));
-  }
-  if (seatIdx === -1) {
-    return res.status(400).json({ error: 'All unlocked stage seats are currently occupied.' });
-  }
-
-  // Clear applicant from any previous seat
+  room.seats = deduplicateServerSeats(room.seats, room.maxSeats);
+  // Clear applicant from any previous seat BEFORE checking target seat occupancy
   for (let i = 0; i < room.seats.length; i++) {
     if (room.seats[i]?.id === applicantId) {
       room.seats[i] = null;
       room.mutedSeatIndices.delete(i);
     }
   }
+
+  let seatIdx = typeof targetSeatIndex === 'number' ? targetSeatIndex : requestObj.requestedSeatIndex;
+  if (
+    seatIdx < 0 ||
+    seatIdx >= room.maxSeats ||
+    (room.seats[seatIdx] !== null && room.seats[seatIdx]?.id !== applicantId) ||
+    isServerSeatLockedByHostLevel(seatIdx, room.host)
+  ) {
+    seatIdx = room.seats.findIndex((s, idx) => s === null && !isServerSeatLockedByHostLevel(idx, room.host));
+  }
+  if (seatIdx === -1) {
+    return res.status(409).json({ error: 'All unlocked stage seats are currently occupied.', seats: room.seats });
+  }
+
   room.seats[seatIdx] = requestObj.user;
+  room.seats = deduplicateServerSeats(room.seats, room.maxSeats);
   requestObj.status = 'accepted';
 
   // Ensure the newly seated user is immediately present in real-time room participants
@@ -3824,8 +3900,8 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
     lastSeen: nowTs,
   });
 
-  // Issue fresh Agora broadcaster RTC token for the newly promoted speaker
-  const agoraChannel = `party_${roomId}`;
+  // Issue fresh Agora broadcaster RTC token for the newly promoted speaker using isolated channel name
+  const agoraChannel = buildServerPartyAgoraChannel(roomId);
   const promotedAgora = mintAgoraRtcToken(agoraChannel, String(applicantId), 'broadcaster');
 
   const serialized = serializePartyRoom(room);
@@ -3875,17 +3951,19 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
     return res.status(403).json({ error: 'Unauthorized. Only room host can kick participants from seats.' });
   }
 
+  const cleanTargetUid = typeof targetUserId === 'string' ? targetUserId.trim() : '';
   let resolvedSeatIdx =
     typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < room.maxSeats
       ? seatIndex
       : -1;
 
-  if (
-    resolvedSeatIdx === -1 &&
-    typeof targetUserId === 'string' &&
-    targetUserId.trim()
-  ) {
-    resolvedSeatIdx = room.seats.findIndex((s) => s && s.id === targetUserId.trim());
+  // CRITICAL: When targetUserId is provided, NEVER kick a different occupant who now sits at seatIndex!
+  if (cleanTargetUid) {
+    if (resolvedSeatIdx >= 0 && room.seats[resolvedSeatIdx]?.id !== cleanTargetUid) {
+      resolvedSeatIdx = room.seats.findIndex((s) => s && s.id === cleanTargetUid);
+    } else if (resolvedSeatIdx === -1) {
+      resolvedSeatIdx = room.seats.findIndex((s) => s && s.id === cleanTargetUid);
+    }
   }
 
   if (resolvedSeatIdx >= 0 && resolvedSeatIdx < room.maxSeats) {
@@ -3896,9 +3974,9 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
     room.seats[resolvedSeatIdx] = null;
     room.mutedSeatIndices.delete(resolvedSeatIdx);
     // Also clear any duplicate occurrence of targetUserId if present (never clear room owner)
-    if (typeof targetUserId === 'string' && targetUserId.trim() && targetUserId.trim() !== room.host.id) {
+    if (cleanTargetUid && cleanTargetUid !== room.host.id) {
       for (let i = 0; i < room.seats.length; i++) {
-        if (room.seats[i]?.id === targetUserId.trim() && room.seats[i]?.id !== room.host.id) {
+        if (room.seats[i]?.id === cleanTargetUid && room.seats[i]?.id !== room.host.id) {
           room.seats[i] = null;
           room.mutedSeatIndices.delete(i);
         }
@@ -3980,17 +4058,30 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
     return res.status(403).json({ error: 'Only host can assign seats directly.' });
   }
   const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  room.seats = deduplicateServerSeats(room.seats, Math.max(room.maxSeats, safeMaxSeats));
   if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < safeMaxSeats && user?.id) {
     if (isServerSeatLockedByHostLevel(seatIndex, room.host)) {
-      return res.status(403).json({ error: 'Seat #2 unlocks when the host reaches Level 5.' });
+      return res.status(403).json({ error: 'Selected seat is locked.' });
+    }
+    // CRITICAL: Reject seat collision — NEVER overwrite a seat occupied by a different user!
+    const currentOccupant = room.seats[seatIndex];
+    if (currentOccupant && currentOccupant.id !== user.id) {
+      return res.status(409).json({
+        error: `Seat #${seatIndex + 1} is already occupied.`,
+        seats: room.seats,
+        room: serializePartyRoom(room),
+      });
     }
     // Ensure user does not occupy two seats at once
-    const existingIdx = room.seats.findIndex((s) => s && s.id === user.id);
-    if (existingIdx >= 0 && existingIdx !== seatIndex) {
-      room.seats[existingIdx] = null;
-      room.mutedSeatIndices.delete(existingIdx);
+    for (let i = 0; i < room.seats.length; i++) {
+      if (room.seats[i]?.id === user.id && i !== seatIndex) {
+        room.seats[i] = null;
+        room.mutedSeatIndices.delete(i);
+      }
     }
     room.seats[seatIndex] = user;
+    room.seats = deduplicateServerSeats(room.seats, Math.max(room.maxSeats, safeMaxSeats));
+    room.pendingRequests.delete(user.id);
     const nowTs = Date.now();
     const existingParticipant = room.participants.get(user.id);
     room.participants.set(user.id, {
@@ -4023,6 +4114,106 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
   res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
 });
 
+app.post('/api/rooms/:roomId/accept_invite', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const actorId = req.firebaseUser?.uid || req.body?.userId || req.body?.user?.id;
+  const { seatIndex, user, roomMeta } = req.body || {};
+  const room = ensurePartyRoomHydrated(roomId, roomMeta, roomMeta?.host?.id);
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found.' });
+  }
+  const cleanUserId = sanitizeText(actorId || user?.id, 128);
+  if (!cleanUserId) {
+    return res.status(400).json({ error: 'Valid user is required.' });
+  }
+  if (cleanUserId !== room.host.id && isUserBlockedBy(room.host.id, cleanUserId)) {
+    return res.status(403).json({ error: 'You cannot take a seat in this room.' });
+  }
+  const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
+  room.seats = deduplicateServerSeats(room.seats, Math.max(room.maxSeats, safeMaxSeats));
+
+  const pendingInvite = room.pendingSeatInvites?.get(cleanUserId);
+  const resolvedSeatIndex =
+    typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < safeMaxSeats
+      ? seatIndex
+      : pendingInvite && pendingInvite.expiresAt > Date.now()
+      ? pendingInvite.seatIndex
+      : -1;
+
+  if (resolvedSeatIndex < 0 || resolvedSeatIndex >= safeMaxSeats) {
+    return res.status(400).json({ error: 'Invalid seat index.' });
+  }
+  if (isServerSeatLockedByHostLevel(resolvedSeatIndex, room.host)) {
+    return res.status(403).json({ error: 'Selected seat is locked.' });
+  }
+
+  // Strictly prevent seat collision / overwriting occupied seat
+  const currentOccupant = room.seats[resolvedSeatIndex];
+  if (currentOccupant && currentOccupant.id !== cleanUserId) {
+    return res.status(409).json({
+      error: `Seat #${resolvedSeatIndex + 1} is already occupied.`,
+      seats: room.seats,
+      room: serializePartyRoom(room),
+    });
+  }
+
+  // Clear user from any previous seat
+  for (let i = 0; i < room.seats.length; i++) {
+    if (room.seats[i]?.id === cleanUserId && i !== resolvedSeatIndex) {
+      room.seats[i] = null;
+      room.mutedSeatIndices.delete(i);
+    }
+  }
+
+  const seatedProfile = {
+    ...(user || {}),
+    id: cleanUserId,
+    name: user?.name || room.participants.get(cleanUserId)?.name || 'Guest',
+  };
+  room.seats[resolvedSeatIndex] = seatedProfile;
+  room.seats = deduplicateServerSeats(room.seats, Math.max(room.maxSeats, safeMaxSeats));
+  room.pendingSeatInvites?.delete(cleanUserId);
+  room.pendingRequests.delete(cleanUserId);
+
+  const nowTs = Date.now();
+  const existingParticipant = room.participants.get(cleanUserId);
+  room.participants.set(cleanUserId, {
+    userId: cleanUserId,
+    name: seatedProfile.name,
+    username: seatedProfile.username || existingParticipant?.username || '',
+    avatar: seatedProfile.avatar || existingParticipant?.avatar || '',
+    level: typeof seatedProfile.level === 'number' ? seatedProfile.level : existingParticipant?.level ?? 0,
+    vipLevel: typeof seatedProfile.vipLevel === 'number' ? seatedProfile.vipLevel : existingParticipant?.vipLevel ?? 0,
+    isVIP: Boolean(seatedProfile.isVIP || (seatedProfile.vipLevel || 0) > 0 || existingParticipant?.isVIP),
+    isHost: cleanUserId === room.host?.id,
+    joinedAt: existingParticipant?.joinedAt || nowTs,
+    lastSeen: nowTs,
+  });
+
+  const agoraChannel = buildServerPartyAgoraChannel(roomId);
+  const promotedAgora = mintAgoraRtcToken(agoraChannel, String(cleanUserId), 'broadcaster');
+  const serialized = serializePartyRoom(room);
+  const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+
+  broadcastToRoom(roomId, 'room:seat_occupied', {
+    roomId,
+    seatIndex: resolvedSeatIndex,
+    user: seatedProfile,
+    participants: participantsSnapshot,
+    room: serialized,
+  });
+  broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
+
+  return res.json({
+    success: true,
+    seatIndex: resolvedSeatIndex,
+    seats: room.seats,
+    room: serialized,
+    agoraChannel,
+    agoraToken: promotedAgora.token || null,
+  });
+});
+
 app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
@@ -4048,6 +4239,20 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
       ? seatIndex
       : Math.max(1, room.seats.findIndex((s, i) => i > 0 && !s));
 
+  if (mode === 'seat') {
+    const existingOccupant = room.seats[safeSeatIndex];
+    if (existingOccupant && existingOccupant.id !== cleanTargetId) {
+      return res.status(409).json({ error: `Seat #${safeSeatIndex + 1} is already occupied.` });
+    }
+    if (!room.pendingSeatInvites) {
+      room.pendingSeatInvites = new Map();
+    }
+    room.pendingSeatInvites.set(cleanTargetId, {
+      seatIndex: safeSeatIndex,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+  }
+
   const invitePayload = {
     id: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     roomId: room.id,
@@ -4061,7 +4266,7 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
   };
 
   if (mode === 'seat') {
-    broadcastToUser(cleanTargetId, 'room:seat_invited', invitePayload);
+    broadcastToUserInRoom(cleanTargetId, room.id, 'room:seat_invited', invitePayload);
     broadcastToRoom(room.id, 'room:seat_invited', invitePayload);
   } else {
     broadcastToUser(cleanTargetId, 'room:room_invited', invitePayload);

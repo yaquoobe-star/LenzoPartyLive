@@ -81,6 +81,7 @@ class AgoraRtcService {
   private isLeaving: boolean = false;
   private isRenewingToken: boolean = false;
   private backendUnavailableUntil: number = 0;
+  private sessionGeneration: number = 0;
 
   // Remote streams keyed by normalized string UID
   private remoteHosts: Map<string, AgoraRemoteHost> = new Map();
@@ -309,6 +310,25 @@ class AgoraRtcService {
             await client.subscribe(user, mediaType);
           }
 
+          // Re-verify client ownership after async subscribe so audio from a left room NEVER plays!
+          if (this.client !== client || client.connectionState !== 'CONNECTED') {
+            if (mediaType === 'audio' && user.audioTrack) {
+              try {
+                user.audioTrack.stop();
+              } catch {
+                // ignore
+              }
+            }
+            if (mediaType === 'video' && user.videoTrack) {
+              try {
+                user.videoTrack.stop();
+              } catch {
+                // ignore
+              }
+            }
+            return;
+          }
+
           let remote = this.remoteHosts.get(key);
           if (!remote) {
             remote = {
@@ -417,6 +437,7 @@ class AgoraRtcService {
     try {
       client.enableAudioVolumeIndicator();
       client.on('volume-indicator', (volumes) => {
+        if (this.client !== client) return;
         const mapped = volumes.map((v) => ({ uid: v.uid, level: v.level }));
         this.onVolumeCallbacks.forEach((cb) => cb(mapped));
       });
@@ -426,6 +447,7 @@ class AgoraRtcService {
 
     // 1. Remote user published media
     client.on('user-published', async (user, mediaType) => {
+      if (this.client !== client) return;
       if (mediaType === 'audio' || mediaType === 'video') {
         await this.handleRemoteSubscribe(client, user, mediaType);
       }
@@ -433,6 +455,7 @@ class AgoraRtcService {
 
     // 2. Remote user unpublished media
     client.on('user-unpublished', (user, mediaType) => {
+      if (this.client !== client) return;
       const key = String(user.uid);
       const remote = this.remoteHosts.get(key);
       if (remote) {
@@ -457,11 +480,19 @@ class AgoraRtcService {
 
     // 3. Remote user left channel
     client.on('user-left', (user) => {
+      if (this.client !== client) return;
       const key = String(user.uid);
       const existing = this.remoteHosts.get(key);
       if (existing?.audioTrack) {
         try {
           existing.audioTrack.stop();
+        } catch {
+          // ignore
+        }
+      }
+      if (existing?.videoTrack) {
+        try {
+          existing.videoTrack.stop();
         } catch {
           // ignore
         }
@@ -472,6 +503,7 @@ class AgoraRtcService {
 
     // 4. Connection state change (resync remote tracks & local audio on reconnect)
     client.on('connection-state-change', (curState, prevState, reason) => {
+      if (this.client !== client) return;
       console.log(`[Agora RTC] Connection state ${prevState} -> ${curState} (reason: ${reason || 'normal'})`);
       this.notifyStatusListeners({
         state: curState,
@@ -487,7 +519,9 @@ class AgoraRtcService {
         }
         if (this.currentRole === 'host' && this.localMusicAudioTrack && !this.isPublishingMusicFlag) {
           void client.publish([this.localMusicAudioTrack]).then(() => {
-            this.isPublishingMusicFlag = true;
+            if (this.client === client) {
+              this.isPublishingMusicFlag = true;
+            }
           }).catch(() => {});
         }
       }
@@ -495,10 +529,12 @@ class AgoraRtcService {
 
     // 5. Automatic token renewal before and on expiry (prevents 1-hour disconnects)
     client.on('token-privilege-will-expire', () => {
+      if (this.client !== client) return;
       void this.renewCurrentToken(client);
     });
 
     client.on('token-privilege-did-expire', () => {
+      if (this.client !== client) return;
       void this.renewCurrentToken(client);
     });
   }
@@ -677,7 +713,7 @@ class AgoraRtcService {
       await this.activeLeavePromise.catch(() => {});
     }
 
-    // If joining a DIFFERENT channel, cleanly leave the previous one first
+    // If joining a DIFFERENT channel (or a stale client exists), strictly tear down the previous channel first
     if (this.currentChannel && this.currentChannel !== params.channelName) {
       await this.leaveChannel();
     } else if (
@@ -689,24 +725,43 @@ class AgoraRtcService {
       if (this.activeJoinPromise) {
         await this.activeJoinPromise.catch(() => {});
       }
-      if (this.currentRole !== params.role) {
-        await this.switchRole(params.role, {
-          enableVideo: params.enableVideo,
-          enableAudio: params.enableAudio,
-          isFront: params.isFront,
-          mediaStream: params.mediaStream,
-          token: params.token,
-        });
+      if (this.currentChannel === params.channelName && this.client) {
+        if (this.currentRole !== params.role) {
+          await this.switchRole(params.role, {
+            enableVideo: params.enableVideo,
+            enableAudio: params.enableAudio,
+            isFront: params.isFront,
+            mediaStream: params.mediaStream,
+            token: params.token,
+          });
+        }
+        return this.currentUid || params.userAccount;
       }
-      return this.currentUid || params.userAccount;
+    } else if (this.client && this.client.connectionState !== 'DISCONNECTED') {
+      await this.leaveChannel();
     }
 
+    const myGeneration = ++this.sessionGeneration;
     const client = this.getOrCreateClient();
     this.currentChannel = params.channelName;
     this.currentUserAccount = params.userAccount;
     this.currentRole = params.role;
     this.isCameraOn = params.enableVideo !== false;
     this.isMicMuted = params.enableAudio === false;
+
+    const abortIfStale = async () => {
+      if (this.sessionGeneration !== myGeneration || this.client !== client) {
+        try {
+          if (client.connectionState !== 'DISCONNECTED') {
+            await client.leave();
+          }
+          client.removeAllListeners();
+        } catch {
+          // ignore
+        }
+        throw new Error('AGORA_JOIN_SUPERSEDED');
+      }
+    };
 
     const joinOperation = (async () => {
       let targetAppId = params.appId;
@@ -718,12 +773,14 @@ class AgoraRtcService {
           params.userAccount,
           params.role === 'host' ? 'broadcaster' : 'audience'
         );
+        await abortIfStale();
         if (tokenRes.appId) targetAppId = tokenRes.appId;
         if (tokenRes.token !== undefined) targetToken = tokenRes.token;
       }
 
       if (!targetAppId) {
         const cfg = await this.getAgoraConfig();
+        await abortIfStale();
         targetAppId = cfg.appId;
       }
 
@@ -737,6 +794,7 @@ class AgoraRtcService {
       } else {
         await client.setClientRole('host');
       }
+      await abortIfStale();
 
       // Join channel using permanent Firebase UID as userAccount
       const uid = await client.join(
@@ -745,11 +803,14 @@ class AgoraRtcService {
         targetToken || null,
         params.userAccount
       );
+      await abortIfStale();
+
       this.currentUid = uid;
       console.log(`[Agora RTC] Joined channel=${params.channelName} role=${params.role} uid=${uid}`);
 
       // Catch up on ALL remote users already publishing before/during join in parallel
       await this.syncAllRemoteSubscriptions();
+      await abortIfStale();
 
       // If host/broadcaster, publish local media tracks to the channel
       if (params.role === 'host') {
@@ -760,6 +821,11 @@ class AgoraRtcService {
           mediaStream: params.mediaStream,
         });
 
+        if (this.sessionGeneration !== myGeneration || this.client !== client) {
+          this.stopLocalTracks();
+          await abortIfStale();
+        }
+
         const tracksToPublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
         if (this.localAudioTrack) tracksToPublish.push(this.localAudioTrack);
         if (this.localVideoTrack && params.enableVideo !== false) tracksToPublish.push(this.localVideoTrack);
@@ -767,6 +833,7 @@ class AgoraRtcService {
         if (tracksToPublish.length > 0 && client.connectionState === 'CONNECTED') {
           try {
             await client.publish(tracksToPublish);
+            await abortIfStale();
             this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
             this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
             if (this.localAudioTrack) {
@@ -774,12 +841,16 @@ class AgoraRtcService {
             }
             console.log('[Agora RTC] Published local tracks:', tracksToPublish.map((t) => t.trackMediaType));
           } catch (pubErr) {
+            if ((pubErr as Error)?.message === 'AGORA_JOIN_SUPERSEDED') throw pubErr;
             console.warn('[Agora RTC] Warning publishing local tracks (retrying once):', pubErr);
             await new Promise((r) => setTimeout(r, 300));
+            await abortIfStale();
             if (client.connectionState === 'CONNECTED') {
               await client.publish(tracksToPublish).then(() => {
-                this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
-                this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+                if (this.sessionGeneration === myGeneration && this.client === client) {
+                  this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+                  this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+                }
               }).catch((retryErr) => {
                 console.warn('[Agora RTC] Retry publish warning:', retryErr);
               });
@@ -797,8 +868,8 @@ class AgoraRtcService {
       const uid = await joinOperation;
       return uid;
     } catch (err) {
-      // Clear stale channel marker on failed join so retry can proceed cleanly
-      if (this.client?.connectionState !== 'CONNECTED') {
+      // Clear stale channel marker ONLY if this failed join still owns the generation
+      if (this.sessionGeneration === myGeneration && this.client?.connectionState !== 'CONNECTED') {
         this.currentChannel = null;
         this.currentUid = null;
       }
@@ -1328,63 +1399,113 @@ class AgoraRtcService {
   }
 
   /**
-   * Leave Agora RTC channel and release all camera, microphone & network resources cleanly
+   * Explicitly stop all subscribed remote audio & video tracks so zero orphaned audio can leak across rooms.
    */
-  async leaveChannel(): Promise<void> {
+  private stopAllRemoteTracks() {
+    this.remoteHosts.forEach((host) => {
+      if (host.audioTrack) {
+        try {
+          host.audioTrack.stop();
+        } catch {
+          // ignore
+        }
+      }
+      if (host.videoTrack) {
+        try {
+          host.videoTrack.stop();
+        } catch {
+          // ignore
+        }
+      }
+    });
+    this.remoteHosts.clear();
+  }
+
+  /**
+   * Leave Agora RTC channel and release all camera, microphone, remote audio & network resources cleanly.
+   * When `expectedChannel` is passed, skips teardown if a different room has already taken ownership.
+   */
+  async leaveChannel(expectedChannel?: string): Promise<void> {
+    if (expectedChannel && this.currentChannel && this.currentChannel !== expectedChannel) {
+      return;
+    }
     if (this.activeLeavePromise) {
       return this.activeLeavePromise;
     }
     this.isLeaving = true;
+    // Invalidate any in-flight join so it aborts immediately instead of re-entering a left channel
+    this.sessionGeneration += 1;
+
+    const leavingClient = this.client;
+    const pendingJoin = this.activeJoinPromise;
+    // Detach active engine pointers immediately so late events from `leavingClient` are ignored
+    this.client = null;
+    this.currentChannel = null;
+    this.currentUserAccount = null;
+    this.currentUid = null;
+    this.currentRole = 'audience';
+    this.stopAllRemoteTracks();
+    this.inFlightSubscribes.clear();
 
     const leaveOp = (async () => {
       try {
-        if (this.activeJoinPromise) {
+        if (pendingJoin) {
           try {
-            await this.activeJoinPromise;
+            await pendingJoin;
           } catch {
-            // ignore error from aborted join
+            // ignore error from superseded join
           }
-          this.activeJoinPromise = null;
+          if (this.activeJoinPromise === pendingJoin) {
+            this.activeJoinPromise = null;
+          }
         }
 
-        if (this.client) {
+        if (leavingClient) {
+          try {
+            leavingClient.removeAllListeners();
+          } catch {
+            // ignore
+          }
+          // Stop any remote tracks still attached to the Agora client object
+          if (Array.isArray(leavingClient.remoteUsers)) {
+            leavingClient.remoteUsers.forEach((ru) => {
+              try {
+                ru.audioTrack?.stop();
+              } catch {
+                // ignore
+              }
+              try {
+                ru.videoTrack?.stop();
+              } catch {
+                // ignore
+              }
+            });
+          }
           const tracksToUnpublish: (ILocalAudioTrack | ILocalVideoTrack)[] = [];
           if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
           if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
           if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
-          if (tracksToUnpublish.length > 0 && this.client.connectionState === 'CONNECTED') {
-            await this.client.unpublish(tracksToUnpublish).catch(() => {});
+          if (tracksToUnpublish.length > 0 && leavingClient.connectionState === 'CONNECTED') {
+            await leavingClient.unpublish(tracksToUnpublish).catch(() => {});
           }
         }
 
         this.stopLocalMusicTrack();
         this.stopLocalTracks();
 
-        if (this.client) {
-          const state = this.client.connectionState;
+        if (leavingClient) {
+          const state = leavingClient.connectionState;
           if (state === 'CONNECTED' || state === 'CONNECTING' || state === 'RECONNECTING') {
             try {
-              await this.client.leave();
+              await leavingClient.leave();
             } catch (leaveErr: any) {
               console.warn('[Agora RTC] Handled leave exception:', leaveErr?.message || leaveErr);
             }
-          }
-          try {
-            this.client.removeAllListeners();
-          } catch {
-            // ignore
           }
         }
       } catch (err: any) {
         console.warn('[Agora RTC] Error leaving channel:', err?.message || err);
       } finally {
-        this.currentChannel = null;
-        this.currentUserAccount = null;
-        this.currentUid = null;
-        this.currentRole = 'audience';
-        this.remoteHosts.clear();
-        this.inFlightSubscribes.clear();
-        this.client = null;
         this.isLeaving = false;
         this.activeLeavePromise = null;
       }
@@ -1453,15 +1574,17 @@ class AgoraRtcService {
   }
 
   // Listeners registration
-  onRemoteTrack(cb: (host: AgoraRemoteHost) => void): () => void {
+  onRemoteTrack(cb: (host: AgoraRemoteHost) => void, expectedChannel?: string): () => void {
     this.onRemoteTrackCallbacks.add(cb);
-    this.remoteHosts.forEach((host) => {
-      try {
-        cb(host);
-      } catch {
-        // ignore
-      }
-    });
+    if (!expectedChannel || this.currentChannel === expectedChannel) {
+      this.remoteHosts.forEach((host) => {
+        try {
+          cb(host);
+        } catch {
+          // ignore
+        }
+      });
+    }
     return () => this.onRemoteTrackCallbacks.delete(cb);
   }
 

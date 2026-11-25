@@ -95,6 +95,7 @@ import {
   validateGalleryMediaFile,
 } from '../../utils/partyMusicEngine';
 import { agoraRtcService } from '../../utils/agoraRtcService';
+import { buildPartyAgoraChannelName } from '../../utils/agoraChannel';
 import { webrtcMediaService } from '../../utils/webrtcMediaService';
 import { liveAndRoomService } from '../../services/liveAndRoomService';
 import {
@@ -139,6 +140,7 @@ import {
   PARTY_SEAT_TIERS,
   PartySeatCount,
   clampPartyMaxSeatsForHostLevel,
+  deduplicatePartySeats,
   isSeatIndexAllowedForRoom,
   isSeatLockedByHostLevel,
   isSeatModeUnlockedForLevel,
@@ -920,10 +922,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       const nextMax = Math.max(incomingMax, maxSeatsRef.current, Array.isArray(nextRoom.seats) ? nextRoom.seats.length : 0);
       const incomingSeatsRaw: (UserProfile | null)[] = Array.isArray(nextRoom.seats) ? nextRoom.seats : [];
       const currentSeats = seatsRef.current;
+      const incomingUserIds = new Set<string>();
+      incomingSeatsRaw.forEach((s) => {
+        if (s?.id && (!excludeUserId || s.id !== excludeUserId) && !isUserRecentlyLeft(s.id)) {
+          incomingUserIds.add(s.id);
+        }
+      });
       // Prevent stale/freshly-hydrated server memory (which may have all-null seats after restart)
-      // from knocking the Host or seated speakers off their active seats, while always allowing
-      // explicit departures or seat vacates to clear immediately.
-      const mergedSeats: (UserProfile | null)[] = Array.from({ length: nextMax }, (_, idx) => {
+      // from knocking the Host or seated speakers off their active seats, while NEVER duplicating a user
+      // who moved to a different seat and always allowing explicit departures/vacates to clear immediately.
+      const rawMergedSeats: (UserProfile | null)[] = Array.from({ length: nextMax }, (_, idx) => {
         const inc = incomingSeatsRaw[idx] || null;
         if (inc) {
           if (excludeUserId && inc.id === excludeUserId) return null;
@@ -931,12 +939,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           return inc;
         }
         if (!allowSeatClear && currentSeats[idx]) {
-          if (excludeUserId && currentSeats[idx]?.id === excludeUserId) return null;
-          if (currentSeats[idx]?.id && isUserRecentlyLeft(currentSeats[idx]!.id)) return null;
+          const curId = currentSeats[idx]?.id;
+          if (excludeUserId && curId === excludeUserId) return null;
+          if (curId && isUserRecentlyLeft(curId)) return null;
+          // If this user is already placed in a new seat in `incomingSeatsRaw`, do NOT keep them on their old seat!
+          if (curId && incomingUserIds.has(curId)) return null;
           return currentSeats[idx];
         }
         return null;
       });
+      const mergedSeats = deduplicatePartySeats(rawMergedSeats, nextMax);
       setMaxSeats(nextMax as PartySeatCount);
       setSeats(mergedSeats);
       seatsRef.current = mergedSeats;
@@ -1049,8 +1061,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         const msg = String(err?.message || err || '');
         if (!isRoomHost && /block|403|forbidden/i.test(msg)) {
           showToast('You cannot join or interact with this party room.');
-          webrtcMediaService.stopPartyVoice();
-          agoraRtcService.leaveChannel().catch(() => {});
+          webrtcMediaService.stopPartyVoice(room.id);
+          agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
           void leaveFirestoreRoomParticipant(room.id);
           setTimeout(() => {
             if (active) onClose();
@@ -1116,6 +1128,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       });
 
       const departedIds = new Set<string>();
+      const explicitlyRemovedIds = new Set<string>();
       if (!fsParticipantsInitialized) {
         fsParticipantsInitialized = true;
         fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
@@ -1123,6 +1136,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         // Explicit leave notifications ONLY for Firestore doc deletions (not temporary disconnects or minimizes)
         removedParticipants.forEach((removedUser) => {
           if (!removedUser?.userId || removedUser.userId === currentUser.id) return;
+          explicitlyRemovedIds.add(removedUser.userId);
+          departedIds.add(removedUser.userId);
+          knownParticipantIds.delete(removedUser.userId);
+          markUserRecentlyLeft(removedUser.userId);
           const cachedPrev = participantsListRef.current.find((p) => p.userId === removedUser.userId);
           const seatedPrev = seatsRef.current.find((s) => s?.id === removedUser.userId);
           const resolvedName =
@@ -1141,12 +1158,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           });
         });
 
-        // Detect users who left the room (or timed out) and immediately remove them everywhere
+        // Track users missing from active participant snapshot (without prematurely evicting seated speakers on brief hiccups)
         prevFsParticipantIds.forEach((prevId) => {
           if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
             departedIds.add(prevId);
             knownParticipantIds.delete(prevId);
-            markUserRecentlyLeft(prevId);
           }
         });
 
@@ -1193,12 +1209,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       }
       prevFsParticipantIds = currentFsIds;
 
-      // Immediately vacate any departed user from local seats (and Firestore room doc if Host/Mod)
+      // Only auto-vacate seats for users who EXPLICITLY left the room (doc deleted), NOT transient heartbeat hiccups!
       let activeSeats = seatsRef.current;
-      if (departedIds.size > 0) {
+      if (explicitlyRemovedIds.size > 0) {
         let seatsChanged = false;
         const cleanedSeats = activeSeats.map((seatUser, idx) => {
-          if (seatUser?.id && departedIds.has(seatUser.id)) {
+          if (seatUser?.id && explicitlyRemovedIds.has(seatUser.id)) {
             seatsChanged = true;
             if (isRoomHost || isCurrentUserModerator) {
               void vacateFirestoreSeat(room.id, seatUser.id, idx, maxSeatsRef.current).catch(() => {});
@@ -1208,9 +1224,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           return seatUser;
         });
         if (seatsChanged) {
-          activeSeats = cleanedSeats;
-          setSeats(cleanedSeats);
-          seatsRef.current = cleanedSeats;
+          activeSeats = deduplicatePartySeats(cleanedSeats, maxSeatsRef.current);
+          setSeats(activeSeats);
+          seatsRef.current = activeSeats;
         }
       }
 
@@ -1342,13 +1358,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         setMaxSeats(nextMax as PartySeatCount);
         if (Array.isArray(data.seats)) {
           const prevSeats = seatsRef.current;
-          const preservedSeats: (UserProfile | null)[] = Array.from(
-            { length: nextMax },
-            (_, idx) => {
+          const preservedSeats: (UserProfile | null)[] = deduplicatePartySeats(
+            Array.from({ length: nextMax }, (_, idx) => {
               const occupant = rawFsSeats[idx] || null;
               if (occupant?.id && isUserRecentlyLeft(occupant.id)) return null;
               return occupant;
-            }
+            }),
+            nextMax
           );
           const wasSelfSeated = prevSeats.some((s) => s?.id === currentUser.id);
           const isSelfNowSeated = preservedSeats.some((s) => s?.id === currentUser.id);
@@ -1837,8 +1853,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               ? 'Party room closed automatically after 5 minutes of inactivity'
               : 'Host has closed this party room'
           );
-          webrtcMediaService.stopPartyVoice();
-          agoraRtcService.leaveChannel().catch(() => {});
+          webrtcMediaService.stopPartyVoice(room.id);
+          agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
           setTimeout(() => {
             if (active) onClose();
           }, 1200);
@@ -1920,8 +1936,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   }, [room.id, currentUser.id, isRoomHost]);
 
   // Unified Real-Time Party Voice Engine (Agora RTC + WebRTC Audio Mesh Fallback)
+  // Strictly isolated per room via deterministic unique Agora channel name + scoped teardown
   useEffect(() => {
     let isMounted = true;
+    const partyAgoraChannel = buildPartyAgoraChannelName(room.id);
     voiceJoinedRef.current = false;
     activePublishedRoleRef.current = null;
     const initiallySeated = seatsRef.current.some((s) => s?.id === currentUser.id);
@@ -1935,6 +1953,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         setAgoraVoiceState('connecting');
         setVoiceTransport('connecting');
         void setNativeLiveAudioMode(true);
+
+        // Tear down any lingering audio session from a previous room BEFORE connecting to this room
+        webrtcMediaService.stopPartyVoice();
+        if (agoraRtcService.getCurrentChannel() && agoraRtcService.getCurrentChannel() !== partyAgoraChannel) {
+          await agoraRtcService.leaveChannel().catch(() => {});
+        }
+        if (!isMounted) return;
 
         // Parallelize real microphone capture + fast Agora token lookup (eliminates redundant sequential config wait!)
         const micPromise: Promise<MediaStream | null> =
@@ -1961,7 +1986,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             : Promise.resolve(realMicStreamRef.current);
 
         const tokenPromise = agoraRtcService.requestRtcToken(
-          `party_${room.id}`,
+          partyAgoraChannel,
           currentUser.id,
           initiallySeated ? 'broadcaster' : 'audience',
           false,
@@ -1979,7 +2004,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           try {
             await agoraRtcService.joinChannel({
               appId: tokenData.appId,
-              channelName: `party_${room.id}`,
+              channelName: partyAgoraChannel,
               userAccount: currentUser.id,
               role: initialRole,
               token: tokenData.token,
@@ -1987,7 +2012,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               enableAudio: initiallySeated,
               mediaStream: initiallySeated ? localMicStream : null,
             });
-            if (!isMounted) return;
+            if (!isMounted) {
+              await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
+              return;
+            }
             if (initiallySeated && effectiveMuted) {
               await agoraRtcService.setMicrophoneMuted(true);
             }
@@ -1997,14 +2025,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             setAgoraVoiceState('connected');
             return;
           } catch (agoraErr) {
+            if ((agoraErr as Error)?.message === 'AGORA_JOIN_SUPERSEDED' || !isMounted) return;
             console.warn('[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:', agoraErr);
-            await agoraRtcService.leaveChannel().catch(() => {});
+            await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
           }
         }
 
         if (!isMounted) return;
 
-        // WebRTC Real-Time Party Voice Mesh fallback (connects within ~1.5-3s)
+        // WebRTC Real-Time Party Voice Mesh fallback (connects within ~1.5-3s, strictly isolated to room.id)
         webrtcMediaService.startPartyVoice(
           room.id,
           currentUser.id,
@@ -2041,11 +2070,14 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     joinPartyVoice();
 
     const unsubAutoplay = agoraRtcService.onAutoplayBlocked(() => {
-      if (isMounted) setAutoplayBlocked(true);
+      if (isMounted && agoraRtcService.getCurrentChannel() === partyAgoraChannel) {
+        setAutoplayBlocked(true);
+      }
     });
 
     const unsubStatus = agoraRtcService.onStatusChange((status) => {
       if (!isMounted || voiceTransportRef.current !== 'agora') return;
+      if (status.channelName && status.channelName !== partyAgoraChannel) return;
       if (status.state === 'CONNECTED') {
         setAgoraVoiceState('connected');
       } else if (status.state === 'CONNECTING' || status.state === 'RECONNECTING') {
@@ -2056,7 +2088,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     });
 
     const unsubVolumes = agoraRtcService.onVolumeIndicator((volumes) => {
-      if (!isMounted) return;
+      if (!isMounted || agoraRtcService.getCurrentChannel() !== partyAgoraChannel) return;
       const now = Date.now();
       for (const v of volumes) {
         if (v.level <= 12) continue;
@@ -2084,8 +2116,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       unsubAutoplay();
       unsubStatus();
       unsubVolumes();
-      webrtcMediaService.stopPartyVoice();
-      agoraRtcService.leaveChannel().catch(() => {});
+      webrtcMediaService.stopPartyVoice(room.id);
+      agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
       void setNativeLiveAudioMode(false);
     };
   }, [room.id, currentUser.id]);
@@ -2288,7 +2320,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     updatedAnnouncement?: string,
     skipFirestoreSync = false,
     updatedMaxSeats?: PartySeatCount,
-    updatedBackground?: Partial<PartyBackgroundSelection>
+    updatedBackground?: Partial<PartyBackgroundSelection>,
+    syncSeatsToFirestore = false
   ) => {
     const effectiveLevel = hostLevelRef.current;
     const resolvedMaxSeats = clampPartyMaxSeatsForHostLevel(
@@ -2325,12 +2358,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
     onUpdateRoom?.(nextRoom);
     if (!skipFirestoreSync) {
+      // Never blindly overwrite concurrent atomic seat changes in Firestore during metadata/settings updates!
       void syncFirestorePartyRoomState(room.id, isRoomHost, {
         isModerator: isCurrentUserModerator,
         hostLevel: effectiveLevel,
         maxSeats: resolvedMaxSeats,
-        seats: sanitizedSeats,
-        seatRequests: nextRoom.seatRequests,
+        ...(syncSeatsToFirestore ? { seats: sanitizedSeats } : {}),
+        ...(updatedRequests !== undefined ? { seatRequests: nextRoom.seatRequests } : {}),
         numericParticipants: liveParticipantCount,
         participantCount: String(liveParticipantCount),
         mutedSeatIndices: nextRoom.mutedSeatIndices,
@@ -2767,29 +2801,33 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
   const handleAcceptSeatRequest = async (req: SeatRequest) => {
     clearUserRecentlyLeft(req.user.id);
+    const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
     // Immediate optimistic seat & participant update so the user's profile appears with zero delay
-    const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+    const optimisticSeats = [...prevSeatsSnapshot];
     const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === req.user.id);
     if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
-    let optTargetIdx =
+    const optTargetIdx =
       req.seatIndex >= 0 && req.seatIndex < maxSeats && optimisticSeats[req.seatIndex] === null
         ? req.seatIndex
         : optimisticSeats.findIndex((s) => s === null);
-    if (optTargetIdx !== -1) {
-      optimisticSeats[optTargetIdx] = req.user;
-      const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
-      setSeats(optimisticSeats);
-      seatsRef.current = optimisticSeats;
-      setSeatRequests(optRequests);
-      const optParticipants = reconcileParticipantsWithSeats(
-        participantsListRef.current,
-        optimisticSeats
-      );
-      setParticipantsList(optParticipants);
-      participantsListRef.current = optParticipants;
-      setParticipantTotal(optParticipants.length);
-      participantTotalRef.current = optParticipants.length;
+    if (optTargetIdx === -1) {
+      showToast('All unlocked seats are currently full');
+      return;
     }
+    optimisticSeats[optTargetIdx] = req.user;
+    const dedupedOptSeats = deduplicatePartySeats(optimisticSeats, maxSeats);
+    const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
+    setSeats(dedupedOptSeats);
+    seatsRef.current = dedupedOptSeats;
+    setSeatRequests(optRequests);
+    const optParticipants = reconcileParticipantsWithSeats(
+      participantsListRef.current,
+      dedupedOptSeats
+    );
+    setParticipantsList(optParticipants);
+    participantsListRef.current = optParticipants;
+    setParticipantTotal(optParticipants.length);
+    participantTotalRef.current = optParticipants.length;
 
     // Primary atomic approval in Cloud Firestore so viewer immediately enters seat & activates mic cross-device
     const fsRes = await respondFirestoreSeatRequest(
@@ -2802,7 +2840,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     // Mirror to Express/WS in parallel
     const serverPromise = roomService
-      .respondSeatRequest(room.id, currentUser.id, req.user.id, true, req.seatIndex, req.user)
+      .respondSeatRequest(room.id, currentUser.id, req.user.id, true, fsRes.assignedSeatIndex ?? req.seatIndex, req.user)
       .catch(() => null);
 
     if (fsRes.success && Array.isArray(fsRes.seats)) {
@@ -2828,7 +2866,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
 
-    // Fallback to Express response or optimistic local sync
+    // Fallback to authoritative Express response ONLY (never blindly force-overwrite Firestore with stale optimistic seats!)
     const srvRes = await serverPromise;
     if (srvRes?.seats) {
       const nextSeats = normalizeSeats(srvRes.seats, maxSeats);
@@ -2841,29 +2879,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       participantsListRef.current = nextParticipants;
       setParticipantTotal(nextParticipants.length);
       participantTotalRef.current = nextParticipants.length;
-      syncRoom(nextSeats, nextRequests);
+      syncRoom(nextSeats, nextRequests, undefined, undefined, undefined, true);
       showToast(`Approved ${req.user.name} for Seat #${(srvRes.seatIndex ?? req.seatIndex) + 1}`);
       return;
     }
 
-    const updated = [...seats];
-    const prevIdx = updated.findIndex((s) => s?.id === req.user.id);
-    if (prevIdx !== -1) updated[prevIdx] = null;
-    let targetIdx = req.seatIndex;
-    if (updated[targetIdx] !== null || isSeatLockedByHostLevel(targetIdx, hostLevel)) {
-      const emptyIdx = updated.findIndex((s, i) => s === null && !isSeatLockedByHostLevel(i, hostLevel));
-      if (emptyIdx === -1) {
-        showToast(fsRes.error || 'All unlocked seats are currently full');
-        return;
-      }
-      targetIdx = emptyIdx;
-    }
-    updated[targetIdx] = req.user;
-    const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
-    setSeats(updated);
-    setSeatRequests(nextRequests);
-    syncRoom(updated, nextRequests);
-    showToast(`Approved ${req.user.name} for Seat #${targetIdx + 1}`);
+    // Roll back optimistic state cleanly if both atomic backends rejected
+    setSeats(prevSeatsSnapshot);
+    seatsRef.current = prevSeatsSnapshot;
+    showToast(fsRes.error || 'Could not approve seat request — seat may already be full');
   };
 
   const handleRejectSeatRequest = async (req: SeatRequest) => {
@@ -2952,11 +2976,12 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
 
-    // Optimistically remove from seat & unmute that slot so the plump sofa fluff-up triggers immediately
-    const optimisticSeats = seats.map((s, i) => (i === idx || s?.id === member.id ? null : s));
+    // Optimistically remove ONLY this specific member from seat (never evict a different occupant who just sat there!)
+    const optimisticSeats = seatsRef.current.map((s) => (s?.id === member.id ? null : s));
     const nextMuted = mutedSeatIndices.filter((mIdx) => mIdx !== idx);
     closeModerationModal();
     setSeats(optimisticSeats);
+    seatsRef.current = optimisticSeats;
     setMutedSeatIndices(nextMuted);
 
     const [fsRes] = await Promise.all([
@@ -3625,12 +3650,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     if (directSeat) {
       setShowInviteToSeatModal(null);
+      const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+      const existingOccupant = prevSeatsSnapshot[targetSeat];
+      if (existingOccupant && existingOccupant.id !== targetUser.id) {
+        showToast(`Seat #${targetSeat + 1} is already occupied by ${existingOccupant.name}`);
+        return;
+      }
+
       clearUserRecentlyLeft(targetUser.id);
       // Optimistically place the user on the seat & in participants immediately
-      const optimisticSeats = Array.from({ length: maxSeats }, (_, idx) => seatsRef.current[idx] || null);
-      const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === targetUser.id);
-      if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
-      optimisticSeats[targetSeat] = targetUser;
+      const optimisticSeats = deduplicatePartySeats(
+        prevSeatsSnapshot.map((s, idx) =>
+          idx === targetSeat ? targetUser : s?.id === targetUser.id ? null : s
+        ),
+        maxSeats
+      );
       setSeats(optimisticSeats);
       seatsRef.current = optimisticSeats;
       const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -3640,12 +3674,34 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       participantTotalRef.current = optParticipants.length;
 
       const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
-      void liveAndRoomService
+      if (fsRes.conflict) {
+        const authoritativeSeats = Array.isArray(fsRes.seats)
+          ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
+          : prevSeatsSnapshot;
+        setSeats(authoritativeSeats);
+        seatsRef.current = authoritativeSeats;
+        showToast(fsRes.error || `Seat #${targetSeat + 1} is already occupied`);
+        return;
+      }
+
+      const srvSeats = await liveAndRoomService
         .takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser)
-        .catch(() => null);
+        .catch((err: any) => {
+          if (/occupied|409/i.test(String(err?.message || ''))) {
+            return { conflict: true, error: String(err?.message || '') } as const;
+          }
+          return null;
+        });
+
+      if (srvSeats && !Array.isArray(srvSeats) && srvSeats.conflict) {
+        setSeats(prevSeatsSnapshot);
+        seatsRef.current = prevSeatsSnapshot;
+        showToast(srvSeats.error || `Seat #${targetSeat + 1} is already occupied`);
+        return;
+      }
 
       if (fsRes.success && Array.isArray(fsRes.seats)) {
-        const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
+        const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
         const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
         setSeats(nextSeats);
         seatsRef.current = nextSeats;
@@ -3660,8 +3716,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         return;
       }
 
-      syncRoom(optimisticSeats);
-      showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+      if (Array.isArray(srvSeats)) {
+        const nextSeats = normalizeSeats(srvSeats, maxSeats, hostLevel);
+        setSeats(nextSeats);
+        seatsRef.current = nextSeats;
+        const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+        setParticipantsList(nextParticipants);
+        participantsListRef.current = nextParticipants;
+        setParticipantTotal(nextParticipants.length);
+        participantTotalRef.current = nextParticipants.length;
+        syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
+        showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+        return;
+      }
+
+      setSeats(prevSeatsSnapshot);
+      seatsRef.current = prevSeatsSnapshot;
+      showToast(fsRes.error || `Could not assign Seat #${targetSeat + 1}`);
       return;
     }
 
@@ -3739,13 +3810,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
     setIncomingSeatInvite(null);
+
+    const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+    const existingOccupant = prevSeatsSnapshot[idx];
+    if (existingOccupant && existingOccupant.id !== invitedUser.id) {
+      showToast(`Seat #${idx + 1} is already occupied`);
+      return;
+    }
+
     clearUserRecentlyLeft(invitedUser.id);
 
     // Optimistically display user on seat & in room participants immediately
-    const optimisticSeats = Array.from({ length: maxSeats }, (_, i) => seatsRef.current[i] || null);
-    const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === invitedUser.id);
-    if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
-    optimisticSeats[idx] = invitedUser;
+    const optimisticSeats = deduplicatePartySeats(
+      prevSeatsSnapshot.map((s, i) =>
+        i === idx ? invitedUser : s?.id === invitedUser.id ? null : s
+      ),
+      maxSeats
+    );
     setSeats(optimisticSeats);
     seatsRef.current = optimisticSeats;
     const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -3758,11 +3839,45 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       void joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
     }
 
-    const fsRes = await takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats);
+    const [fsRes, srvRes] = await Promise.all([
+      takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats),
+      liveAndRoomService.acceptSeatInvite(room.id, invitedUser.id, idx, invitedUser, {
+        host: room.host,
+        title: room.title,
+        maxSeats,
+      }),
+    ]);
+
+    if (fsRes.conflict || srvRes.conflict) {
+      const authoritative = Array.isArray(fsRes.seats)
+        ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
+        : Array.isArray(srvRes.seats)
+        ? normalizeSeats(srvRes.seats, maxSeats, hostLevel)
+        : prevSeatsSnapshot;
+      setSeats(authoritative);
+      seatsRef.current = authoritative;
+      showToast(fsRes.error || srvRes.error || `Seat #${idx + 1} is already occupied`);
+      return;
+    }
+
+    if (srvRes.agoraToken) {
+      pendingPromotedAgoraTokenRef.current = srvRes.agoraToken;
+    }
+
     const updated =
       fsRes.success && Array.isArray(fsRes.seats)
-        ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null)
-        : optimisticSeats;
+        ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
+        : srvRes.success && Array.isArray(srvRes.seats)
+        ? normalizeSeats(srvRes.seats, maxSeats, hostLevel)
+        : null;
+
+    if (!updated) {
+      setSeats(prevSeatsSnapshot);
+      seatsRef.current = prevSeatsSnapshot;
+      showToast(fsRes.error || srvRes.error || `Could not join Seat #${idx + 1}`);
+      return;
+    }
+
     setSeats(updated);
     seatsRef.current = updated;
     const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, updated);
@@ -3770,7 +3885,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     participantsListRef.current = nextParticipants;
     setParticipantTotal(nextParticipants.length);
     participantTotalRef.current = nextParticipants.length;
-    syncRoom(updated, undefined, undefined, undefined, undefined, fsRes.success);
+    syncRoom(updated, undefined, undefined, undefined, undefined, true);
     showToast(`Joined Seat #${idx + 1} — mic is live`);
   };
 
@@ -3780,13 +3895,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       showToast('This seat is locked at the current Host level.');
       return;
     }
+    const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+    const existingOccupant = prevSeatsSnapshot[index];
+    if (existingOccupant && existingOccupant.id !== currentUser.id) {
+      showToast(`Seat #${index + 1} is already occupied by ${existingOccupant.name}`);
+      return;
+    }
+
     clearUserRecentlyLeft(currentUser.id);
 
     // Immediate optimistic update so profile appears on seat & in participants with zero delay
-    const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
-    const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === currentUser.id);
-    if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
-    optimisticSeats[index] = currentUser;
+    const optimisticSeats = deduplicatePartySeats(
+      prevSeatsSnapshot.map((s, i) =>
+        i === index ? currentUser : s?.id === currentUser.id ? null : s
+      ),
+      maxSeats
+    );
     setSeats(optimisticSeats);
     seatsRef.current = optimisticSeats;
     const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -3798,9 +3922,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     void joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
 
     const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
-    void liveAndRoomService
+    if (fsRes.conflict) {
+      const authoritative = Array.isArray(fsRes.seats)
+        ? normalizeSeats(fsRes.seats, maxSeats, hostLevel)
+        : prevSeatsSnapshot;
+      setSeats(authoritative);
+      seatsRef.current = authoritative;
+      showToast(fsRes.error || `Seat #${index + 1} is already occupied`);
+      return;
+    }
+
+    const srvSeats = await liveAndRoomService
       .takeSeatDirect(room.id, currentUser.id, index, currentUser)
-      .catch(() => null);
+      .catch((err: any) => {
+        if (/occupied|409/i.test(String(err?.message || ''))) {
+          return { conflict: true, error: String(err?.message || '') } as const;
+        }
+        return null;
+      });
+
+    if (srvSeats && !Array.isArray(srvSeats) && srvSeats.conflict) {
+      setSeats(prevSeatsSnapshot);
+      seatsRef.current = prevSeatsSnapshot;
+      showToast(srvSeats.error || `Seat #${index + 1} is already occupied`);
+      return;
+    }
 
     if (fsRes.success && Array.isArray(fsRes.seats)) {
       const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
@@ -3812,10 +3958,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       setParticipantTotal(nextParticipants.length);
       participantTotalRef.current = nextParticipants.length;
       syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
-    } else {
-      syncRoom(optimisticSeats);
+      showToast(`Took Seat #${index + 1}`);
+      return;
     }
-    showToast(`Took Seat #${index + 1}`);
+
+    if (Array.isArray(srvSeats)) {
+      const nextSeats = normalizeSeats(srvSeats, maxSeats, hostLevel);
+      setSeats(nextSeats);
+      seatsRef.current = nextSeats;
+      const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+      setParticipantsList(nextParticipants);
+      participantsListRef.current = nextParticipants;
+      setParticipantTotal(nextParticipants.length);
+      participantTotalRef.current = nextParticipants.length;
+      syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
+      showToast(`Took Seat #${index + 1}`);
+      return;
+    }
+
+    setSeats(prevSeatsSnapshot);
+    seatsRef.current = prevSeatsSnapshot;
+    showToast(fsRes.error || `Could not take Seat #${index + 1}`);
   };
 
   const handleLeaveSeat = async (index: number) => {
@@ -3823,10 +3986,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setShowMySeatModal(null);
     setShowExitRoomModal(false);
 
-    // Immediately clear seat locally so step-down is instant
-    const optimisticSeats = seatsRef.current.map((s, i) =>
-      i === index || s?.id === currentUser.id ? null : s
-    );
+    // Immediately clear ONLY currentUser's seat locally (never clear another occupant!)
+    const optimisticSeats = seatsRef.current.map((s) => (s?.id === currentUser.id ? null : s));
     setSeats(optimisticSeats);
     seatsRef.current = optimisticSeats;
     void updateFirestoreRoomParticipantState(room.id, { isSpeaker: false });
@@ -3839,7 +4000,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         : optimisticSeats;
     setSeats(nextSeats);
     seatsRef.current = nextSeats;
-    syncRoom(nextSeats, undefined, undefined, undefined, undefined, fsRes.success);
+    syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
     showToast(`Stepped down from Seat #${index + 1}`);
   };
 
@@ -6682,8 +6843,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   await releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`).catch(() => {});
                   if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
                   if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
-                  webrtcMediaService.stopPartyVoice();
-                  await agoraRtcService.leaveChannel().catch(() => {});
+                  webrtcMediaService.stopPartyVoice(room.id);
+                  await agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
                   await liveAndRoomService.endPartyRoom(room.id, currentUser.id).catch(() => {});
                   onCloseRoom?.(room.id);
                   onClose();

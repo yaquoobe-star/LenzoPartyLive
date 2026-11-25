@@ -136,8 +136,51 @@ export function isSeatIndexAllowedForRoom(
 }
 
 /**
- * Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`
- * and Seat #2 (index 1) is always empty when Host Level < 5.
+ * Deduplicates a seat array so every user ID occupies AT MOST ONE seat
+ * and every seat slot holds AT MOST ONE user (or null).
+ * When a user appears in multiple slots, keeps the preferred slot (earliest by default,
+ * or latest when `preferLatest` is true) and clears duplicates.
+ */
+export function deduplicatePartySeats<T extends { id?: string } | null | undefined>(
+  rawSeats: T[] | undefined | null,
+  targetLength?: number,
+  preferLatest = false
+): (Exclude<T, undefined> | null)[] {
+  const arr = Array.isArray(rawSeats) ? rawSeats : [];
+  const len = typeof targetLength === 'number' && targetLength > 0 ? targetLength : arr.length;
+  const next: (Exclude<T, undefined> | null)[] = Array(len).fill(null);
+  const seenIds = new Set<string>();
+
+  if (preferLatest) {
+    for (let i = Math.min(len, arr.length) - 1; i >= 0; i--) {
+      const seat = arr[i];
+      if (!seat) continue;
+      const uid = typeof seat === 'object' && seat && 'id' in seat ? String((seat as any).id || '').trim() : '';
+      if (uid) {
+        if (seenIds.has(uid)) continue;
+        seenIds.add(uid);
+      }
+      next[i] = seat as Exclude<T, undefined>;
+    }
+  } else {
+    for (let i = 0; i < Math.min(len, arr.length); i++) {
+      const seat = arr[i];
+      if (!seat) continue;
+      const uid = typeof seat === 'object' && seat && 'id' in seat ? String((seat as any).id || '').trim() : '';
+      if (uid) {
+        if (seenIds.has(uid)) continue;
+        seenIds.add(uid);
+      }
+      next[i] = seat as Exclude<T, undefined>;
+    }
+  }
+
+  return next;
+}
+
+/**
+ * Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`,
+ * every user appears in at most one seat, and locked seats remain empty.
  */
 export function sanitizePartySeatsForHostLevel<T>(
   rawSeats: (T | null | undefined)[] | undefined | null,
@@ -146,10 +189,20 @@ export function sanitizePartySeatsForHostLevel<T>(
 ): (T | null)[] {
   const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
   const next: (T | null)[] = Array(safeMax).fill(null);
+  const seenIds = new Set<string>();
   if (Array.isArray(rawSeats)) {
     for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
-      if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) {
-        next[i] = rawSeats[i] as T;
+      const occupant = rawSeats[i];
+      if (occupant && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+        const uid =
+          typeof occupant === 'object' && occupant && 'id' in (occupant as any)
+            ? String((occupant as any).id || '').trim()
+            : '';
+        if (uid) {
+          if (seenIds.has(uid)) continue;
+          seenIds.add(uid);
+        }
+        next[i] = occupant as T;
       }
     }
   }
@@ -167,8 +220,18 @@ export function countActiveOccupiedSeats(
   const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
   if (!Array.isArray(rawSeats)) return 0;
   let count = 0;
+  const seenIds = new Set<string>();
   for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
-    if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+    const occupant = rawSeats[i];
+    if (occupant && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+      const uid =
+        typeof occupant === 'object' && occupant && 'id' in (occupant as any)
+          ? String((occupant as any).id || '').trim()
+          : '';
+      if (uid) {
+        if (seenIds.has(uid)) continue;
+        seenIds.add(uid);
+      }
       count++;
     }
   }
@@ -185,7 +248,7 @@ export function getActiveSeatCapacity(maxSeats: number, rawHostLevel?: number | 
 }
 
 /**
- * Enforces seat-tier clamping and locked-seat stripping on any PartyRoom object.
+ * Enforces seat-tier clamping, deduplication, and locked-seat stripping on any PartyRoom object.
  */
 export function enforcePartyRoomSeatPolicy<
   T extends {
@@ -202,7 +265,7 @@ export function enforcePartyRoomSeatPolicy<
   const rawSeats = Array.isArray(room?.seats) ? room.seats : undefined;
   const safeMaxSeats = Math.max(storedValidMax, rawSeats ? rawSeats.length : 0);
   const safeSeats = rawSeats
-    ? Array.from({ length: safeMaxSeats }, (_, idx) => rawSeats[idx] ?? null)
+    ? deduplicatePartySeats(rawSeats, safeMaxSeats)
     : undefined;
   return {
     ...room,

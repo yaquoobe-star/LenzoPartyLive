@@ -1117,6 +1117,23 @@ export async function submitFirestoreSeatRequest(
   }
 }
 
+function dedupeCompactSeats(
+  rawSeats: (UserProfile | null | undefined)[],
+  maxSeats: number
+): (UserProfile | null)[] {
+  const seen = new Set<string>();
+  const result: (UserProfile | null)[] = Array(maxSeats).fill(null);
+  for (let idx = 0; idx < Math.min(maxSeats, rawSeats.length); idx++) {
+    const compacted = rawSeats[idx] ? compactSeatUser(rawSeats[idx] as UserProfile) : null;
+    if (compacted?.id) {
+      if (seen.has(compacted.id)) continue;
+      seen.add(compacted.id);
+      result[idx] = compacted;
+    }
+  }
+  return result;
+}
+
 /**
  * Atomically approve or decline a pending seat request directly on Firestore party room doc.
  */
@@ -1150,10 +1167,7 @@ export async function respondFirestoreSeatRequest(
         ? data.maxSeats
         : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
       const maxSeats = Math.max(storedMax, rawSeats.length);
-      const nextSeats: (UserProfile | null)[] = Array.from(
-        { length: maxSeats },
-        (_, idx) => (rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null)
-      );
+      const nextSeats: (UserProfile | null)[] = dedupeCompactSeats(rawSeats, maxSeats);
 
       const existingReqs: FirestoreSeatRequestEntry[] = Array.isArray(data.seatRequests)
         ? data.seatRequests
@@ -1177,7 +1191,10 @@ export async function respondFirestoreSeatRequest(
           !(preferredSeatIndex === 1 && seatTwoLocked)
             ? preferredSeatIndex
             : defaultSeat;
-        if (nextSeats[targetIdx] !== null || (targetIdx === 1 && seatTwoLocked)) {
+        if (
+          (nextSeats[targetIdx] !== null && nextSeats[targetIdx]?.id !== applicant.id) ||
+          (targetIdx === 1 && seatTwoLocked)
+        ) {
           const openIdx = nextSeats.findIndex(
             (s, idx) => s === null && !(idx === 1 && seatTwoLocked)
           );
@@ -1190,18 +1207,10 @@ export async function respondFirestoreSeatRequest(
         assignedSeatIndex = targetIdx;
       }
 
-      const isHostActor = data.host?.id === auth.currentUser?.uid;
-      if (isHostActor) {
-        tx.update(roomRef, {
-          seats: nextSeats,
-          seatRequests: nextRequests,
-        });
-      } else {
-        tx.update(roomRef, {
-          seats: nextSeats,
-          seatRequests: nextRequests,
-        });
-      }
+      tx.update(roomRef, {
+        seats: nextSeats,
+        seatRequests: nextRequests,
+      });
 
       return { seats: nextSeats, seatRequests: nextRequests, assignedSeatIndex };
     });
@@ -1213,23 +1222,32 @@ export async function respondFirestoreSeatRequest(
 }
 
 /**
- * Atomically seat a user (host taking a seat or host directly assigning a listener).
+ * Atomically seat a user (host taking a seat, host assigning a listener, or guest accepting an invite).
+ * Strictly rejects with conflict error if the requested seat is already occupied by a different user.
  */
 export async function takeFirestoreSeatDirect(
   roomId: string,
   seatIndex: number,
   targetUser: UserProfile,
   maxSeatsFallback = 5
-): Promise<{ success: boolean; seats?: (UserProfile | null)[]; seatRequests?: FirestoreSeatRequestEntry[]; error?: string }> {
-  if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+): Promise<{
+  success: boolean;
+  conflict?: boolean;
+  seats?: (UserProfile | null)[];
+  seatRequests?: FirestoreSeatRequestEntry[];
+  error?: string;
+}> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId)) {
+    return { success: false, error: 'Authentication required.' };
+  }
   const compactUser = compactSeatUser(targetUser);
-  if (!compactUser) return { success: false };
+  if (!compactUser) return { success: false, error: 'Invalid user profile.' };
 
   const roomRef = doc(db, 'party_rooms', roomId);
   try {
     const result = await runTransaction(db, async (tx) => {
       const snap = await tx.get(roomRef);
-      if (!snap.exists()) return null;
+      if (!snap.exists()) return { ok: false as const, error: 'Party room not found.' };
       const data = snap.data() as Record<string, any>;
       const hostLevel = sanitizeUserLevel(data.host?.level);
       const rawSeats: (UserProfile | null)[] = Array.isArray(data.seats) ? data.seats : [];
@@ -1239,12 +1257,22 @@ export async function takeFirestoreSeatDirect(
       const maxSeats = Math.max(storedMax, rawSeats.length);
       const seatTwoLocked = seatIndex === 1 && isSeatLockedByHostLevel(1, hostLevel) && maxSeats <= 5;
       if (seatIndex < 0 || seatIndex >= maxSeats || seatTwoLocked) {
-        return null;
+        return { ok: false as const, error: 'Selected seat is unavailable.' };
       }
-      const nextSeats: (UserProfile | null)[] = Array.from(
-        { length: maxSeats },
-        (_, idx) => (rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null)
-      );
+      const nextSeats: (UserProfile | null)[] = dedupeCompactSeats(rawSeats, maxSeats);
+
+      // CRITICAL: Never overwrite a seat already occupied by a different user!
+      const currentOccupant = nextSeats[seatIndex];
+      if (currentOccupant && currentOccupant.id !== compactUser.id) {
+        return {
+          ok: false as const,
+          conflict: true,
+          seats: nextSeats,
+          error: `Seat #${seatIndex + 1} is already occupied.`,
+        };
+      }
+
+      // Remove user from any previous seat so no user ever occupies two seats
       for (let i = 0; i < nextSeats.length; i++) {
         if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
       }
@@ -1254,16 +1282,26 @@ export async function takeFirestoreSeatDirect(
         : [];
       const nextRequests = existingReqs.filter((r) => r?.user?.id !== compactUser.id);
       tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests });
-      return { seats: nextSeats, seatRequests: nextRequests };
+      return { ok: true as const, seats: nextSeats, seatRequests: nextRequests };
     });
-    return result ? { success: true, ...result } : { success: false };
-  } catch {
-    return { success: false };
+
+    if (result.ok) {
+      return { success: true, seats: result.seats, seatRequests: result.seatRequests };
+    }
+    return {
+      success: false,
+      conflict: Boolean((result as any).conflict),
+      seats: (result as any).seats,
+      error: result.error,
+    };
+  } catch (err: any) {
+    return { success: false, error: String(err?.message || 'Failed to take seat.') };
   }
 }
 
 /**
- * Atomically remove a user from their seat in Firestore (used for both self-leave and Host kick).
+ * Atomically remove a specific user from their seat in Firestore (used for self-leave, Host kick, and departure cleanup).
+ * CRITICAL: Only clears slots actually occupied by `targetUserId` — NEVER clears a slot if a different user now sits there!
  */
 export async function vacateFirestoreSeat(
   roomId: string,
@@ -1272,7 +1310,7 @@ export async function vacateFirestoreSeat(
   maxSeatsFallback = 5
 ): Promise<{ success: boolean; seats?: (UserProfile | null)[]; mutedSeatIndices?: number[] }> {
   const uid = auth.currentUser?.uid;
-  if (!uid || !isValidFirestoreId(roomId)) return { success: false };
+  if (!uid || !isValidFirestoreId(roomId) || !targetUserId) return { success: false };
   const roomRef = doc(db, 'party_rooms', roomId);
   try {
     const result = await runTransaction(db, async (tx) => {
@@ -1289,27 +1327,10 @@ export async function vacateFirestoreSeat(
         ? data.maxSeats
         : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, sanitizeUserLevel(data.host?.level));
       const maxSeats = Math.max(storedMax, rawSeats.length);
-      const seats: (UserProfile | null)[] = Array.from(
-        { length: maxSeats },
-        (_, idx) => (rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null)
-      );
-      if (
-        typeof seatIndex === 'number' &&
-        seatIndex >= 0 &&
-        seatIndex < seats.length &&
-        roomOwnerId &&
-        seats[seatIndex]?.id === roomOwnerId &&
-        uid !== roomOwnerId
-      ) {
-        return null;
-      }
+      const seats: (UserProfile | null)[] = dedupeCompactSeats(rawSeats, maxSeats);
+
       const clearedIndices = new Set<number>();
-      if (typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < maxSeats) {
-        if (!roomOwnerId || seats[seatIndex]?.id !== roomOwnerId || uid === roomOwnerId) {
-          seats[seatIndex] = null;
-          clearedIndices.add(seatIndex);
-        }
-      }
+      // Strictly match by targetUserId (never blindly clear `seatIndex` if another user took it!)
       for (let i = 0; i < seats.length; i++) {
         if (seats[i]?.id === targetUserId) {
           if (!roomOwnerId || seats[i]?.id !== roomOwnerId || uid === roomOwnerId) {
@@ -1318,6 +1339,13 @@ export async function vacateFirestoreSeat(
           }
         }
       }
+
+      // If nothing changed (user already left that seat), avoid unnecessary write
+      if (clearedIndices.size === 0) {
+        const existingMuted: number[] = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
+        return { seats, mutedSeatIndices: existingMuted };
+      }
+
       const existingMuted: number[] = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
       const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx) && mIdx < maxSeats);
       const isHostActor = roomOwnerId === uid;

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DeuHWSoQ.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-94VJVvfb.js","assets/RankingsScreen-DqtVQ1jI.js","assets/StoreScreen-CkJNSmwV.js","assets/StoreAssetPreview-Bpfpr89F.js","assets/SettingsScreen-C0-iYrAC.js","assets/UploadVideoScreen-DHkpu-vd.js","assets/WalletModal-asESBR_4.js","assets/LevelAndVIPModal-pCS2laye.js","assets/AdminProgressionModal-BlWGaqLW.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BAhiRQoo.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-DRVxnk11.js","assets/RankingsScreen-VJ0ECbct.js","assets/StoreScreen-B0hnJfnB.js","assets/StoreAssetPreview-BvYXdKEn.js","assets/SettingsScreen-CZsTfg8p.js","assets/UploadVideoScreen-BrVyFrzh.js","assets/WalletModal-CFgqnX_b.js","assets/LevelAndVIPModal-D7_S67m8.js","assets/AdminProgressionModal-Cv8zB8Ks.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-Tn0LUUjq.js";
 import { $ as Phone, A as SlidersHorizontal, An as Ban, At as History, B as Settings, Bt as Flag, C as Swords, Cn as Calendar, D as Sparkles, Dn as Bell, Dt as Image$1, E as Square, En as BookmarkCheck, Et as Info, F as Shield, Fn as ArrowRight, Ft as Globe, G as Reply, Gt as FileAudio, H as Search, Ht as FileText, I as ShieldOff, In as ArrowRightLeft, It as Gift, J as Receipt, Jt as ExternalLink, K as Repeat2, Kt as Eye, L as ShieldCheck, Ln as ArrowLeft, Lt as Gem, M as SkipForward, Mn as Award, Mt as Heart, N as SkipBack, Nn as AtSign, Nt as Headphones, O as Smile, On as BellRing, P as ShoppingBag, Pt as Hash, Q as Pin, R as ShieldAlert, S as Target, Sn as CameraOff, St as LayoutGrid, T as Star, Tn as Bookmark, Tt as KeyRound, U as Save, V as Send, Vt as Film, W as RotateCcw, X as Plus, Xt as Ellipsis, Y as Radio, Yt as Eraser, Z as Play, _ as Trophy, _n as ChevronDown, _t as LogOut, a as WifiOff, an as Compass, at as Music, b as Trash2, bn as ChartColumn, bt as LoaderCircle, c as Volume2, cn as ClipboardPaste, ct as Minimize2, d as Users, dn as CircleCheck, dt as MessageSquare, et as Percent, f as User, fn as CircleArrowDown, ft as MessageCircle, g as Upload, gn as ChevronLeft, gt as Mail, h as UserCheck, hn as ChevronRight, i as X, in as Copy, it as Paperclip, jn as BadgeCheck, jt as Hexagon, k as Smartphone, kn as BellOff, kt as House, l as Video, ln as CircleX, lt as Mic, m as UserPlus, mn as ChevronUp, mt as Maximize2, n as Zap, nn as Crop, nt as PenLine, o as Wallet, on as Coins, p as UserX, pn as CircleAlert, q as RefreshCw, qt as EyeOff, r as Youtube, rn as CornerUpLeft, rt as Pause, s as VolumeX, sn as Clock, t as ZoomIn, tn as Crown, tt as Pen, ut as MicOff, v as TriangleAlert, vn as Check, vt as Lock, wn as Building2, x as Timer, xn as Camera, xt as Link2, y as TrendingUp, yn as CheckCheck, yt as LockOpen, z as Share2, zn as require_react, zt as Flame } from "./vendor-icons-RA12uJu8.js";
@@ -3730,14 +3730,56 @@ function isSeatIndexAllowedForRoom(seatIndex, maxSeats, rawHostLevel) {
 	return true;
 }
 /**
-* Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`
-* and Seat #2 (index 1) is always empty when Host Level < 5.
+* Deduplicates a seat array so every user ID occupies AT MOST ONE seat
+* and every seat slot holds AT MOST ONE user (or null).
+* When a user appears in multiple slots, keeps the preferred slot (earliest by default,
+* or latest when `preferLatest` is true) and clears duplicates.
+*/
+function deduplicatePartySeats(rawSeats, targetLength, preferLatest = false) {
+	const arr = Array.isArray(rawSeats) ? rawSeats : [];
+	const len = typeof targetLength === "number" && targetLength > 0 ? targetLength : arr.length;
+	const next = Array(len).fill(null);
+	const seenIds = /* @__PURE__ */ new Set();
+	if (preferLatest) for (let i = Math.min(len, arr.length) - 1; i >= 0; i--) {
+		const seat = arr[i];
+		if (!seat) continue;
+		const uid = typeof seat === "object" && seat && "id" in seat ? String(seat.id || "").trim() : "";
+		if (uid) {
+			if (seenIds.has(uid)) continue;
+			seenIds.add(uid);
+		}
+		next[i] = seat;
+	}
+	else for (let i = 0; i < Math.min(len, arr.length); i++) {
+		const seat = arr[i];
+		if (!seat) continue;
+		const uid = typeof seat === "object" && seat && "id" in seat ? String(seat.id || "").trim() : "";
+		if (uid) {
+			if (seenIds.has(uid)) continue;
+			seenIds.add(uid);
+		}
+		next[i] = seat;
+	}
+	return next;
+}
+/**
+* Sanitizes a room's seat array so its length matches the host's clamped `maxSeats`,
+* every user appears in at most one seat, and locked seats remain empty.
 */
 function sanitizePartySeatsForHostLevel(rawSeats, maxSeats, rawHostLevel) {
 	const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
 	const next = Array(safeMax).fill(null);
-	if (Array.isArray(rawSeats)) {
-		for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) next[i] = rawSeats[i];
+	const seenIds = /* @__PURE__ */ new Set();
+	if (Array.isArray(rawSeats)) for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
+		const occupant = rawSeats[i];
+		if (occupant && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+			const uid = typeof occupant === "object" && occupant && "id" in occupant ? String(occupant.id || "").trim() : "";
+			if (uid) {
+				if (seenIds.has(uid)) continue;
+				seenIds.add(uid);
+			}
+			next[i] = occupant;
+		}
 	}
 	return next;
 }
@@ -3748,7 +3790,18 @@ function countActiveOccupiedSeats(rawSeats, maxSeats, rawHostLevel) {
 	const safeMax = clampPartyMaxSeatsForHostLevel(maxSeats, rawHostLevel);
 	if (!Array.isArray(rawSeats)) return 0;
 	let count = 0;
-	for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) if (rawSeats[i] && !isSeatLockedByHostLevel(i, rawHostLevel)) count++;
+	const seenIds = /* @__PURE__ */ new Set();
+	for (let i = 0; i < Math.min(safeMax, rawSeats.length); i++) {
+		const occupant = rawSeats[i];
+		if (occupant && !isSeatLockedByHostLevel(i, rawHostLevel)) {
+			const uid = typeof occupant === "object" && occupant && "id" in occupant ? String(occupant.id || "").trim() : "";
+			if (uid) {
+				if (seenIds.has(uid)) continue;
+				seenIds.add(uid);
+			}
+			count++;
+		}
+	}
 	return count;
 }
 /**
@@ -3759,7 +3812,7 @@ function getActiveSeatCapacity(maxSeats, rawHostLevel) {
 	return clampPartyMaxSeatsForHostLevel(maxSeats, sanitizeUserLevel(rawHostLevel));
 }
 /**
-* Enforces seat-tier clamping and locked-seat stripping on any PartyRoom object.
+* Enforces seat-tier clamping, deduplication, and locked-seat stripping on any PartyRoom object.
 */
 function enforcePartyRoomSeatPolicy(room) {
 	const hostLevel = sanitizeUserLevel(room?.host?.level);
@@ -3770,7 +3823,7 @@ function enforcePartyRoomSeatPolicy(room) {
 	].includes(room.maxSeats) ? room.maxSeats : clampPartyMaxSeatsForHostLevel(room?.maxSeats, hostLevel);
 	const rawSeats = Array.isArray(room?.seats) ? room.seats : void 0;
 	const safeMaxSeats = Math.max(storedValidMax, rawSeats ? rawSeats.length : 0);
-	const safeSeats = rawSeats ? Array.from({ length: safeMaxSeats }, (_, idx) => rawSeats[idx] ?? null) : void 0;
+	const safeSeats = rawSeats ? deduplicatePartySeats(rawSeats, safeMaxSeats) : void 0;
 	return {
 		...room,
 		maxSeats: safeMaxSeats,
@@ -7671,6 +7724,36 @@ var LiveAndRoomService = class {
 		}
 		return (await res.json()).seats || [];
 	}
+	async acceptSeatInvite(roomId, userId, seatIndex, user, roomMeta) {
+		try {
+			const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/accept_invite`, {
+				method: "POST",
+				body: JSON.stringify({
+					userId,
+					seatIndex,
+					user,
+					roomMeta
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) return {
+				success: false,
+				conflict: res.status === 409,
+				seats: Array.isArray(data.seats) ? data.seats : void 0,
+				error: data.error || "Could not accept seat invitation"
+			};
+			return {
+				success: true,
+				seats: Array.isArray(data.seats) ? data.seats : void 0,
+				agoraToken: data.agoraToken ?? null
+			};
+		} catch (err) {
+			return {
+				success: false,
+				error: err?.message || "Could not accept seat invitation"
+			};
+		}
+	}
 	async sendRoomInvite(params) {
 		try {
 			const res = await apiFetch(`/api/rooms/${encodeURIComponent(params.roomId)}/invite`, {
@@ -10239,6 +10322,19 @@ async function submitFirestoreSeatRequest(roomId, request) {
 		};
 	}
 }
+function dedupeCompactSeats(rawSeats, maxSeats) {
+	const seen = /* @__PURE__ */ new Set();
+	const result = Array(maxSeats).fill(null);
+	for (let idx = 0; idx < Math.min(maxSeats, rawSeats.length); idx++) {
+		const compacted = rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null;
+		if (compacted?.id) {
+			if (seen.has(compacted.id)) continue;
+			seen.add(compacted.id);
+			result[idx] = compacted;
+		}
+	}
+	return result;
+}
 /**
 * Atomically approve or decline a pending seat request directly on Firestore party room doc.
 */
@@ -10263,14 +10359,14 @@ async function respondFirestoreSeatRequest(roomId, applicant, approve, preferred
 					16
 				].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
 				const maxSeats = Math.max(storedMax, rawSeats.length);
-				const nextSeats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
+				const nextSeats = dedupeCompactSeats(rawSeats, maxSeats);
 				const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== applicant.id);
 				let assignedSeatIndex = -1;
 				if (approve) {
 					for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === applicant.id) nextSeats[i] = null;
 					const seatTwoLocked = isSeatLockedByHostLevel(1, hostLevel) && maxSeats <= 5;
 					let targetIdx = typeof preferredSeatIndex === "number" && preferredSeatIndex >= 0 && preferredSeatIndex < maxSeats && !(preferredSeatIndex === 1 && seatTwoLocked) ? preferredSeatIndex : seatTwoLocked ? 2 : 1;
-					if (nextSeats[targetIdx] !== null || targetIdx === 1 && seatTwoLocked) {
+					if (nextSeats[targetIdx] !== null && nextSeats[targetIdx]?.id !== applicant.id || targetIdx === 1 && seatTwoLocked) {
 						const openIdx = nextSeats.findIndex((s, idx) => s === null && !(idx === 1 && seatTwoLocked));
 						if (openIdx === -1) throw new Error("All unlocked seats are currently full.");
 						targetIdx = openIdx;
@@ -10278,11 +10374,7 @@ async function respondFirestoreSeatRequest(roomId, applicant, approve, preferred
 					nextSeats[targetIdx] = compactSeatUser(applicant);
 					assignedSeatIndex = targetIdx;
 				}
-				if (data.host?.id === auth.currentUser?.uid) tx.update(roomRef, {
-					seats: nextSeats,
-					seatRequests: nextRequests
-				});
-				else tx.update(roomRef, {
+				tx.update(roomRef, {
 					seats: nextSeats,
 					seatRequests: nextRequests
 				});
@@ -10301,17 +10393,27 @@ async function respondFirestoreSeatRequest(roomId, applicant, approve, preferred
 	}
 }
 /**
-* Atomically seat a user (host taking a seat or host directly assigning a listener).
+* Atomically seat a user (host taking a seat, host assigning a listener, or guest accepting an invite).
+* Strictly rejects with conflict error if the requested seat is already occupied by a different user.
 */
 async function takeFirestoreSeatDirect(roomId, seatIndex, targetUser, maxSeatsFallback = 5) {
-	if (!auth.currentUser || !isValidFirestoreId(roomId)) return { success: false };
+	if (!auth.currentUser || !isValidFirestoreId(roomId)) return {
+		success: false,
+		error: "Authentication required."
+	};
 	const compactUser = compactSeatUser(targetUser);
-	if (!compactUser) return { success: false };
+	if (!compactUser) return {
+		success: false,
+		error: "Invalid user profile."
+	};
 	const roomRef = doc(db, "party_rooms", roomId);
 	try {
 		const result = await runTransaction(db, async (tx) => {
 			const snap = await tx.get(roomRef);
-			if (!snap.exists()) return null;
+			if (!snap.exists()) return {
+				ok: false,
+				error: "Party room not found."
+			};
 			const data = snap.data();
 			const hostLevel = sanitizeUserLevel(data.host?.level);
 			const rawSeats = Array.isArray(data.seats) ? data.seats : [];
@@ -10322,8 +10424,18 @@ async function takeFirestoreSeatDirect(roomId, seatIndex, targetUser, maxSeatsFa
 			].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, hostLevel);
 			const maxSeats = Math.max(storedMax, rawSeats.length);
 			const seatTwoLocked = seatIndex === 1 && isSeatLockedByHostLevel(1, hostLevel) && maxSeats <= 5;
-			if (seatIndex < 0 || seatIndex >= maxSeats || seatTwoLocked) return null;
-			const nextSeats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
+			if (seatIndex < 0 || seatIndex >= maxSeats || seatTwoLocked) return {
+				ok: false,
+				error: "Selected seat is unavailable."
+			};
+			const nextSeats = dedupeCompactSeats(rawSeats, maxSeats);
+			const currentOccupant = nextSeats[seatIndex];
+			if (currentOccupant && currentOccupant.id !== compactUser.id) return {
+				ok: false,
+				conflict: true,
+				seats: nextSeats,
+				error: `Seat #${seatIndex + 1} is already occupied.`
+			};
 			for (let i = 0; i < nextSeats.length; i++) if (nextSeats[i]?.id === compactUser.id) nextSeats[i] = null;
 			nextSeats[seatIndex] = compactUser;
 			const nextRequests = (Array.isArray(data.seatRequests) ? data.seatRequests : []).filter((r) => r?.user?.id !== compactUser.id);
@@ -10332,24 +10444,36 @@ async function takeFirestoreSeatDirect(roomId, seatIndex, targetUser, maxSeatsFa
 				seatRequests: nextRequests
 			});
 			return {
+				ok: true,
 				seats: nextSeats,
 				seatRequests: nextRequests
 			};
 		});
-		return result ? {
+		if (result.ok) return {
 			success: true,
-			...result
-		} : { success: false };
-	} catch {
-		return { success: false };
+			seats: result.seats,
+			seatRequests: result.seatRequests
+		};
+		return {
+			success: false,
+			conflict: Boolean(result.conflict),
+			seats: result.seats,
+			error: result.error
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: String(err?.message || "Failed to take seat.")
+		};
 	}
 }
 /**
-* Atomically remove a user from their seat in Firestore (used for both self-leave and Host kick).
+* Atomically remove a specific user from their seat in Firestore (used for self-leave, Host kick, and departure cleanup).
+* CRITICAL: Only clears slots actually occupied by `targetUserId` — NEVER clears a slot if a different user now sits there!
 */
 async function vacateFirestoreSeat(roomId, targetUserId, seatIndex, maxSeatsFallback = 5) {
 	const uid = auth.currentUser?.uid;
-	if (!uid || !isValidFirestoreId(roomId)) return { success: false };
+	if (!uid || !isValidFirestoreId(roomId) || !targetUserId) return { success: false };
 	const roomRef = doc(db, "party_rooms", roomId);
 	try {
 		const result = await runTransaction(db, async (tx) => {
@@ -10365,21 +10489,18 @@ async function vacateFirestoreSeat(roomId, targetUserId, seatIndex, maxSeatsFall
 				16
 			].includes(data.maxSeats) ? data.maxSeats : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? maxSeatsFallback, sanitizeUserLevel(data.host?.level));
 			const maxSeats = Math.max(storedMax, rawSeats.length);
-			const seats = Array.from({ length: maxSeats }, (_, idx) => rawSeats[idx] ? compactSeatUser(rawSeats[idx]) : null);
-			if (typeof seatIndex === "number" && seatIndex >= 0 && seatIndex < seats.length && roomOwnerId && seats[seatIndex]?.id === roomOwnerId && uid !== roomOwnerId) return null;
+			const seats = dedupeCompactSeats(rawSeats, maxSeats);
 			const clearedIndices = /* @__PURE__ */ new Set();
-			if (typeof seatIndex === "number" && seatIndex >= 0 && seatIndex < maxSeats) {
-				if (!roomOwnerId || seats[seatIndex]?.id !== roomOwnerId || uid === roomOwnerId) {
-					seats[seatIndex] = null;
-					clearedIndices.add(seatIndex);
-				}
-			}
 			for (let i = 0; i < seats.length; i++) if (seats[i]?.id === targetUserId) {
 				if (!roomOwnerId || seats[i]?.id !== roomOwnerId || uid === roomOwnerId) {
 					seats[i] = null;
 					clearedIndices.add(i);
 				}
 			}
+			if (clearedIndices.size === 0) return {
+				seats,
+				mutedSeatIndices: Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : []
+			};
 			const existingMuted = Array.isArray(data.mutedSeatIndices) ? data.mutedSeatIndices : [];
 			const nextMuted = existingMuted.filter((mIdx) => !clearedIndices.has(mIdx) && mIdx < maxSeats);
 			const isHostActor = roomOwnerId === uid;
@@ -19402,6 +19523,7 @@ var AgoraRtcService = class {
 		this.isLeaving = false;
 		this.isRenewingToken = false;
 		this.backendUnavailableUntil = 0;
+		this.sessionGeneration = 0;
 		this.remoteHosts = /* @__PURE__ */ new Map();
 		this.onRemoteTrackCallbacks = /* @__PURE__ */ new Set();
 		this.onUserLeftCallbacks = /* @__PURE__ */ new Set();
@@ -19556,6 +19678,15 @@ var AgoraRtcService = class {
 			for (let attempt = 1; attempt <= 2; attempt++) try {
 				if (this.client !== client || client.connectionState !== "CONNECTED") return;
 				if (!(mediaType === "audio" && Boolean(user.audioTrack) || mediaType === "video" && Boolean(user.videoTrack))) await client.subscribe(user, mediaType);
+				if (this.client !== client || client.connectionState !== "CONNECTED") {
+					if (mediaType === "audio" && user.audioTrack) try {
+						user.audioTrack.stop();
+					} catch {}
+					if (mediaType === "video" && user.videoTrack) try {
+						user.videoTrack.stop();
+					} catch {}
+					return;
+				}
 				let remote = this.remoteHosts.get(key);
 				if (!remote) {
 					remote = {
@@ -19636,6 +19767,7 @@ var AgoraRtcService = class {
 		try {
 			client.enableAudioVolumeIndicator();
 			client.on("volume-indicator", (volumes) => {
+				if (this.client !== client) return;
 				const mapped = volumes.map((v) => ({
 					uid: v.uid,
 					level: v.level
@@ -19646,9 +19778,11 @@ var AgoraRtcService = class {
 			console.warn("[Agora RTC] Volume indicator setup warning:", e);
 		}
 		client.on("user-published", async (user, mediaType) => {
+			if (this.client !== client) return;
 			if (mediaType === "audio" || mediaType === "video") await this.handleRemoteSubscribe(client, user, mediaType);
 		});
 		client.on("user-unpublished", (user, mediaType) => {
+			if (this.client !== client) return;
 			const key = String(user.uid);
 			const remote = this.remoteHosts.get(key);
 			if (remote) {
@@ -19669,15 +19803,20 @@ var AgoraRtcService = class {
 			}
 		});
 		client.on("user-left", (user) => {
+			if (this.client !== client) return;
 			const key = String(user.uid);
 			const existing = this.remoteHosts.get(key);
 			if (existing?.audioTrack) try {
 				existing.audioTrack.stop();
 			} catch {}
+			if (existing?.videoTrack) try {
+				existing.videoTrack.stop();
+			} catch {}
 			this.remoteHosts.delete(key);
 			this.onUserLeftCallbacks.forEach((cb) => cb(user.uid));
 		});
 		client.on("connection-state-change", (curState, prevState, reason) => {
+			if (this.client !== client) return;
 			console.log(`[Agora RTC] Connection state ${prevState} -> ${curState} (reason: ${reason || "normal"})`);
 			this.notifyStatusListeners({
 				state: curState,
@@ -19690,14 +19829,16 @@ var AgoraRtcService = class {
 				this.syncAllRemoteSubscriptions();
 				if (this.currentRole === "host" && (!this.isPublishingAudioFlag || !this.localAudioTrack)) this.ensureLocalAudioPublished(this.isMicMuted);
 				if (this.currentRole === "host" && this.localMusicAudioTrack && !this.isPublishingMusicFlag) client.publish([this.localMusicAudioTrack]).then(() => {
-					this.isPublishingMusicFlag = true;
+					if (this.client === client) this.isPublishingMusicFlag = true;
 				}).catch(() => {});
 			}
 		});
 		client.on("token-privilege-will-expire", () => {
+			if (this.client !== client) return;
 			this.renewCurrentToken(client);
 		});
 		client.on("token-privilege-did-expire", () => {
+			if (this.client !== client) return;
 			this.renewCurrentToken(client);
 		});
 	}
@@ -19829,37 +19970,57 @@ var AgoraRtcService = class {
 		if (this.currentChannel && this.currentChannel !== params.channelName) await this.leaveChannel();
 		else if (this.currentChannel === params.channelName && this.client && (this.client.connectionState === "CONNECTED" || this.client.connectionState === "CONNECTING")) {
 			if (this.activeJoinPromise) await this.activeJoinPromise.catch(() => {});
-			if (this.currentRole !== params.role) await this.switchRole(params.role, {
-				enableVideo: params.enableVideo,
-				enableAudio: params.enableAudio,
-				isFront: params.isFront,
-				mediaStream: params.mediaStream,
-				token: params.token
-			});
-			return this.currentUid || params.userAccount;
-		}
+			if (this.currentChannel === params.channelName && this.client) {
+				if (this.currentRole !== params.role) await this.switchRole(params.role, {
+					enableVideo: params.enableVideo,
+					enableAudio: params.enableAudio,
+					isFront: params.isFront,
+					mediaStream: params.mediaStream,
+					token: params.token
+				});
+				return this.currentUid || params.userAccount;
+			}
+		} else if (this.client && this.client.connectionState !== "DISCONNECTED") await this.leaveChannel();
+		const myGeneration = ++this.sessionGeneration;
 		const client = this.getOrCreateClient();
 		this.currentChannel = params.channelName;
 		this.currentUserAccount = params.userAccount;
 		this.currentRole = params.role;
 		this.isCameraOn = params.enableVideo !== false;
 		this.isMicMuted = params.enableAudio === false;
+		const abortIfStale = async () => {
+			if (this.sessionGeneration !== myGeneration || this.client !== client) {
+				try {
+					if (client.connectionState !== "DISCONNECTED") await client.leave();
+					client.removeAllListeners();
+				} catch {}
+				throw new Error("AGORA_JOIN_SUPERSEDED");
+			}
+		};
 		const joinOperation = (async () => {
 			let targetAppId = params.appId;
 			let targetToken = params.token;
 			if (!targetAppId || targetToken === void 0) {
 				const tokenRes = await this.requestRtcToken(params.channelName, params.userAccount, params.role === "host" ? "broadcaster" : "audience");
+				await abortIfStale();
 				if (tokenRes.appId) targetAppId = tokenRes.appId;
 				if (tokenRes.token !== void 0) targetToken = tokenRes.token;
 			}
-			if (!targetAppId) targetAppId = (await this.getAgoraConfig()).appId;
+			if (!targetAppId) {
+				const cfg = await this.getAgoraConfig();
+				await abortIfStale();
+				targetAppId = cfg.appId;
+			}
 			if (!targetAppId) throw new Error("Agora App ID is not configured on the server");
 			if (params.role === "audience") await client.setClientRole("audience", { level: 1 });
 			else await client.setClientRole("host");
+			await abortIfStale();
 			const uid = await client.join(targetAppId, params.channelName, targetToken || null, params.userAccount);
+			await abortIfStale();
 			this.currentUid = uid;
 			console.log(`[Agora RTC] Joined channel=${params.channelName} role=${params.role} uid=${uid}`);
 			await this.syncAllRemoteSubscriptions();
+			await abortIfStale();
 			if (params.role === "host") {
 				await this.createLocalTracks({
 					isFront: params.isFront ?? this.isFrontCamera,
@@ -19867,21 +20028,30 @@ var AgoraRtcService = class {
 					enableAudio: params.enableAudio ?? true,
 					mediaStream: params.mediaStream
 				});
+				if (this.sessionGeneration !== myGeneration || this.client !== client) {
+					this.stopLocalTracks();
+					await abortIfStale();
+				}
 				const tracksToPublish = [];
 				if (this.localAudioTrack) tracksToPublish.push(this.localAudioTrack);
 				if (this.localVideoTrack && params.enableVideo !== false) tracksToPublish.push(this.localVideoTrack);
 				if (tracksToPublish.length > 0 && client.connectionState === "CONNECTED") try {
 					await client.publish(tracksToPublish);
+					await abortIfStale();
 					this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
 					this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
 					if (this.localAudioTrack) await this.localAudioTrack.setEnabled(!this.isMicMuted).catch(() => {});
 					console.log("[Agora RTC] Published local tracks:", tracksToPublish.map((t) => t.trackMediaType));
 				} catch (pubErr) {
+					if (pubErr?.message === "AGORA_JOIN_SUPERSEDED") throw pubErr;
 					console.warn("[Agora RTC] Warning publishing local tracks (retrying once):", pubErr);
 					await new Promise((r) => setTimeout(r, 300));
+					await abortIfStale();
 					if (client.connectionState === "CONNECTED") await client.publish(tracksToPublish).then(() => {
-						this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
-						this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+						if (this.sessionGeneration === myGeneration && this.client === client) {
+							this.isPublishingAudioFlag = Boolean(this.localAudioTrack);
+							this.isPublishingVideoFlag = Boolean(this.localVideoTrack && params.enableVideo !== false);
+						}
 					}).catch((retryErr) => {
 						console.warn("[Agora RTC] Retry publish warning:", retryErr);
 					});
@@ -19893,7 +20063,7 @@ var AgoraRtcService = class {
 		try {
 			return await joinOperation;
 		} catch (err) {
-			if (this.client?.connectionState !== "CONNECTED") {
+			if (this.sessionGeneration === myGeneration && this.client?.connectionState !== "CONNECTED") {
 				this.currentChannel = null;
 				this.currentUid = null;
 			}
@@ -20292,49 +20462,76 @@ var AgoraRtcService = class {
 		}
 	}
 	/**
-	* Leave Agora RTC channel and release all camera, microphone & network resources cleanly
+	* Explicitly stop all subscribed remote audio & video tracks so zero orphaned audio can leak across rooms.
 	*/
-	async leaveChannel() {
+	stopAllRemoteTracks() {
+		this.remoteHosts.forEach((host) => {
+			if (host.audioTrack) try {
+				host.audioTrack.stop();
+			} catch {}
+			if (host.videoTrack) try {
+				host.videoTrack.stop();
+			} catch {}
+		});
+		this.remoteHosts.clear();
+	}
+	/**
+	* Leave Agora RTC channel and release all camera, microphone, remote audio & network resources cleanly.
+	* When `expectedChannel` is passed, skips teardown if a different room has already taken ownership.
+	*/
+	async leaveChannel(expectedChannel) {
+		if (expectedChannel && this.currentChannel && this.currentChannel !== expectedChannel) return;
 		if (this.activeLeavePromise) return this.activeLeavePromise;
 		this.isLeaving = true;
+		this.sessionGeneration += 1;
+		const leavingClient = this.client;
+		const pendingJoin = this.activeJoinPromise;
+		this.client = null;
+		this.currentChannel = null;
+		this.currentUserAccount = null;
+		this.currentUid = null;
+		this.currentRole = "audience";
+		this.stopAllRemoteTracks();
+		this.inFlightSubscribes.clear();
 		const leaveOp = (async () => {
 			try {
-				if (this.activeJoinPromise) {
+				if (pendingJoin) {
 					try {
-						await this.activeJoinPromise;
+						await pendingJoin;
 					} catch {}
-					this.activeJoinPromise = null;
+					if (this.activeJoinPromise === pendingJoin) this.activeJoinPromise = null;
 				}
-				if (this.client) {
+				if (leavingClient) {
+					try {
+						leavingClient.removeAllListeners();
+					} catch {}
+					if (Array.isArray(leavingClient.remoteUsers)) leavingClient.remoteUsers.forEach((ru) => {
+						try {
+							ru.audioTrack?.stop();
+						} catch {}
+						try {
+							ru.videoTrack?.stop();
+						} catch {}
+					});
 					const tracksToUnpublish = [];
 					if (this.localAudioTrack) tracksToUnpublish.push(this.localAudioTrack);
 					if (this.localMusicAudioTrack) tracksToUnpublish.push(this.localMusicAudioTrack);
 					if (this.localVideoTrack) tracksToUnpublish.push(this.localVideoTrack);
-					if (tracksToUnpublish.length > 0 && this.client.connectionState === "CONNECTED") await this.client.unpublish(tracksToUnpublish).catch(() => {});
+					if (tracksToUnpublish.length > 0 && leavingClient.connectionState === "CONNECTED") await leavingClient.unpublish(tracksToUnpublish).catch(() => {});
 				}
 				this.stopLocalMusicTrack();
 				this.stopLocalTracks();
-				if (this.client) {
-					const state = this.client.connectionState;
+				if (leavingClient) {
+					const state = leavingClient.connectionState;
 					if (state === "CONNECTED" || state === "CONNECTING" || state === "RECONNECTING") try {
-						await this.client.leave();
+						await leavingClient.leave();
 					} catch (leaveErr) {
 						console.warn("[Agora RTC] Handled leave exception:", leaveErr?.message || leaveErr);
 					}
-					try {
-						this.client.removeAllListeners();
-					} catch {}
 				}
 			} catch (err) {
 				console.warn("[Agora RTC] Error leaving channel:", err?.message || err);
 			} finally {
-				this.currentChannel = null;
-				this.currentUserAccount = null;
-				this.currentUid = null;
-				this.currentRole = "audience";
-				this.remoteHosts.clear();
-				this.inFlightSubscribes.clear();
-				this.client = null;
 				this.isLeaving = false;
 				this.activeLeavePromise = null;
 			}
@@ -20385,9 +20582,9 @@ var AgoraRtcService = class {
 	getCurrentRole() {
 		return this.currentRole;
 	}
-	onRemoteTrack(cb) {
+	onRemoteTrack(cb, expectedChannel) {
 		this.onRemoteTrackCallbacks.add(cb);
-		this.remoteHosts.forEach((host) => {
+		if (!expectedChannel || this.currentChannel === expectedChannel) this.remoteHosts.forEach((host) => {
 			try {
 				cb(host);
 			} catch {}
@@ -20493,6 +20690,7 @@ var WebRtcMediaService = class {
 		this.partyUserId = null;
 		this.partyIsSpeaker = false;
 		this.partyStartedAt = 0;
+		this.partySessionGen = 0;
 		this.partyLocalStream = null;
 		this.partyKnownPeers = /* @__PURE__ */ new Map();
 		this.partyPendingOfferPeers = /* @__PURE__ */ new Set();
@@ -21109,6 +21307,7 @@ var WebRtcMediaService = class {
 			return;
 		}
 		this.refreshIceServers();
+		const mySessionGen = ++this.partySessionGen;
 		this.partyRoomId = roomId;
 		this.partyUserId = userId;
 		this.partyIsSpeaker = isSpeaker;
@@ -21134,7 +21333,7 @@ var WebRtcMediaService = class {
 			});
 		}, 180);
 		this.partyUnsubscribeWs = liveAndRoomService.addEventListener((event, payload) => {
-			if (!this.partyRoomId || !payload || payload.roomId !== this.partyRoomId) return;
+			if (this.partySessionGen !== mySessionGen || !this.partyRoomId || this.partyRoomId !== roomId || !payload || payload.roomId !== roomId) return;
 			const fromUserId = String(payload.fromUserId || "");
 			if (!fromUserId || fromUserId === this.partyUserId) return;
 			if (event === "webrtc:room_peer_ready") {
@@ -21162,7 +21361,7 @@ var WebRtcMediaService = class {
 			}
 		});
 		this.partyUnsubscribeFs = subscribeFirestoreRoomParticipants(roomId, (_list, rawDocs) => {
-			if (!this.partyRoomId || this.partyRoomId !== roomId || !this.partyUserId) return;
+			if (this.partySessionGen !== mySessionGen || !this.partyRoomId || this.partyRoomId !== roomId || !this.partyUserId) return;
 			rawDocs.forEach((pDoc, docId) => {
 				const peerId = String(pDoc.userId || docId);
 				if (!peerId || peerId === this.partyUserId) return;
@@ -21399,12 +21598,20 @@ var WebRtcMediaService = class {
 		if ((this.partyIsSpeaker || this.partyMusicTrack) && outboundStream) outboundStream.getAudioTracks().forEach((track) => {
 			if (track.readyState === "live") pc.addTrack(track, outboundStream);
 		});
+		const sessionGen = this.partySessionGen;
+		const activeRoomId = this.partyRoomId;
 		pc.ontrack = (ev) => {
+			if (this.partySessionGen !== sessionGen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					ev.track.stop();
+				} catch {}
+				return;
+			}
 			const stream = ev.streams && ev.streams[0] ? ev.streams[0] : new MediaStream([ev.track]);
 			this.attachRemotePartyAudio(peerId, stream);
 		};
 		pc.onicecandidate = (ev) => {
-			if (ev.candidate && this.partyRoomId && this.partyUserId) {
+			if (ev.candidate && this.partySessionGen === sessionGen && this.partyRoomId === activeRoomId && this.partyRoomId && this.partyUserId) {
 				const candJson = ev.candidate.toJSON();
 				liveAndRoomService.sendSignal({
 					signalType: "webrtc:room_ice",
@@ -21423,8 +21630,11 @@ var WebRtcMediaService = class {
 			}
 		};
 		pc.onconnectionstatechange = () => {
+			if (this.partySessionGen !== sessionGen || this.partyRoomId !== activeRoomId) return;
 			if (pc.connectionState === "connected") this.partyCallbacks?.onStatusChange?.("connected");
-			else if (pc.connectionState === "failed" || pc.connectionState === "closed") this.closePartyPeer(peerId);
+			else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+				if (this.partyPeers.get(peerId) === pc) this.closePartyPeer(peerId);
+			}
 		};
 		return pc;
 	}
@@ -21434,6 +21644,8 @@ var WebRtcMediaService = class {
 			this.partyPendingOfferPeers.add(peerId);
 			return;
 		}
+		const gen = this.partySessionGen;
+		const activeRoomId = this.partyRoomId;
 		const sessionId = makeSessionId("pr");
 		const pc = this.setupPartyPeerConnection(peerId, "offer", sessionId);
 		try {
@@ -21441,7 +21653,19 @@ var WebRtcMediaService = class {
 				offerToReceiveAudio: true,
 				offerToReceiveVideo: false
 			});
+			if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					pc.close();
+				} catch {}
+				return;
+			}
 			await pc.setLocalDescription(offer);
+			if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					pc.close();
+				} catch {}
+				return;
+			}
 			const localSdp = {
 				type: pc.localDescription?.type || offer.type,
 				sdp: pc.localDescription?.sdp || offer.sdp
@@ -21451,13 +21675,13 @@ var WebRtcMediaService = class {
 				signalType: "webrtc:room_offer",
 				fromUserId: this.partyUserId,
 				targetUserId: peerId,
-				roomId: this.partyRoomId,
+				roomId: activeRoomId,
 				payload: {
 					sdp: localSdp,
 					sessionId
 				}
 			});
-			writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
+			writeFirestorePartyPeerSignal(activeRoomId, peerId, {
 				type: "offer",
 				sdp: localSdp,
 				sessionId,
@@ -21465,7 +21689,7 @@ var WebRtcMediaService = class {
 			});
 		} catch (err) {
 			console.warn("[WebRTC Party] Offer error:", err);
-			this.closePartyPeer(peerId);
+			if (this.partySessionGen === gen && this.partyPeers.get(peerId) === pc) this.closePartyPeer(peerId);
 		}
 	}
 	async handlePartyOffer(peerId, sdp, incomingSessionId) {
@@ -21474,15 +21698,35 @@ var WebRtcMediaService = class {
 		if (this.partyHandledOfferSessions.get(peerId) === sessionId) return;
 		const existingPc = this.partyPeers.get(peerId);
 		if (existingPc && existingPc.signalingState === "have-local-offer" && String(this.partyUserId) > peerId) return;
+		const gen = this.partySessionGen;
+		const activeRoomId = this.partyRoomId;
 		this.partyHandledOfferSessions.set(peerId, sessionId);
 		const pc = this.setupPartyPeerConnection(peerId, "answer", sessionId);
 		try {
 			await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+			if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					pc.close();
+				} catch {}
+				return;
+			}
 			const queued = this.partyPendingIce.get(peerId) || [];
 			this.partyPendingIce.set(peerId, []);
 			for (const cand of queued) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
 			const answer = await pc.createAnswer();
+			if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					pc.close();
+				} catch {}
+				return;
+			}
 			await pc.setLocalDescription(answer);
+			if (this.partySessionGen !== gen || this.partyRoomId !== activeRoomId || this.partyPeers.get(peerId) !== pc) {
+				try {
+					pc.close();
+				} catch {}
+				return;
+			}
 			const localSdp = {
 				type: pc.localDescription?.type || answer.type,
 				sdp: pc.localDescription?.sdp || answer.sdp
@@ -21492,13 +21736,13 @@ var WebRtcMediaService = class {
 				signalType: "webrtc:room_answer",
 				fromUserId: this.partyUserId,
 				targetUserId: peerId,
-				roomId: this.partyRoomId,
+				roomId: activeRoomId,
 				payload: {
 					sdp: localSdp,
 					sessionId
 				}
 			});
-			writeFirestorePartyPeerSignal(this.partyRoomId, peerId, {
+			writeFirestorePartyPeerSignal(activeRoomId, peerId, {
 				type: "answer",
 				sdp: localSdp,
 				sessionId,
@@ -21506,7 +21750,7 @@ var WebRtcMediaService = class {
 			});
 		} catch (err) {
 			console.warn("[WebRTC Party] Answer error:", err);
-			this.closePartyPeer(peerId);
+			if (this.partySessionGen === gen && this.partyPeers.get(peerId) === pc) this.closePartyPeer(peerId);
 		}
 	}
 	async handlePartyAnswer(peerId, sdp, incomingSessionId) {
@@ -21633,7 +21877,9 @@ var WebRtcMediaService = class {
 	notifyPartySpeakers() {
 		this.partyCallbacks?.onRemoteSpeakersChange?.(Array.from(this.partyRemoteAudioEls.keys()));
 	}
-	stopPartyVoice() {
+	stopPartyVoice(expectedRoomId) {
+		if (expectedRoomId && this.partyRoomId && this.partyRoomId !== expectedRoomId) return;
+		this.partySessionGen += 1;
 		if (this.partyQuickPresenceTimer) {
 			clearTimeout(this.partyQuickPresenceTimer);
 			this.partyQuickPresenceTimer = null;
@@ -22783,8 +23029,9 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 						return;
 					}
 				} catch (agoraErr) {
+					if (agoraErr?.message === "AGORA_JOIN_SUPERSEDED" || !isSubscribed) return;
 					console.warn("[Live Media] Agora connection failed, falling back to real-time WebRTC:", agoraErr?.message || agoraErr);
-					await agoraRtcService.leaveChannel().catch(() => {});
+					await agoraRtcService.leaveChannel(stream.id).catch(() => {});
 				}
 				if (!isSubscribed) return;
 				setHasAgoraLocalVideo(false);
@@ -22802,6 +23049,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 		setupLiveMedia();
 		const unsubAgoraStatus = agoraRtcService.onStatusChange((status) => {
 			if (!isSubscribed || mediaTransportRef.current !== "agora") return;
+			if (status.channelName && status.channelName !== stream.id) return;
 			if (status.state === "CONNECTED") {
 				setAgoraConnected(true);
 				setAgoraConnectionState("connected");
@@ -22812,7 +23060,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 			}
 		});
 		const unsubRemote = agoraRtcService.onRemoteTrack((remoteHost) => {
-			if (!isSubscribed) return;
+			if (!isSubscribed || agoraRtcService.getCurrentChannel() !== stream.id) return;
 			try {
 				if (remoteHost.videoTrack || remoteHost.audioTrack) {
 					hasAgoraTrack = true;
@@ -22870,7 +23118,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 			unsubAutoplay();
 			unsubUserLeft();
 			webrtcMediaService.stopLive();
-			agoraRtcService.leaveChannel().catch(() => {});
+			agoraRtcService.leaveChannel(stream.id).catch(() => {});
 			setNativeLiveAudioMode(false);
 			if (audioAnalyserControllerRef.current) {
 				audioAnalyserControllerRef.current.cleanup();
@@ -27277,6 +27525,37 @@ var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLock
 		]
 	});
 };
+// src/utils/agoraChannel.ts
+/**
+* Deterministic, collision-free Agora RTC channel name builders.
+* Agora channel names must be 1..64 bytes using ASCII letters, digits, or safe symbols.
+* Every Party Room and Live Stream is strictly isolated into its own unique channel namespace.
+*/
+function fnv1aHex(input) {
+	let hash = 2166136261;
+	for (let i = 0; i < input.length; i++) {
+		hash ^= input.charCodeAt(i);
+		hash = Math.imul(hash, 16777619);
+	}
+	return (hash >>> 0).toString(16).padStart(8, "0");
+}
+function sanitizeChannelCore(raw) {
+	return String(raw || "").trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+/**
+* Builds a unique, isolated Agora channel name for a Party Room (`party_<roomId>`).
+* Guarantees length <= 64 characters and zero collisions even for long room IDs.
+*/
+function buildPartyAgoraChannelName(roomId) {
+	const raw = String(roomId || "").trim();
+	const clean = sanitizeChannelCore(raw);
+	const candidate = `party_${clean || "room"}`;
+	if (candidate.length <= 64 && clean === raw && clean.length > 0) return candidate;
+	const suffix = `_${fnv1aHex(raw)}`;
+	const prefix = "party_";
+	const maxCoreLen = 58 - suffix.length;
+	return `${prefix}${(clean || "room").slice(0, Math.max(1, maxCoreLen))}${suffix}`;
+}
 // src/utils/roomService.ts
 var RoomService = class {
 	async fetchRoomSeats(roomId, maxSeats = 8) {
@@ -27955,7 +28234,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const nextMax = Math.max(incomingMax, maxSeatsRef.current, Array.isArray(nextRoom.seats) ? nextRoom.seats.length : 0);
 			const incomingSeatsRaw = Array.isArray(nextRoom.seats) ? nextRoom.seats : [];
 			const currentSeats = seatsRef.current;
-			const mergedSeats = Array.from({ length: nextMax }, (_, idx) => {
+			const incomingUserIds = /* @__PURE__ */ new Set();
+			incomingSeatsRaw.forEach((s) => {
+				if (s?.id && (!excludeUserId || s.id !== excludeUserId) && !isUserRecentlyLeft(s.id)) incomingUserIds.add(s.id);
+			});
+			const mergedSeats = deduplicatePartySeats(Array.from({ length: nextMax }, (_, idx) => {
 				const inc = incomingSeatsRaw[idx] || null;
 				if (inc) {
 					if (excludeUserId && inc.id === excludeUserId) return null;
@@ -27963,12 +28246,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					return inc;
 				}
 				if (!allowSeatClear && currentSeats[idx]) {
-					if (excludeUserId && currentSeats[idx]?.id === excludeUserId) return null;
-					if (currentSeats[idx]?.id && isUserRecentlyLeft(currentSeats[idx].id)) return null;
+					const curId = currentSeats[idx]?.id;
+					if (excludeUserId && curId === excludeUserId) return null;
+					if (curId && isUserRecentlyLeft(curId)) return null;
+					if (curId && incomingUserIds.has(curId)) return null;
 					return currentSeats[idx];
 				}
 				return null;
-			});
+			}), nextMax);
 			setMaxSeats(nextMax);
 			setSeats(mergedSeats);
 			seatsRef.current = mergedSeats;
@@ -28047,8 +28332,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const msg = String(err?.message || err || "");
 			if (!isRoomHost && /block|403|forbidden/i.test(msg)) {
 				showToast("You cannot join or interact with this party room.");
-				webrtcMediaService.stopPartyVoice();
-				agoraRtcService.leaveChannel().catch(() => {});
+				webrtcMediaService.stopPartyVoice(room.id);
+				agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
 				leaveFirestoreRoomParticipant(room.id);
 				setTimeout(() => {
 					if (active) onClose();
@@ -28089,12 +28374,17 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				if (leftAt && (p.joinedAt || 0) > leftAt) clearUserRecentlyLeft(p.userId);
 			});
 			const departedIds = /* @__PURE__ */ new Set();
+			const explicitlyRemovedIds = /* @__PURE__ */ new Set();
 			if (!fsParticipantsInitialized) {
 				fsParticipantsInitialized = true;
 				fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
 			} else {
 				removedParticipants.forEach((removedUser) => {
 					if (!removedUser?.userId || removedUser.userId === currentUser.id) return;
+					explicitlyRemovedIds.add(removedUser.userId);
+					departedIds.add(removedUser.userId);
+					knownParticipantIds.delete(removedUser.userId);
+					markUserRecentlyLeft(removedUser.userId);
 					const cachedPrev = participantsListRef.current.find((p) => p.userId === removedUser.userId);
 					const seatedPrev = seatsRef.current.find((s) => s?.id === removedUser.userId);
 					const resolvedName = removedUser.name && removedUser.name !== "User" ? removedUser.name : cachedPrev?.name || seatedPrev?.name || (removedUser.userId === room.host.id ? room.host.name : "Viewer");
@@ -28113,7 +28403,6 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
 						departedIds.add(prevId);
 						knownParticipantIds.delete(prevId);
-						markUserRecentlyLeft(prevId);
 					}
 				});
 				fsParticipants.forEach((p) => {
@@ -28155,10 +28444,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			}
 			prevFsParticipantIds = currentFsIds;
 			let activeSeats = seatsRef.current;
-			if (departedIds.size > 0) {
+			if (explicitlyRemovedIds.size > 0) {
 				let seatsChanged = false;
 				const cleanedSeats = activeSeats.map((seatUser, idx) => {
-					if (seatUser?.id && departedIds.has(seatUser.id)) {
+					if (seatUser?.id && explicitlyRemovedIds.has(seatUser.id)) {
 						seatsChanged = true;
 						if (isRoomHost || isCurrentUserModerator) vacateFirestoreSeat(room.id, seatUser.id, idx, maxSeatsRef.current).catch(() => {});
 						return null;
@@ -28166,9 +28455,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					return seatUser;
 				});
 				if (seatsChanged) {
-					activeSeats = cleanedSeats;
-					setSeats(cleanedSeats);
-					seatsRef.current = cleanedSeats;
+					activeSeats = deduplicatePartySeats(cleanedSeats, maxSeatsRef.current);
+					setSeats(activeSeats);
+					seatsRef.current = activeSeats;
 				}
 			}
 			const reconciledParticipants = reconcileParticipantsWithSeats(fsParticipants, activeSeats, departedIds.size > 0 ? departedIds : void 0);
@@ -28263,11 +28552,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				setMaxSeats(nextMax);
 				if (Array.isArray(data.seats)) {
 					const prevSeats = seatsRef.current;
-					const preservedSeats = Array.from({ length: nextMax }, (_, idx) => {
+					const preservedSeats = deduplicatePartySeats(Array.from({ length: nextMax }, (_, idx) => {
 						const occupant = rawFsSeats[idx] || null;
 						if (occupant?.id && isUserRecentlyLeft(occupant.id)) return null;
 						return occupant;
-					});
+					}), nextMax);
 					const wasSelfSeated = prevSeats.some((s) => s?.id === currentUser.id);
 					const isSelfNowSeated = preservedSeats.some((s) => s?.id === currentUser.id);
 					setSeats(preservedSeats);
@@ -28580,8 +28869,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			} else if (event === "room:closed") {
 				if (!isRoomHost || payload.autoClosed) {
 					showToast(payload.autoClosed ? "Party room closed automatically after 5 minutes of inactivity" : "Host has closed this party room");
-					webrtcMediaService.stopPartyVoice();
-					agoraRtcService.leaveChannel().catch(() => {});
+					webrtcMediaService.stopPartyVoice(room.id);
+					agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
 					setTimeout(() => {
 						if (active) onClose();
 					}, 1200);
@@ -28659,6 +28948,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	]);
 	(0, import_react.useEffect)(() => {
 		let isMounted = true;
+		const partyAgoraChannel = buildPartyAgoraChannelName(room.id);
 		voiceJoinedRef.current = false;
 		activePublishedRoleRef.current = null;
 		const initiallySeated = seatsRef.current.some((s) => s?.id === currentUser.id);
@@ -28669,6 +28959,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				setAgoraVoiceState("connecting");
 				setVoiceTransport("connecting");
 				setNativeLiveAudioMode(true);
+				webrtcMediaService.stopPartyVoice();
+				if (agoraRtcService.getCurrentChannel() && agoraRtcService.getCurrentChannel() !== partyAgoraChannel) await agoraRtcService.leaveChannel().catch(() => {});
+				if (!isMounted) return;
 				const micPromise = initiallySeated && !realMicStreamRef.current ? acquireRealMicrophone().then((stream) => {
 					if (!isMounted) {
 						stopMediaStream(stream);
@@ -28686,13 +28979,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					if (isMounted) setMicPermissionDenied(true);
 					return null;
 				}) : Promise.resolve(realMicStreamRef.current);
-				const tokenPromise = agoraRtcService.requestRtcToken(`party_${room.id}`, currentUser.id, initiallySeated ? "broadcaster" : "audience", false, 5e3);
+				const tokenPromise = agoraRtcService.requestRtcToken(partyAgoraChannel, currentUser.id, initiallySeated ? "broadcaster" : "audience", false, 5e3);
 				const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
 				if (!isMounted) return;
 				if (Boolean(tokenData.configured && tokenData.appId) && (Boolean(tokenData.token) || tokenData.tokenRequired === false)) try {
 					await agoraRtcService.joinChannel({
 						appId: tokenData.appId,
-						channelName: `party_${room.id}`,
+						channelName: partyAgoraChannel,
 						userAccount: currentUser.id,
 						role: initialRole,
 						token: tokenData.token,
@@ -28700,7 +28993,10 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 						enableAudio: initiallySeated,
 						mediaStream: initiallySeated ? localMicStream : null
 					});
-					if (!isMounted) return;
+					if (!isMounted) {
+						await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
+						return;
+					}
 					if (initiallySeated && effectiveMuted) await agoraRtcService.setMicrophoneMuted(true);
 					voiceJoinedRef.current = true;
 					activePublishedRoleRef.current = initialRole;
@@ -28708,8 +29004,9 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					setAgoraVoiceState("connected");
 					return;
 				} catch (agoraErr) {
+					if (agoraErr?.message === "AGORA_JOIN_SUPERSEDED" || !isMounted) return;
 					console.warn("[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:", agoraErr);
-					await agoraRtcService.leaveChannel().catch(() => {});
+					await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
 				}
 				if (!isMounted) return;
 				webrtcMediaService.startPartyVoice(room.id, currentUser.id, initiallySeated, initiallySeated ? localMicStream : null, {
@@ -28741,16 +29038,17 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		};
 		joinPartyVoice();
 		const unsubAutoplay = agoraRtcService.onAutoplayBlocked(() => {
-			if (isMounted) setAutoplayBlocked(true);
+			if (isMounted && agoraRtcService.getCurrentChannel() === partyAgoraChannel) setAutoplayBlocked(true);
 		});
 		const unsubStatus = agoraRtcService.onStatusChange((status) => {
 			if (!isMounted || voiceTransportRef.current !== "agora") return;
+			if (status.channelName && status.channelName !== partyAgoraChannel) return;
 			if (status.state === "CONNECTED") setAgoraVoiceState("connected");
 			else if (status.state === "CONNECTING" || status.state === "RECONNECTING") setAgoraVoiceState("connecting");
 			else setAgoraVoiceState("disconnected");
 		});
 		const unsubVolumes = agoraRtcService.onVolumeIndicator((volumes) => {
-			if (!isMounted) return;
+			if (!isMounted || agoraRtcService.getCurrentChannel() !== partyAgoraChannel) return;
 			const now = Date.now();
 			for (const v of volumes) {
 				if (v.level <= 12) continue;
@@ -28781,8 +29079,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			unsubAutoplay();
 			unsubStatus();
 			unsubVolumes();
-			webrtcMediaService.stopPartyVoice();
-			agoraRtcService.leaveChannel().catch(() => {});
+			webrtcMediaService.stopPartyVoice(room.id);
+			agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
 			setNativeLiveAudioMode(false);
 		};
 	}, [room.id, currentUser.id]);
@@ -28945,7 +29243,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
 		};
 	}, []);
-	const syncRoom = (updatedSeats, updatedRequests, updatedLocked, updatedAllowJoin, updatedAnnouncement, skipFirestoreSync = false, updatedMaxSeats, updatedBackground) => {
+	const syncRoom = (updatedSeats, updatedRequests, updatedLocked, updatedAllowJoin, updatedAnnouncement, skipFirestoreSync = false, updatedMaxSeats, updatedBackground, syncSeatsToFirestore = false) => {
 		const effectiveLevel = hostLevelRef.current;
 		const resolvedMaxSeats = clampPartyMaxSeatsForHostLevel(updatedMaxSeats ?? maxSeatsRef.current, effectiveLevel);
 		const sanitizedSeats = normalizeSeats(updatedSeats, resolvedMaxSeats, effectiveLevel);
@@ -28980,8 +29278,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			isModerator: isCurrentUserModerator,
 			hostLevel: effectiveLevel,
 			maxSeats: resolvedMaxSeats,
-			seats: sanitizedSeats,
-			seatRequests: nextRoom.seatRequests,
+			...syncSeatsToFirestore ? { seats: sanitizedSeats } : {},
+			...updatedRequests !== void 0 ? { seatRequests: nextRoom.seatRequests } : {},
 			numericParticipants: liveParticipantCount,
 			participantCount: String(liveParticipantCount),
 			mutedSeatIndices: nextRoom.mutedSeatIndices,
@@ -29328,24 +29626,28 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	};
 	const handleAcceptSeatRequest = async (req) => {
 		clearUserRecentlyLeft(req.user.id);
-		const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const optimisticSeats = [...prevSeatsSnapshot];
 		const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === req.user.id);
 		if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
-		let optTargetIdx = req.seatIndex >= 0 && req.seatIndex < maxSeats && optimisticSeats[req.seatIndex] === null ? req.seatIndex : optimisticSeats.findIndex((s) => s === null);
-		if (optTargetIdx !== -1) {
-			optimisticSeats[optTargetIdx] = req.user;
-			const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
-			setSeats(optimisticSeats);
-			seatsRef.current = optimisticSeats;
-			setSeatRequests(optRequests);
-			const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
-			setParticipantsList(optParticipants);
-			participantsListRef.current = optParticipants;
-			setParticipantTotal(optParticipants.length);
-			participantTotalRef.current = optParticipants.length;
+		const optTargetIdx = req.seatIndex >= 0 && req.seatIndex < maxSeats && optimisticSeats[req.seatIndex] === null ? req.seatIndex : optimisticSeats.findIndex((s) => s === null);
+		if (optTargetIdx === -1) {
+			showToast("All unlocked seats are currently full");
+			return;
 		}
+		optimisticSeats[optTargetIdx] = req.user;
+		const dedupedOptSeats = deduplicatePartySeats(optimisticSeats, maxSeats);
+		const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
+		setSeats(dedupedOptSeats);
+		seatsRef.current = dedupedOptSeats;
+		setSeatRequests(optRequests);
+		const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, dedupedOptSeats);
+		setParticipantsList(optParticipants);
+		participantsListRef.current = optParticipants;
+		setParticipantTotal(optParticipants.length);
+		participantTotalRef.current = optParticipants.length;
 		const fsRes = await respondFirestoreSeatRequest(room.id, req.user, true, req.seatIndex, maxSeats);
-		const serverPromise = roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, true, req.seatIndex, req.user).catch(() => null);
+		const serverPromise = roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, true, fsRes.assignedSeatIndex ?? req.seatIndex, req.user).catch(() => null);
 		if (fsRes.success && Array.isArray(fsRes.seats)) {
 			const nextSeats = normalizeSeats(fsRes.seats, maxSeats);
 			const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests.filter((r) => r.user.id !== req.user.id);
@@ -29374,28 +29676,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			participantsListRef.current = nextParticipants;
 			setParticipantTotal(nextParticipants.length);
 			participantTotalRef.current = nextParticipants.length;
-			syncRoom(nextSeats, nextRequests);
+			syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
 			showToast(`Approved ${req.user.name} for Seat #${(srvRes.seatIndex ?? req.seatIndex) + 1}`);
 			return;
 		}
-		const updated = [...seats];
-		const prevIdx = updated.findIndex((s) => s?.id === req.user.id);
-		if (prevIdx !== -1) updated[prevIdx] = null;
-		let targetIdx = req.seatIndex;
-		if (updated[targetIdx] !== null || isSeatLockedByHostLevel(targetIdx, hostLevel)) {
-			const emptyIdx = updated.findIndex((s, i) => s === null && !isSeatLockedByHostLevel(i, hostLevel));
-			if (emptyIdx === -1) {
-				showToast(fsRes.error || "All unlocked seats are currently full");
-				return;
-			}
-			targetIdx = emptyIdx;
-		}
-		updated[targetIdx] = req.user;
-		const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
-		setSeats(updated);
-		setSeatRequests(nextRequests);
-		syncRoom(updated, nextRequests);
-		showToast(`Approved ${req.user.name} for Seat #${targetIdx + 1}`);
+		setSeats(prevSeatsSnapshot);
+		seatsRef.current = prevSeatsSnapshot;
+		showToast(fsRes.error || "Could not approve seat request — seat may already be full");
 	};
 	const handleRejectSeatRequest = async (req) => {
 		const fsRes = await respondFirestoreSeatRequest(room.id, req.user, false, req.seatIndex, maxSeats);
@@ -29453,10 +29740,11 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			closeModerationModal();
 			return;
 		}
-		const optimisticSeats = seats.map((s, i) => i === idx || s?.id === member.id ? null : s);
+		const optimisticSeats = seatsRef.current.map((s) => s?.id === member.id ? null : s);
 		const nextMuted = mutedSeatIndices.filter((mIdx) => mIdx !== idx);
 		closeModerationModal();
 		setSeats(optimisticSeats);
+		seatsRef.current = optimisticSeats;
 		setMutedSeatIndices(nextMuted);
 		const [fsRes] = await Promise.all([vacateFirestoreSeat(room.id, member.id, idx, maxSeats), roomService.removeSeat(room.id, currentUser.id, idx, {
 			host: room.host,
@@ -29996,11 +30284,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}
 		if (directSeat) {
 			setShowInviteToSeatModal(null);
+			const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+			const existingOccupant = prevSeatsSnapshot[targetSeat];
+			if (existingOccupant && existingOccupant.id !== targetUser.id) {
+				showToast(`Seat #${targetSeat + 1} is already occupied by ${existingOccupant.name}`);
+				return;
+			}
 			clearUserRecentlyLeft(targetUser.id);
-			const optimisticSeats = Array.from({ length: maxSeats }, (_, idx) => seatsRef.current[idx] || null);
-			const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === targetUser.id);
-			if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
-			optimisticSeats[targetSeat] = targetUser;
+			const optimisticSeats = deduplicatePartySeats(prevSeatsSnapshot.map((s, idx) => idx === targetSeat ? targetUser : s?.id === targetUser.id ? null : s), maxSeats);
 			setSeats(optimisticSeats);
 			seatsRef.current = optimisticSeats;
 			const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -30009,9 +30300,28 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			setParticipantTotal(optParticipants.length);
 			participantTotalRef.current = optParticipants.length;
 			const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
-			liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch(() => null);
+			if (fsRes.conflict) {
+				const authoritativeSeats = Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats, hostLevel) : prevSeatsSnapshot;
+				setSeats(authoritativeSeats);
+				seatsRef.current = authoritativeSeats;
+				showToast(fsRes.error || `Seat #${targetSeat + 1} is already occupied`);
+				return;
+			}
+			const srvSeats = await liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch((err) => {
+				if (/occupied|409/i.test(String(err?.message || ""))) return {
+					conflict: true,
+					error: String(err?.message || "")
+				};
+				return null;
+			});
+			if (srvSeats && !Array.isArray(srvSeats) && srvSeats.conflict) {
+				setSeats(prevSeatsSnapshot);
+				seatsRef.current = prevSeatsSnapshot;
+				showToast(srvSeats.error || `Seat #${targetSeat + 1} is already occupied`);
+				return;
+			}
 			if (fsRes.success && Array.isArray(fsRes.seats)) {
-				const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
+				const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
 				const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
 				setSeats(nextSeats);
 				seatsRef.current = nextSeats;
@@ -30025,8 +30335,22 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
 				return;
 			}
-			syncRoom(optimisticSeats);
-			showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+			if (Array.isArray(srvSeats)) {
+				const nextSeats = normalizeSeats(srvSeats, maxSeats, hostLevel);
+				setSeats(nextSeats);
+				seatsRef.current = nextSeats;
+				const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+				setParticipantsList(nextParticipants);
+				participantsListRef.current = nextParticipants;
+				setParticipantTotal(nextParticipants.length);
+				participantTotalRef.current = nextParticipants.length;
+				syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
+				showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
+				return;
+			}
+			setSeats(prevSeatsSnapshot);
+			seatsRef.current = prevSeatsSnapshot;
+			showToast(fsRes.error || `Could not assign Seat #${targetSeat + 1}`);
 			return;
 		}
 		setInvitedUserIds((prev) => ({
@@ -30102,11 +30426,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			return;
 		}
 		setIncomingSeatInvite(null);
+		const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const existingOccupant = prevSeatsSnapshot[idx];
+		if (existingOccupant && existingOccupant.id !== invitedUser.id) {
+			showToast(`Seat #${idx + 1} is already occupied`);
+			return;
+		}
 		clearUserRecentlyLeft(invitedUser.id);
-		const optimisticSeats = Array.from({ length: maxSeats }, (_, i) => seatsRef.current[i] || null);
-		const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === invitedUser.id);
-		if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
-		optimisticSeats[idx] = invitedUser;
+		const optimisticSeats = deduplicatePartySeats(prevSeatsSnapshot.map((s, i) => i === idx ? invitedUser : s?.id === invitedUser.id ? null : s), maxSeats);
 		setSeats(optimisticSeats);
 		seatsRef.current = optimisticSeats;
 		const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -30115,8 +30442,26 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setParticipantTotal(optParticipants.length);
 		participantTotalRef.current = optParticipants.length;
 		if (invitedUser.id === currentUser.id) joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
-		const fsRes = await takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats);
-		const updated = fsRes.success && Array.isArray(fsRes.seats) ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null) : optimisticSeats;
+		const [fsRes, srvRes] = await Promise.all([takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats), liveAndRoomService.acceptSeatInvite(room.id, invitedUser.id, idx, invitedUser, {
+			host: room.host,
+			title: room.title,
+			maxSeats
+		})]);
+		if (fsRes.conflict || srvRes.conflict) {
+			const authoritative = Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats, hostLevel) : Array.isArray(srvRes.seats) ? normalizeSeats(srvRes.seats, maxSeats, hostLevel) : prevSeatsSnapshot;
+			setSeats(authoritative);
+			seatsRef.current = authoritative;
+			showToast(fsRes.error || srvRes.error || `Seat #${idx + 1} is already occupied`);
+			return;
+		}
+		if (srvRes.agoraToken) pendingPromotedAgoraTokenRef.current = srvRes.agoraToken;
+		const updated = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats, hostLevel) : srvRes.success && Array.isArray(srvRes.seats) ? normalizeSeats(srvRes.seats, maxSeats, hostLevel) : null;
+		if (!updated) {
+			setSeats(prevSeatsSnapshot);
+			seatsRef.current = prevSeatsSnapshot;
+			showToast(fsRes.error || srvRes.error || `Could not join Seat #${idx + 1}`);
+			return;
+		}
 		setSeats(updated);
 		seatsRef.current = updated;
 		const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, updated);
@@ -30124,7 +30469,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		participantsListRef.current = nextParticipants;
 		setParticipantTotal(nextParticipants.length);
 		participantTotalRef.current = nextParticipants.length;
-		syncRoom(updated, void 0, void 0, void 0, void 0, fsRes.success);
+		syncRoom(updated, void 0, void 0, void 0, void 0, true);
 		showToast(`Joined Seat #${idx + 1} — mic is live`);
 	};
 	const handleOwnerTakeSeat = async (index) => {
@@ -30133,11 +30478,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			showToast("This seat is locked at the current Host level.");
 			return;
 		}
+		const prevSeatsSnapshot = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const existingOccupant = prevSeatsSnapshot[index];
+		if (existingOccupant && existingOccupant.id !== currentUser.id) {
+			showToast(`Seat #${index + 1} is already occupied by ${existingOccupant.name}`);
+			return;
+		}
 		clearUserRecentlyLeft(currentUser.id);
-		const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
-		const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === currentUser.id);
-		if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
-		optimisticSeats[index] = currentUser;
+		const optimisticSeats = deduplicatePartySeats(prevSeatsSnapshot.map((s, i) => i === index ? currentUser : s?.id === currentUser.id ? null : s), maxSeats);
 		setSeats(optimisticSeats);
 		seatsRef.current = optimisticSeats;
 		const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
@@ -30147,7 +30495,26 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		participantTotalRef.current = optParticipants.length;
 		joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
 		const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
-		liveAndRoomService.takeSeatDirect(room.id, currentUser.id, index, currentUser).catch(() => null);
+		if (fsRes.conflict) {
+			const authoritative = Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats, hostLevel) : prevSeatsSnapshot;
+			setSeats(authoritative);
+			seatsRef.current = authoritative;
+			showToast(fsRes.error || `Seat #${index + 1} is already occupied`);
+			return;
+		}
+		const srvSeats = await liveAndRoomService.takeSeatDirect(room.id, currentUser.id, index, currentUser).catch((err) => {
+			if (/occupied|409/i.test(String(err?.message || ""))) return {
+				conflict: true,
+				error: String(err?.message || "")
+			};
+			return null;
+		});
+		if (srvSeats && !Array.isArray(srvSeats) && srvSeats.conflict) {
+			setSeats(prevSeatsSnapshot);
+			seatsRef.current = prevSeatsSnapshot;
+			showToast(srvSeats.error || `Seat #${index + 1} is already occupied`);
+			return;
+		}
 		if (fsRes.success && Array.isArray(fsRes.seats)) {
 			const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
 			setSeats(nextSeats);
@@ -30158,14 +30525,31 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			setParticipantTotal(nextParticipants.length);
 			participantTotalRef.current = nextParticipants.length;
 			syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
-		} else syncRoom(optimisticSeats);
-		showToast(`Took Seat #${index + 1}`);
+			showToast(`Took Seat #${index + 1}`);
+			return;
+		}
+		if (Array.isArray(srvSeats)) {
+			const nextSeats = normalizeSeats(srvSeats, maxSeats, hostLevel);
+			setSeats(nextSeats);
+			seatsRef.current = nextSeats;
+			const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+			setParticipantsList(nextParticipants);
+			participantsListRef.current = nextParticipants;
+			setParticipantTotal(nextParticipants.length);
+			participantTotalRef.current = nextParticipants.length;
+			syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
+			showToast(`Took Seat #${index + 1}`);
+			return;
+		}
+		setSeats(prevSeatsSnapshot);
+		seatsRef.current = prevSeatsSnapshot;
+		showToast(fsRes.error || `Could not take Seat #${index + 1}`);
 	};
 	const handleLeaveSeat = async (index) => {
 		selfLeftSeatRef.current = true;
 		setShowMySeatModal(null);
 		setShowExitRoomModal(false);
-		const optimisticSeats = seatsRef.current.map((s, i) => i === index || s?.id === currentUser.id ? null : s);
+		const optimisticSeats = seatsRef.current.map((s) => s?.id === currentUser.id ? null : s);
 		setSeats(optimisticSeats);
 		seatsRef.current = optimisticSeats;
 		updateFirestoreRoomParticipantState(room.id, { isSpeaker: false });
@@ -30174,7 +30558,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		const nextSeats = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : optimisticSeats;
 		setSeats(nextSeats);
 		seatsRef.current = nextSeats;
-		syncRoom(nextSeats, void 0, void 0, void 0, void 0, fsRes.success);
+		syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
 		showToast(`Stepped down from Seat #${index + 1}`);
 	};
 	const handleSendMessage = async (e) => {
@@ -32560,8 +32944,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									await releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`).catch(() => {});
 									if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
 									if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);
-									webrtcMediaService.stopPartyVoice();
-									await agoraRtcService.leaveChannel().catch(() => {});
+									webrtcMediaService.stopPartyVoice(room.id);
+									await agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
 									await liveAndRoomService.endPartyRoom(room.id, currentUser.id).catch(() => {});
 									onCloseRoom?.(room.id);
 									onClose();
@@ -44846,15 +45230,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DeuHWSoQ.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-94VJVvfb.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DqtVQ1jI.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CkJNSmwV.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C0-iYrAC.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DHkpu-vd.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-asESBR_4.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-pCS2laye.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BlWGaqLW.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BAhiRQoo.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-DRVxnk11.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-VJ0ECbct.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-B0hnJfnB.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CZsTfg8p.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BrVyFrzh.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-CFgqnX_b.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-D7_S67m8.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-Cv8zB8Ks.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
@@ -46216,6 +46600,8 @@ function App() {
 			});
 			return [finalStream, ...prev.filter((s) => s.id !== finalStream.id && s.host?.id !== activeUid)];
 		});
+		setActiveAudioRoom(null);
+		setIsAudioRoomMinimized(false);
 		setActiveLiveStream(finalStream);
 		setCurrentScreen("live_active");
 		notifyFollowersOfLiveOrRoom({
@@ -46302,6 +46688,9 @@ function App() {
 			seats: normalizedRoom.seats
 		});
 		setPartyRooms((prev) => [finalRoom, ...prev.filter((r) => r.id !== finalRoom.id)]);
+		setActiveLiveStream(null);
+		setIsLiveStreamMinimized(false);
+		setActivePKSession(null);
 		setActiveAudioRoom(finalRoom);
 		setCurrentScreen("audio_room");
 		notifyFollowersOfLiveOrRoom({
