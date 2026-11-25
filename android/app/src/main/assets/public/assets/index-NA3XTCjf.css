@@ -4534,10 +4534,6 @@
     background-color: oklab(20.63% .0377128 -.0700856 / .9);
   }
 
-  .bg-\[\#1D0C36\]\/85 {
-    background-color: oklab(20.7967% .0363864 -.0689815 / .85);
-  }
-
   .bg-\[\#1D0E36\] {
     background-color: #1d0e36;
   }
@@ -10149,10 +10145,6 @@
     color: #d5cbe8;
   }
 
-  .text-\[\#D6C7F0\] {
-    color: #d6c7f0;
-  }
-
   .text-\[\#D6CCE9\] {
     color: #d6cce9;
   }
@@ -13554,6 +13546,10 @@
 
     .hover\:bg-\[\#fe2c55\]\/30:hover {
       background-color: oklab(64.7343% .22681 .0724389 / .3);
+    }
+
+    .hover\:bg-\[\#ff3cad\]:hover {
+      background-color: #ff3cad;
     }
 
     .hover\:bg-amber-400\/30:hover {

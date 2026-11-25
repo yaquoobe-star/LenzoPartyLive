@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CVpg0tHH.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-C-0f9UiE.js","assets/RankingsScreen-C7xGSh8b.js","assets/StoreScreen-VLPyGXE5.js","assets/StoreAssetPreview-Dsl8yfZg.js","assets/SettingsScreen-B3ABuySM.js","assets/UploadVideoScreen-B4NUTUCP.js","assets/WalletModal-gNWsPIKr.js","assets/LevelAndVIPModal-CkZKc9wO.js","assets/AdminProgressionModal-CE7PrW3f.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-BTWx5qyc.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-Bq5t2VP2.js","assets/RankingsScreen-BQasiPYJ.js","assets/StoreScreen-D0uN8e79.js","assets/StoreAssetPreview-BqjP1U6L.js","assets/SettingsScreen-D4-p8BKT.js","assets/UploadVideoScreen-cffKSjN1.js","assets/WalletModal-CjeSkc9n.js","assets/LevelAndVIPModal-DnBGQz3K.js","assets/AdminProgressionModal-XLS_Xo0j.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-Tn0LUUjq.js";
 import { $ as Phone, A as SlidersHorizontal, An as Ban, At as History, B as Settings, Bt as Flag, C as Swords, Cn as Calendar, D as Sparkles, Dn as Bell, Dt as Image$1, E as Square, En as BookmarkCheck, Et as Info, F as Shield, Fn as ArrowRight, Ft as Globe, G as Reply, Gt as FileAudio, H as Search, Ht as FileText, I as ShieldOff, In as ArrowRightLeft, It as Gift, J as Receipt, Jt as ExternalLink, K as Repeat2, Kt as Eye, L as ShieldCheck, Ln as ArrowLeft, Lt as Gem, M as SkipForward, Mn as Award, Mt as Heart, N as SkipBack, Nn as AtSign, Nt as Headphones, O as Smile, On as BellRing, P as ShoppingBag, Pt as Hash, Q as Pin, R as ShieldAlert, S as Target, Sn as CameraOff, St as LayoutGrid, T as Star, Tn as Bookmark, Tt as KeyRound, U as Save, V as Send, Vt as Film, W as RotateCcw, X as Plus, Xt as Ellipsis, Y as Radio, Yt as Eraser, Z as Play, _ as Trophy, _n as ChevronDown, _t as LogOut, a as WifiOff, an as Compass, at as Music, b as Trash2, bn as ChartColumn, bt as LoaderCircle, c as Volume2, cn as ClipboardPaste, ct as Minimize2, d as Users, dn as CircleCheck, dt as MessageSquare, et as Percent, f as User, fn as CircleArrowDown, ft as MessageCircle, g as Upload, gn as ChevronLeft, gt as Mail, h as UserCheck, hn as ChevronRight, i as X, in as Copy, it as Paperclip, jn as BadgeCheck, jt as Hexagon, k as Smartphone, kn as BellOff, kt as House, l as Video, ln as CircleX, lt as Mic, m as UserPlus, mn as ChevronUp, mt as Maximize2, n as Zap, nn as Crop, nt as PenLine, o as Wallet, on as Coins, p as UserX, pn as CircleAlert, q as RefreshCw, qt as EyeOff, r as Youtube, rn as CornerUpLeft, rt as Pause, s as VolumeX, sn as Clock, t as ZoomIn, tn as Crown, tt as Pen, ut as MicOff, v as TriangleAlert, vn as Check, vt as Lock, wn as Building2, x as Timer, xn as Camera, xt as Link2, y as TrendingUp, yn as CheckCheck, yt as LockOpen, z as Share2, zn as require_react, zt as Flame } from "./vendor-icons-RA12uJu8.js";
@@ -31013,7 +31013,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 											transition: "transform 180ms ease-out"
 										},
 										onClick: handleTapActivityUser,
-										className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${act.type === "join" ? "bg-[#210D40]/85 border-[#FA26A0]/35" : act.type === "leave" ? "bg-[#1D0C36]/85 border-white/15" : "bg-[#17092E]/88 border-purple-500/30"}`,
+										className: `flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${act.userId ? "cursor-pointer active:scale-[0.99] transition-transform" : ""} ${isSystemNotice ? "bg-[#210D40]/85 border-[#FA26A0]/35" : "bg-[#17092E]/88 border-purple-500/30"}`,
 										children: [
 											act.avatar ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 												src: act.avatar,
@@ -31062,7 +31062,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 															children: [act.name, isSystemNotice ? "" : ":"]
 														}),
 														/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-															className: `font-medium break-words ${act.type === "join" ? "text-[#FFB3DE]" : act.type === "leave" ? "text-[#D6C7F0]" : "text-white/95"}`,
+															className: `font-medium break-words ${isSystemNotice ? "text-[#FFB3DE]" : "text-white/95"}`,
 															children: [isSystemNotice ? act.text : renderTextWithMentions(act.text), act.isEdited && !isSystemNotice && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 																className: "ml-1 text-[9px] text-white/45 italic",
 																children: "(edited)"
@@ -31084,16 +31084,6 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-cyan-500/30 flex items-center justify-center text-cyan-200/80 hover:text-cyan-200 transition-colors",
 														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Reply, { className: "w-3 h-3" })
 													}),
-													canEditThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-														type: "button",
-														onClick: (e) => {
-															e.stopPropagation();
-															handleStartEditComment(act);
-														},
-														title: "Edit comment",
-														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors",
-														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pen, { className: "w-2.5 h-2.5" })
-													}),
 													canDeleteThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 														type: "button",
 														onClick: (e) => {
@@ -31103,6 +31093,17 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 														title: "Delete comment",
 														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors",
 														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Trash2, { className: "w-2.5 h-2.5" })
+													}),
+													canEditThisComment && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+														type: "button",
+														onClick: (e) => {
+															e.stopPropagation();
+															handleStartEditComment(act);
+														},
+														title: "Edit comment",
+														"aria-label": "Edit comment",
+														className: "w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors",
+														children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Pen, { className: "w-2.5 h-2.5" })
 													})
 												]
 											})
@@ -31131,15 +31132,27 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									children: editingComment.originalText
 								})]
 							})]
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							onClick: () => {
-								setEditingComment(null);
-								setInputMessage("");
-							},
-							className: "w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0",
-							"aria-label": "Cancel edit",
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "w-3.5 h-3.5" })
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: "flex items-center gap-1.5 shrink-0",
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								onClick: () => {
+									setEditingComment(null);
+									setInputMessage("");
+								},
+								className: "px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white/85 transition-colors",
+								"aria-label": "Cancel edit",
+								children: "Cancel"
+							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+								type: "button",
+								disabled: !inputMessage.trim(),
+								onClick: () => {
+									handleSendMessage();
+								},
+								className: "px-2.5 py-1 rounded-full bg-[#FA26A0] hover:bg-[#ff3cad] disabled:opacity-45 text-[10px] font-bold text-white transition-colors shadow-sm",
+								"aria-label": "Save edit",
+								children: "Save"
+							})]
 						})]
 					}),
 					replyTarget && !editingComment && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -31207,6 +31220,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 										placeholder: editingComment ? "Edit your comment..." : replyTarget ? `Reply to @${replyTarget.senderName}...` : "Say Hi...",
 										value: inputMessage,
 										onChange: (e) => setInputMessage(e.target.value),
+										onKeyDown: (e) => {
+											if (e.key === "Escape" && editingComment) {
+												e.preventDefault();
+												setEditingComment(null);
+												setInputMessage("");
+											}
+										},
 										className: "w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
 									}),
 									inputMessage.trim() && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
@@ -44813,15 +44833,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CVpg0tHH.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-C-0f9UiE.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-C7xGSh8b.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-VLPyGXE5.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-B3ABuySM.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-B4NUTUCP.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-gNWsPIKr.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-CkZKc9wO.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-CE7PrW3f.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-BTWx5qyc.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-Bq5t2VP2.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-BQasiPYJ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-D0uN8e79.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-D4-p8BKT.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-cffKSjN1.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-CjeSkc9n.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-DnBGQz3K.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-XLS_Xo0j.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");

@@ -4999,10 +4999,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                       className={`flex items-start gap-2 px-2.5 py-1.5 rounded-2xl backdrop-blur-md border text-[11px] shadow-sm w-fit max-w-full ${
                         act.userId ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
                       } ${
-                        act.type === 'join'
+                        isSystemNotice
                           ? 'bg-[#210D40]/85 border-[#FA26A0]/35'
-                          : act.type === 'leave'
-                          ? 'bg-[#1D0C36]/85 border-white/15'
                           : 'bg-[#17092E]/88 border-purple-500/30'
                       }`}
                     >
@@ -5047,11 +5045,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                           </span>
                           <span
                             className={`font-medium break-words ${
-                              act.type === 'join'
-                                ? 'text-[#FFB3DE]'
-                                : act.type === 'leave'
-                                ? 'text-[#D6C7F0]'
-                                : 'text-white/95'
+                              isSystemNotice ? 'text-[#FFB3DE]' : 'text-white/95'
                             }`}
                           >
                             {isSystemNotice ? act.text : renderTextWithMentions(act.text)}
@@ -5062,7 +5056,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                         </div>
                       </div>
 
-                      {/* Quick Tap Reply + Edit + Delete Actions */}
+                      {/* Quick Tap Reply | Delete | Edit Actions */}
                       {!isSystemNotice && (
                         <div className="flex items-center gap-1 ml-1 shrink-0">
                           <button
@@ -5076,19 +5070,6 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                           >
                             <Reply className="w-3 h-3" />
                           </button>
-                          {canEditThisComment && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEditComment(act);
-                              }}
-                              title="Edit comment"
-                              className="w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors"
-                            >
-                              <Edit2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
                           {canDeleteThisComment && (
                             <button
                               type="button"
@@ -5100,6 +5081,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                               className="w-5 h-5 rounded-full bg-white/10 hover:bg-rose-500/35 flex items-center justify-center text-rose-300/80 hover:text-rose-200 transition-colors"
                             >
                               <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                          {canEditThisComment && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEditComment(act);
+                              }}
+                              title="Edit comment"
+                              aria-label="Edit comment"
+                              className="w-5 h-5 rounded-full bg-white/10 hover:bg-amber-500/35 flex items-center justify-center text-amber-200/85 hover:text-amber-200 transition-colors"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
                             </button>
                           )}
                         </div>
@@ -5129,17 +5124,30 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingComment(null);
-                setInputMessage('');
-              }}
-              className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/80 shrink-0"
-              aria-label="Cancel edit"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingComment(null);
+                  setInputMessage('');
+                }}
+                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white/85 transition-colors"
+                aria-label="Cancel edit"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!inputMessage.trim()}
+                onClick={() => {
+                  void handleSendMessage();
+                }}
+                className="px-2.5 py-1 rounded-full bg-[#FA26A0] hover:bg-[#ff3cad] disabled:opacity-45 text-[10px] font-bold text-white transition-colors shadow-sm"
+                aria-label="Save edit"
+              >
+                Save
+              </button>
+            </div>
           </div>
         )}
 
@@ -5226,6 +5234,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
               }
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && editingComment) {
+                  e.preventDefault();
+                  setEditingComment(null);
+                  setInputMessage('');
+                }
+              }}
               className="w-full bg-transparent text-xs text-white placeholder-white/50 outline-none font-medium"
             />
             {inputMessage.trim() && (
