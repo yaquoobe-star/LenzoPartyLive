@@ -192,6 +192,14 @@ public class MediaPermissionsPlugin extends Plugin {
             if (audioManager != null) {
                 if (enabled) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        if (activeFocusRequest != null) {
+                            try {
+                                audioManager.abandonAudioFocusRequest(activeFocusRequest);
+                            } catch (Exception ignored) {
+                                // ignore
+                            }
+                            activeFocusRequest = null;
+                        }
                         AudioAttributes attrs = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -203,10 +211,38 @@ public class MediaPermissionsPlugin extends Plugin {
                         audioManager.requestAudioFocus(activeFocusRequest);
                     }
                     audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-                    // Only enable speakerphone if no wired or Bluetooth headset is connected
+                    audioManager.setMicrophoneMute(false);
+                    // Route to speakerphone when no wired or Bluetooth headset is connected (including Android 12+ API 31+)
                     boolean hasHeadset = isExternalHeadsetConnected(audioManager);
-                    audioManager.setSpeakerphoneOn(!hasHeadset);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (!hasHeadset) {
+                            AudioDeviceInfo speakerDevice = null;
+                            for (AudioDeviceInfo dev : audioManager.getAvailableCommunicationDevices()) {
+                                if (dev.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                                    speakerDevice = dev;
+                                    break;
+                                }
+                            }
+                            if (speakerDevice != null) {
+                                audioManager.setCommunicationDevice(speakerDevice);
+                            } else {
+                                audioManager.setSpeakerphoneOn(true);
+                            }
+                        } else {
+                            audioManager.clearCommunicationDevice();
+                            audioManager.setSpeakerphoneOn(false);
+                        }
+                    } else {
+                        audioManager.setSpeakerphoneOn(!hasHeadset);
+                    }
                 } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            audioManager.clearCommunicationDevice();
+                        } catch (Exception ignored) {
+                            // ignore
+                        }
+                    }
                     audioManager.setSpeakerphoneOn(false);
                     audioManager.setMode(AudioManager.MODE_NORMAL);
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activeFocusRequest != null) {

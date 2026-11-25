@@ -438,6 +438,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const hasExplicitlyLeftRef = useRef<boolean>(false);
   const voiceJoinedRef = useRef<boolean>(false);
   const activePublishedRoleRef = useRef<'host' | 'audience' | null>(null);
+  const isRoleSyncInFlightRef = useRef<boolean>(false);
   const pendingPromotedAgoraTokenRef = useRef<string | null>(null);
   const hadPendingSeatReqRef = useRef<boolean>(false);
   const cancelledOwnReqRef = useRef<boolean>(false);
@@ -773,7 +774,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   }, [seatRequests, canModerate, currentUser.id]);
 
-  // Unlock browser / Android WebView remote audio automatically on the user's first tap anywhere in the room
+  // Unlock browser / Android WebView remote audio automatically on the user's tap anywhere in the room
   useEffect(() => {
     if (isSpeakerMuted) return;
     const unlockAudioOnGesture = () => {
@@ -782,10 +783,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       setAutoplayBlocked(false);
     };
     window.addEventListener('pointerdown', unlockAudioOnGesture, { passive: true });
-    window.addEventListener('touchstart', unlockAudioOnGesture, { passive: true });
     return () => {
       window.removeEventListener('pointerdown', unlockAudioOnGesture);
-      window.removeEventListener('touchstart', unlockAudioOnGesture);
     };
   }, [isSpeakerMuted]);
 
@@ -2051,65 +2050,67 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
   }, [room.id, currentUser.id, isRoomHost]);
 
+  // Helper: attach local volume analyser directly to Agora's live microphone track (ZERO duplicate getUserMedia!)
+  const attachMicAnalyserFromAgora = () => {
+    if (realMicAnalyserRef.current) {
+      realMicAnalyserRef.current.cleanup();
+      realMicAnalyserRef.current = null;
+    }
+    const agoraTrack = agoraRtcService.getLocalAudioTrack();
+    const rawMediaTrack = agoraTrack?.getMediaStreamTrack?.();
+    if (rawMediaTrack && rawMediaTrack.readyState === 'live') {
+      realMicAnalyserRef.current = createAudioAnalyser(new MediaStream([rawMediaTrack]));
+    }
+  };
+
   // Unified Real-Time Party Voice Engine (Agora RTC + WebRTC Audio Mesh Fallback)
   // Strictly isolated per room via deterministic unique Agora channel name + scoped teardown
   useEffect(() => {
     let isMounted = true;
     const partyAgoraChannel = buildPartyAgoraChannelName(room.id);
+    const nativeAudioOwnerId = `party_audio_${room.id}_${currentUser.id}`;
     voiceJoinedRef.current = false;
     activePublishedRoleRef.current = null;
-    const initiallySeated = seatsRef.current.some((s) => s?.id === currentUser.id);
-    const effectiveMuted = isMicMutedRef.current || mutedSeatIndicesRef.current.includes(
-      seatsRef.current.findIndex((s) => s?.id === currentUser.id)
-    );
-    const initialRole: 'host' | 'audience' = initiallySeated ? 'host' : 'audience';
+    isRoleSyncInFlightRef.current = false;
 
     const joinPartyVoice = async () => {
       try {
         setAgoraVoiceState('connecting');
         setVoiceTransport('connecting');
-        void setNativeLiveAudioMode(true);
+        void setNativeLiveAudioMode(true, nativeAudioOwnerId);
 
-        // Tear down any lingering audio session from a previous room BEFORE connecting to this room
+        // Reset speaker mute state to match fresh room entry & tear down any previous room's audio
+        agoraRtcService.setSpeakerMuted(false);
+        webrtcMediaService.setPartySpeakerMuted(false);
         webrtcMediaService.stopPartyVoice();
         if (agoraRtcService.getCurrentChannel() && agoraRtcService.getCurrentChannel() !== partyAgoraChannel) {
           await agoraRtcService.leaveChannel().catch(() => {});
         }
+        if (realMicAnalyserRef.current) {
+          realMicAnalyserRef.current.cleanup();
+          realMicAnalyserRef.current = null;
+        }
+        if (realMicStreamRef.current) {
+          stopMediaStream(realMicStreamRef.current);
+          realMicStreamRef.current = null;
+        }
         if (!isMounted) return;
 
-        // Parallelize real microphone capture + fast Agora token lookup (eliminates redundant sequential config wait!)
-        const micPromise: Promise<MediaStream | null> =
-          initiallySeated && !realMicStreamRef.current
-            ? acquireRealMicrophone()
-                .then((stream) => {
-                  if (!isMounted) {
-                    stopMediaStream(stream);
-                    return null;
-                  }
-                  stream.getAudioTracks().forEach((t) => {
-                    t.enabled = !effectiveMuted;
-                  });
-                  realMicStreamRef.current = stream;
-                  realMicAnalyserRef.current = createAudioAnalyser(stream);
-                  setMicPermissionDenied(false);
-                  return stream;
-                })
-                .catch((micErr) => {
-                  console.warn('[Party Voice] Mic acquisition notice:', micErr);
-                  if (isMounted) setMicPermissionDenied(true);
-                  return null;
-                })
-            : Promise.resolve(realMicStreamRef.current);
+        const computeSeatedAndMuted = () => {
+          const seatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
+          const seated = seatIdx !== -1;
+          const muted = isMicMutedRef.current || (seatIdx !== -1 && mutedSeatIndicesRef.current.includes(seatIdx));
+          return { seated, muted };
+        };
 
-        const tokenPromise = agoraRtcService.requestRtcToken(
+        const initialSnap = computeSeatedAndMuted();
+        const tokenData = await agoraRtcService.requestRtcToken(
           partyAgoraChannel,
           currentUser.id,
-          initiallySeated ? 'broadcaster' : 'audience',
+          initialSnap.seated ? 'broadcaster' : 'audience',
           false,
-          5000
+          8000
         );
-
-        const [localMicStream, tokenData] = await Promise.all([micPromise, tokenPromise]);
         if (!isMounted) return;
 
         const canJoinAgora =
@@ -2117,44 +2118,104 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           (Boolean(tokenData.token) || tokenData.tokenRequired === false);
 
         if (canJoinAgora) {
-          try {
-            await agoraRtcService.joinChannel({
-              appId: tokenData.appId,
-              channelName: partyAgoraChannel,
-              userAccount: currentUser.id,
-              role: initialRole,
-              token: tokenData.token,
-              enableVideo: false,
-              enableAudio: initiallySeated,
-              mediaStream: initiallySeated ? localMicStream : null,
-            });
+          // Re-check seat state after token fetch in case Firestore hydrated seat while awaiting token
+          const latestSnap = computeSeatedAndMuted();
+          let joinRole: 'host' | 'audience' = latestSnap.seated ? 'host' : 'audience';
+          let joinToken = tokenData.token;
+          let joinAccount = tokenData.uid || currentUser.id;
+
+          // If user became seated while audience token was in flight, grab broadcaster token before join
+          if (latestSnap.seated && !initialSnap.seated) {
+            const promotedRes = await agoraRtcService.requestRtcToken(
+              partyAgoraChannel,
+              joinAccount,
+              'broadcaster',
+              false,
+              8000
+            );
+            if (!isMounted) return;
+            if (promotedRes.token) joinToken = promotedRes.token;
+            if (promotedRes.uid) joinAccount = promotedRes.uid;
+          }
+
+          let agoraJoined = false;
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              // Let Agora own the SINGLE hardware microphone capture (no competing raw getUserMedia stream!)
+              await agoraRtcService.joinChannel({
+                appId: tokenData.appId,
+                channelName: partyAgoraChannel,
+                userAccount: joinAccount,
+                role: joinRole,
+                token: joinToken,
+                enableVideo: false,
+                enableAudio: joinRole === 'host',
+                mediaStream: null,
+              });
+              agoraJoined = true;
+              break;
+            } catch (agoraErr) {
+              if ((agoraErr as Error)?.message === 'AGORA_JOIN_SUPERSEDED' || !isMounted) return;
+              console.warn(`[Party Voice] Agora join attempt ${attempt} warning:`, agoraErr);
+              await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
+              if (attempt < 2 && isMounted) {
+                await new Promise((r) => setTimeout(r, 650));
+                if (!isMounted) return;
+              }
+            }
+          }
+
+          if (agoraJoined) {
             if (!isMounted) {
               await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
               return;
             }
-            if (initiallySeated && effectiveMuted) {
-              await agoraRtcService.setMicrophoneMuted(true);
+            const postSnap = computeSeatedAndMuted();
+            if (joinRole === 'host') {
+              const hasTrack = Boolean(agoraRtcService.getLocalAudioTrack());
+              setMicPermissionDenied(!hasTrack && agoraRtcService.getIsMicPermissionDenied());
+              if (hasTrack) {
+                attachMicAnalyserFromAgora();
+              }
+              await agoraRtcService.setMicrophoneMuted(postSnap.muted);
             }
             voiceJoinedRef.current = true;
-            activePublishedRoleRef.current = initialRole;
+            activePublishedRoleRef.current = joinRole;
             setVoiceTransport('agora');
             setAgoraVoiceState('connected');
             return;
-          } catch (agoraErr) {
-            if ((agoraErr as Error)?.message === 'AGORA_JOIN_SUPERSEDED' || !isMounted) return;
-            console.warn('[Party Voice] Agora voice failed, falling back to real-time WebRTC mesh:', agoraErr);
-            await agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
           }
         }
 
         if (!isMounted) return;
 
-        // WebRTC Real-Time Party Voice Mesh fallback (connects within ~1.5-3s, strictly isolated to room.id)
+        // WebRTC Real-Time Party Voice Mesh fallback (only acquires standalone mic stream if Agora unavailable)
+        const fallbackSnap = computeSeatedAndMuted();
+        let fallbackMicStream: MediaStream | null = null;
+        if (fallbackSnap.seated) {
+          try {
+            fallbackMicStream = await acquireRealMicrophone();
+            if (!isMounted) {
+              stopMediaStream(fallbackMicStream);
+              return;
+            }
+            fallbackMicStream.getAudioTracks().forEach((t) => {
+              t.enabled = !fallbackSnap.muted;
+            });
+            realMicStreamRef.current = fallbackMicStream;
+            realMicAnalyserRef.current = createAudioAnalyser(fallbackMicStream);
+            setMicPermissionDenied(false);
+          } catch (micErr) {
+            console.warn('[Party Voice] Fallback mic acquisition notice:', micErr);
+            if (isMounted) setMicPermissionDenied(true);
+          }
+        }
+
         webrtcMediaService.startPartyVoice(
           room.id,
           currentUser.id,
-          initiallySeated,
-          initiallySeated ? localMicStream : null,
+          fallbackSnap.seated,
+          fallbackSnap.seated ? fallbackMicStream : null,
           {
             onStatusChange: (status) => {
               if (!isMounted) return;
@@ -2174,7 +2235,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           }
         );
         voiceJoinedRef.current = true;
-        activePublishedRoleRef.current = initialRole;
+        activePublishedRoleRef.current = fallbackSnap.seated ? 'host' : 'audience';
         setVoiceTransport('webrtc');
         if (isMounted) setAgoraVoiceState('connected');
       } catch (err) {
@@ -2229,43 +2290,52 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       isMounted = false;
       voiceJoinedRef.current = false;
       activePublishedRoleRef.current = null;
+      isRoleSyncInFlightRef.current = false;
       unsubAutoplay();
       unsubStatus();
       unsubVolumes();
       webrtcMediaService.stopPartyVoice(room.id);
       agoraRtcService.leaveChannel(partyAgoraChannel).catch(() => {});
-      void setNativeLiveAudioMode(false);
+      void setNativeLiveAudioMode(false, nativeAudioOwnerId);
     };
   }, [room.id, currentUser.id]);
 
   // Manual user-gesture microphone permission request & publish for seated speakers
   const handleRetryPartyMic = async () => {
     try {
-      const micStream = await acquireRealMicrophone();
+      const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
       if (realMicAnalyserRef.current) {
         realMicAnalyserRef.current.cleanup();
+        realMicAnalyserRef.current = null;
       }
       if (realMicStreamRef.current) {
         stopMediaStream(realMicStreamRef.current);
+        realMicStreamRef.current = null;
       }
-      const effectiveMuted = isMicMuted || isHostMutedOnMySeat;
-      micStream.getAudioTracks().forEach((t) => {
-        t.enabled = !effectiveMuted;
-      });
-      realMicStreamRef.current = micStream;
-      realMicAnalyserRef.current = createAudioAnalyser(micStream);
-      setMicPermissionDenied(false);
 
       if (voiceTransportRef.current === 'agora') {
-        await agoraRtcService.switchRole('host', {
+        agoraRtcService.resetPermissionDeniedFlags();
+        const published = await agoraRtcService.switchRole('host', {
           enableVideo: false,
           enableAudio: true,
-          mediaStream: micStream,
+          mediaStream: null,
           forceRepublish: true,
         });
+        if (!published || !agoraRtcService.getLocalAudioTrack()) {
+          throw new Error('Microphone track unavailable');
+        }
         await agoraRtcService.setMicrophoneMuted(effectiveMuted);
+        attachMicAnalyserFromAgora();
         activePublishedRoleRef.current = 'host';
+        setMicPermissionDenied(false);
       } else {
+        const micStream = await acquireRealMicrophone();
+        micStream.getAudioTracks().forEach((t) => {
+          t.enabled = !effectiveMuted;
+        });
+        realMicStreamRef.current = micStream;
+        realMicAnalyserRef.current = createAudioAnalyser(micStream);
+        setMicPermissionDenied(false);
         webrtcMediaService.updatePartySpeakerRole(true, micStream);
         webrtcMediaService.setPartyMicMuted(effectiveMuted);
         activePublishedRoleRef.current = 'host';
@@ -2277,82 +2347,105 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
-  // Synchronize seat join / seat leave role changes ONLY when role actually transitions!
+  // Synchronize seat join / seat leave role changes cleanly without competing with mute toggles
   useEffect(() => {
     let active = true;
     const syncSeatRole = async () => {
       if (!voiceJoinedRef.current || voiceTransport === 'connecting') return;
       const targetRole: 'host' | 'audience' = isCurrentlySeated ? 'host' : 'audience';
-      if (activePublishedRoleRef.current === targetRole) {
+      if (
+        activePublishedRoleRef.current === targetRole &&
+        (targetRole === 'audience' ||
+          voiceTransport !== 'agora' ||
+          Boolean(agoraRtcService.getLocalAudioTrack()))
+      ) {
         return;
       }
 
-      if (isCurrentlySeated) {
-        let micStream = realMicStreamRef.current;
-        const hasLiveAudio = micStream?.getAudioTracks().some((t) => t.readyState === 'live');
-        if (!micStream || !hasLiveAudio) {
-          try {
-            if (micStream) stopMediaStream(micStream);
-            micStream = await acquireRealMicrophone();
-            if (!active) {
-              stopMediaStream(micStream);
-              return;
+      isRoleSyncInFlightRef.current = true;
+      try {
+        if (isCurrentlySeated) {
+          const effectiveMuted = isMicMutedRef.current || isHostMutedOnMySeat;
+          if (voiceTransport === 'agora') {
+            // Release any leftover raw WebRTC mic stream before Agora opens the single hardware mic
+            if (realMicStreamRef.current) {
+              stopMediaStream(realMicStreamRef.current);
+              realMicStreamRef.current = null;
             }
-            realMicStreamRef.current = micStream;
-            if (realMicAnalyserRef.current) {
-              realMicAnalyserRef.current.cleanup();
+            const promotedToken = pendingPromotedAgoraTokenRef.current;
+            pendingPromotedAgoraTokenRef.current = null;
+            const switched = await agoraRtcService.switchRole('host', {
+              enableVideo: false,
+              enableAudio: true,
+              mediaStream: null,
+              token: promotedToken,
+            });
+            if (!active) return;
+            if (switched) {
+              activePublishedRoleRef.current = 'host';
+              setMicPermissionDenied(false);
+              attachMicAnalyserFromAgora();
+              const latestMuted = isMicMutedRef.current || mutedSeatIndicesRef.current.includes(
+                seatsRef.current.findIndex((s) => s?.id === currentUser.id)
+              );
+              await agoraRtcService.setMicrophoneMuted(latestMuted);
+            } else {
+              setMicPermissionDenied(agoraRtcService.getIsMicPermissionDenied());
             }
-            realMicAnalyserRef.current = createAudioAnalyser(micStream);
-            setMicPermissionDenied(false);
-          } catch (err) {
-            console.warn('[Party Voice] Mic unavailable when taking seat:', err);
-            if (active) setMicPermissionDenied(true);
-          }
-        }
-        const effectiveMuted = isMicMutedRef.current || isHostMutedOnMySeat;
-        if (micStream) {
-          micStream.getAudioTracks().forEach((t) => {
-            t.enabled = !effectiveMuted;
-          });
-        }
-        if (voiceTransport === 'agora') {
-          const promotedToken = pendingPromotedAgoraTokenRef.current;
-          pendingPromotedAgoraTokenRef.current = null;
-          const switched = await agoraRtcService.switchRole('host', {
-            enableVideo: false,
-            enableAudio: true,
-            mediaStream: micStream,
-            token: promotedToken,
-          });
-          if (switched) {
+          } else if (voiceTransport === 'webrtc') {
+            let micStream = realMicStreamRef.current;
+            const hasLiveAudio = micStream?.getAudioTracks().some((t) => t.readyState === 'live');
+            if (!micStream || !hasLiveAudio) {
+              try {
+                if (micStream) stopMediaStream(micStream);
+                micStream = await acquireRealMicrophone();
+                if (!active) {
+                  stopMediaStream(micStream);
+                  return;
+                }
+                realMicStreamRef.current = micStream;
+                if (realMicAnalyserRef.current) {
+                  realMicAnalyserRef.current.cleanup();
+                }
+                realMicAnalyserRef.current = createAudioAnalyser(micStream);
+                setMicPermissionDenied(false);
+              } catch (err) {
+                console.warn('[Party Voice] Mic unavailable when taking seat:', err);
+                if (active) setMicPermissionDenied(true);
+              }
+            }
+            if (micStream) {
+              micStream.getAudioTracks().forEach((t) => {
+                t.enabled = !effectiveMuted;
+              });
+            }
+            webrtcMediaService.updatePartySpeakerRole(true, micStream);
+            webrtcMediaService.setPartyMicMuted(effectiveMuted);
             activePublishedRoleRef.current = 'host';
-            await agoraRtcService.setMicrophoneMuted(effectiveMuted);
           }
-        } else if (voiceTransport === 'webrtc') {
-          webrtcMediaService.updatePartySpeakerRole(true, micStream);
-          webrtcMediaService.setPartyMicMuted(effectiveMuted);
-          activePublishedRoleRef.current = 'host';
+        } else {
+          // Stepped down from seat -> switch cleanly to listener and release mic
+          setMicPermissionDenied(false);
+          if (voiceTransport === 'agora') {
+            await agoraRtcService.switchRole('audience', { enableVideo: false, enableAudio: false });
+          } else if (voiceTransport === 'webrtc') {
+            webrtcMediaService.updatePartySpeakerRole(false, null);
+          }
+          activePublishedRoleRef.current = 'audience';
+          if (realMicAnalyserRef.current) {
+            realMicAnalyserRef.current.cleanup();
+            realMicAnalyserRef.current = null;
+          }
+          if (realMicStreamRef.current) {
+            stopMediaStream(realMicStreamRef.current);
+            realMicStreamRef.current = null;
+          }
+          setRealMicVolume(0);
         }
-      } else {
-        // Stepped down from seat -> switch cleanly to listener and release mic
-        setMicPermissionDenied(false);
-        if (voiceTransport === 'agora') {
-          await agoraRtcService.switchRole('audience', { enableVideo: false, enableAudio: false });
-        } else if (voiceTransport === 'webrtc') {
-          webrtcMediaService.updatePartySpeakerRole(false, null);
-        }
-        activePublishedRoleRef.current = 'audience';
-        if (realMicAnalyserRef.current) {
-          realMicAnalyserRef.current.cleanup();
-          realMicAnalyserRef.current = null;
-        }
-        if (realMicStreamRef.current) {
-          stopMediaStream(realMicStreamRef.current);
-          realMicStreamRef.current = null;
-        }
-        setRealMicVolume(0);
+        void updateFirestoreRoomParticipantState(room.id, { isSpeaker: isCurrentlySeated });
+      } finally {
+        isRoleSyncInFlightRef.current = false;
       }
-      void updateFirestoreRoomParticipantState(room.id, { isSpeaker: isCurrentlySeated });
     };
 
     void syncSeatRole();
@@ -2361,7 +2454,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
   }, [isCurrentlySeated, voiceTransport, agoraVoiceState]);
 
-  // Lightweight local mute toggle & speaking volume meter (Zero track teardown!)
+  // Lightweight local mute toggle & speaking volume meter (Zero track teardown & zero race with seat promotion!)
   useEffect(() => {
     const effectiveMuted = isMicMuted || isHostMutedOnMySeat || !isCurrentlySeated;
     if (realMicStreamRef.current) {
@@ -2369,10 +2462,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         t.enabled = !effectiveMuted;
       });
     }
-    if (!effectiveMuted && voiceTransportRef.current === 'agora' && voiceJoinedRef.current) {
-      void agoraRtcService.ensureLocalAudioPublished(false);
-    } else {
-      void agoraRtcService.setMicrophoneMuted(effectiveMuted);
+    if (
+      voiceTransportRef.current === 'agora' &&
+      voiceJoinedRef.current &&
+      !isRoleSyncInFlightRef.current &&
+      activePublishedRoleRef.current === 'host'
+    ) {
+      if (!effectiveMuted && !agoraRtcService.getLocalAudioTrack()) {
+        void agoraRtcService.ensureLocalAudioPublished(false).then((ok) => {
+          if (ok) attachMicAnalyserFromAgora();
+        });
+      } else {
+        void agoraRtcService.setMicrophoneMuted(effectiveMuted);
+      }
     }
     webrtcMediaService.setPartyMicMuted(effectiveMuted);
 
@@ -2731,7 +2833,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       }
     }
     void releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
-    webrtcMediaService.stopPartyVoice();
+    webrtcMediaService.stopPartyVoice(room.id);
     if (realMicAnalyserRef.current) {
       realMicAnalyserRef.current.cleanup();
       realMicAnalyserRef.current = null;
@@ -2740,7 +2842,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       stopMediaStream(realMicStreamRef.current);
       realMicStreamRef.current = null;
     }
-    await agoraRtcService.leaveChannel().catch(() => {});
+    await agoraRtcService.leaveChannel(buildPartyAgoraChannelName(room.id)).catch(() => {});
     const [serverUpdatedRoom] = await Promise.all([
       liveAndRoomService.leavePartyRoom(room.id, currentUser.id).catch(() => null),
       targetSeatIdx !== undefined

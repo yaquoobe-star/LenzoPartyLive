@@ -1757,7 +1757,7 @@ class WebRtcMediaService {
   }
 
   public stopPartyVoice(expectedRoomId?: string) {
-    if (expectedRoomId && this.partyRoomId && this.partyRoomId !== expectedRoomId) {
+    if (expectedRoomId && this.partyRoomId !== expectedRoomId) {
       return;
     }
     this.partySessionGen += 1;
@@ -1832,6 +1832,7 @@ class WebRtcMediaService {
     this.teardownPartyMixer();
     this.partyMusicTrack = null;
     this.partyMicMuted = false;
+    this.partySpeakerMuted = false;
     this.partyLocalStream = null;
     this.partyCallbacks = null;
     this.partyRoomId = null;

@@ -73,7 +73,22 @@ export async function openNativeAppSettings(): Promise<boolean> {
   return false;
 }
 
-export async function setNativeLiveAudioMode(enabled: boolean): Promise<void> {
+const activeNativeAudioModeOwners = new Set<string>();
+
+export async function setNativeLiveAudioMode(enabled: boolean, ownerId?: string): Promise<void> {
+  if (ownerId) {
+    if (enabled) {
+      activeNativeAudioModeOwners.add(ownerId);
+    } else {
+      activeNativeAudioModeOwners.delete(ownerId);
+      if (activeNativeAudioModeOwners.size > 0) {
+        return;
+      }
+    }
+  } else if (!enabled) {
+    activeNativeAudioModeOwners.clear();
+  }
+
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
       await NativeMediaPermissions.setCommunicationAudioMode({ enabled });
