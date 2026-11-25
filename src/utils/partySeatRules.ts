@@ -18,16 +18,16 @@ export const PARTY_SEAT_TIERS: PartySeatTierInfo[] = [
     minLevel: 0,
     title: '5 Seats',
     shortLabel: '5 Seats',
-    description: 'All 5 party seats open by default',
+    description: 'Compact 5-seat party stage',
   },
   {
     tierNumber: 2,
     tierLabel: 'Level 2',
     maxSeats: 8,
-    minLevel: 10,
+    minLevel: 0,
     title: '8 Seats',
     shortLabel: '8 Seats',
-    description: '5 upper seats + 3 lower seats (unlocks at Lv.10)',
+    description: 'All 8 party seats unlocked by default',
   },
   {
     tierNumber: 3,
@@ -55,14 +55,13 @@ export function getAllowedSeatTierForLevel(rawHostLevel?: number | null): {
 } {
   const hostLevel = sanitizeUserLevel(rawHostLevel);
   const isCoHostSeatUnlocked = true;
-  const canSelect8Seats = hostLevel >= 10;
+  const canSelect8Seats = true;
   const canSelect16Seats = hostLevel >= 20;
 
-  const unlockedOptions: PartySeatCount[] = [5];
-  if (canSelect8Seats) unlockedOptions.push(8);
+  const unlockedOptions: PartySeatCount[] = [5, 8];
   if (canSelect16Seats) unlockedOptions.push(16);
 
-  const maxUnlockedSeats: PartySeatCount = canSelect16Seats ? 16 : canSelect8Seats ? 8 : 5;
+  const maxUnlockedSeats: PartySeatCount = canSelect16Seats ? 16 : 8;
 
   return {
     hostLevel,
@@ -77,7 +76,7 @@ export function getAllowedSeatTierForLevel(rawHostLevel?: number | null): {
 export function isSeatModeUnlockedForLevel(seats: PartySeatCount, rawHostLevel?: number | null): boolean {
   const hostLevel = sanitizeUserLevel(rawHostLevel);
   if (seats === 16) return hostLevel >= 20;
-  if (seats === 8) return hostLevel >= 10;
+  if (seats === 8) return true;
   return true;
 }
 
@@ -88,16 +87,15 @@ export function clampPartyMaxSeatsForHostLevel(
   const hostLevel = sanitizeUserLevel(rawHostLevel);
   const num = Number(requestedSeats);
   if (num === 16 && hostLevel >= 20) return 16;
-  if (num === 8 && hostLevel >= 10) return 8;
+  if (num === 8) return 8;
   if (num === 5 || num === 4) return 5;
   return getAllowedSeatTierForLevel(hostLevel).maxUnlockedSeats;
 }
 
 /**
  * Normalizes a party room's seat count.
- * Whenever `hostLevel` is provided, strictly clamps `maxSeats` to the host's unlocked tier:
- * - Lv.0–9  => max 5 seats (all 5 seats open by default)
- * - Lv.10–19 => 5 or 8 seats
+ * Whenever `hostLevel` is provided, clamps `maxSeats` to the host's unlocked tier:
+ * - Lv.0–19 => 5 or 8 seats (all 8 seats unlocked by default at Lv.0)
  * - Lv.20+  => 5, 8, or 16 seats
  */
 export function normalizePartyMaxSeats(raw?: number | null, hostLevel?: number | null): PartySeatCount {
@@ -108,7 +106,7 @@ export function normalizePartyMaxSeats(raw?: number | null, hostLevel?: number |
   if (num === 16) return 16;
   if (num === 8) return 8;
   if (num === 5 || num === 4) return 5;
-  return 5;
+  return 8;
 }
 
 /**

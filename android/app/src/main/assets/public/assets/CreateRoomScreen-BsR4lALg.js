@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { D as Sparkles, Dt as Image, Kt as Eye, Ln as ArrowLeft, bt as LoaderCircle, d as Users, g as Upload, qt as EyeOff, tn as Crown, vn as Check, vt as Lock, xn as Camera, zn as require_react } from "./vendor-icons-RA12uJu8.js";
 import { r as auth } from "./firebase-CIREZBAE.js";
-import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-DuNFmwBw.js";
+import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-CTl31ZXe.js";
 import { i as require_jsx_runtime } from "./vendor-motion-BNHB1rOc.js";
 // src/components/screens/CreateRoomScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
@@ -393,7 +393,7 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 									const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
 									const selected = maxSeats === tier.maxSeats;
 									const tierLabelText = `${tier.maxSeats} Seats`;
-									const subText = tier.maxSeats === 5 ? "Free Tier" : unlocked ? "Unlocked" : `Lv.${tier.minLevel} Lock`;
+									const subText = tier.maxSeats === 5 || tier.maxSeats === 8 ? "Free Tier" : unlocked ? "Unlocked" : `Lv.${tier.minLevel} Lock`;
 									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 										type: "button",
 										onClick: () => {
@@ -447,13 +447,13 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: `px-2.5 py-1.5 rounded-xl border ${hostLevel >= 10 ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-200" : "bg-[#10091A] border-white/10 text-white/55"}`,
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "font-black block",
-											children: [hostLevel >= 10 ? "✓ " : "🔒 ", "Lv.10 • 8 Seats"]
+											children: "✓ Default • 8 Seats"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[9px] text-white/70",
-											children: "+3 Lower Guest Seats Added"
+											children: "All 8 Seats Open at Lv.0"
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {

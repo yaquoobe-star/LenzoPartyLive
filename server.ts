@@ -476,7 +476,16 @@ interface ServerPartyRoom {
   seats: (any | null)[];
   mutedSeatIndices: Set<number>;
   pendingRequests: Map<string, any>;
-  pendingSeatInvites?: Map<string, { seatIndex: number; expiresAt: number }>;
+  pendingSeatInvites?: Map<
+    string,
+    {
+      id: string;
+      seatIndex: number;
+      fromHost: any;
+      createdAt: number;
+      expiresAt: number;
+    }
+  >;
   participants: Map<string, ServerViewerRecord>;
   recentJoinAnnouncements: Map<string, number>;
   messages: any[];
@@ -895,7 +904,7 @@ function deduplicateServerSeats(seats: (any | null)[], targetLen: number): (any 
 function serializePartyRoom(room: ServerPartyRoom) {
   const safeMaxSeats = Math.max(
     clampServerMaxSeatsForHostLevel(room.maxSeats, room.host),
-    [5, 8, 16].includes(room.maxSeats) ? room.maxSeats : 5,
+    [5, 8, 16].includes(room.maxSeats) ? room.maxSeats : 8,
     room.seats.length
   );
   const safeSeats = deduplicateServerSeats(room.seats, safeMaxSeats);
@@ -1582,6 +1591,20 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
               room.participants.get(ws.userId)!.lastSeen = Date.now();
             }
           }
+          const rawPendingInvite = ws.userId ? room.pendingSeatInvites?.get(ws.userId) : undefined;
+          const activePendingInvite =
+            rawPendingInvite && rawPendingInvite.expiresAt > Date.now()
+              ? {
+                  id: rawPendingInvite.id,
+                  roomId: room.id,
+                  roomTitle: room.title,
+                  inviteType: 'seat',
+                  seatIndex: rawPendingInvite.seatIndex,
+                  fromHost: rawPendingInvite.fromHost || room.host,
+                  toUserId: ws.userId,
+                  createdAt: rawPendingInvite.createdAt,
+                }
+              : null;
           ws.send(JSON.stringify({
             event: 'room:sync_state',
             payload: {
@@ -1590,6 +1613,7 @@ pkWss.on('connection', (ws: ExtendedWebSocket) => {
               musicState: serializePartyMusicState(room),
               participants: Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt),
               pendingRequests: Array.from(room.pendingRequests.values()),
+              pendingSeatInvite: activePendingInvite,
               messages: room.messages.slice(-50),
               serverTime: Date.now(),
             }
@@ -3388,11 +3412,10 @@ function clampServerMaxSeatsForHostLevel(requested: any, host: any): 5 | 8 | 16 
   const hostLevel = getServerHostLevel(host);
   const num = Number(requested);
   if (num === 16 && hostLevel >= 20) return 16;
-  if (num === 8 && hostLevel >= 10) return 8;
+  if (num === 8) return 8;
   if (num === 5 || num === 4) return 5;
   if (hostLevel >= 20) return 16;
-  if (hostLevel >= 10) return 8;
-  return 5;
+  return 8;
 }
 
 function isServerSeatLockedByHostLevel(_seatIndex: number, _host: any): boolean {
@@ -3591,12 +3614,28 @@ app.post('/api/rooms/:roomId/join', (req: Request, res: Response) => {
     });
   }
 
+  const rawJoinInvite = room.pendingSeatInvites?.get(user.id);
+  const activeJoinInvite =
+    rawJoinInvite && rawJoinInvite.expiresAt > now
+      ? {
+          id: rawJoinInvite.id,
+          roomId: room.id,
+          roomTitle: room.title,
+          inviteType: 'seat',
+          seatIndex: rawJoinInvite.seatIndex,
+          fromHost: rawJoinInvite.fromHost || room.host,
+          toUserId: user.id,
+          createdAt: rawJoinInvite.createdAt,
+        }
+      : null;
+
   res.json({
     success: true,
     room: serialized,
     musicState: serializePartyMusicState(room),
     participants: participantsSnapshot,
     pendingRequests: Array.from(room.pendingRequests.values()),
+    pendingSeatInvite: activeJoinInvite,
     messages: room.messages.slice(-50),
   });
 });
@@ -3781,7 +3820,7 @@ app.post('/api/rooms/:roomId/request_seat', (req: Request, res: Response) => {
   const safeMaxSeats = clampServerMaxSeatsForHostLevel(room.maxSeats, room.host);
   if (typeof rawIdx === 'number' && rawIdx >= safeMaxSeats) {
     return res.status(403).json({
-      error: rawIdx >= 8 ? '16-seat stage unlocks at Host Level 20.' : '8-seat stage unlocks at Host Level 10.',
+      error: rawIdx >= 8 ? '16-seat stage unlocks at Host Level 20.' : 'Selected seat exceeds this room\'s current seat limit.',
     });
   }
   const defaultIdx = isServerSeatLockedByHostLevel(1, room.host) ? 2 : 1;
@@ -3822,8 +3861,8 @@ app.post('/api/rooms/:roomId/cancel_seat_request', (req: Request, res: Response)
 app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, res: Response) => {
   const { roomId } = req.params;
   const hostId = req.firebaseUser?.uid || req.body?.hostId;
-  const { applicantId, approve, targetSeatIndex, applicantUser } = req.body;
-  const room = ensurePartyRoomHydrated(roomId, null, hostId);
+  const { applicantId, approve, targetSeatIndex, applicantUser, roomMeta } = req.body;
+  const room = ensurePartyRoomHydrated(roomId, roomMeta || null, hostId);
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found.' });
@@ -4108,7 +4147,7 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   } else if (typeof seatIndex === 'number' && seatIndex >= safeMaxSeats) {
     return res.status(403).json({
-      error: seatIndex >= 8 ? '16-seat stage unlocks at Host Level 20.' : '8-seat stage unlocks at Host Level 10.',
+      error: seatIndex >= 8 ? '16-seat stage unlocks at Host Level 20.' : 'Selected seat exceeds this room\'s current seat limit.',
     });
   }
   res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
@@ -4239,6 +4278,8 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
       ? seatIndex
       : Math.max(1, room.seats.findIndex((s, i) => i > 0 && !s));
 
+  const inviteId = `inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const nowTs = Date.now();
   if (mode === 'seat') {
     const existingOccupant = room.seats[safeSeatIndex];
     if (existingOccupant && existingOccupant.id !== cleanTargetId) {
@@ -4248,13 +4289,16 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
       room.pendingSeatInvites = new Map();
     }
     room.pendingSeatInvites.set(cleanTargetId, {
+      id: inviteId,
       seatIndex: safeSeatIndex,
-      expiresAt: Date.now() + 5 * 60 * 1000,
+      fromHost: room.host,
+      createdAt: nowTs,
+      expiresAt: nowTs + 5 * 60 * 1000,
     });
   }
 
   const invitePayload = {
-    id: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    id: inviteId,
     roomId: room.id,
     roomTitle: room.title,
     inviteType: mode,
@@ -4262,17 +4306,53 @@ app.post('/api/rooms/:roomId/invite', (req: AuthenticatedRequest, res: Response)
     fromHost: room.host,
     toUserId: cleanTargetId,
     toUser: targetUser || { id: cleanTargetId },
-    createdAt: Date.now(),
+    createdAt: nowTs,
   };
 
   if (mode === 'seat') {
-    broadcastToUserInRoom(cleanTargetId, room.id, 'room:seat_invited', invitePayload);
+    // Deliver cleanly once to sockets in the room AND to target user's sockets outside the room (no duplicates)
     broadcastToRoom(room.id, 'room:seat_invited', invitePayload);
+    const outOfRoomMsg = JSON.stringify({ event: 'room:seat_invited', payload: invitePayload, timestamp: nowTs });
+    wss.clients.forEach((client: WebSocket) => {
+      const extClient = client as ExtendedWebSocket;
+      if (
+        extClient.readyState === WebSocket.OPEN &&
+        extClient.userId === cleanTargetId &&
+        extClient.subscribedRoomId !== room.id
+      ) {
+        extClient.send(outOfRoomMsg);
+      }
+    });
   } else {
     broadcastToUser(cleanTargetId, 'room:room_invited', invitePayload);
   }
 
   return res.json({ success: true, invite: invitePayload });
+});
+
+app.post('/api/rooms/:roomId/decline_invite', (req: AuthenticatedRequest, res: Response) => {
+  const { roomId } = req.params;
+  const actorId = req.firebaseUser?.uid || req.body?.userId;
+  const cleanUserId = sanitizeText(actorId, 128);
+  const cleanUserName = sanitizeText(req.body?.userName || 'Guest', 80);
+  const room = partyRoomsMap.get(roomId);
+  if (!room || !cleanUserId) {
+    return res.json({ success: true });
+  }
+  const existingInvite = room.pendingSeatInvites?.get(cleanUserId);
+  const seatIndex =
+    typeof req.body?.seatIndex === 'number'
+      ? req.body.seatIndex
+      : existingInvite?.seatIndex ?? 1;
+  room.pendingSeatInvites?.delete(cleanUserId);
+  broadcastToUser(room.host.id, 'room:seat_invite_declined', {
+    roomId: room.id,
+    userId: cleanUserId,
+    userName: cleanUserName || room.participants.get(cleanUserId)?.name || 'Guest',
+    seatIndex,
+    timestamp: Date.now(),
+  });
+  return res.json({ success: true });
 });
 
 app.get('/api/rooms/:roomId/music', (req: Request, res: Response) => {
@@ -4405,7 +4485,7 @@ app.post('/api/rooms/:roomId/music', (req: AuthenticatedRequest, res: Response) 
       ...nextState,
       positionSec: targetPos,
     };
-  } else if (act === 'stop') {
+  } else if (act === 'stop' || act === 'close') {
     nextState = {
       ...nextState,
       status: 'stopped',

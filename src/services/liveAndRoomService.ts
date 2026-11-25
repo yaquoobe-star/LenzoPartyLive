@@ -383,6 +383,7 @@ class LiveAndRoomService {
     musicState?: PartyMusicState;
     participants?: LiveViewerInfo[];
     pendingRequests: any[];
+    pendingSeatInvite?: any;
     messages: ChatMessage[];
   }> {
     const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/join`, {
@@ -412,7 +413,7 @@ class LiveAndRoomService {
   public async updateRoomMusicState(params: {
     roomId: string;
     hostId: string;
-    action: 'play' | 'load' | 'pause' | 'resume' | 'stop' | 'seek' | 'next' | 'previous' | 'volume' | 'queue_update';
+    action: 'play' | 'load' | 'pause' | 'resume' | 'stop' | 'close' | 'seek' | 'next' | 'previous' | 'volume' | 'queue_update';
     track?: PartyMusicTrackMeta | null;
     queue?: PartyMusicTrackMeta[];
     currentIndex?: number;
@@ -686,6 +687,23 @@ class LiveAndRoomService {
       return { success: true, invite: data.invite };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Could not send invitation' };
+    }
+  }
+
+  public async declineSeatInvite(
+    roomId: string,
+    userId: string,
+    userName?: string,
+    seatIndex?: number
+  ): Promise<{ success: boolean }> {
+    try {
+      const res = await apiFetch(`/api/rooms/${encodeURIComponent(roomId)}/decline_invite`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, userName, seatIndex }),
+      });
+      return { success: res.ok };
+    } catch {
+      return { success: false };
     }
   }
 

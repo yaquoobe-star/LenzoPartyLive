@@ -494,7 +494,7 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
             />
           </div>
 
-          {/* Room Type: Level 1 (4/5 Seats), Level 2 (8 Seats @ Lv.10), Level 3 (16 Seats @ Lv.20) */}
+          {/* Room Type: Level 1 (5 Seats), Level 2 (8 Seats @ Lv.0), Level 3 (16 Seats @ Lv.20) */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-bold text-white">Room Seat Mode</label>
@@ -509,7 +509,7 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
                 const selected = maxSeats === tier.maxSeats;
                 const tierLabelText = `${tier.maxSeats} Seats`;
                 const subText =
-                  tier.maxSeats === 5
+                  tier.maxSeats === 5 || tier.maxSeats === 8
                     ? 'Free Tier'
                     : unlocked
                     ? 'Unlocked'
@@ -584,17 +584,9 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
                 <span className="font-black block">✓ Side Seat #2 Open</span>
                 <span className="text-[9px] text-white/70">Unlocked for All Hosts</span>
               </div>
-              <div
-                className={`px-2.5 py-1.5 rounded-xl border ${
-                  hostLevel >= 10
-                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
-                    : 'bg-[#10091A] border-white/10 text-white/55'
-                }`}
-              >
-                <span className="font-black block">
-                  {hostLevel >= 10 ? '✓ ' : '🔒 '}Lv.10 • 8 Seats
-                </span>
-                <span className="text-[9px] text-white/70">+3 Lower Guest Seats Added</span>
+              <div className="px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200">
+                <span className="font-black block">✓ Default • 8 Seats</span>
+                <span className="text-[9px] text-white/70">All 8 Seats Open at Lv.0</span>
               </div>
               <div
                 className={`px-2.5 py-1.5 rounded-xl border ${

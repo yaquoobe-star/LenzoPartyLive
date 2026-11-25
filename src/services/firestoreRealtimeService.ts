@@ -11,7 +11,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { ChatMessage, LiveViewerInfo, UserProfile } from '../types';
+import { ChatMessage, LiveViewerInfo, PartyMusicState, PartyMusicTrackMeta, SeatInviteEntry, UserProfile } from '../types';
 import {
   clampPartyMaxSeatsForHostLevel,
   isSeatLockedByHostLevel,
@@ -954,7 +954,7 @@ export async function syncFirestorePartyRoomState(
             )
           : [5, 8, 16].includes(patch.maxSeats)
           ? patch.maxSeats
-          : 5
+          : 8
         : undefined;
 
     if (Array.isArray(patch.seats)) {
@@ -1078,7 +1078,7 @@ export async function submitFirestoreSeatRequest(
         throw new Error(
           request.seatIndex >= 8
             ? '16-seat stage unlocks at Host Level 20.'
-            : '8-seat stage unlocks at Host Level 10.'
+            : 'Selected seat is outside this room\'s current seat layout.'
         );
       }
       const safeIndex =
@@ -1142,7 +1142,7 @@ export async function respondFirestoreSeatRequest(
   applicant: UserProfile,
   approve: boolean,
   preferredSeatIndex: number,
-  maxSeatsFallback = 5
+  maxSeatsFallback = 8
 ): Promise<{
   success: boolean;
   seats?: (UserProfile | null)[];
@@ -1229,7 +1229,7 @@ export async function takeFirestoreSeatDirect(
   roomId: string,
   seatIndex: number,
   targetUser: UserProfile,
-  maxSeatsFallback = 5
+  maxSeatsFallback = 8
 ): Promise<{
   success: boolean;
   conflict?: boolean;
@@ -1281,7 +1281,14 @@ export async function takeFirestoreSeatDirect(
         ? data.seatRequests
         : [];
       const nextRequests = existingReqs.filter((r) => r?.user?.id !== compactUser.id);
-      tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests });
+      const existingInvites: SeatInviteEntry[] = Array.isArray(data.seatInvites)
+        ? data.seatInvites
+        : [];
+      const nowTs = Date.now();
+      const nextInvites = existingInvites
+        .filter((inv) => inv && inv.toUserId !== compactUser.id && (typeof inv.expiresAt !== 'number' || inv.expiresAt > nowTs))
+        .slice(-20);
+      tx.update(roomRef, { seats: nextSeats, seatRequests: nextRequests, seatInvites: nextInvites });
       return { ok: true as const, seats: nextSeats, seatRequests: nextRequests };
     });
 
@@ -1307,7 +1314,7 @@ export async function vacateFirestoreSeat(
   roomId: string,
   targetUserId: string,
   seatIndex?: number,
-  maxSeatsFallback = 5
+  maxSeatsFallback = 8
 ): Promise<{ success: boolean; seats?: (UserProfile | null)[]; mutedSeatIndices?: number[] }> {
   const uid = auth.currentUser?.uid;
   if (!uid || !isValidFirestoreId(roomId) || !targetUserId) return { success: false };
@@ -1446,5 +1453,193 @@ export async function sendFirestoreRoomHeart(
     return {};
   }
 }
+
+/**
+ * Atomically persist a Host/Moderator seat invitation on the Firestore party room doc
+ * so invited members reliably receive the Accept/Decline popup cross-device (Web <-> Android)
+ * even if WebSocket briefly disconnected or Express restarted.
+ */
+export async function sendFirestoreSeatInvite(
+  roomId: string,
+  fromHost: UserProfile,
+  targetUserId: string,
+  seatIndex: number
+): Promise<{ success: boolean; invite?: SeatInviteEntry; error?: string }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId) || !targetUserId) {
+    return { success: false, error: 'Authentication required.' };
+  }
+  const compactHost = compactSeatUser(fromHost);
+  if (!compactHost) {
+    return { success: false, error: 'Invalid host profile.' };
+  }
+
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    const invite = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) {
+        throw new Error('Party room not found.');
+      }
+      const data = snap.data() as Record<string, any>;
+      const hostLevel = sanitizeUserLevel(data.host?.level);
+      const rawSeats: (UserProfile | null)[] = Array.isArray(data.seats) ? data.seats : [];
+      const storedMax =
+        typeof data.maxSeats === 'number' && [5, 8, 16].includes(data.maxSeats)
+          ? data.maxSeats
+          : clampPartyMaxSeatsForHostLevel(data.maxSeats ?? 8, hostLevel);
+      const maxSeats = Math.max(storedMax, rawSeats.length);
+      const safeSeatIndex =
+        typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < maxSeats
+          ? seatIndex
+          : Math.max(1, rawSeats.findIndex((s, i) => i > 0 && !s));
+
+      const occupant = rawSeats[safeSeatIndex];
+      if (occupant && occupant.id !== targetUserId) {
+        throw new Error(`Seat #${safeSeatIndex + 1} is already occupied.`);
+      }
+
+      const now = Date.now();
+      const existingInvites: SeatInviteEntry[] = Array.isArray(data.seatInvites) ? data.seatInvites : [];
+      const newInvite: SeatInviteEntry = {
+        id: `inv_${now}_${Math.random().toString(36).slice(2, 7)}`,
+        seatIndex: safeSeatIndex,
+        toUserId: String(targetUserId),
+        fromHost: compactHost,
+        createdAt: now,
+        expiresAt: now + 5 * 60 * 1000,
+      };
+      const nextInvites = [
+        ...existingInvites.filter(
+          (inv) =>
+            inv &&
+            inv.toUserId &&
+            inv.toUserId !== targetUserId &&
+            (typeof inv.expiresAt !== 'number' || inv.expiresAt > now)
+        ),
+        newInvite,
+      ].slice(-20);
+
+      tx.update(roomRef, { seatInvites: nextInvites });
+      return newInvite;
+    });
+
+    return { success: true, invite };
+  } catch (err: any) {
+    return { success: false, error: String(err?.message || 'Could not send seat invitation.') };
+  }
+}
+
+/**
+ * Atomically remove a pending seat invitation for a user (called on Decline or Accept cleanup).
+ */
+export async function dismissFirestoreSeatInvite(
+  roomId: string,
+  targetUserId: string
+): Promise<{ success: boolean }> {
+  if (!auth.currentUser || !isValidFirestoreId(roomId) || !targetUserId) {
+    return { success: false };
+  }
+  const roomRef = doc(db, 'party_rooms', roomId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(roomRef);
+      if (!snap.exists()) return;
+      const data = snap.data() as Record<string, any>;
+      const existingInvites: SeatInviteEntry[] = Array.isArray(data.seatInvites) ? data.seatInvites : [];
+      const now = Date.now();
+      const nextInvites = existingInvites
+        .filter(
+          (inv) =>
+            inv &&
+            inv.toUserId &&
+            inv.toUserId !== targetUserId &&
+            (typeof inv.expiresAt !== 'number' || inv.expiresAt > now)
+        )
+        .slice(-20);
+      tx.update(roomRef, { seatInvites: nextInvites });
+    });
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+}
+
+function compactMusicTrackForFirestore(track: PartyMusicTrackMeta | null | undefined): PartyMusicTrackMeta | null {
+  if (!track || typeof track !== 'object') return null;
+  const clean: PartyMusicTrackMeta = {
+    id: String(track.id || `trk_${Date.now()}`).slice(0, 128),
+    title: String(track.title || 'Untitled Track').slice(0, 140),
+    sourceType:
+      track.sourceType === 'gallery_video' || track.sourceType === 'youtube'
+        ? track.sourceType
+        : 'gallery_audio',
+    durationSec: Number.isFinite(Number(track.durationSec))
+      ? Math.max(0, Math.min(86400, Number(track.durationSec)))
+      : 0,
+  };
+  if (track.artist) clean.artist = String(track.artist).slice(0, 100);
+  if (track.youtubeVideoId) clean.youtubeVideoId = String(track.youtubeVideoId).slice(0, 32);
+  if (track.thumbnailUrl) clean.thumbnailUrl = String(track.thumbnailUrl).slice(0, 500);
+  if (track.mimeType) clean.mimeType = String(track.mimeType).slice(0, 80);
+  return clean;
+}
+
+/**
+ * Host-only real-time sync of shared Party Music / YouTube playback state to Cloud Firestore.
+ * Guarantees all existing and newly joining room members stay synchronized even across
+ * Web <-> Android or Express/WebSocket reconnects. Firestore rules strictly forbid non-hosts from writing `musicState`.
+ */
+export async function syncFirestorePartyMusicState(
+  roomId: string,
+  isHost: boolean,
+  musicState: PartyMusicState
+): Promise<boolean> {
+  if (!isHost || !auth.currentUser || !isValidFirestoreId(roomId)) return false;
+  try {
+    const cleanActive = compactMusicTrackForFirestore(musicState.activeTrack);
+    const cleanQueue = Array.isArray(musicState.queue)
+      ? musicState.queue
+          .map((t) => compactMusicTrackForFirestore(t))
+          .filter((t): t is PartyMusicTrackMeta => Boolean(t))
+          .slice(0, 50)
+      : [];
+    const safeStatus: PartyMusicState['status'] =
+      musicState.status === 'playing' ||
+      musicState.status === 'paused' ||
+      musicState.status === 'stopped'
+        ? musicState.status
+        : 'idle';
+    const payload: Record<string, any> = {
+      roomId,
+      hostId: String(musicState.hostId || auth.currentUser.uid),
+      status: safeStatus,
+      activeTrack: safeStatus === 'stopped' || safeStatus === 'idle' ? null : cleanActive,
+      queue: cleanQueue,
+      currentIndex:
+        safeStatus === 'stopped' || safeStatus === 'idle'
+          ? -1
+          : typeof musicState.currentIndex === 'number'
+          ? musicState.currentIndex
+          : -1,
+      positionSec:
+        safeStatus === 'stopped' || safeStatus === 'idle'
+          ? 0
+          : Math.max(0, Number(musicState.positionSec) || 0),
+      volume: Math.max(0, Math.min(100, Math.round(Number(musicState.volume ?? 65)))),
+      updatedAt: typeof musicState.updatedAt === 'number' && musicState.updatedAt > 0 ? musicState.updatedAt : Date.now(),
+      updatedBy: String(musicState.updatedBy || auth.currentUser.uid),
+      audioTransport:
+        safeStatus === 'stopped' || safeStatus === 'idle'
+          ? 'none'
+          : musicState.audioTransport || (cleanActive?.sourceType === 'youtube' ? 'youtube_sync' : 'none'),
+    };
+    await updateDoc(doc(db, 'party_rooms', roomId), { musicState: payload });
+    return true;
+  } catch (err) {
+    console.warn('[Firestore Party Music] sync notice:', err);
+    return false;
+  }
+}
+
 
 

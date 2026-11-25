@@ -264,6 +264,15 @@ export interface PartyMusicState {
   audioTransport: 'agora' | 'webrtc' | 'youtube_sync' | 'none';
 }
 
+export interface SeatInviteEntry {
+  id: string;
+  seatIndex: number;
+  toUserId: string;
+  fromHost: UserProfile;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface PartyRoom {
   id: string;
   title: string;
@@ -284,6 +293,7 @@ export interface PartyRoom {
   isLocked?: boolean;
   allowJoin?: boolean;
   seatRequests?: SeatRequest[];
+  seatInvites?: SeatInviteEntry[];
   isOwnerPresent?: boolean;
   startTime?: number;
   likesCount?: number;

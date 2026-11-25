@@ -196,7 +196,7 @@ export async function kickUserFromRoom(params: {
   durationType: RoomKickDuration;
   maxSeats?: number;
 }): Promise<{ success: boolean; record?: RoomKickRecord; error?: string }> {
-  const { roomId, roomTitle = '', hostId, targetUser, durationType, maxSeats = 5 } = params;
+  const { roomId, roomTitle = '', hostId, targetUser, durationType, maxSeats = 8 } = params;
   if (!isValidId(roomId) || !isValidId(hostId) || !isValidId(targetUser?.id)) {
     return { success: false, error: 'Invalid room or user.' };
   }

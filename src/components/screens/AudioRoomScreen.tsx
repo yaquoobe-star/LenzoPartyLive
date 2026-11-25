@@ -72,6 +72,7 @@ import {
   GiftItem,
   SeatRequest,
   SeatInvitation,
+  SeatInviteEntry,
   LiveViewerInfo,
 } from '../../types';
 import {
@@ -102,6 +103,7 @@ import {
   cancelFirestoreSeatRequest,
   clearFirestoreRoomMessages,
   deleteFirestoreRoomMessage,
+  dismissFirestoreSeatInvite,
   editFirestoreRoomMessage,
   evictFirestoreRoomParticipant,
   FirestoreRoomHeartEvent,
@@ -110,10 +112,12 @@ import {
   respondFirestoreSeatRequest,
   sendFirestoreRoomHeart,
   sendFirestoreRoomMessage,
+  sendFirestoreSeatInvite,
   submitFirestoreSeatRequest,
   subscribeFirestorePartyRoomDoc,
   subscribeFirestoreRoomMessages,
   subscribeFirestoreRoomParticipants,
+  syncFirestorePartyMusicState,
   syncFirestorePartyRoomLifecycle,
   syncFirestorePartyRoomState,
   takeFirestoreSeatDirect,
@@ -577,6 +581,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const [localListenerMusicVol, setLocalListenerMusicVol] = useState(80);
   const localMusicEntriesRef = useRef<Map<string, LocalPartyTrackEntry>>(new Map());
   const musicAutoNextGuardRef = useRef<string | null>(null);
+  const lastAppliedMusicUpdatedAtRef = useRef<number>(room.musicState?.updatedAt || 0);
+  const dismissedInviteIdsRef = useRef<Set<string>>(new Set());
+  const seenSeatRequestIdsRef = useRef<Set<string>>(new Set());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [roomLikesCount, setRoomLikesCount] = useState<number>(room.likesCount || 0);
   const [roomAnnouncement, setRoomAnnouncement] = useState(
@@ -1013,11 +1020,65 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     const applyIncomingMusicState = (incoming?: PartyMusicState | null, serverTime?: number) => {
       if (!incoming || typeof incoming !== 'object') return;
+      const incomingUpdatedAt = typeof incoming.updatedAt === 'number' ? incoming.updatedAt : 0;
+      const isStopping = incoming.status === 'stopped' || incoming.status === 'idle' || !incoming.activeTrack;
+      // Ignore stale snapshots from slower transport (Firestore vs WebSocket), while always honoring newer stop/close
+      if (
+        incomingUpdatedAt > 0 &&
+        lastAppliedMusicUpdatedAtRef.current > 0 &&
+        incomingUpdatedAt < lastAppliedMusicUpdatedAtRef.current
+      ) {
+        return;
+      }
+      if (incomingUpdatedAt > lastAppliedMusicUpdatedAtRef.current) {
+        lastAppliedMusicUpdatedAtRef.current = incomingUpdatedAt;
+      }
       const refServerTime = typeof serverTime === 'number' ? serverTime : incoming.serverTime;
       if (typeof refServerTime === 'number' && refServerTime > 0) {
         setMusicClockOffsetMs(refServerTime - Date.now());
       }
-      setPartyMusicState(incoming);
+      const normalized: PartyMusicState = isStopping
+        ? {
+            ...incoming,
+            status: incoming.status === 'idle' ? 'idle' : 'stopped',
+            activeTrack: null,
+            currentIndex: -1,
+            positionSec: 0,
+            audioTransport: 'none',
+          }
+        : incoming;
+      partyMusicStateRef.current = normalized;
+      setPartyMusicState(normalized);
+      if (isStopping) {
+        setMusicDisplayPosSec(0);
+        setMusicDisplayDurSec(0);
+      }
+    };
+
+    const showIncomingSeatInviteIfEligible = (rawInvite: any, showBannerToast = true) => {
+      if (!rawInvite || typeof rawInvite !== 'object') return;
+      const targetUid = String(rawInvite.toUserId || '');
+      if (!targetUid || targetUid !== currentUser.id) return;
+      if (typeof rawInvite.expiresAt === 'number' && rawInvite.expiresAt <= Date.now()) return;
+      const inviteId = String(rawInvite.id || `inv_${rawInvite.createdAt || Date.now()}`);
+      if (dismissedInviteIdsRef.current.has(inviteId)) return;
+      // Use live seatsRef so we never rely on a stale closure for whether the user is already seated
+      if (seatsRef.current.some((s) => s?.id === currentUser.id)) return;
+      const seatIdx = typeof rawInvite.seatIndex === 'number' ? rawInvite.seatIndex : 1;
+      const hostObj: UserProfile = rawInvite.fromHost || room.host;
+      setIncomingSeatInvite((prev) => {
+        if (prev && prev.id === inviteId) return prev;
+        if (showBannerToast) {
+          showToast(`${hostObj?.name || room.host.name} invited you to Seat #${seatIdx + 1}`);
+        }
+        return {
+          id: inviteId,
+          fromHost: hostObj,
+          toUser: currentUser,
+          seatIndex: seatIdx,
+          sentAt: rawInvite.createdAt || Date.now(),
+        };
+      });
     };
 
     liveAndRoomService
@@ -1028,6 +1089,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           applyServerRoomState(res.room);
         }
         applyIncomingMusicState(res.musicState || res.room?.musicState);
+        if (res.pendingSeatInvite) {
+          showIncomingSeatInviteIfEligible(res.pendingSeatInvite, true);
+        }
         if (Array.isArray(res.participants) && res.participants.length > 0 && !hasFsParticipantsRef.current) {
           const reconciled = reconcileParticipantsWithSeats(res.participants, seatsRef.current);
           setParticipantsList(reconciled);
@@ -1401,6 +1465,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           const filteredFsRequests = (data.seatRequests as SeatRequest[]).filter(
             (r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))
           );
+          if (isRoomHost || isCurrentUserModerator) {
+            filteredFsRequests.forEach((reqItem) => {
+              const reqKey = reqItem.id || `${reqItem.user.id}_${reqItem.seatIndex}`;
+              if (!seenSeatRequestIdsRef.current.has(reqKey)) {
+                seenSeatRequestIdsRef.current.add(reqKey);
+                if (Date.now() - (reqItem.requestedAt || 0) < 30000) {
+                  showToast(`${reqItem.user.name} requested Seat #${reqItem.seatIndex + 1}`);
+                }
+              }
+            });
+          }
           // Notify viewer if their pending seat request was rejected by host cross-device
           if (!isRoomHost) {
             const wasPending = hadPendingSeatReqRef.current;
@@ -1417,6 +1492,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             cancelledOwnReqRef.current = false;
           }
           setSeatRequests(filteredFsRequests);
+        }
+        // Real-time Firestore Seat Invitations (reliable cross-device Web <-> Android delivery)
+        if (Array.isArray(data.seatInvites)) {
+          const myInvite = (data.seatInvites as SeatInviteEntry[]).find(
+            (inv) =>
+              inv &&
+              inv.toUserId === currentUser.id &&
+              (typeof inv.expiresAt !== 'number' || inv.expiresAt > Date.now())
+          );
+          if (myInvite) {
+            showIncomingSeatInviteIfEligible(myInvite, true);
+          }
+        }
+        // Real-time Firestore Shared Party Music / YouTube Sync (Host-authoritative for all existing & joining members)
+        if (data.musicState && typeof data.musicState === 'object') {
+          applyIncomingMusicState(data.musicState as PartyMusicState);
         }
         if (typeof data.likesCount === 'number') {
           setRoomLikesCount((prev) => Math.max(prev, data.likesCount));
@@ -1546,6 +1637,9 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             (payload.musicState || payload.room?.musicState) as PartyMusicState | undefined,
             typeof payload.serverTime === 'number' ? payload.serverTime : undefined
           );
+          if (payload.pendingSeatInvite) {
+            showIncomingSeatInviteIfEligible(payload.pendingSeatInvite, true);
+          }
           if (Array.isArray(payload.pendingRequests) && payload.pendingRequests.length > 0) {
             const incoming: SeatRequest[] = payload.pendingRequests
               .filter((r: any) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id)))
@@ -1567,7 +1661,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           // Intentionally ignore historical payload.messages so room chat starts fresh from entry time.
         }
       } else if (event === 'room:music_updated' && payload.musicState) {
-        applyIncomingMusicState(payload.musicState as PartyMusicState);
+        applyIncomingMusicState(
+          payload.musicState as PartyMusicState,
+          typeof payload.musicState?.serverTime === 'number' ? payload.musicState.serverTime : undefined
+        );
       } else if (event === 'room:participant_joined') {
         if (payload.participant?.userId) {
           clearUserRecentlyLeft(payload.participant.userId);
@@ -1757,15 +1854,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:seat_request_received' || event === 'room:seat_request_updated') {
         const reqObj = payload.requestObj || payload;
         if (reqObj?.user?.id) {
+          const seatIdx = reqObj.requestedSeatIndex ?? reqObj.seatIndex ?? 1;
+          const reqId = reqObj.id || `sr_${Date.now()}`;
           setSeatRequests((prev) => [
             ...prev.filter((r) => r.user.id !== reqObj.user.id),
             {
-              id: reqObj.id || `sr_${Date.now()}`,
+              id: reqId,
               user: reqObj.user,
-              seatIndex: reqObj.requestedSeatIndex ?? reqObj.seatIndex ?? 1,
+              seatIndex: seatIdx,
               requestedAt: reqObj.createdAt || Date.now(),
             },
           ]);
+          if (isRoomHost && !seenSeatRequestIdsRef.current.has(reqId)) {
+            seenSeatRequestIdsRef.current.add(reqId);
+            showToast(`${reqObj.user.name || 'A member'} requested Seat #${seatIdx + 1}`);
+          }
         }
       } else if (event === 'room:seat_request_cancelled' && payload.userId) {
         setSeatRequests((prev) => prev.filter((r) => r.user.id !== payload.userId));
@@ -1779,15 +1882,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         hadPendingSeatReqRef.current = false;
         showToast('Host declined your seat request');
       } else if (event === 'room:seat_invited') {
-        if (payload.toUserId === currentUser.id && !isCurrentlySeated) {
-          setIncomingSeatInvite({
-            id: payload.id || `inv_${Date.now()}`,
-            fromHost: payload.fromHost || room.host,
-            toUser: currentUser,
-            seatIndex: typeof payload.seatIndex === 'number' ? payload.seatIndex : 1,
-            sentAt: payload.createdAt || Date.now(),
+        showIncomingSeatInviteIfEligible(payload, true);
+      } else if (event === 'room:seat_invite_declined') {
+        if (isRoomHost && payload.userId) {
+          setInvitedUserIds((prev) => {
+            const next = { ...prev };
+            delete next[payload.userId];
+            return next;
           });
-          showToast(`${payload.fromHost?.name || room.host.name} invited you to Seat #${(payload.seatIndex ?? 1) + 1}`);
+          showToast(
+            `${payload.userName || 'Member'} declined Seat #${(typeof payload.seatIndex === 'number' ? payload.seatIndex : 1) + 1} invitation`
+          );
         }
       } else if (event === 'room:seat_kicked') {
         // Room Owner is permanently immune to seat kick events
@@ -1901,6 +2006,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (isRoomHost) {
         void partyMusicEngine.stop();
         if (partyMusicStateRef.current.status === 'playing' || partyMusicStateRef.current.status === 'paused') {
+          const stoppedState: PartyMusicState = {
+            ...partyMusicStateRef.current,
+            status: 'stopped',
+            activeTrack: null,
+            currentIndex: -1,
+            positionSec: 0,
+            updatedAt: Date.now(),
+            updatedBy: currentUser.id,
+            audioTransport: 'none',
+          };
+          void syncFirestorePartyMusicState(room.id, true, stoppedState).catch(() => {});
           void liveAndRoomService
             .updateRoomMusicState({
               roomId: room.id,
@@ -2499,7 +2615,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   const openHostInviteModal = (preferredSeat?: number) => {
-    const firstOpenSeat = seats.findIndex(
+    const firstOpenSeat = seatsRef.current.findIndex(
       (s, i) => i > 0 && !s && isSeatIndexAllowedForRoom(i, maxSeats, hostLevel)
     );
     const resolvedSeat =
@@ -2507,8 +2623,11 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         ? preferredSeat
         : firstOpenSeat !== -1
         ? firstOpenSeat
-        : Math.min(2, maxSeats - 1);
-    setInviteModalTab(typeof preferredSeat === 'number' ? 'room' : 'users');
+        : Math.min(1, maxSeats - 1);
+    const hasUnseatedInRoom = participantsListRef.current.some(
+      (p) => p.userId !== currentUser.id && !seatsRef.current.some((s) => s?.id === p.userId)
+    );
+    setInviteModalTab(typeof preferredSeat === 'number' || hasUnseatedInRoom ? 'room' : 'users');
     setShowInviteToSeatModal(resolvedSeat);
     void loadInvitableUsers();
     if (!hasFsParticipantsRef.current) {
@@ -2527,7 +2646,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const handleChangeSeatMode = (targetSeats: PartySeatCount) => {
     if (!isRoomHost) return;
     if (!isSeatModeUnlockedForLevel(targetSeats, hostLevel)) {
-      const reqLv = targetSeats === 16 ? 20 : 10;
+      const reqLv = targetSeats === 16 ? 20 : 0;
       showToast(`Reach Level ${reqLv} to unlock ${targetSeats}-seat Party Rooms (Current: Lv.${hostLevel})`);
       return;
     }
@@ -2587,6 +2706,29 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     if (isRoomHost) {
       await partyMusicEngine.stop().catch(() => {});
+      if (partyMusicStateRef.current.status === 'playing' || partyMusicStateRef.current.status === 'paused') {
+        const stoppedState: PartyMusicState = {
+          ...partyMusicStateRef.current,
+          status: 'stopped',
+          activeTrack: null,
+          currentIndex: -1,
+          positionSec: 0,
+          updatedAt: Date.now(),
+          updatedBy: currentUser.id,
+          audioTransport: 'none',
+        };
+        partyMusicStateRef.current = stoppedState;
+        setPartyMusicState(stoppedState);
+        void syncFirestorePartyMusicState(room.id, true, stoppedState).catch(() => {});
+        void liveAndRoomService
+          .updateRoomMusicState({
+            roomId: room.id,
+            hostId: currentUser.id,
+            action: 'stop',
+            roomMeta: { host: room.host, title: room.title, maxSeats: maxSeatsRef.current },
+          })
+          .catch(() => {});
+      }
     }
     void releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
     webrtcMediaService.stopPartyVoice();
@@ -2629,7 +2771,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       showToast(
         index >= 8
           ? '16-seat stage unlocks when Host reaches Level 20'
-          : '8-seat stage unlocks when Host reaches Level 10'
+          : 'This seat is not active in the current room layout'
       );
       return;
     }
@@ -3201,13 +3343,73 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   // ============================================================================
-  // GLOBAL PARTY MUSIC CONTROLS (Host-Authorized Real Audio Distribution & Sync)
+  // GLOBAL PARTY MUSIC CONTROLS (Host-Authorized Real Audio Distribution & Dual Firestore + WS Sync)
   // ============================================================================
   const musicRoomMeta = () => ({
     host: room.host,
     title: room.title,
     maxSeats: maxSeatsRef.current,
   });
+
+  const commitHostMusicSync = async (
+    nextLocalState: PartyMusicState,
+    expressPayload: {
+      action: 'play' | 'load' | 'pause' | 'resume' | 'stop' | 'close' | 'seek' | 'next' | 'previous' | 'volume' | 'queue_update';
+      track?: PartyMusicTrackMeta | null;
+      queue?: PartyMusicTrackMeta[];
+      currentIndex?: number;
+      positionSec?: number;
+      volume?: number;
+      audioTransport?: 'agora' | 'webrtc' | 'youtube_sync' | 'none';
+    }
+  ): Promise<{ success: boolean; musicState: PartyMusicState; error?: string }> => {
+    const stampedLocal: PartyMusicState = {
+      ...nextLocalState,
+      roomId: room.id,
+      hostId: room.host.id,
+      updatedAt: Math.max(Date.now(), lastAppliedMusicUpdatedAtRef.current + 1),
+      updatedBy: currentUser.id,
+    };
+    lastAppliedMusicUpdatedAtRef.current = stampedLocal.updatedAt;
+    partyMusicStateRef.current = stampedLocal;
+    setPartyMusicState(stampedLocal);
+
+    // Sync to BOTH Cloud Firestore (guaranteed cross-device Web <-> Android + late joiners)
+    // AND Express/WebSocket (instant low-latency broadcast + server clock sync)
+    const [fsOk, res] = await Promise.all([
+      syncFirestorePartyMusicState(room.id, true, stampedLocal),
+      liveAndRoomService.updateRoomMusicState({
+        roomId: room.id,
+        hostId: currentUser.id,
+        ...expressPayload,
+        roomMeta: musicRoomMeta(),
+      }),
+    ]);
+
+    if (res.success && res.musicState) {
+      const serverTs = res.musicState.updatedAt || Date.now();
+      if (serverTs > lastAppliedMusicUpdatedAtRef.current) {
+        lastAppliedMusicUpdatedAtRef.current = serverTs;
+      }
+      if (typeof res.musicState.serverTime === 'number' && res.musicState.serverTime > 0) {
+        setMusicClockOffsetMs(res.musicState.serverTime - Date.now());
+      }
+      partyMusicStateRef.current = res.musicState;
+      setPartyMusicState(res.musicState);
+      return { success: true, musicState: res.musicState };
+    }
+
+    // If Firestore succeeded even though Express was temporarily unreachable, shared playback still works seamlessly!
+    if (fsOk) {
+      return { success: true, musicState: stampedLocal };
+    }
+
+    return {
+      success: false,
+      musicState: stampedLocal,
+      error: res.error || 'Failed to sync room playback.',
+    };
+  };
 
   const startHostTrackAtIndex = async (
     index: number,
@@ -3226,9 +3428,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (track.sourceType === 'youtube') {
       // Ensure any local RTC gallery audio track is cleanly unpublished before switching to YouTube Sync
       await partyMusicEngine.stop();
-      const res = await liveAndRoomService.updateRoomMusicState({
+      const nextState: PartyMusicState = {
         roomId: room.id,
-        hostId: currentUser.id,
+        hostId: room.host.id,
+        status: 'playing',
+        activeTrack: track,
+        queue,
+        currentIndex: index,
+        positionSec: 0,
+        volume: partyMusicStateRef.current.volume,
+        updatedAt: Date.now(),
+        updatedBy: currentUser.id,
+        audioTransport: 'youtube_sync',
+      };
+      const res = await commitHostMusicSync(nextState, {
         action: 'play',
         track,
         queue,
@@ -3236,7 +3449,6 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         positionSec: 0,
         volume: partyMusicStateRef.current.volume,
         audioTransport: 'youtube_sync',
-        roomMeta: musicRoomMeta(),
       });
       if (!res.success) {
         const err = res.error || 'Failed to sync YouTube track to room.';
@@ -3244,8 +3456,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         showToast(err);
         return;
       }
-      if (res.musicState) setPartyMusicState(res.musicState);
-      showToast(`Playing YouTube Sync: ${track.title}`);
+      setMusicDisplayPosSec(0);
+      showToast(`Playing YouTube Sync for everyone: ${track.title}`);
       return;
     }
 
@@ -3278,9 +3490,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
     const updatedQueue = queue.map((t, i) => (i === index ? updatedTrack : t));
 
-    const syncRes = await liveAndRoomService.updateRoomMusicState({
+    const nextState: PartyMusicState = {
       roomId: room.id,
-      hostId: currentUser.id,
+      hostId: room.host.id,
+      status: 'playing',
+      activeTrack: updatedTrack,
+      queue: updatedQueue,
+      currentIndex: index,
+      positionSec: 0,
+      volume: partyMusicStateRef.current.volume,
+      updatedAt: Date.now(),
+      updatedBy: currentUser.id,
+      audioTransport: playResult.transport,
+    };
+
+    await commitHostMusicSync(nextState, {
       action: 'play',
       track: updatedTrack,
       queue: updatedQueue,
@@ -3288,23 +3512,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       positionSec: 0,
       volume: partyMusicStateRef.current.volume,
       audioTransport: playResult.transport,
-      roomMeta: musicRoomMeta(),
     });
 
-    if (syncRes.musicState) {
-      setPartyMusicState(syncRes.musicState);
-    } else {
-      setPartyMusicState((prev) => ({
-        ...prev,
-        status: 'playing',
-        activeTrack: updatedTrack,
-        queue: updatedQueue,
-        currentIndex: index,
-        positionSec: 0,
-        updatedAt: Date.now(),
-        audioTransport: playResult.transport,
-      }));
-    }
     showToast(
       track.sourceType === 'gallery_video'
         ? `Streaming video audio to room: ${track.title}`
@@ -3354,14 +3563,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (shouldAutoPlay) {
       await startHostTrackAtIndex(prevQueue.length, nextQueue);
     } else {
-      const res = await liveAndRoomService.updateRoomMusicState({
-        roomId: room.id,
-        hostId: currentUser.id,
-        action: 'queue_update',
-        queue: nextQueue,
-        roomMeta: musicRoomMeta(),
-      });
-      if (res.musicState) setPartyMusicState(res.musicState);
+      await commitHostMusicSync(
+        { ...partyMusicStateRef.current, queue: nextQueue, updatedAt: Date.now() },
+        { action: 'queue_update', queue: nextQueue }
+      );
       showToast(`Added ${addedTracks.length} track${addedTracks.length > 1 ? 's' : ''} to Party Queue`);
     }
   };
@@ -3411,14 +3616,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (shouldAutoPlay) {
         await startHostTrackAtIndex(prevQueue.length, nextQueue);
       } else {
-        const res = await liveAndRoomService.updateRoomMusicState({
-          roomId: room.id,
-          hostId: currentUser.id,
-          action: 'queue_update',
-          queue: nextQueue,
-          roomMeta: musicRoomMeta(),
-        });
-        if (res.musicState) setPartyMusicState(res.musicState);
+        await commitHostMusicSync(
+          { ...partyMusicStateRef.current, queue: nextQueue, updatedAt: Date.now() },
+          { action: 'queue_update', queue: nextQueue }
+        );
         showToast(`Added "${meta.title}" to Party Queue`);
       }
       return true;
@@ -3493,21 +3694,21 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (st.activeTrack.sourceType !== 'youtube') {
         pos = await partyMusicEngine.pause();
       }
-      const res = await liveAndRoomService.updateRoomMusicState({
-        roomId: room.id,
-        hostId: currentUser.id,
-        action: 'pause',
-        positionSec: pos,
-        roomMeta: musicRoomMeta(),
-      });
-      if (res.musicState) setPartyMusicState(res.musicState);
+      await commitHostMusicSync(
+        {
+          ...st,
+          status: 'paused',
+          positionSec: pos,
+          updatedAt: Date.now(),
+        },
+        { action: 'pause', positionSec: pos }
+      );
     } else if (st.status === 'paused') {
       let pos = st.positionSec;
       if (st.activeTrack.sourceType !== 'youtube') {
         try {
           pos = await partyMusicEngine.resume();
         } catch {
-          // If local engine needs reload, restart from saved position
           const idx = st.queue.findIndex((t) => t.id === st.activeTrack?.id);
           if (idx >= 0) {
             await startHostTrackAtIndex(idx);
@@ -3515,41 +3716,76 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           }
         }
       }
-      const res = await liveAndRoomService.updateRoomMusicState({
-        roomId: room.id,
-        hostId: currentUser.id,
-        action: 'resume',
-        positionSec: pos,
-        audioTransport: st.activeTrack.sourceType === 'youtube' ? 'youtube_sync' : partyMusicEngine.getState().transport,
-        roomMeta: musicRoomMeta(),
-      });
-      if (res.musicState) setPartyMusicState(res.musicState);
+      const transport =
+        st.activeTrack.sourceType === 'youtube' ? 'youtube_sync' : partyMusicEngine.getState().transport;
+      await commitHostMusicSync(
+        {
+          ...st,
+          status: 'playing',
+          positionSec: pos,
+          audioTransport: transport,
+          updatedAt: Date.now(),
+        },
+        { action: 'resume', positionSec: pos, audioTransport: transport }
+      );
+    }
+  };
+
+  // Propagate direct Host clicks (pause/play/seek) inside the embedded YouTube iframe to all room members
+  const handleHostYouTubeIframeChange = async (
+    event: 'playing' | 'paused' | 'seek',
+    currentTimeSec: number
+  ) => {
+    if (!isRoomHost) return;
+    const st = partyMusicStateRef.current;
+    if (!st.activeTrack || st.activeTrack.sourceType !== 'youtube') return;
+    const safePos = Math.max(0, Number(currentTimeSec) || 0);
+    setMusicDisplayPosSec(safePos);
+
+    if (event === 'paused') {
+      await commitHostMusicSync(
+        { ...st, status: 'paused', positionSec: safePos, updatedAt: Date.now() },
+        { action: 'pause', positionSec: safePos }
+      );
+    } else if (event === 'playing') {
+      await commitHostMusicSync(
+        {
+          ...st,
+          status: 'playing',
+          positionSec: safePos,
+          audioTransport: 'youtube_sync',
+          updatedAt: Date.now(),
+        },
+        { action: 'resume', positionSec: safePos, audioTransport: 'youtube_sync' }
+      );
+    } else if (event === 'seek') {
+      await commitHostMusicSync(
+        { ...st, positionSec: safePos, updatedAt: Date.now() },
+        { action: 'seek', positionSec: safePos }
+      );
     }
   };
 
   const handleMusicStop = async () => {
     if (!isRoomHost) return;
     await partyMusicEngine.stop();
-    const res = await liveAndRoomService.updateRoomMusicState({
-      roomId: room.id,
-      hostId: currentUser.id,
-      action: 'stop',
-      roomMeta: musicRoomMeta(),
-    });
-    if (res.musicState) {
-      setPartyMusicState(res.musicState);
-    } else {
-      setPartyMusicState((prev) => ({
-        ...prev,
+    const st = partyMusicStateRef.current;
+    await commitHostMusicSync(
+      {
+        ...st,
         status: 'stopped',
         activeTrack: null,
         currentIndex: -1,
         positionSec: 0,
         audioTransport: 'none',
-      }));
-    }
+        updatedAt: Date.now(),
+      },
+      { action: 'stop' }
+    );
+    setMusicDisplayPosSec(0);
+    setMusicDisplayDurSec(0);
     setMusicErrorMessage(null);
-    showToast('Party music stopped for all listeners');
+    showToast('Party playback stopped for everyone');
   };
 
   const handleMusicNextTrack = async () => {
@@ -3580,28 +3816,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       partyMusicEngine.seek(targetPosSec);
     }
     setMusicDisplayPosSec(targetPosSec);
-    const res = await liveAndRoomService.updateRoomMusicState({
-      roomId: room.id,
-      hostId: currentUser.id,
-      action: 'seek',
-      positionSec: targetPosSec,
-      roomMeta: musicRoomMeta(),
-    });
-    if (res.musicState) setPartyMusicState(res.musicState);
+    await commitHostMusicSync(
+      { ...partyMusicStateRef.current, positionSec: targetPosSec, updatedAt: Date.now() },
+      { action: 'seek', positionSec: targetPosSec }
+    );
   };
 
   const handleMusicVolumeChange = (volumePercent: number) => {
     if (!isRoomHost) return;
     const clamped = Math.max(0, Math.min(100, Math.round(volumePercent)));
     partyMusicEngine.setVolume(clamped);
-    setPartyMusicState((prev) => ({ ...prev, volume: clamped }));
-    void liveAndRoomService.updateRoomMusicState({
-      roomId: room.id,
-      hostId: currentUser.id,
-      action: 'volume',
-      volume: clamped,
-      roomMeta: musicRoomMeta(),
-    });
+    void commitHostMusicSync(
+      { ...partyMusicStateRef.current, volume: clamped, updatedAt: Date.now() },
+      { action: 'volume', volume: clamped }
+    );
   };
 
   const handleRemoveQueueItem = async (trackId: string) => {
@@ -3616,24 +3844,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         await startHostTrackAtIndex(0, nextQueue);
         return;
       }
-      const stopRes = await liveAndRoomService.updateRoomMusicState({
-        roomId: room.id,
-        hostId: currentUser.id,
-        action: 'stop',
-        queue: [],
-        roomMeta: musicRoomMeta(),
-      });
-      if (stopRes.musicState) setPartyMusicState(stopRes.musicState);
+      await commitHostMusicSync(
+        {
+          ...st,
+          status: 'stopped',
+          activeTrack: null,
+          queue: [],
+          currentIndex: -1,
+          positionSec: 0,
+          audioTransport: 'none',
+          updatedAt: Date.now(),
+        },
+        { action: 'stop', queue: [] }
+      );
       return;
     }
-    const res = await liveAndRoomService.updateRoomMusicState({
-      roomId: room.id,
-      hostId: currentUser.id,
-      action: 'queue_update',
-      queue: nextQueue,
-      roomMeta: musicRoomMeta(),
-    });
-    if (res.musicState) setPartyMusicState(res.musicState);
+    await commitHostMusicSync(
+      { ...st, queue: nextQueue, updatedAt: Date.now() },
+      { action: 'queue_update', queue: nextQueue }
+    );
   };
 
   const handleSendSeatInvite = async (targetUser: UserProfile, directSeat = false) => {
@@ -3736,9 +3965,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       return;
     }
 
-    // Send real-time seat invitation to listener (popup with Accept/Decline + push notification)
+    // Send real-time seat invitation via BOTH Cloud Firestore + Express/WebSocket + Push Notification
     setInvitedUserIds((prev) => ({ ...prev, [targetUser.id]: true }));
-    const [wsRes] = await Promise.all([
+    const [fsInviteRes, wsRes] = await Promise.all([
+      sendFirestoreSeatInvite(room.id, currentUser, targetUser.id, targetSeat),
       liveAndRoomService.sendRoomInvite({
         roomId: room.id,
         hostId: currentUser.id,
@@ -3761,25 +3991,45 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         priority: 'high',
       }).catch(() => {}),
     ]);
-    if (wsRes.success) {
+    if (fsInviteRes.success || wsRes.success) {
       showToast(`Invitation sent to ${targetUser.name} for Seat #${targetSeat + 1}`);
     } else {
-      showToast(`Invitation notification sent to ${targetUser.name}`);
+      showToast(fsInviteRes.error || wsRes.error || `Invitation sent to ${targetUser.name}`);
     }
   };
 
   const handleSendRoomInviteToUser = async (targetUser: UserProfile) => {
     if (!targetUser?.id || targetUser.id === currentUser.id) return;
+    // If the user is already in the room (unseated), send a real-time Seat Invitation directly!
+    const isAlreadyInRoom = participantsListRef.current.some((p) => p.userId === targetUser.id);
+    const isAlreadySeated = seatsRef.current.some((s) => s?.id === targetUser.id);
+    if (isAlreadyInRoom && !isAlreadySeated && showInviteToSeatModal !== null) {
+      await handleSendSeatInvite(targetUser, false);
+      return;
+    }
+
     setInvitedUserIds((prev) => ({ ...prev, [targetUser.id]: true }));
+    const openSeatIdx =
+      showInviteToSeatModal !== null && !seatsRef.current[showInviteToSeatModal]
+        ? showInviteToSeatModal
+        : seatsRef.current.findIndex(
+            (s, i) => i > 0 && !s && isSeatIndexAllowedForRoom(i, maxSeats, hostLevel)
+          );
     const [wsRes] = await Promise.all([
       liveAndRoomService.sendRoomInvite({
         roomId: room.id,
         hostId: currentUser.id,
         targetUserId: targetUser.id,
         targetUser,
+        seatIndex: openSeatIdx >= 0 ? openSeatIdx : undefined,
         inviteType: 'room',
         roomMeta: { host: room.host, title: room.title, maxSeats },
       }),
+      openSeatIdx >= 0
+        ? sendFirestoreSeatInvite(room.id, currentUser, targetUser.id, openSeatIdx).catch(() => ({
+            success: false,
+          }))
+        : Promise.resolve({ success: false }),
       sendPushNotification({
         targetUserId: targetUser.id,
         type: 'rooms',
@@ -3800,13 +4050,29 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     }
   };
 
+  const handleDeclineSeatInvitation = async () => {
+    if (!incomingSeatInvite) return;
+    const invite = incomingSeatInvite;
+    dismissedInviteIdsRef.current.add(invite.id);
+    setIncomingSeatInvite(null);
+    await Promise.all([
+      dismissFirestoreSeatInvite(room.id, currentUser.id).catch(() => {}),
+      liveAndRoomService
+        .declineSeatInvite(room.id, currentUser.id, currentUser.name, invite.seatIndex)
+        .catch(() => {}),
+    ]);
+    showToast(`Declined Seat #${invite.seatIndex + 1} invitation`);
+  };
+
   const handleAcceptSeatInvitation = async () => {
     if (!incomingSeatInvite) return;
     const idx = incomingSeatInvite.seatIndex;
     const invitedUser = incomingSeatInvite.toUser;
+    dismissedInviteIdsRef.current.add(incomingSeatInvite.id);
     if (!isSeatIndexAllowedForRoom(idx, maxSeats, hostLevel)) {
       showToast('This seat is locked at the current Host level.');
       setIncomingSeatInvite(null);
+      void dismissFirestoreSeatInvite(room.id, invitedUser.id);
       return;
     }
     setIncomingSeatInvite(null);
@@ -4685,21 +4951,35 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   {isRoomHost && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleMusicTogglePlayPause();
-                      }}
-                      aria-label={partyMusicState.status === 'playing' ? 'Pause Party Music' : 'Resume Party Music'}
-                      className="w-7 h-7 rounded-full bg-[#00D4FF]/20 hover:bg-[#00D4FF]/35 border border-[#00D4FF]/60 flex items-center justify-center text-cyan-200 active:scale-95"
-                    >
-                      {partyMusicState.status === 'playing' ? (
-                        <Pause className="w-3.5 h-3.5 fill-current" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                      )}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleMusicTogglePlayPause();
+                        }}
+                        aria-label={partyMusicState.status === 'playing' ? 'Pause Party Music' : 'Resume Party Music'}
+                        className="w-7 h-7 rounded-full bg-[#00D4FF]/20 hover:bg-[#00D4FF]/35 border border-[#00D4FF]/60 flex items-center justify-center text-cyan-200 active:scale-95"
+                      >
+                        {partyMusicState.status === 'playing' ? (
+                          <Pause className="w-3.5 h-3.5 fill-current" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleMusicStop();
+                        }}
+                        aria-label="Stop and close shared player"
+                        title="Stop Playback for Room"
+                        className="w-7 h-7 rounded-full bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/55 flex items-center justify-center text-rose-200 active:scale-95"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </>
                   )}
                   <span className="px-2 py-0.5 rounded-full bg-white/10 text-[9px] font-black text-white/85">
                     {isRoomHost ? 'Controls' : 'View'}
@@ -4722,6 +5002,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   onEnded={() => {
                     if (isRoomHost) void handleMusicNextTrack();
                   }}
+                  onHostPlaybackChange={(ev, curPos) => {
+                    if (isRoomHost) void handleHostYouTubeIframeChange(ev, curPos);
+                  }}
+                  onHostClose={isRoomHost ? () => void handleMusicStop() : undefined}
                   onError={(msg) => setMusicErrorMessage(msg)}
                 />
               )}
@@ -4743,6 +5027,42 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 </span>
               )}
               <span>{partyEntryNotice.name} joined the party room</span>
+            </div>
+          </div>
+        )}
+
+        {/* Host / Moderator Live Incoming Seat Requests Strip */}
+        {canModerate && seatRequests.length > 0 && (
+          <div
+            data-no-doubletap="true"
+            className="max-w-md mx-auto w-full rounded-2xl bg-[#240D42]/95 border border-[#FA26A0]/55 px-3 py-2 flex items-center justify-between gap-2 shadow-lg animate-fade-in"
+          >
+            <button
+              type="button"
+              onClick={() => setShowSeatRequestsModal(true)}
+              className="flex items-center gap-2 min-w-0 text-left flex-1"
+            >
+              <Clock className="w-4 h-4 text-[#FF7AB8] shrink-0" />
+              <p className="text-[11px] font-bold text-white truncate">
+                {seatRequests[0].user.name} requested Seat #{seatRequests[0].seatIndex + 1}
+                {seatRequests.length > 1 ? ` (+${seatRequests.length - 1} more)` : ''}
+              </p>
+            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => void handleRejectSeatRequest(seatRequests[0])}
+                className="px-2 py-1 rounded-xl bg-white/10 hover:bg-rose-500/30 border border-white/15 text-[10px] font-black text-rose-200 active:scale-95"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAcceptSeatRequest(seatRequests[0])}
+                className="px-2.5 py-1 rounded-xl bg-[#FA26A0] hover:bg-[#ff3dad] text-[10px] font-black text-white active:scale-95"
+              >
+                Accept
+              </button>
             </div>
           </div>
         )}
@@ -5712,10 +6032,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                       })}
                     </div>
                     <p className="text-[10px] text-[#B9AECF] leading-snug pt-0.5">
-                      {hostLevel < 10
-                        ? 'All 5 seats unlocked by default! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
-                        : hostLevel < 20
-                        ? 'Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
+                      {hostLevel < 20
+                        ? 'All 8 seats unlocked by default! Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
                         : 'Lv.20+: Full access to switch between 5, 8, or 16 seats anytime.'}
                     </p>
                   </div>
@@ -6329,13 +6647,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setIncomingSeatInvite(null)}
+                onClick={() => void handleDeclineSeatInvitation()}
                 className="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-xs font-bold"
               >
                 Decline
               </button>
               <button
-                onClick={handleAcceptSeatInvitation}
+                onClick={() => void handleAcceptSeatInvitation()}
                 className="flex-1 py-2.5 rounded-xl bg-[#FA26A0] text-white text-xs font-bold"
               >
                 Accept
@@ -6506,6 +6824,59 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                         ? 'Remove Moderator'
                         : 'Make Moderator (Lifetime)'}
                     </span>
+                  </button>
+                )}
+
+                {selectedSeatMember.index === null && isRoomHost && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = selectedSeatMember.user;
+                      const openSeatIdx = seatsRef.current.findIndex(
+                        (s, i) => i > 0 && !s && isSeatIndexAllowedForRoom(i, maxSeats, hostLevel)
+                      );
+                      closeModerationModal();
+                      if (openSeatIdx === -1) {
+                        showToast('All seats are currently occupied');
+                        return;
+                      }
+                      void (async () => {
+                        setInvitedUserIds((prev) => ({ ...prev, [target.id]: true }));
+                        const [fsInv, wsInv] = await Promise.all([
+                          sendFirestoreSeatInvite(room.id, currentUser, target.id, openSeatIdx),
+                          liveAndRoomService.sendRoomInvite({
+                            roomId: room.id,
+                            hostId: currentUser.id,
+                            targetUserId: target.id,
+                            targetUser: target,
+                            seatIndex: openSeatIdx,
+                            inviteType: 'seat',
+                            roomMeta: { host: room.host, title: room.title, maxSeats },
+                          }),
+                          sendPushNotification({
+                            targetUserId: target.id,
+                            type: 'rooms',
+                            title: 'Seat Invitation',
+                            message: `${currentUser.name} invited you to Seat #${openSeatIdx + 1} in "${room.title}"`,
+                            avatar: currentUser.avatar,
+                            senderId: currentUser.id,
+                            senderName: currentUser.name,
+                            actionType: 'open_room',
+                            targetId: room.id,
+                            priority: 'high',
+                          }).catch(() => {}),
+                        ]);
+                        if (fsInv.success || wsInv.success) {
+                          showToast(`Invited ${target.name} to Seat #${openSeatIdx + 1}`);
+                        } else {
+                          showToast(fsInv.error || wsInv.error || `Invitation sent to ${target.name}`);
+                        }
+                      })();
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#00A8FF] to-[#2563EB] hover:opacity-95 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg transition-all"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Invite to Seat</span>
                   </button>
                 )}
 
@@ -6840,6 +7211,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                   setShowCloseRoomConfirmModal(false);
                   hasExplicitlyLeftRef.current = true;
                   await partyMusicEngine.stop().catch(() => {});
+                  await syncFirestorePartyMusicState(room.id, true, {
+                    ...partyMusicStateRef.current,
+                    status: 'stopped',
+                    activeTrack: null,
+                    currentIndex: -1,
+                    positionSec: 0,
+                    updatedAt: Date.now(),
+                    updatedBy: currentUser.id,
+                    audioTransport: 'none',
+                  }).catch(() => {});
                   await releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`).catch(() => {});
                   if (realMicAnalyserRef.current) realMicAnalyserRef.current.cleanup();
                   if (realMicStreamRef.current) stopMediaStream(realMicStreamRef.current);

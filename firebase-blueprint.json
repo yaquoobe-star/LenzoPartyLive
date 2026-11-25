@@ -246,7 +246,7 @@
         },
         "maxSeats": {
           "type": "number",
-          "description": "Total stage seats capacity gated by Host level: 5 at Lv.0-9 (all 5 seats including Seat #2 unlocked at Lv.0), 8 at Lv.10+, 16 at Lv.20+"
+          "description": "Total stage seats capacity gated by Host level: 5 or 8 seats unlocked by default at Lv.0 (all 8 seats available without level upgrade), 16 seats at Lv.20+"
         },
         "isLocked": {
           "type": "boolean",

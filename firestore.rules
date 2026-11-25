@@ -404,7 +404,7 @@ service cloud.firestore {
         data.maxSeats is number
         && (
           data.maxSeats == 5
-          || (data.maxSeats == 8 && hostLvl >= 10)
+          || data.maxSeats == 8
           || (data.maxSeats == 16 && hostLvl >= 20)
         );
       let validSeatsList =
@@ -417,7 +417,7 @@ service cloud.firestore {
     }
 
     function isValidGuestPartySeatUpdate(data, oldData) {
-      let maxCap = oldData.maxSeats is number ? oldData.maxSeats : 5;
+      let maxCap = oldData.maxSeats is number ? oldData.maxSeats : 8;
       return !('seats' in data)
         || (
           data.seats is list
@@ -436,11 +436,13 @@ service cloud.firestore {
       allow update: if isSignedIn()
                     && isValidId(roomId)
                     && (!('seatTheme' in incoming()) || incoming().seatTheme in ['default', 'gold', 'green'])
+                    && (!('seatInvites' in incoming()) || (incoming().seatInvites is list && incoming().seatInvites.size() <= 20))
                     && (
                       isAdmin()
                       || (
                         existing().host.id == request.auth.uid
                         && incoming().host.id == existing().host.id
+                        && (!('musicState' in incoming()) || incoming().musicState == null || incoming().musicState is map)
                         && (
                           !incoming().diff(existing()).affectedKeys().hasAny(['maxSeats', 'seats'])
                           || isValidPartyRoomSeatConfig(incoming(), existing().host.id)
@@ -452,6 +454,7 @@ service cloud.firestore {
                         && incoming().diff(existing()).affectedKeys().hasOnly([
                           'seats',
                           'seatRequests',
+                          'seatInvites',
                           'mutedSeatIndices',
                           'isLocked',
                           'allowJoin',
@@ -487,6 +490,7 @@ service cloud.firestore {
                         && incoming().diff(existing()).affectedKeys().hasOnly([
                           'seats',
                           'seatRequests',
+                          'seatInvites',
                           'viewersCount',
                           'numericParticipants',
                           'participantCount',
