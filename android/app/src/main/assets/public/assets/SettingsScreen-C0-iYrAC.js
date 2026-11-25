@@ -1,6 +1,6 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { Dn as Bell, F as Shield, Ft as Globe, In as ArrowRightLeft, Jt as ExternalLink, L as ShieldCheck, Ln as ArrowLeft, On as BellRing, V as Send, _t as LogOut, b as Trash2, c as Volume2, ft as MessageCircle, gt as Mail, hn as ChevronRight, i as X, in as Copy, o as Wallet, ot as Moon, p as UserX, pt as Megaphone, u as Vibrate, v as TriangleAlert, vn as Check, vt as Lock, xt as Link2, zn as require_react } from "./vendor-icons-RA12uJu8.js";
-import { Bt as linkGoogleAccount, Gt as saveUserSettingsToFirestore, Kt as submitAccountDeletionRequest, Lt as sendSelfTestPushNotification, Nt as getPushPermissionState, Pt as registerDeviceForPushNotifications, Rt as unregisterDevicePushNotifications, Ut as getSavedDeviceAccounts, Wt as loadUserSettingsFromFirestore, an as DEFAULT_NOTIFICATION_PREFERENCES, n as BlockedUsersModal, qt as subscribeUserSettings, t as SecureAccountPasswordCard, zt as getLinkedAuthProviders } from "./index-BA9NTWBH.js";
+import { Bt as linkGoogleAccount, Gt as saveUserSettingsToFirestore, Kt as submitAccountDeletionRequest, Lt as sendSelfTestPushNotification, Nt as getPushPermissionState, Pt as registerDeviceForPushNotifications, Rt as unregisterDevicePushNotifications, Ut as getSavedDeviceAccounts, Wt as loadUserSettingsFromFirestore, an as DEFAULT_NOTIFICATION_PREFERENCES, n as BlockedUsersModal, qt as subscribeUserSettings, t as SecureAccountPasswordCard, zt as getLinkedAuthProviders } from "./index-DK5iPoaL.js";
 import { r as auth, t as FIREBASE_RUNTIME_INFO } from "./firebase-CIREZBAE.js";
 import { i as require_jsx_runtime } from "./vendor-motion-BNHB1rOc.js";
 // src/components/screens/SettingsScreen.tsx
@@ -1011,7 +1011,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 							]
 						}),
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							onClick: () => showToast(`Lenzo Party Live v1.0.8 (Build 9 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
+							onClick: () => showToast(`Lenzo Party Live v1.0.8 (Build 16843292 · ${FIREBASE_RUNTIME_INFO.projectId} · com.lenzoparty.app)`),
 							className: "flex items-center justify-between p-4 rounded-2xl bg-[#160C25] hover:bg-[#211333] border border-white/[0.08] transition-all cursor-pointer group",
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 								className: "flex items-center gap-3",
@@ -1027,7 +1027,7 @@ var SettingsScreen = ({ currentUser, onNavigate, onLogout, onOpenWallet, onOpenA
 								className: "flex items-center gap-1.5",
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 									className: "text-xs text-[#B9AECF]",
-									children: "v1.0.8 (Build 9)"
+									children: "v1.0.8 (Build 16843292)"
 								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChevronRight, { className: "w-4 h-4 text-[#B9AECF]" })]
 							})]
 						}),

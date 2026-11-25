@@ -2554,7 +2554,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (isRoomHost) {
       await partyMusicEngine.stop().catch(() => {});
     }
-    void releasePartyScreenWakeLock(`party_room_${room.id}`);
+    void releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
     webrtcMediaService.stopPartyVoice();
     if (realMicAnalyserRef.current) {
       realMicAnalyserRef.current.cleanup();

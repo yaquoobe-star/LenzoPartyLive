@@ -74,6 +74,10 @@ import {
 } from '../../services/firestoreRealtimeService';
 import { EMPTY_ROOM_CLEANUP_MS } from '../../shared/roomLifecycleConfig';
 import { getUserLevelProgress } from '../../utils/levelSystem';
+import {
+  acquirePartyScreenWakeLock,
+  releasePartyScreenWakeLock,
+} from '../../utils/screenWakeLock';
 
 interface ActiveLiveScreenProps {
   stream: LiveStream;
@@ -173,12 +177,22 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
   useEffect(() => {
     blockedByUserIdsRef.current = new Set(blockedByUserIds);
     if (!isActualHost && blockedByUserIds.includes(stream.host.id)) {
+      void releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
       webrtcMediaService.stopLive();
       agoraRtcService.leaveChannel().catch(() => {});
       void leaveFirestoreLiveViewer(stream.id);
       onClose();
     }
-  }, [blockedByUserIds, isActualHost, stream.host.id, stream.id, onClose]);
+  }, [blockedByUserIds, isActualHost, stream.host.id, stream.id, currentUser.id, onClose]);
+
+  // Keep screen permanently awake during active live streaming sessions (host & viewers)
+  useEffect(() => {
+    const wakeOwnerId = `live_stream_${stream.id}_${currentUser.id}`;
+    void acquirePartyScreenWakeLock(wakeOwnerId);
+    return () => {
+      void releasePartyScreenWakeLock(wakeOwnerId);
+    };
+  }, [stream.id, currentUser.id]);
 
   const [isHostMode, setIsHostMode] = useState<boolean>(isActualHost); // Only true if current user is the actual live owner
 
@@ -347,6 +361,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
       }).catch(() => {}),
     ]);
 
+    void releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
     if (serverUpdatedStream) {
       onUpdateStream?.(serverUpdatedStream);
     }
@@ -768,6 +783,7 @@ export const ActiveLiveScreen: React.FC<ActiveLiveScreenProps> = ({
         }
         webrtcMediaService.stopLive();
         void agoraRtcService.leaveChannel().catch(() => {});
+        void releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
         void setNativeLiveAudioMode(false);
         void Promise.all([
           leaveFirestoreLiveViewer(stream.id).catch(() => {}),

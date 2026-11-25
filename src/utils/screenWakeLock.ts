@@ -48,6 +48,8 @@ class ScreenWakeLockManager {
       CapacitorApp.addListener('appStateChange', ({ isActive }) => {
         if (isActive && this.activeOwners.size > 0) {
           void this.applyKeepAwake(true);
+        } else if (!isActive && (this.nativeFlagApplied || this.webSentinel)) {
+          void this.applyKeepAwake(false);
         }
       })
         .then((handle) => {
@@ -61,6 +63,8 @@ class ScreenWakeLockManager {
     if (typeof document === 'undefined') return;
     if (document.visibilityState === 'visible' && this.activeOwners.size > 0) {
       void this.applyKeepAwake(true);
+    } else if (document.visibilityState === 'hidden' && (this.nativeFlagApplied || this.webSentinel)) {
+      void this.applyKeepAwake(false);
     }
   };
 

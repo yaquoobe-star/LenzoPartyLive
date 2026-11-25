@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-CTCesDl4.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-CAilVMOb.js","assets/RankingsScreen-Dx1KGMFQ.js","assets/StoreScreen-MEY4Z7gS.js","assets/StoreAssetPreview-NANCbe6N.js","assets/SettingsScreen-Mz_AuiAk.js","assets/UploadVideoScreen-BkA4SbRk.js","assets/WalletModal-DbTILhGg.js","assets/LevelAndVIPModal-A4ZiA8lI.js","assets/AdminProgressionModal-Fp6b-spE.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DeuHWSoQ.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-94VJVvfb.js","assets/RankingsScreen-DqtVQ1jI.js","assets/StoreScreen-CkJNSmwV.js","assets/StoreAssetPreview-Bpfpr89F.js","assets/SettingsScreen-C0-iYrAC.js","assets/UploadVideoScreen-DHkpu-vd.js","assets/WalletModal-asESBR_4.js","assets/LevelAndVIPModal-pCS2laye.js","assets/AdminProgressionModal-BlWGaqLW.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-Tn0LUUjq.js";
 import { $ as Phone, A as SlidersHorizontal, An as Ban, At as History, B as Settings, Bt as Flag, C as Swords, Cn as Calendar, D as Sparkles, Dn as Bell, Dt as Image$1, E as Square, En as BookmarkCheck, Et as Info, F as Shield, Fn as ArrowRight, Ft as Globe, G as Reply, Gt as FileAudio, H as Search, Ht as FileText, I as ShieldOff, In as ArrowRightLeft, It as Gift, J as Receipt, Jt as ExternalLink, K as Repeat2, Kt as Eye, L as ShieldCheck, Ln as ArrowLeft, Lt as Gem, M as SkipForward, Mn as Award, Mt as Heart, N as SkipBack, Nn as AtSign, Nt as Headphones, O as Smile, On as BellRing, P as ShoppingBag, Pt as Hash, Q as Pin, R as ShieldAlert, S as Target, Sn as CameraOff, St as LayoutGrid, T as Star, Tn as Bookmark, Tt as KeyRound, U as Save, V as Send, Vt as Film, W as RotateCcw, X as Plus, Xt as Ellipsis, Y as Radio, Yt as Eraser, Z as Play, _ as Trophy, _n as ChevronDown, _t as LogOut, a as WifiOff, an as Compass, at as Music, b as Trash2, bn as ChartColumn, bt as LoaderCircle, c as Volume2, cn as ClipboardPaste, ct as Minimize2, d as Users, dn as CircleCheck, dt as MessageSquare, et as Percent, f as User, fn as CircleArrowDown, ft as MessageCircle, g as Upload, gn as ChevronLeft, gt as Mail, h as UserCheck, hn as ChevronRight, i as X, in as Copy, it as Paperclip, jn as BadgeCheck, jt as Hexagon, k as Smartphone, kn as BellOff, kt as House, l as Video, ln as CircleX, lt as Mic, m as UserPlus, mn as ChevronUp, mt as Maximize2, n as Zap, nn as Crop, nt as PenLine, o as Wallet, on as Coins, p as UserX, pn as CircleAlert, q as RefreshCw, qt as EyeOff, r as Youtube, rn as CornerUpLeft, rt as Pause, s as VolumeX, sn as Clock, t as ZoomIn, tn as Crown, tt as Pen, ut as MicOff, v as TriangleAlert, vn as Check, vt as Lock, wn as Building2, x as Timer, xn as Camera, xt as Link2, y as TrendingUp, yn as CheckCheck, yt as LockOpen, z as Share2, zn as require_react, zt as Flame } from "./vendor-icons-RA12uJu8.js";
@@ -21708,6 +21708,147 @@ var WebRtcMediaService = class {
 	}
 };
 var webrtcMediaService = new WebRtcMediaService();
+// src/utils/screenWakeLock.ts
+/**
+* Lenzo Party Live — Permanent Screen Awake Manager
+*
+* Keeps the screen permanently ON during active Live Party Room sessions for:
+*  - Party Host
+*  - Seated Party Participants
+*  - Non-seated Party Listeners
+*
+* Uses reference-counted ownership to prevent duplicate/conflicting Wake Lock calls:
+*  1. Android Native (Capacitor): WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+*     (never modifies global Android display timeout settings).
+*  2. Web / Mobile Browser: Screen Wake Lock API (navigator.wakeLock.request('screen'))
+*     with automatic lifecycle re-acquisition on visibility/appState resume.
+*
+* Releases automatically when the user leaves the Party Room, closes the session,
+* or the screen unmounts / unloads.
+*/
+var ScreenWakeLockManager = class {
+	constructor() {
+		this.activeOwners = /* @__PURE__ */ new Set();
+		this.nativeFlagApplied = false;
+		this.webSentinel = null;
+		this.lifecycleBound = false;
+		this.acquiringWebLock = false;
+		this.appStateRemove = null;
+		this.handleVisibilityChange = () => {
+			if (typeof document === "undefined") return;
+			if (document.visibilityState === "visible" && this.activeOwners.size > 0) this.applyKeepAwake(true);
+			else if (document.visibilityState === "hidden" && (this.nativeFlagApplied || this.webSentinel)) this.applyKeepAwake(false);
+		};
+		this.handlePageTeardown = () => {
+			if (this.activeOwners.size > 0 || this.nativeFlagApplied || this.webSentinel) {
+				this.activeOwners.clear();
+				this.applyKeepAwake(false);
+			}
+		};
+	}
+	bindLifecycleListeners() {
+		if (this.lifecycleBound || typeof window === "undefined") return;
+		this.lifecycleBound = true;
+		if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.handleVisibilityChange);
+		window.addEventListener("pagehide", this.handlePageTeardown);
+		window.addEventListener("beforeunload", this.handlePageTeardown);
+		if (Capacitor.isNativePlatform()) App$1.addListener("appStateChange", ({ isActive }) => {
+			if (isActive && this.activeOwners.size > 0) this.applyKeepAwake(true);
+			else if (!isActive && (this.nativeFlagApplied || this.webSentinel)) this.applyKeepAwake(false);
+		}).then((handle) => {
+			this.appStateRemove = () => handle.remove();
+		}).catch(() => {});
+	}
+	async requestWebWakeLock() {
+		if (typeof navigator === "undefined" || this.acquiringWebLock) return;
+		const navAny = navigator;
+		if (!navAny.wakeLock || typeof navAny.wakeLock.request !== "function") return;
+		if (this.webSentinel && !this.webSentinel.released) return;
+		if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+		this.acquiringWebLock = true;
+		try {
+			const sentinel = await navAny.wakeLock.request("screen");
+			if (this.activeOwners.size === 0) {
+				await sentinel.release().catch(() => {});
+				return;
+			}
+			this.webSentinel = sentinel;
+			sentinel.addEventListener?.("release", () => {
+				if (this.webSentinel === sentinel) this.webSentinel = null;
+			});
+		} catch {} finally {
+			this.acquiringWebLock = false;
+		}
+	}
+	async releaseWebWakeLock() {
+		const sentinel = this.webSentinel;
+		this.webSentinel = null;
+		if (sentinel && !sentinel.released) try {
+			await sentinel.release();
+		} catch {}
+	}
+	async applyKeepAwake(enabled) {
+		if (enabled) {
+			if (Capacitor.isNativePlatform()) {
+				this.nativeFlagApplied = true;
+				await setNativeKeepScreenOn(true);
+			}
+			await this.requestWebWakeLock();
+		} else {
+			if (this.nativeFlagApplied || Capacitor.isNativePlatform()) {
+				this.nativeFlagApplied = false;
+				await setNativeKeepScreenOn(false);
+			}
+			await this.releaseWebWakeLock();
+		}
+	}
+	/**
+	* Acquire screen awake lock for a specific room/session owner ID.
+	* Safe to call repeatedly with the same ownerId (idempotent, no duplicates).
+	*/
+	async acquire(ownerId) {
+		if (!ownerId) return;
+		this.bindLifecycleListeners();
+		const hadOwners = this.activeOwners.size > 0;
+		this.activeOwners.add(ownerId);
+		if (!hadOwners || !this.nativeFlagApplied || !this.webSentinel) await this.applyKeepAwake(true);
+	}
+	/**
+	* Release screen awake lock for a specific owner ID.
+	* Restores normal system screen timeout as soon as no active rooms remain.
+	*/
+	async release(ownerId) {
+		if (!ownerId) return;
+		this.activeOwners.delete(ownerId);
+		if (this.activeOwners.size === 0) await this.applyKeepAwake(false);
+	}
+	/**
+	* Force-release all locks (e.g., on logout or fatal termination).
+	*/
+	async releaseAll() {
+		this.activeOwners.clear();
+		await this.applyKeepAwake(false);
+	}
+	isActive() {
+		return this.activeOwners.size > 0;
+	}
+	dispose() {
+		if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+		if (typeof window !== "undefined") {
+			window.removeEventListener("pagehide", this.handlePageTeardown);
+			window.removeEventListener("beforeunload", this.handlePageTeardown);
+		}
+		if (this.appStateRemove) {
+			this.appStateRemove().catch(() => {});
+			this.appStateRemove = null;
+		}
+		this.lifecycleBound = false;
+		this.releaseAll();
+	}
+};
+var screenWakeLockManager = new ScreenWakeLockManager();
+var acquirePartyScreenWakeLock = (ownerId) => screenWakeLockManager.acquire(ownerId);
+var releasePartyScreenWakeLock = (ownerId) => screenWakeLockManager.release(ownerId);
 // src/components/screens/ActiveLiveScreen.tsx
 var VIDEO_FILTERS = {
 	normal: {
@@ -21758,6 +21899,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 	(0, import_react.useEffect)(() => {
 		blockedByUserIdsRef.current = new Set(blockedByUserIds);
 		if (!isActualHost && blockedByUserIds.includes(stream.host.id)) {
+			releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
 			webrtcMediaService.stopLive();
 			agoraRtcService.leaveChannel().catch(() => {});
 			leaveFirestoreLiveViewer(stream.id);
@@ -21768,8 +21910,16 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 		isActualHost,
 		stream.host.id,
 		stream.id,
+		currentUser.id,
 		onClose
 	]);
+	(0, import_react.useEffect)(() => {
+		const wakeOwnerId = `live_stream_${stream.id}_${currentUser.id}`;
+		acquirePartyScreenWakeLock(wakeOwnerId);
+		return () => {
+			releasePartyScreenWakeLock(wakeOwnerId);
+		};
+	}, [stream.id, currentUser.id]);
 	const [isHostMode, setIsHostMode] = (0, import_react.useState)(isActualHost);
 	const [isCameraOn, setIsCameraOn] = (0, import_react.useState)(true);
 	const [isFrontCamera, setIsFrontCamera] = (0, import_react.useState)(true);
@@ -21911,6 +22061,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 				closesAt: nextClosesAt
 			}).catch(() => {})
 		]);
+		releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
 		if (serverUpdatedStream) onUpdateStream?.(serverUpdatedStream);
 		onClose();
 	};
@@ -22223,6 +22374,7 @@ var ActiveLiveScreen = ({ stream, currentUser, onClose, onEndLive, onUpdateStrea
 				}
 				webrtcMediaService.stopLive();
 				agoraRtcService.leaveChannel().catch(() => {});
+				releasePartyScreenWakeLock(`live_stream_${stream.id}_${currentUser.id}`);
 				setNativeLiveAudioMode(false);
 				Promise.all([leaveFirestoreLiveViewer(stream.id).catch(() => {}), liveAndRoomService.endLiveStream(stream.id, currentUser.id).catch(() => {})]).finally(() => {
 					onEndLive?.(stream.id);
@@ -27125,145 +27277,6 @@ var PartySofaSeat = ({ seatIndex, variant, occupant, isSpeaking, isMuted, isLock
 		]
 	});
 };
-// src/utils/screenWakeLock.ts
-/**
-* Lenzo Party Live — Permanent Screen Awake Manager
-*
-* Keeps the screen permanently ON during active Live Party Room sessions for:
-*  - Party Host
-*  - Seated Party Participants
-*  - Non-seated Party Listeners
-*
-* Uses reference-counted ownership to prevent duplicate/conflicting Wake Lock calls:
-*  1. Android Native (Capacitor): WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-*     (never modifies global Android display timeout settings).
-*  2. Web / Mobile Browser: Screen Wake Lock API (navigator.wakeLock.request('screen'))
-*     with automatic lifecycle re-acquisition on visibility/appState resume.
-*
-* Releases automatically when the user leaves the Party Room, closes the session,
-* or the screen unmounts / unloads.
-*/
-var ScreenWakeLockManager = class {
-	constructor() {
-		this.activeOwners = /* @__PURE__ */ new Set();
-		this.nativeFlagApplied = false;
-		this.webSentinel = null;
-		this.lifecycleBound = false;
-		this.acquiringWebLock = false;
-		this.appStateRemove = null;
-		this.handleVisibilityChange = () => {
-			if (typeof document === "undefined") return;
-			if (document.visibilityState === "visible" && this.activeOwners.size > 0) this.applyKeepAwake(true);
-		};
-		this.handlePageTeardown = () => {
-			if (this.activeOwners.size > 0 || this.nativeFlagApplied || this.webSentinel) {
-				this.activeOwners.clear();
-				this.applyKeepAwake(false);
-			}
-		};
-	}
-	bindLifecycleListeners() {
-		if (this.lifecycleBound || typeof window === "undefined") return;
-		this.lifecycleBound = true;
-		if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.handleVisibilityChange);
-		window.addEventListener("pagehide", this.handlePageTeardown);
-		window.addEventListener("beforeunload", this.handlePageTeardown);
-		if (Capacitor.isNativePlatform()) App$1.addListener("appStateChange", ({ isActive }) => {
-			if (isActive && this.activeOwners.size > 0) this.applyKeepAwake(true);
-		}).then((handle) => {
-			this.appStateRemove = () => handle.remove();
-		}).catch(() => {});
-	}
-	async requestWebWakeLock() {
-		if (typeof navigator === "undefined" || this.acquiringWebLock) return;
-		const navAny = navigator;
-		if (!navAny.wakeLock || typeof navAny.wakeLock.request !== "function") return;
-		if (this.webSentinel && !this.webSentinel.released) return;
-		if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-		this.acquiringWebLock = true;
-		try {
-			const sentinel = await navAny.wakeLock.request("screen");
-			if (this.activeOwners.size === 0) {
-				await sentinel.release().catch(() => {});
-				return;
-			}
-			this.webSentinel = sentinel;
-			sentinel.addEventListener?.("release", () => {
-				if (this.webSentinel === sentinel) this.webSentinel = null;
-			});
-		} catch {} finally {
-			this.acquiringWebLock = false;
-		}
-	}
-	async releaseWebWakeLock() {
-		const sentinel = this.webSentinel;
-		this.webSentinel = null;
-		if (sentinel && !sentinel.released) try {
-			await sentinel.release();
-		} catch {}
-	}
-	async applyKeepAwake(enabled) {
-		if (enabled) {
-			if (Capacitor.isNativePlatform()) {
-				this.nativeFlagApplied = true;
-				await setNativeKeepScreenOn(true);
-			}
-			await this.requestWebWakeLock();
-		} else {
-			if (this.nativeFlagApplied || Capacitor.isNativePlatform()) {
-				this.nativeFlagApplied = false;
-				await setNativeKeepScreenOn(false);
-			}
-			await this.releaseWebWakeLock();
-		}
-	}
-	/**
-	* Acquire screen awake lock for a specific room/session owner ID.
-	* Safe to call repeatedly with the same ownerId (idempotent, no duplicates).
-	*/
-	async acquire(ownerId) {
-		if (!ownerId) return;
-		this.bindLifecycleListeners();
-		const hadOwners = this.activeOwners.size > 0;
-		this.activeOwners.add(ownerId);
-		if (!hadOwners || !this.nativeFlagApplied || !this.webSentinel) await this.applyKeepAwake(true);
-	}
-	/**
-	* Release screen awake lock for a specific owner ID.
-	* Restores normal system screen timeout as soon as no active rooms remain.
-	*/
-	async release(ownerId) {
-		if (!ownerId) return;
-		this.activeOwners.delete(ownerId);
-		if (this.activeOwners.size === 0) await this.applyKeepAwake(false);
-	}
-	/**
-	* Force-release all locks (e.g., on logout or fatal termination).
-	*/
-	async releaseAll() {
-		this.activeOwners.clear();
-		await this.applyKeepAwake(false);
-	}
-	isActive() {
-		return this.activeOwners.size > 0;
-	}
-	dispose() {
-		if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.handleVisibilityChange);
-		if (typeof window !== "undefined") {
-			window.removeEventListener("pagehide", this.handlePageTeardown);
-			window.removeEventListener("beforeunload", this.handlePageTeardown);
-		}
-		if (this.appStateRemove) {
-			this.appStateRemove().catch(() => {});
-			this.appStateRemove = null;
-		}
-		this.lifecycleBound = false;
-		this.releaseAll();
-	}
-};
-var screenWakeLockManager = new ScreenWakeLockManager();
-var acquirePartyScreenWakeLock = (ownerId) => screenWakeLockManager.acquire(ownerId);
-var releasePartyScreenWakeLock = (ownerId) => screenWakeLockManager.release(ownerId);
 // src/utils/roomService.ts
 var RoomService = class {
 	async fetchRoomSeats(roomId, maxSeats = 8) {
@@ -29150,7 +29163,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			closesAt: nextClosesAt
 		});
 		if (isRoomHost) await partyMusicEngine.stop().catch(() => {});
-		releasePartyScreenWakeLock(`party_room_${room.id}`);
+		releasePartyScreenWakeLock(`party_room_${room.id}_${currentUser.id}`);
 		webrtcMediaService.stopPartyVoice();
 		if (realMicAnalyserRef.current) {
 			realMicAnalyserRef.current.cleanup();
@@ -44833,15 +44846,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-CTCesDl4.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-CAilVMOb.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-Dx1KGMFQ.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-MEY4Z7gS.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Mz_AuiAk.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BkA4SbRk.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-DbTILhGg.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-A4ZiA8lI.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-Fp6b-spE.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DeuHWSoQ.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-94VJVvfb.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-DqtVQ1jI.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-CkJNSmwV.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-C0-iYrAC.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-DHkpu-vd.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-asESBR_4.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-pCS2laye.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BlWGaqLW.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");
