@@ -1,7 +1,7 @@
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { D as Sparkles, Dt as Image, Kt as Eye, Ln as ArrowLeft, bt as LoaderCircle, d as Users, g as Upload, qt as EyeOff, tn as Crown, vn as Check, vt as Lock, xn as Camera, zn as require_react } from "./vendor-icons-RA12uJu8.js";
 import { r as auth } from "./firebase-CIREZBAE.js";
-import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-RAsIWl0f.js";
+import { At as getActiveSeatCapacity, Et as uploadUserImage, Mt as isSeatModeUnlockedForLevel, Ot as PARTY_SEAT_TIERS, c as DEFAULT_PARTY_BACKGROUND_ID, d as resolvePartyRoomBackground, jt as getAllowedSeatTierForLevel, kt as clampPartyMaxSeatsForHostLevel, l as PARTY_BACKGROUND_PRESETS, u as resolvePartyBackgroundImageUrl, wt as uploadPartyBackgroundImage } from "./index-CPfQMgKN.js";
 import { i as require_jsx_runtime } from "./vendor-motion-BNHB1rOc.js";
 // src/components/screens/CreateRoomScreen.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
@@ -391,8 +391,8 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 								children: PARTY_SEAT_TIERS.map((tier) => {
 									const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
 									const selected = maxSeats === tier.maxSeats;
-									const tierLabelText = tier.maxSeats === 5 ? hostLevel < 5 ? "4+1 Seats" : "5 Seats" : `${tier.maxSeats} Seats`;
-									const subText = tier.maxSeats === 5 ? hostLevel < 5 ? "Co-Host Lv.5" : "Free Tier" : unlocked ? "Unlocked" : `Lv.${tier.minLevel} Lock`;
+									const tierLabelText = `${tier.maxSeats} Seats`;
+									const subText = tier.maxSeats === 5 ? "Free Tier" : unlocked ? "Unlocked" : `Lv.${tier.minLevel} Lock`;
 									return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 										type: "button",
 										onClick: () => {
@@ -426,23 +426,23 @@ var CreateRoomScreen = ({ currentUser, onClose, onCreateRoom }) => {
 								className: "mt-2.5 grid grid-cols-2 gap-1.5 text-[10px]",
 								children: [
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: `px-2.5 py-1.5 rounded-xl border ${hostLevel < 5 ? "bg-[#261142] border-[#FA26A0]/50 text-white" : "bg-[#140D20] border-emerald-400/30 text-emerald-200"}`,
+										className: "px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200",
 										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "font-black block",
-											children: "Lv.0–4 • 4+1 Seats"
+											children: "✓ Default • 5 Seats"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[9px] text-white/70",
-											children: "1 Host + 3 Open (Seat #2 Locked)"
+											children: "All 5 Seats Open by Default"
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-										className: `px-2.5 py-1.5 rounded-xl border ${hostLevel >= 5 ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-200" : "bg-[#10091A] border-white/10 text-white/55"}`,
-										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+										className: "px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200",
+										children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "font-black block",
-											children: [hostLevel >= 5 ? "✓ " : "🔒 ", "Lv.5 • 5 Seats Open"]
+											children: "✓ Side Seat #2 Open"
 										}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 											className: "text-[9px] text-white/70",
-											children: "Co-Host Seat #2 Unlocks"
+											children: "Unlocked for All Hosts"
 										})]
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {

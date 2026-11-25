@@ -18,7 +18,7 @@ export const PARTY_SEAT_TIERS: PartySeatTierInfo[] = [
     minLevel: 0,
     title: '5 Seats',
     shortLabel: '5 Seats',
-    description: 'Lv.0–4: 4 open + Seat #2 locked (unlocks at Lv.5)',
+    description: 'All 5 party seats open by default',
   },
   {
     tierNumber: 2,
@@ -54,7 +54,7 @@ export function getAllowedSeatTierForLevel(rawHostLevel?: number | null): {
   unlockedOptions: PartySeatCount[];
 } {
   const hostLevel = sanitizeUserLevel(rawHostLevel);
-  const isCoHostSeatUnlocked = hostLevel >= 5;
+  const isCoHostSeatUnlocked = true;
   const canSelect8Seats = hostLevel >= 10;
   const canSelect16Seats = hostLevel >= 20;
 
@@ -96,7 +96,7 @@ export function clampPartyMaxSeatsForHostLevel(
 /**
  * Normalizes a party room's seat count.
  * Whenever `hostLevel` is provided, strictly clamps `maxSeats` to the host's unlocked tier:
- * - Lv.0–9  => max 5 seats (Seat #2 locked until Lv.5)
+ * - Lv.0–9  => max 5 seats (all 5 seats open by default)
  * - Lv.10–19 => 5 or 8 seats
  * - Lv.20+  => 5, 8, or 16 seats
  */
@@ -112,12 +112,10 @@ export function normalizePartyMaxSeats(raw?: number | null, hostLevel?: number |
 }
 
 /**
- * Seat #2 (index 1, directly beside the Host) is locked for Hosts below Level 5.
- * Unlocks automatically when Host reaches Level 5+.
+ * Seat #2 (index 1, directly beside the Host) is unlocked by default for all host levels.
  */
-export function isSeatLockedByHostLevel(seatIndex: number, rawHostLevel?: number | null): boolean {
-  const hostLevel = sanitizeUserLevel(rawHostLevel);
-  return seatIndex === 1 && hostLevel < 5;
+export function isSeatLockedByHostLevel(_seatIndex: number, _rawHostLevel?: number | null): boolean {
+  return false;
 }
 
 /**
@@ -179,15 +177,11 @@ export function countActiveOccupiedSeats(
 
 /**
  * Returns the number of usable (non-level-locked) seats in the room.
- * For Level 0–4 hosts in a 5-slot room, Seat #2 (index 1) is locked, leaving 4 active seats (Host + 3 guests).
+ * All 5 base seats (including Seat #2) are available by default for all host levels.
  */
 export function getActiveSeatCapacity(maxSeats: number, rawHostLevel?: number | null): number {
   const hostLevel = sanitizeUserLevel(rawHostLevel);
-  const clamped = clampPartyMaxSeatsForHostLevel(maxSeats, hostLevel);
-  if (clamped === 5 && hostLevel < 5) {
-    return 4;
-  }
-  return clamped;
+  return clampPartyMaxSeatsForHostLevel(maxSeats, hostLevel);
 }
 
 /**

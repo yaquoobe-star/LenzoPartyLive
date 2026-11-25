@@ -76,7 +76,7 @@ export interface FirestoreRoomParticipantDoc {
   rtcSignals?: Record<string, FirestoreRtcSignalPayload>;
 }
 
-const ACTIVE_PRESENCE_TTL_MS = 120000; // 2 minutes stale cutoff
+const ACTIVE_PRESENCE_TTL_MS = 60000; // 60 seconds stale cutoff (4x 15s heartbeat)
 
 function mapViewerInfo(raw: any, fallbackId: string): LiveViewerInfo {
   const now = Date.now();

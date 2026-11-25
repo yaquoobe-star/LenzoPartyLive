@@ -412,19 +412,16 @@ service cloud.firestore {
         || (
           data.seats is list
           && data.seats.size() <= data.maxSeats
-          && (hostLvl >= 5 || data.seats.size() < 2 || data.seats[1] == null)
         );
       return validMaxSeats && validSeatsList;
     }
 
     function isValidGuestPartySeatUpdate(data, oldData) {
-      let hostLvl = getAuthoritativeHostLevel(oldData.host.id);
       let maxCap = oldData.maxSeats is number ? oldData.maxSeats : 5;
       return !('seats' in data)
         || (
           data.seats is list
           && data.seats.size() <= maxCap
-          && (hostLvl >= 5 || data.seats.size() < 2 || data.seats[1] == null)
         );
     }
 

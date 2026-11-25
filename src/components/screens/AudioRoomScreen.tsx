@@ -317,20 +317,63 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   maxSeatsRef.current = maxSeats;
   const isCoHostSeatLevelLocked = isSeatLockedByHostLevel(1, hostLevel);
 
-  // Strictly mirror server seat occupancy while enforcing host-level maxSeats & Lv.5 Seat #2 lock
+  // Strictly mirror server seat occupancy while enforcing host-level maxSeats
   const normalizeSeats = (
     raw?: (UserProfile | null)[],
     count: number = maxSeatsRef.current,
     level: number = hostLevelRef.current
   ): (UserProfile | null)[] => sanitizePartySeatsForHostLevel(raw, count, level);
 
+  const profileToViewerInfo = (u: UserProfile, isHostFlag: boolean): LiveViewerInfo => {
+    const now = Date.now();
+    return {
+      userId: u.id,
+      name: u.name || 'User',
+      username: u.username || '',
+      avatar: u.avatar || '',
+      level: typeof u.level === 'number' ? u.level : 0,
+      vipLevel: typeof u.vipLevel === 'number' ? u.vipLevel : 0,
+      superVipLevel: typeof u.superVipLevel === 'number' ? u.superVipLevel : 0,
+      isVIP: Boolean(u.isVIP || (u.vipLevel || 0) > 0),
+      isSuperVIP: Boolean(u.isSuperVIP || (u.superVipLevel || 0) > 0),
+      isHost: isHostFlag,
+      joinedAt: now,
+      lastSeen: now,
+    };
+  };
+
   const [seats, setSeats] = useState<(UserProfile | null)[]>(() =>
     normalizeSeats(room.seats, clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel), hostLevel)
   );
   const [mutedSeatIndices, setMutedSeatIndices] = useState<number[]>(room.mutedSeatIndices || []);
   const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(room.seatRequests || []);
-  const [participantsList, setParticipantsList] = useState<LiveViewerInfo[]>([]);
-  const [participantTotal, setParticipantTotal] = useState<number>(room.numericParticipants ?? 0);
+  const [participantsList, setParticipantsList] = useState<LiveViewerInfo[]>(() => {
+    const initialSeats = normalizeSeats(
+      room.seats,
+      clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel),
+      hostLevel
+    );
+    const map = new Map<string, LiveViewerInfo>();
+    map.set(currentUser.id, profileToViewerInfo(currentUser, isRoomHost));
+    initialSeats.forEach((seatUser) => {
+      if (seatUser?.id && !map.has(seatUser.id)) {
+        map.set(seatUser.id, profileToViewerInfo(seatUser, seatUser.id === room.host.id));
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => (a.isHost ? -1 : b.isHost ? 1 : 0));
+  });
+  const [participantTotal, setParticipantTotal] = useState<number>(() => {
+    const initialSeats = normalizeSeats(
+      room.seats,
+      clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel),
+      hostLevel
+    );
+    const seededIds = new Set<string>([currentUser.id]);
+    initialSeats.forEach((s) => {
+      if (s?.id) seededIds.add(s.id);
+    });
+    return Math.max(seededIds.size, room.numericParticipants ?? 0);
+  });
 
   const userSeatIndex = seats.findIndex((s) => s?.id === currentUser.id);
   const isCurrentlySeated = userSeatIndex !== -1;
@@ -406,12 +449,95 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   mutedSeatIndicesRef.current = mutedSeatIndices;
   const seatsRef = useRef<(UserProfile | null)[]>(seats);
   seatsRef.current = seats;
+  const participantsListRef = useRef<LiveViewerInfo[]>(participantsList);
+  participantsListRef.current = participantsList;
   const participantTotalRef = useRef<number>(participantTotal);
   participantTotalRef.current = participantTotal;
+  const recentlyLeftUserIdsRef = useRef<Map<string, number>>(new Map());
+  const hasFsParticipantsRef = useRef<boolean>(false);
   const roomEnteredAtRef = useRef<number>(Date.now());
   const preEntryMsgIdsRef = useRef<Set<string>>(new Set());
   const fsMessagesBaselineCapturedRef = useRef<boolean>(false);
   const optimisticSentMsgIdsRef = useRef<Set<string>>(new Set());
+
+  const RECENTLY_LEFT_TTL_MS = 4000;
+
+  const isUserRecentlyLeft = (userId: string): boolean => {
+    const leftAt = recentlyLeftUserIdsRef.current.get(userId);
+    if (!leftAt) return false;
+    if (Date.now() - leftAt > RECENTLY_LEFT_TTL_MS) {
+      recentlyLeftUserIdsRef.current.delete(userId);
+      return false;
+    }
+    return true;
+  };
+
+  const markUserRecentlyLeft = (userId: string) => {
+    if (!userId) return;
+    recentlyLeftUserIdsRef.current.set(userId, Date.now());
+  };
+
+  const clearUserRecentlyLeft = (userId: string) => {
+    if (!userId) return;
+    recentlyLeftUserIdsRef.current.delete(userId);
+  };
+
+  const reconcileParticipantsWithSeats = (
+    baseParticipants: LiveViewerInfo[],
+    currentSeats: (UserProfile | null)[],
+    excludeIds?: Set<string>
+  ): LiveViewerInfo[] => {
+    const seatedIds = new Set<string>();
+    const map = new Map<string, LiveViewerInfo>();
+
+    baseParticipants.forEach((p) => {
+      if (!p?.userId) return;
+      if (isRoomHost && blockedUserIdsRef.current.has(p.userId)) return;
+      if (excludeIds?.has(p.userId)) return;
+      if (isUserRecentlyLeft(p.userId)) return;
+      map.set(p.userId, p);
+    });
+
+    currentSeats.forEach((seatUser) => {
+      if (!seatUser?.id) return;
+      if (isRoomHost && blockedUserIdsRef.current.has(seatUser.id)) return;
+      if (excludeIds?.has(seatUser.id)) return;
+      if (isUserRecentlyLeft(seatUser.id)) return;
+      seatedIds.add(seatUser.id);
+      const existing = map.get(seatUser.id);
+      if (!existing) {
+        map.set(seatUser.id, profileToViewerInfo(seatUser, seatUser.id === room.host.id));
+      } else {
+        map.set(seatUser.id, {
+          ...existing,
+          name: seatUser.name || existing.name,
+          username: seatUser.username || existing.username,
+          avatar: seatUser.avatar || existing.avatar,
+          level: typeof seatUser.level === 'number' ? seatUser.level : existing.level,
+          vipLevel: typeof seatUser.vipLevel === 'number' ? seatUser.vipLevel : existing.vipLevel,
+          superVipLevel:
+            typeof seatUser.superVipLevel === 'number'
+              ? seatUser.superVipLevel
+              : existing.superVipLevel,
+          isVIP: Boolean(seatUser.isVIP || (seatUser.vipLevel || 0) > 0 || existing.isVIP),
+          isSuperVIP: Boolean(
+            seatUser.isSuperVIP || (seatUser.superVipLevel || 0) > 0 || existing.isSuperVIP
+          ),
+          isHost: existing.isHost || seatUser.id === room.host.id,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isHost && !b.isHost) return -1;
+      if (!a.isHost && b.isHost) return 1;
+      const aSeated = seatedIds.has(a.userId);
+      const bSeated = seatedIds.has(b.userId);
+      if (aSeated && !bSeated) return -1;
+      if (!aSeated && bSeated) return 1;
+      return (a.joinedAt || 0) - (b.joinedAt || 0);
+    });
+  };
 
   // Settings & Announcements
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
@@ -756,7 +882,10 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setActivities([]);
 
     const knownParticipantIds = new Set<string>([currentUser.id]);
+    let prevFsParticipantIds = new Set<string>();
     let fsParticipantsInitialized = false;
+    hasFsParticipantsRef.current = false;
+    recentlyLeftUserIdsRef.current.clear();
 
     liveAndRoomService.setCurrentUser(currentUser.id);
     liveAndRoomService.subscribeRoom(room.id, currentUser.id);
@@ -769,7 +898,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       seatsRef.current.some((s) => s?.id === currentUser.id)
     );
 
-    const applyServerRoomState = (nextRoom: PartyRoom, allowSeatClear = false) => {
+    const applyServerRoomState = (nextRoom: PartyRoom, allowSeatClear = false, excludeUserId?: string) => {
       const effectiveLevel = isRoomHost
         ? hostLevelRef.current
         : typeof nextRoom.host?.level === 'number'
@@ -785,17 +914,25 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       const incomingSeatsRaw: (UserProfile | null)[] = Array.isArray(nextRoom.seats) ? nextRoom.seats : [];
       const currentSeats = seatsRef.current;
       // Prevent stale/freshly-hydrated server memory (which may have all-null seats after restart)
-      // from knocking the Host or seated speakers off their active seats!
+      // from knocking the Host or seated speakers off their active seats, while always allowing
+      // explicit departures or seat vacates to clear immediately.
       const mergedSeats: (UserProfile | null)[] = Array.from({ length: nextMax }, (_, idx) => {
         const inc = incomingSeatsRaw[idx] || null;
-        if (inc) return inc;
+        if (inc) {
+          if (excludeUserId && inc.id === excludeUserId) return null;
+          if (isUserRecentlyLeft(inc.id)) return null;
+          return inc;
+        }
         if (!allowSeatClear && currentSeats[idx]) {
+          if (excludeUserId && currentSeats[idx]?.id === excludeUserId) return null;
+          if (currentSeats[idx]?.id && isUserRecentlyLeft(currentSeats[idx]!.id)) return null;
           return currentSeats[idx];
         }
         return null;
       });
       setMaxSeats(nextMax as PartySeatCount);
       setSeats(mergedSeats);
+      seatsRef.current = mergedSeats;
       if (Array.isArray(nextRoom.mutedSeatIndices)) {
         setMutedSeatIndices(nextRoom.mutedSeatIndices.filter((i) => i < nextMax));
       }
@@ -814,23 +951,37 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (nextRoom.seatTheme === 'default' || nextRoom.seatTheme === 'gold' || nextRoom.seatTheme === 'green') {
         setSeatTheme(nextRoom.seatTheme);
       }
-      if (typeof nextRoom.numericParticipants === 'number') {
-        setParticipantTotal(Math.max(0, nextRoom.numericParticipants || 0));
-      }
-      onUpdateRoom?.({ ...nextRoom, maxSeats: nextMax as PartySeatCount, seats: mergedSeats });
+      const excludeSet = excludeUserId ? new Set([excludeUserId]) : undefined;
+      const nextParticipants = reconcileParticipantsWithSeats(
+        participantsListRef.current,
+        mergedSeats,
+        excludeSet
+      );
+      setParticipantsList(nextParticipants);
+      participantsListRef.current = nextParticipants;
+      const nextCount = nextParticipants.length;
+      setParticipantTotal(nextCount);
+      participantTotalRef.current = nextCount;
+      onUpdateRoom?.({
+        ...nextRoom,
+        maxSeats: nextMax as PartySeatCount,
+        seats: mergedSeats,
+        numericParticipants: nextCount,
+        participantCount: String(nextCount),
+      });
     };
 
     const refreshRealTimeParticipants = () => {
       liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((res) => {
         if (!active || res.participants.length === 0) return;
-        setParticipantsList((prev) => {
-          const map = new Map<string, LiveViewerInfo>();
-          prev.forEach((p) => map.set(p.userId, p));
-          res.participants.forEach((p) => map.set(p.userId, p));
-          const merged = Array.from(map.values());
-          setParticipantTotal(merged.length);
-          return merged;
-        });
+        // When Firestore real-time participants stream is already active, do not let a stale
+        // Express snapshot resurrect departed users.
+        if (hasFsParticipantsRef.current) return;
+        const reconciled = reconcileParticipantsWithSeats(res.participants, seatsRef.current);
+        setParticipantsList(reconciled);
+        participantsListRef.current = reconciled;
+        setParticipantTotal(reconciled.length);
+        participantTotalRef.current = reconciled.length;
       });
     };
 
@@ -858,16 +1009,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           applyServerRoomState(res.room);
         }
         applyIncomingMusicState(res.musicState || res.room?.musicState);
-        if (Array.isArray(res.participants) && res.participants.length > 0) {
-          setParticipantsList((prev) => {
-            const map = new Map<string, LiveViewerInfo>();
-            prev.forEach((p) => map.set(p.userId, p));
-            res.participants!.forEach((p) => map.set(p.userId, p));
-            const merged = Array.from(map.values());
-            setParticipantTotal(merged.length);
-            return merged;
-          });
-        } else {
+        if (Array.isArray(res.participants) && res.participants.length > 0 && !hasFsParticipantsRef.current) {
+          const reconciled = reconcileParticipantsWithSeats(res.participants, seatsRef.current);
+          setParticipantsList(reconciled);
+          participantsListRef.current = reconciled;
+          setParticipantTotal(reconciled.length);
+          participantTotalRef.current = reconciled.length;
+        } else if (!hasFsParticipantsRef.current) {
           refreshRealTimeParticipants();
         }
         if (Array.isArray(res.pendingRequests) && res.pendingRequests.length > 0) {
@@ -905,19 +1053,42 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         console.warn('[AudioRoom] Backend join fallback to Firestore:', msg);
       });
 
-    // Cloud Firestore real-time participants subscription
+    // Cloud Firestore real-time participants subscription (authoritative for live joins & leaves)
     const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants) => {
       if (!active) return;
+      hasFsParticipantsRef.current = true;
       const fsParticipants = isRoomHost
         ? rawFsParticipants.filter((p) => !blockedUserIdsRef.current.has(p.userId))
         : rawFsParticipants;
+
+      const currentFsIds = new Set<string>();
+      fsParticipants.forEach((p) => {
+        currentFsIds.add(p.userId);
+        // If a user re-joined cleanly after recently leaving, clear the recently-left guard
+        const leftAt = recentlyLeftUserIdsRef.current.get(p.userId);
+        if (leftAt && (p.joinedAt || 0) > leftAt) {
+          clearUserRecentlyLeft(p.userId);
+        }
+      });
+
+      const departedIds = new Set<string>();
       if (!fsParticipantsInitialized) {
         fsParticipantsInitialized = true;
         fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
       } else {
+        // Detect users who left the room (or timed out) and immediately remove them everywhere
+        prevFsParticipantIds.forEach((prevId) => {
+          if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
+            departedIds.add(prevId);
+            knownParticipantIds.delete(prevId);
+            markUserRecentlyLeft(prevId);
+          }
+        });
+
         fsParticipants.forEach((p) => {
           if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
             knownParticipantIds.add(p.userId);
+            clearUserRecentlyLeft(p.userId);
             const now = Date.now();
             const lastSeen = seenPartyEntriesRef.current.get(p.userId) || 0;
             if (now - lastSeen > 10000) {
@@ -954,10 +1125,52 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           }
         });
       }
-      setParticipantsList(fsParticipants);
-      setParticipantTotal(fsParticipants.length);
+      prevFsParticipantIds = currentFsIds;
+
+      // Immediately vacate any departed user from local seats (and Firestore room doc if Host/Mod)
+      let activeSeats = seatsRef.current;
+      if (departedIds.size > 0) {
+        let seatsChanged = false;
+        const cleanedSeats = activeSeats.map((seatUser, idx) => {
+          if (seatUser?.id && departedIds.has(seatUser.id)) {
+            seatsChanged = true;
+            if (isRoomHost || isCurrentUserModerator) {
+              void vacateFirestoreSeat(room.id, seatUser.id, idx, maxSeatsRef.current).catch(() => {});
+            }
+            return null;
+          }
+          return seatUser;
+        });
+        if (seatsChanged) {
+          activeSeats = cleanedSeats;
+          setSeats(cleanedSeats);
+          seatsRef.current = cleanedSeats;
+        }
+      }
+
+      const reconciledParticipants = reconcileParticipantsWithSeats(
+        fsParticipants,
+        activeSeats,
+        departedIds.size > 0 ? departedIds : undefined
+      );
+      setParticipantsList(reconciledParticipants);
+      participantsListRef.current = reconciledParticipants;
+      setParticipantTotal(reconciledParticipants.length);
+      participantTotalRef.current = reconciledParticipants.length;
+
+      const hostStillPresent = reconciledParticipants.some((p) => p.userId === room.host.id);
+      onUpdateRoom?.({
+        ...room,
+        maxSeats: maxSeatsRef.current,
+        seats: activeSeats,
+        numericParticipants: reconciledParticipants.length,
+        participantCount: String(reconciledParticipants.length),
+        hostPresent: hostStillPresent,
+        isOwnerPresent: hostStillPresent,
+      });
+
       if (isRoomHost) {
-        void updateFirestoreRoomParticipantCount(room.id, fsParticipants.length);
+        void updateFirestoreRoomParticipantCount(room.id, reconciledParticipants.length);
       }
     });
 
@@ -1053,11 +1266,42 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         const nextMax = Math.max(storedFsMax, rawFsSeats.length);
         setMaxSeats(nextMax as PartySeatCount);
         if (Array.isArray(data.seats)) {
+          const prevSeats = seatsRef.current;
           const preservedSeats: (UserProfile | null)[] = Array.from(
             { length: nextMax },
-            (_, idx) => rawFsSeats[idx] || null
+            (_, idx) => {
+              const occupant = rawFsSeats[idx] || null;
+              if (occupant?.id && isUserRecentlyLeft(occupant.id)) return null;
+              return occupant;
+            }
           );
+          const wasSelfSeated = prevSeats.some((s) => s?.id === currentUser.id);
+          const isSelfNowSeated = preservedSeats.some((s) => s?.id === currentUser.id);
           setSeats(preservedSeats);
+          seatsRef.current = preservedSeats;
+
+          // If current user just joined a seat (e.g. approved/seated remotely), immediately refresh Firestore presence
+          if (!wasSelfSeated && isSelfNowSeated) {
+            clearUserRecentlyLeft(currentUser.id);
+            void joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
+          }
+
+          // Immediately synchronize seated users into participants display & room card
+          const nextParticipants = reconcileParticipantsWithSeats(
+            participantsListRef.current,
+            preservedSeats
+          );
+          setParticipantsList(nextParticipants);
+          participantsListRef.current = nextParticipants;
+          setParticipantTotal(nextParticipants.length);
+          participantTotalRef.current = nextParticipants.length;
+          onUpdateRoom?.({
+            ...room,
+            maxSeats: nextMax as PartySeatCount,
+            seats: preservedSeats,
+            numericParticipants: nextParticipants.length,
+            participantCount: String(nextParticipants.length),
+          });
         }
         if (Array.isArray(data.mutedSeatIndices)) {
           setMutedSeatIndices(data.mutedSeatIndices.filter((i: number) => i < nextMax));
@@ -1148,6 +1392,16 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       });
     }, 15000);
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !hasExplicitlyLeftRef.current) {
+        liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
+        void updateFirestoreRoomParticipantState(room.id, {
+          isSpeaker: seatsRef.current.some((s) => s?.id === currentUser.id),
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const unsubWs = liveAndRoomService.addEventListener((event, payload) => {
       if (!active || !payload) return;
 
@@ -1179,16 +1433,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           event === 'room:reactivated') &&
         payload.room
       ) {
+        if (event === 'room:seat_occupied' && payload.user?.id) {
+          clearUserRecentlyLeft(payload.user.id);
+        }
         applyServerRoomState(
           payload.room as PartyRoom,
           event === 'room:seat_vacated'
         );
         if (Array.isArray(payload.participants)) {
-          const filtered = isRoomHost
-            ? payload.participants.filter((p: LiveViewerInfo) => !blockedUserIdsRef.current.has(p.userId))
-            : payload.participants;
-          setParticipantsList(filtered);
-          setParticipantTotal(filtered.length);
+          const reconciled = reconcileParticipantsWithSeats(
+            payload.participants as LiveViewerInfo[],
+            seatsRef.current
+          );
+          setParticipantsList(reconciled);
+          participantsListRef.current = reconciled;
+          setParticipantTotal(reconciled.length);
+          participantTotalRef.current = reconciled.length;
         }
         if (event === 'room:sync_state') {
           applyIncomingMusicState(
@@ -1218,16 +1478,33 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       } else if (event === 'room:music_updated' && payload.musicState) {
         applyIncomingMusicState(payload.musicState as PartyMusicState);
       } else if (event === 'room:participant_joined') {
+        if (payload.participant?.userId) {
+          clearUserRecentlyLeft(payload.participant.userId);
+          knownParticipantIds.add(payload.participant.userId);
+        }
         if (payload.room) applyServerRoomState(payload.room as PartyRoom);
         if (isRoomHost && payload.participant?.userId && blockedUserIdsRef.current.has(payload.participant.userId)) {
           return;
         }
         if (Array.isArray(payload.participants)) {
-          const filtered = isRoomHost
-            ? payload.participants.filter((p: LiveViewerInfo) => !blockedUserIdsRef.current.has(p.userId))
-            : payload.participants;
-          setParticipantsList(filtered);
-          setParticipantTotal(filtered.length);
+          const reconciled = reconcileParticipantsWithSeats(
+            payload.participants as LiveViewerInfo[],
+            seatsRef.current
+          );
+          setParticipantsList(reconciled);
+          participantsListRef.current = reconciled;
+          setParticipantTotal(reconciled.length);
+          participantTotalRef.current = reconciled.length;
+        } else if (payload.participant?.userId) {
+          const base = [
+            ...participantsListRef.current.filter((p) => p.userId !== payload.participant.userId),
+            payload.participant as LiveViewerInfo,
+          ];
+          const reconciled = reconcileParticipantsWithSeats(base, seatsRef.current);
+          setParticipantsList(reconciled);
+          participantsListRef.current = reconciled;
+          setParticipantTotal(reconciled.length);
+          participantTotalRef.current = reconciled.length;
         } else {
           refreshRealTimeParticipants();
         }
@@ -1281,19 +1558,45 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           }, 700);
           return;
         }
-        if (payload.room) applyServerRoomState(payload.room as PartyRoom);
-        if (Array.isArray(payload.participants)) {
-          setParticipantsList(payload.participants);
-          setParticipantTotal(payload.participants.length);
-        } else if (payload.userId) {
-          setParticipantsList((prev) => {
-            const next = prev.filter((p) => p.userId !== payload.userId);
-            setParticipantTotal(next.length);
-            return next;
-          });
-        } else {
-          refreshRealTimeParticipants();
+        const departedUserId = typeof payload.userId === 'string' ? payload.userId : '';
+        if (departedUserId) {
+          markUserRecentlyLeft(departedUserId);
+          knownParticipantIds.delete(departedUserId);
         }
+        if (payload.room) {
+          applyServerRoomState(payload.room as PartyRoom, true, departedUserId || undefined);
+        } else if (departedUserId) {
+          const clearedSeats = seatsRef.current.map((s) => (s?.id === departedUserId ? null : s));
+          setSeats(clearedSeats);
+          seatsRef.current = clearedSeats;
+        }
+        const excludeSet = departedUserId ? new Set([departedUserId]) : undefined;
+        const nextParticipants = Array.isArray(payload.participants)
+          ? reconcileParticipantsWithSeats(
+              payload.participants as LiveViewerInfo[],
+              seatsRef.current,
+              excludeSet
+            )
+          : reconcileParticipantsWithSeats(
+              participantsListRef.current.filter((p) => p.userId !== departedUserId),
+              seatsRef.current,
+              excludeSet
+            );
+        setParticipantsList(nextParticipants);
+        participantsListRef.current = nextParticipants;
+        setParticipantTotal(nextParticipants.length);
+        participantTotalRef.current = nextParticipants.length;
+        const hostStillPresent = nextParticipants.some((p) => p.userId === room.host.id);
+        onUpdateRoom?.({
+          ...room,
+          ...(payload.room ? (payload.room as PartyRoom) : {}),
+          maxSeats: maxSeatsRef.current,
+          seats: seatsRef.current,
+          numericParticipants: nextParticipants.length,
+          participantCount: String(nextParticipants.length),
+          hostPresent: hostStillPresent,
+          isOwnerPresent: hostStillPresent,
+        });
       } else if (event === 'room:heart') {
         if (typeof payload.likesCount === 'number') {
           setRoomLikesCount((prev) => Math.max(prev, payload.likesCount));
@@ -1464,10 +1767,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     };
 
     window.addEventListener('beforeunload', cleanupOnUnexpectedExit);
+    window.addEventListener('pagehide', cleanupOnUnexpectedExit);
 
     return () => {
       active = false;
       window.removeEventListener('beforeunload', cleanupOnUnexpectedExit);
+      window.removeEventListener('pagehide', cleanupOnUnexpectedExit);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(heartbeatInterval);
       if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
       unsubWs();
@@ -1863,19 +2169,22 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         ? updatedBackground.backgroundImage
         : backgroundRef.current.backgroundImage;
 
+    const liveParticipantCount = participantTotalRef.current;
+    const liveHostPresent = participantsListRef.current.some((p) => p.userId === room.host.id);
     const nextRoom: PartyRoom = {
       ...room,
       host: isRoomHost ? { ...room.host, level: effectiveLevel } : room.host,
       maxSeats: resolvedMaxSeats,
       seats: sanitizedSeats,
       mutedSeatIndices: mutedSeatIndices.filter((i) => i < resolvedMaxSeats),
-      numericParticipants: participantTotal,
-      participantCount: String(participantTotal),
+      numericParticipants: liveParticipantCount,
+      participantCount: String(liveParticipantCount),
       isLocked: updatedLocked !== undefined ? updatedLocked : isSeatLocked,
       allowJoin: updatedAllowJoin !== undefined ? updatedAllowJoin : isAllowJoin,
       announcement: updatedAnnouncement !== undefined ? updatedAnnouncement : roomAnnouncement,
       seatRequests: updatedRequests !== undefined ? updatedRequests : seatRequests,
-      isOwnerPresent: participantsList.some((p) => p.userId === room.host.id),
+      hostPresent: liveHostPresent,
+      isOwnerPresent: liveHostPresent,
       backgroundType: resolvedBgType,
       backgroundId: resolvedBgId,
       backgroundImage: resolvedBgImage,
@@ -1888,8 +2197,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         maxSeats: resolvedMaxSeats,
         seats: sanitizedSeats,
         seatRequests: nextRoom.seatRequests,
-        numericParticipants: participantTotal,
-        participantCount: String(participantTotal),
+        numericParticipants: liveParticipantCount,
+        participantCount: String(liveParticipantCount),
         mutedSeatIndices: nextRoom.mutedSeatIndices,
         isLocked: nextRoom.isLocked,
         allowJoin: nextRoom.allowJoin,
@@ -2034,16 +2343,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setInviteModalTab(typeof preferredSeat === 'number' ? 'room' : 'users');
     setShowInviteToSeatModal(resolvedSeat);
     void loadInvitableUsers();
-    liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
-      if (r.participants.length > 0) {
-        setParticipantsList((prev) => {
-          const map = new Map<string, LiveViewerInfo>();
-          prev.forEach((p) => map.set(p.userId, p));
-          r.participants.forEach((p) => map.set(p.userId, p));
-          return Array.from(map.values());
-        });
-      }
-    });
+    if (!hasFsParticipantsRef.current) {
+      liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+        if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+          const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+          setParticipantsList(reconciled);
+          participantsListRef.current = reconciled;
+          setParticipantTotal(reconciled.length);
+          participantTotalRef.current = reconciled.length;
+        }
+      });
+    }
   };
 
   const handleChangeSeatMode = (targetSeats: PartySeatCount) => {
@@ -2066,7 +2376,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setSeatRequests(nextRequests);
     void liveAndRoomService.updateRoomSettings(room.id, currentUser.id, { maxSeats: clamped });
     syncRoom(resizedSeats, nextRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, clamped);
-    showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? '4+1' : clamped}-seat layout`);
+    showToast(`Room updated to ${clamped}-seat layout`);
   };
 
   // Cleanly exit party room (vacates seat — including Host Seat #1 — updates count & lifecycle, disconnects voice & leaves room)
@@ -2074,24 +2384,27 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     setShowExitRoomModal(false);
     setShowSettingsSheet(false);
     hasExplicitlyLeftRef.current = true;
+    markUserRecentlyLeft(currentUser.id);
     const leavingSeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
     const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : undefined;
     const nextSeats = seatsRef.current.map((s, idx) =>
       s?.id === currentUser.id || (isRoomHost && idx === 0) ? null : s
     );
-    const remainingCount = Math.max(
-      0,
-      participantsList.filter((p) => p.userId !== currentUser.id).length
-    );
+    const remainingParticipants = participantsListRef.current.filter((p) => p.userId !== currentUser.id);
+    const remainingCount = remainingParticipants.length;
     const now = Date.now();
     const nextStatus: 'active' | 'empty' = remainingCount === 0 ? 'empty' : 'active';
     const nextEmptySince = remainingCount === 0 ? now : null;
     const nextClosesAt = remainingCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
     const nextHostPresent = isRoomHost ? false : room.hostPresent;
 
-    // Immediately reflect empty host seat, cleared avatar, updated count & EMPTY status in UI + parent room directory
+    // Immediately reflect empty host seat, cleared avatar, updated participants & count in UI + parent room directory
     setSeats(nextSeats);
+    seatsRef.current = nextSeats;
+    setParticipantsList(remainingParticipants);
+    participantsListRef.current = remainingParticipants;
     setParticipantTotal(remainingCount);
+    participantTotalRef.current = remainingCount;
     onUpdateRoom?.({
       ...room,
       seats: nextSeats,
@@ -2180,16 +2493,17 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       if (ownerSittingIdx === -1) {
         setShowOwnerSeatChoice(index);
       } else {
-        liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
-          if (r.participants.length > 0) {
-            setParticipantsList((prev) => {
-              const map = new Map<string, LiveViewerInfo>();
-              prev.forEach((p) => map.set(p.userId, p));
-              r.participants.forEach((p) => map.set(p.userId, p));
-              return Array.from(map.values());
-            });
-          }
-        });
+        if (!hasFsParticipantsRef.current) {
+          liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+            if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+              const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+              setParticipantsList(reconciled);
+              participantsListRef.current = reconciled;
+              setParticipantTotal(reconciled.length);
+              participantTotalRef.current = reconciled.length;
+            }
+          });
+        }
         setShowInviteToSeatModal(index);
       }
       return;
@@ -2318,6 +2632,31 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   };
 
   const handleAcceptSeatRequest = async (req: SeatRequest) => {
+    clearUserRecentlyLeft(req.user.id);
+    // Immediate optimistic seat & participant update so the user's profile appears with zero delay
+    const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+    const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === req.user.id);
+    if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
+    let optTargetIdx =
+      req.seatIndex >= 0 && req.seatIndex < maxSeats && optimisticSeats[req.seatIndex] === null
+        ? req.seatIndex
+        : optimisticSeats.findIndex((s) => s === null);
+    if (optTargetIdx !== -1) {
+      optimisticSeats[optTargetIdx] = req.user;
+      const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
+      setSeats(optimisticSeats);
+      seatsRef.current = optimisticSeats;
+      setSeatRequests(optRequests);
+      const optParticipants = reconcileParticipantsWithSeats(
+        participantsListRef.current,
+        optimisticSeats
+      );
+      setParticipantsList(optParticipants);
+      participantsListRef.current = optParticipants;
+      setParticipantTotal(optParticipants.length);
+      participantTotalRef.current = optParticipants.length;
+    }
+
     // Primary atomic approval in Cloud Firestore so viewer immediately enters seat & activates mic cross-device
     const fsRes = await respondFirestoreSeatRequest(
       room.id,
@@ -2342,7 +2681,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           ? fsRes.assignedSeatIndex
           : req.seatIndex;
       setSeats(nextSeats);
+      seatsRef.current = nextSeats;
       setSeatRequests(nextRequests);
+      const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+      setParticipantsList(nextParticipants);
+      participantsListRef.current = nextParticipants;
+      setParticipantTotal(nextParticipants.length);
+      participantTotalRef.current = nextParticipants.length;
       syncRoom(nextSeats, nextRequests, undefined, undefined, undefined, true);
       showToast(`Approved ${req.user.name} for Seat #${assignedSeat + 1}`);
       void serverPromise;
@@ -2355,7 +2700,13 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
       const nextSeats = normalizeSeats(srvRes.seats, maxSeats);
       const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
       setSeats(nextSeats);
+      seatsRef.current = nextSeats;
       setSeatRequests(nextRequests);
+      const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+      setParticipantsList(nextParticipants);
+      participantsListRef.current = nextParticipants;
+      setParticipantTotal(nextParticipants.length);
+      participantTotalRef.current = nextParticipants.length;
       syncRoom(nextSeats, nextRequests);
       showToast(`Approved ${req.user.name} for Seat #${(srvRes.seatIndex ?? req.seatIndex) + 1}`);
       return;
@@ -3119,6 +3470,20 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
 
     if (directSeat) {
       setShowInviteToSeatModal(null);
+      clearUserRecentlyLeft(targetUser.id);
+      // Optimistically place the user on the seat & in participants immediately
+      const optimisticSeats = Array.from({ length: maxSeats }, (_, idx) => seatsRef.current[idx] || null);
+      const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === targetUser.id);
+      if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
+      optimisticSeats[targetSeat] = targetUser;
+      setSeats(optimisticSeats);
+      seatsRef.current = optimisticSeats;
+      const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+      setParticipantsList(optParticipants);
+      participantsListRef.current = optParticipants;
+      setParticipantTotal(optParticipants.length);
+      participantTotalRef.current = optParticipants.length;
+
       const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
       void liveAndRoomService
         .takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser)
@@ -3128,18 +3493,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
         const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
         const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
         setSeats(nextSeats);
+        seatsRef.current = nextSeats;
         setSeatRequests(nextRequests);
+        const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+        setParticipantsList(nextParticipants);
+        participantsListRef.current = nextParticipants;
+        setParticipantTotal(nextParticipants.length);
+        participantTotalRef.current = nextParticipants.length;
         syncRoom(nextSeats, nextRequests, undefined, undefined, undefined, true);
         showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
         return;
       }
 
-      const updated = Array.from({ length: maxSeats }, (_, idx) => seats[idx] || null);
-      const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
-      if (prevIdx !== -1) updated[prevIdx] = null;
-      updated[targetSeat] = targetUser;
-      setSeats(updated);
-      syncRoom(updated);
+      syncRoom(optimisticSeats);
       showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
       return;
     }
@@ -3211,42 +3577,71 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
   const handleAcceptSeatInvitation = async () => {
     if (!incomingSeatInvite) return;
     const idx = incomingSeatInvite.seatIndex;
+    const invitedUser = incomingSeatInvite.toUser;
     if (!isSeatIndexAllowedForRoom(idx, maxSeats, hostLevel)) {
-      showToast(
-        isSeatLockedByHostLevel(idx, hostLevel)
-          ? 'Seat #2 unlocks when Host reaches Level 5'
-          : 'This seat is locked at the current Host level.'
-      );
+      showToast('This seat is locked at the current Host level.');
       setIncomingSeatInvite(null);
       return;
     }
-    const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
+    setIncomingSeatInvite(null);
+    clearUserRecentlyLeft(invitedUser.id);
+
+    // Optimistically display user on seat & in room participants immediately
+    const optimisticSeats = Array.from({ length: maxSeats }, (_, i) => seatsRef.current[i] || null);
+    const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === invitedUser.id);
+    if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
+    optimisticSeats[idx] = invitedUser;
+    setSeats(optimisticSeats);
+    seatsRef.current = optimisticSeats;
+    const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+    setParticipantsList(optParticipants);
+    participantsListRef.current = optParticipants;
+    setParticipantTotal(optParticipants.length);
+    participantTotalRef.current = optParticipants.length;
+
+    if (invitedUser.id === currentUser.id) {
+      void joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
+    }
+
+    const fsRes = await takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats);
     const updated =
       fsRes.success && Array.isArray(fsRes.seats)
         ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null)
-        : (() => {
-            const copy = Array.from({ length: maxSeats }, (_, i) => seats[i] || null);
-            const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
-            if (prevSeat !== -1) copy[prevSeat] = null;
-            copy[idx] = incomingSeatInvite.toUser;
-            return copy;
-          })();
+        : optimisticSeats;
     setSeats(updated);
+    seatsRef.current = updated;
+    const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, updated);
+    setParticipantsList(nextParticipants);
+    participantsListRef.current = nextParticipants;
+    setParticipantTotal(nextParticipants.length);
+    participantTotalRef.current = nextParticipants.length;
     syncRoom(updated, undefined, undefined, undefined, undefined, fsRes.success);
     showToast(`Joined Seat #${idx + 1} — mic is live`);
-    setIncomingSeatInvite(null);
   };
 
   const handleOwnerTakeSeat = async (index: number) => {
     setShowOwnerSeatChoice(null);
     if (!isSeatIndexAllowedForRoom(index, maxSeats, hostLevel)) {
-      showToast(
-        isSeatLockedByHostLevel(index, hostLevel)
-          ? `Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})`
-          : 'This seat is locked at the current Host level.'
-      );
+      showToast('This seat is locked at the current Host level.');
       return;
     }
+    clearUserRecentlyLeft(currentUser.id);
+
+    // Immediate optimistic update so profile appears on seat & in participants with zero delay
+    const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+    const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === currentUser.id);
+    if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
+    optimisticSeats[index] = currentUser;
+    setSeats(optimisticSeats);
+    seatsRef.current = optimisticSeats;
+    const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+    setParticipantsList(optParticipants);
+    participantsListRef.current = optParticipants;
+    setParticipantTotal(optParticipants.length);
+    participantTotalRef.current = optParticipants.length;
+
+    void joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
+
     const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
     void liveAndRoomService
       .takeSeatDirect(room.id, currentUser.id, index, currentUser)
@@ -3255,14 +3650,15 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     if (fsRes.success && Array.isArray(fsRes.seats)) {
       const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
       setSeats(nextSeats);
+      seatsRef.current = nextSeats;
+      const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+      setParticipantsList(nextParticipants);
+      participantsListRef.current = nextParticipants;
+      setParticipantTotal(nextParticipants.length);
+      participantTotalRef.current = nextParticipants.length;
       syncRoom(nextSeats, undefined, undefined, undefined, undefined, true);
     } else {
-      const updated = normalizeSeats(seats, maxSeats, hostLevel);
-      const prevSeat = updated.findIndex((s) => s?.id === currentUser.id);
-      if (prevSeat !== -1) updated[prevSeat] = null;
-      updated[index] = currentUser;
-      setSeats(updated);
-      syncRoom(updated);
+      syncRoom(optimisticSeats);
     }
     showToast(`Took Seat #${index + 1}`);
   };
@@ -3271,13 +3667,23 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
     selfLeftSeatRef.current = true;
     setShowMySeatModal(null);
     setShowExitRoomModal(false);
+
+    // Immediately clear seat locally so step-down is instant
+    const optimisticSeats = seatsRef.current.map((s, i) =>
+      i === index || s?.id === currentUser.id ? null : s
+    );
+    setSeats(optimisticSeats);
+    seatsRef.current = optimisticSeats;
+    void updateFirestoreRoomParticipantState(room.id, { isSpeaker: false });
+
     const fsRes = await vacateFirestoreSeat(room.id, currentUser.id, index, maxSeats);
     void liveAndRoomService.leaveOwnSeat(room.id, currentUser.id).catch(() => []);
     const nextSeats =
       fsRes.success && Array.isArray(fsRes.seats)
         ? normalizeSeats(fsRes.seats, maxSeats)
-        : seats.map((s, i) => (i === index ? null : s));
+        : optimisticSeats;
     setSeats(nextSeats);
+    seatsRef.current = nextSeats;
     syncRoom(nextSeats, undefined, undefined, undefined, undefined, fsRes.success);
     showToast(`Stepped down from Seat #${index + 1}`);
   };
@@ -3603,7 +4009,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                 <span className="truncate">ID:{room.displayId || room.id.slice(-5)}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="text-emerald-400 font-bold shrink-0">
-                  {maxSeats === 5 && isCoHostSeatLevelLocked ? '4+1' : `${maxSeats}S`}
+                  {`${maxSeats}S`}
                 </span>
               </div>
             </div>
@@ -3614,12 +4020,19 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
           {/* Real-Time Top Viewers Avatar Stack + Participants Count Pill */}
           <button
             onClick={() => {
-              liveAndRoomService
-                .fetchRoomParticipants(room.id, 1, 50)
-                .then((r) => {
-                  setParticipantsList(r.participants);
-                  setParticipantTotal(r.totalCount);
-                });
+              if (!hasFsParticipantsRef.current) {
+                liveAndRoomService
+                  .fetchRoomParticipants(room.id, 1, 50)
+                  .then((r) => {
+                    if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+                      const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+                      setParticipantsList(reconciled);
+                      participantsListRef.current = reconciled;
+                      setParticipantTotal(reconciled.length);
+                      participantTotalRef.current = reconciled.length;
+                    }
+                  });
+              }
               setShowParticipantsModal(true);
             }}
             className="flex items-center gap-1 px-2 sm:pl-1.5 sm:pr-2.5 h-7 sm:h-8 rounded-full bg-[#1C0B35]/90 border border-white/15 text-white text-[10px] font-mono font-bold shadow hover:bg-[#2B1252] transition-colors shrink-0"
@@ -4856,7 +5269,7 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                             <span className="text-[9px] font-black uppercase opacity-80">{tier.tierLabel}</span>
                             <span className="text-[11px] font-black flex items-center gap-1">
                               {!unlocked && <Lock className="w-3 h-3 text-amber-300" />}
-                              {tier.maxSeats === 5 && hostLevel < 5 ? '4+1' : tier.maxSeats} Seats
+                              {tier.maxSeats} Seats
                             </span>
                             {!unlocked && (
                               <span className="text-[8px] font-bold text-amber-300">Lv.{tier.minLevel}</span>
@@ -4866,10 +5279,8 @@ export const AudioRoomScreen: React.FC<AudioRoomScreenProps> = ({
                       })}
                     </div>
                     <p className="text-[10px] text-[#B9AECF] leading-snug pt-0.5">
-                      {hostLevel < 5
-                        ? 'Lv.0–4: 4 open seats + Seat #2 unlocks at Lv.5 • 8 seats at Lv.10 • 16 seats at Lv.20'
-                        : hostLevel < 10
-                        ? 'Lv.5+: All 5 seats unlocked! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
+                      {hostLevel < 10
+                        ? 'All 5 seats unlocked by default! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats.'
                         : hostLevel < 20
                         ? 'Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats.'
                         : 'Lv.20+: Full access to switch between 5, 8, or 16 seats anytime.'}

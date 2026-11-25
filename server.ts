@@ -1192,12 +1192,14 @@ function markPartyParticipantLeft(room: ServerPartyRoom, userId: string, reason 
 
   if (vacatedSeats.length > 0) {
     const serializedAfterVacate = serializePartyRoom(room);
+    const participantsAfterVacate = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
     for (const vacated of vacatedSeats) {
       broadcastToRoom(room.id, 'room:seat_vacated', {
         roomId: room.id,
         seatIndex: vacated.index,
         removedUser: vacated.removedUser,
         reason,
+        participants: participantsAfterVacate,
         room: serializedAfterVacate,
       });
     }
@@ -3292,8 +3294,8 @@ function clampServerMaxSeatsForHostLevel(requested: any, host: any): 5 | 8 | 16 
   return 5;
 }
 
-function isServerSeatLockedByHostLevel(seatIndex: number, host: any): boolean {
-  return seatIndex === 1 && getServerHostLevel(host) < 5;
+function isServerSeatLockedByHostLevel(_seatIndex: number, _host: any): boolean {
+  return false;
 }
 
 function sanitizeRoomBackgroundType(raw: any): 'preset' | 'host_dp' | 'custom' {
@@ -3778,15 +3780,33 @@ app.post('/api/rooms/:roomId/respond_seat_request', (req: AuthenticatedRequest, 
   room.seats[seatIdx] = requestObj.user;
   requestObj.status = 'accepted';
 
+  // Ensure the newly seated user is immediately present in real-time room participants
+  const nowTs = Date.now();
+  const existingParticipant = room.participants.get(applicantId);
+  room.participants.set(applicantId, {
+    userId: applicantId,
+    name: requestObj.user.name || existingParticipant?.name || 'User',
+    username: requestObj.user.username || existingParticipant?.username || '',
+    avatar: requestObj.user.avatar || existingParticipant?.avatar || '',
+    level: typeof requestObj.user.level === 'number' ? requestObj.user.level : existingParticipant?.level ?? 0,
+    vipLevel: typeof requestObj.user.vipLevel === 'number' ? requestObj.user.vipLevel : existingParticipant?.vipLevel ?? 0,
+    isVIP: Boolean(requestObj.user.isVIP || (requestObj.user.vipLevel || 0) > 0 || existingParticipant?.isVIP),
+    isHost: applicantId === room.host?.id,
+    joinedAt: existingParticipant?.joinedAt || nowTs,
+    lastSeen: nowTs,
+  });
+
   // Issue fresh Agora broadcaster RTC token for the newly promoted speaker
   const agoraChannel = `party_${roomId}`;
   const promotedAgora = mintAgoraRtcToken(agoraChannel, String(applicantId), 'broadcaster');
 
   const serialized = serializePartyRoom(room);
+  const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
   broadcastToRoom(roomId, 'room:seat_occupied', {
     roomId,
     seatIndex: seatIdx,
     user: requestObj.user,
+    participants: participantsSnapshot,
     room: serialized,
   });
   broadcastToUser(applicantId, 'room:seat_request_accepted', {
@@ -3857,11 +3877,13 @@ app.post('/api/rooms/:roomId/remove_seat', (req: AuthenticatedRequest, res: Resp
       }
     }
     const serialized = serializePartyRoom(room);
+    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
     broadcastToRoom(roomId, 'room:seat_vacated', {
       roomId,
       seatIndex: resolvedSeatIdx,
       removedUser,
       kicked: true,
+      participants: participantsSnapshot,
       room: serialized,
     });
     if (removedUser?.id) {
@@ -3905,7 +3927,14 @@ app.post('/api/rooms/:roomId/leave_seat', (req: AuthenticatedRequest, res: Respo
     room.seats[seatIdx] = null;
     room.mutedSeatIndices.delete(seatIdx);
     const serialized = serializePartyRoom(room);
-    broadcastToRoom(roomId, 'room:seat_vacated', { roomId, seatIndex: seatIdx, removedUser, room: serialized });
+    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+    broadcastToRoom(roomId, 'room:seat_vacated', {
+      roomId,
+      seatIndex: seatIdx,
+      removedUser,
+      participants: participantsSnapshot,
+      room: serialized,
+    });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   }
   res.json({ success: true, seats: room.seats, room: serializePartyRoom(room) });
@@ -3934,8 +3963,29 @@ app.post('/api/rooms/:roomId/take_seat', (req: AuthenticatedRequest, res: Respon
       room.mutedSeatIndices.delete(existingIdx);
     }
     room.seats[seatIndex] = user;
+    const nowTs = Date.now();
+    const existingParticipant = room.participants.get(user.id);
+    room.participants.set(user.id, {
+      userId: user.id,
+      name: user.name || existingParticipant?.name || 'User',
+      username: user.username || existingParticipant?.username || '',
+      avatar: user.avatar || existingParticipant?.avatar || '',
+      level: typeof user.level === 'number' ? user.level : existingParticipant?.level ?? 0,
+      vipLevel: typeof user.vipLevel === 'number' ? user.vipLevel : existingParticipant?.vipLevel ?? 0,
+      isVIP: Boolean(user.isVIP || (user.vipLevel || 0) > 0 || existingParticipant?.isVIP),
+      isHost: user.id === room.host?.id,
+      joinedAt: existingParticipant?.joinedAt || nowTs,
+      lastSeen: nowTs,
+    });
     const serialized = serializePartyRoom(room);
-    broadcastToRoom(roomId, 'room:seat_occupied', { roomId, seatIndex, user, room: serialized });
+    const participantsSnapshot = Array.from(room.participants.values()).sort((a, b) => b.joinedAt - a.joinedAt);
+    broadcastToRoom(roomId, 'room:seat_occupied', {
+      roomId,
+      seatIndex,
+      user,
+      participants: participantsSnapshot,
+      room: serialized,
+    });
     broadcastAll('room:directory_updated', { roomId, action: 'updated', room: serialized });
   } else if (typeof seatIndex === 'number' && seatIndex >= safeMaxSeats) {
     return res.status(403).json({

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-C_jSqI3B.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-8sLgrCWt.js","assets/RankingsScreen-B-051wTm.js","assets/StoreScreen-D1GzSgPC.js","assets/StoreAssetPreview-BsGebSVU.js","assets/SettingsScreen-CSDSNfU7.js","assets/UploadVideoScreen-CG7CVJXb.js","assets/WalletModal-5HV9fv65.js","assets/LevelAndVIPModal-CBh0dY0R.js","assets/AdminProgressionModal-BKcPsHWk.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CT-1hVF3.js","assets/dist-BtMCkNml.js","assets/web-BaVdwiMr.js","assets/web-BANarah9.js","assets/CreateLiveScreen-DJRefFbo.js","assets/rolldown-runtime-DQp2zzRu.js","assets/vendor-icons-RA12uJu8.js","assets/firebase-CIREZBAE.js","assets/vendor-firebase-AVvshUH2.js","assets/vendor-motion-BNHB1rOc.js","assets/CreateRoomScreen-BOV60rvF.js","assets/RankingsScreen-ncBIzTfW.js","assets/StoreScreen-Bg4ctGd9.js","assets/StoreAssetPreview-CHaQ_FNt.js","assets/SettingsScreen-Db0JO3if.js","assets/UploadVideoScreen-BIumHvFB.js","assets/WalletModal-BUi6L8R1.js","assets/LevelAndVIPModal-oR6blway.js","assets/AdminProgressionModal-BRAxX_72.js"])))=>i.map(i=>d[i]);
 import { a as __toESM } from "./rolldown-runtime-DQp2zzRu.js";
 import { t as require_client } from "./vendor-react-Tn0LUUjq.js";
 import { $ as Phone, A as SlidersHorizontal, An as Ban, At as History, B as Settings, Bt as Flag, C as Swords, Cn as Calendar, D as Sparkles, Dn as Bell, Dt as Image$1, E as Square, En as BookmarkCheck, Et as Info, F as Shield, Fn as ArrowRight, Ft as Globe, G as Reply, Gt as FileAudio, H as Search, Ht as FileText, I as ShieldOff, In as ArrowRightLeft, It as Gift, J as Receipt, Jt as ExternalLink, K as Repeat2, Kt as Eye, L as ShieldCheck, Ln as ArrowLeft, Lt as Gem, M as SkipForward, Mn as Award, Mt as Heart, N as SkipBack, Nn as AtSign, Nt as Headphones, O as Smile, On as BellRing, P as ShoppingBag, Pt as Hash, Q as Pin, R as ShieldAlert, S as Target, Sn as CameraOff, St as LayoutGrid, T as Star, Tn as Bookmark, Tt as KeyRound, U as Save, V as Send, Vt as Film, W as RotateCcw, X as Plus, Xt as Ellipsis, Y as Radio, Yt as Eraser, Z as Play, _ as Trophy, _n as ChevronDown, _t as LogOut, a as WifiOff, an as Compass, at as Music, b as Trash2, bn as ChartColumn, bt as LoaderCircle, c as Volume2, cn as ClipboardPaste, ct as Minimize2, d as Users, dn as CircleCheck, dt as MessageSquare, et as Percent, f as User, fn as CircleArrowDown, ft as MessageCircle, g as Upload, gn as ChevronLeft, gt as Mail, h as UserCheck, hn as ChevronRight, i as X, in as Copy, it as Paperclip, jn as BadgeCheck, jt as Hexagon, k as Smartphone, kn as BellOff, kt as House, l as Video, ln as CircleX, lt as Mic, m as UserPlus, mn as ChevronUp, mt as Maximize2, n as Zap, nn as Crop, nt as PenLine, o as Wallet, on as Coins, p as UserX, pn as CircleAlert, q as RefreshCw, qt as EyeOff, r as Youtube, rn as CornerUpLeft, rt as Pause, s as VolumeX, sn as Clock, t as ZoomIn, tn as Crown, tt as Pen, ut as MicOff, v as TriangleAlert, vn as Check, vt as Lock, wn as Building2, x as Timer, xn as Camera, xt as Link2, y as TrendingUp, yn as CheckCheck, yt as LockOpen, z as Share2, zn as require_react, zt as Flame } from "./vendor-icons-RA12uJu8.js";
@@ -3643,7 +3643,7 @@ var PARTY_SEAT_TIERS = [
 		minLevel: 0,
 		title: "5 Seats",
 		shortLabel: "5 Seats",
-		description: "Lv.0–4: 4 open + Seat #2 locked (unlocks at Lv.5)"
+		description: "All 5 party seats open by default"
 	},
 	{
 		tierNumber: 2,
@@ -3670,7 +3670,7 @@ function sanitizeUserLevel(rawLevel) {
 }
 function getAllowedSeatTierForLevel(rawHostLevel) {
 	const hostLevel = sanitizeUserLevel(rawHostLevel);
-	const isCoHostSeatUnlocked = hostLevel >= 5;
+	const isCoHostSeatUnlocked = true;
 	const canSelect8Seats = hostLevel >= 10;
 	const canSelect16Seats = hostLevel >= 20;
 	const unlockedOptions = [5];
@@ -3702,7 +3702,7 @@ function clampPartyMaxSeatsForHostLevel(requestedSeats, rawHostLevel) {
 /**
 * Normalizes a party room's seat count.
 * Whenever `hostLevel` is provided, strictly clamps `maxSeats` to the host's unlocked tier:
-* - Lv.0–9  => max 5 seats (Seat #2 locked until Lv.5)
+* - Lv.0–9  => max 5 seats (all 5 seats open by default)
 * - Lv.10–19 => 5 or 8 seats
 * - Lv.20+  => 5, 8, or 16 seats
 */
@@ -3715,12 +3715,10 @@ function normalizePartyMaxSeats(raw, hostLevel) {
 	return 5;
 }
 /**
-* Seat #2 (index 1, directly beside the Host) is locked for Hosts below Level 5.
-* Unlocks automatically when Host reaches Level 5+.
+* Seat #2 (index 1, directly beside the Host) is unlocked by default for all host levels.
 */
-function isSeatLockedByHostLevel(seatIndex, rawHostLevel) {
-	const hostLevel = sanitizeUserLevel(rawHostLevel);
-	return seatIndex === 1 && hostLevel < 5;
+function isSeatLockedByHostLevel(_seatIndex, _rawHostLevel) {
+	return false;
 }
 /**
 * Checks whether a seat index is within the host's unlocked seat tier AND not level-locked.
@@ -3755,13 +3753,10 @@ function countActiveOccupiedSeats(rawSeats, maxSeats, rawHostLevel) {
 }
 /**
 * Returns the number of usable (non-level-locked) seats in the room.
-* For Level 0–4 hosts in a 5-slot room, Seat #2 (index 1) is locked, leaving 4 active seats (Host + 3 guests).
+* All 5 base seats (including Seat #2) are available by default for all host levels.
 */
 function getActiveSeatCapacity(maxSeats, rawHostLevel) {
-	const hostLevel = sanitizeUserLevel(rawHostLevel);
-	const clamped = clampPartyMaxSeatsForHostLevel(maxSeats, hostLevel);
-	if (clamped === 5 && hostLevel < 5) return 4;
-	return clamped;
+	return clampPartyMaxSeatsForHostLevel(maxSeats, sanitizeUserLevel(rawHostLevel));
 }
 /**
 * Enforces seat-tier clamping and locked-seat stripping on any PartyRoom object.
@@ -9589,7 +9584,7 @@ var VALID_ID_REGEX$1 = /^[a-zA-Z0-9_\-]+$/;
 function isValidFirestoreId(id) {
 	return typeof id === "string" && id.length > 0 && id.length <= 128 && VALID_ID_REGEX$1.test(id);
 }
-var ACTIVE_PRESENCE_TTL_MS = 12e4;
+var ACTIVE_PRESENCE_TTL_MS = 6e4;
 function mapViewerInfo(raw, fallbackId) {
 	const now = Date.now();
 	return {
@@ -27435,11 +27430,43 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	maxSeatsRef.current = maxSeats;
 	const isCoHostSeatLevelLocked = isSeatLockedByHostLevel(1, hostLevel);
 	const normalizeSeats = (raw, count = maxSeatsRef.current, level = hostLevelRef.current) => sanitizePartySeatsForHostLevel(raw, count, level);
+	const profileToViewerInfo = (u, isHostFlag) => {
+		const now = Date.now();
+		return {
+			userId: u.id,
+			name: u.name || "User",
+			username: u.username || "",
+			avatar: u.avatar || "",
+			level: typeof u.level === "number" ? u.level : 0,
+			vipLevel: typeof u.vipLevel === "number" ? u.vipLevel : 0,
+			superVipLevel: typeof u.superVipLevel === "number" ? u.superVipLevel : 0,
+			isVIP: Boolean(u.isVIP || (u.vipLevel || 0) > 0),
+			isSuperVIP: Boolean(u.isSuperVIP || (u.superVipLevel || 0) > 0),
+			isHost: isHostFlag,
+			joinedAt: now,
+			lastSeen: now
+		};
+	};
 	const [seats, setSeats] = (0, import_react.useState)(() => normalizeSeats(room.seats, clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel), hostLevel));
 	const [mutedSeatIndices, setMutedSeatIndices] = (0, import_react.useState)(room.mutedSeatIndices || []);
 	const [seatRequests, setSeatRequests] = (0, import_react.useState)(room.seatRequests || []);
-	const [participantsList, setParticipantsList] = (0, import_react.useState)([]);
-	const [participantTotal, setParticipantTotal] = (0, import_react.useState)(room.numericParticipants ?? 0);
+	const [participantsList, setParticipantsList] = (0, import_react.useState)(() => {
+		const initialSeats = normalizeSeats(room.seats, clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel), hostLevel);
+		const map = /* @__PURE__ */ new Map();
+		map.set(currentUser.id, profileToViewerInfo(currentUser, isRoomHost));
+		initialSeats.forEach((seatUser) => {
+			if (seatUser?.id && !map.has(seatUser.id)) map.set(seatUser.id, profileToViewerInfo(seatUser, seatUser.id === room.host.id));
+		});
+		return Array.from(map.values()).sort((a, b) => a.isHost ? -1 : b.isHost ? 1 : 0);
+	});
+	const [participantTotal, setParticipantTotal] = (0, import_react.useState)(() => {
+		const initialSeats = normalizeSeats(room.seats, clampPartyMaxSeatsForHostLevel(room.maxSeats, hostLevel), hostLevel);
+		const seededIds = /* @__PURE__ */ new Set([currentUser.id]);
+		initialSeats.forEach((s) => {
+			if (s?.id) seededIds.add(s.id);
+		});
+		return Math.max(seededIds.size, room.numericParticipants ?? 0);
+	});
 	const userSeatIndex = seats.findIndex((s) => s?.id === currentUser.id);
 	const isCurrentlySeated = userSeatIndex !== -1;
 	const isHostMutedOnMySeat = userSeatIndex !== -1 && mutedSeatIndices.includes(userSeatIndex);
@@ -27501,12 +27528,75 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	mutedSeatIndicesRef.current = mutedSeatIndices;
 	const seatsRef = (0, import_react.useRef)(seats);
 	seatsRef.current = seats;
+	const participantsListRef = (0, import_react.useRef)(participantsList);
+	participantsListRef.current = participantsList;
 	const participantTotalRef = (0, import_react.useRef)(participantTotal);
 	participantTotalRef.current = participantTotal;
+	const recentlyLeftUserIdsRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
+	const hasFsParticipantsRef = (0, import_react.useRef)(false);
 	const roomEnteredAtRef = (0, import_react.useRef)(Date.now());
 	const preEntryMsgIdsRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
 	const fsMessagesBaselineCapturedRef = (0, import_react.useRef)(false);
 	const optimisticSentMsgIdsRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	const RECENTLY_LEFT_TTL_MS = 4e3;
+	const isUserRecentlyLeft = (userId) => {
+		const leftAt = recentlyLeftUserIdsRef.current.get(userId);
+		if (!leftAt) return false;
+		if (Date.now() - leftAt > RECENTLY_LEFT_TTL_MS) {
+			recentlyLeftUserIdsRef.current.delete(userId);
+			return false;
+		}
+		return true;
+	};
+	const markUserRecentlyLeft = (userId) => {
+		if (!userId) return;
+		recentlyLeftUserIdsRef.current.set(userId, Date.now());
+	};
+	const clearUserRecentlyLeft = (userId) => {
+		if (!userId) return;
+		recentlyLeftUserIdsRef.current.delete(userId);
+	};
+	const reconcileParticipantsWithSeats = (baseParticipants, currentSeats, excludeIds) => {
+		const seatedIds = /* @__PURE__ */ new Set();
+		const map = /* @__PURE__ */ new Map();
+		baseParticipants.forEach((p) => {
+			if (!p?.userId) return;
+			if (isRoomHost && blockedUserIdsRef.current.has(p.userId)) return;
+			if (excludeIds?.has(p.userId)) return;
+			if (isUserRecentlyLeft(p.userId)) return;
+			map.set(p.userId, p);
+		});
+		currentSeats.forEach((seatUser) => {
+			if (!seatUser?.id) return;
+			if (isRoomHost && blockedUserIdsRef.current.has(seatUser.id)) return;
+			if (excludeIds?.has(seatUser.id)) return;
+			if (isUserRecentlyLeft(seatUser.id)) return;
+			seatedIds.add(seatUser.id);
+			const existing = map.get(seatUser.id);
+			if (!existing) map.set(seatUser.id, profileToViewerInfo(seatUser, seatUser.id === room.host.id));
+			else map.set(seatUser.id, {
+				...existing,
+				name: seatUser.name || existing.name,
+				username: seatUser.username || existing.username,
+				avatar: seatUser.avatar || existing.avatar,
+				level: typeof seatUser.level === "number" ? seatUser.level : existing.level,
+				vipLevel: typeof seatUser.vipLevel === "number" ? seatUser.vipLevel : existing.vipLevel,
+				superVipLevel: typeof seatUser.superVipLevel === "number" ? seatUser.superVipLevel : existing.superVipLevel,
+				isVIP: Boolean(seatUser.isVIP || (seatUser.vipLevel || 0) > 0 || existing.isVIP),
+				isSuperVIP: Boolean(seatUser.isSuperVIP || (seatUser.superVipLevel || 0) > 0 || existing.isSuperVIP),
+				isHost: existing.isHost || seatUser.id === room.host.id
+			});
+		});
+		return Array.from(map.values()).sort((a, b) => {
+			if (a.isHost && !b.isHost) return -1;
+			if (!a.isHost && b.isHost) return 1;
+			const aSeated = seatedIds.has(a.userId);
+			const bSeated = seatedIds.has(b.userId);
+			if (aSeated && !bSeated) return -1;
+			if (!aSeated && bSeated) return 1;
+			return (a.joinedAt || 0) - (b.joinedAt || 0);
+		});
+	};
 	const [showSettingsSheet, setShowSettingsSheet] = (0, import_react.useState)(false);
 	const [showBackgroundPicker, setShowBackgroundPicker] = (0, import_react.useState)(false);
 	const [showLeaderboardModal, setShowLeaderboardModal] = (0, import_react.useState)(false);
@@ -27795,11 +27885,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		optimisticSentMsgIdsRef.current = /* @__PURE__ */ new Set();
 		setActivities([]);
 		const knownParticipantIds = /* @__PURE__ */ new Set([currentUser.id]);
+		let prevFsParticipantIds = /* @__PURE__ */ new Set();
 		let fsParticipantsInitialized = false;
+		hasFsParticipantsRef.current = false;
+		recentlyLeftUserIdsRef.current.clear();
 		liveAndRoomService.setCurrentUser(currentUser.id);
 		liveAndRoomService.subscribeRoom(room.id, currentUser.id);
 		joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, seatsRef.current.some((s) => s?.id === currentUser.id));
-		const applyServerRoomState = (nextRoom, allowSeatClear = false) => {
+		const applyServerRoomState = (nextRoom, allowSeatClear = false, excludeUserId) => {
 			const effectiveLevel = isRoomHost ? hostLevelRef.current : typeof nextRoom.host?.level === "number" ? sanitizeUserLevel(nextRoom.host.level) : hostLevelRef.current;
 			if (!isRoomHost && typeof nextRoom.host?.level === "number") setLiveHostLevel(effectiveLevel);
 			const incomingMax = [
@@ -27812,12 +27905,21 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const currentSeats = seatsRef.current;
 			const mergedSeats = Array.from({ length: nextMax }, (_, idx) => {
 				const inc = incomingSeatsRaw[idx] || null;
-				if (inc) return inc;
-				if (!allowSeatClear && currentSeats[idx]) return currentSeats[idx];
+				if (inc) {
+					if (excludeUserId && inc.id === excludeUserId) return null;
+					if (isUserRecentlyLeft(inc.id)) return null;
+					return inc;
+				}
+				if (!allowSeatClear && currentSeats[idx]) {
+					if (excludeUserId && currentSeats[idx]?.id === excludeUserId) return null;
+					if (currentSeats[idx]?.id && isUserRecentlyLeft(currentSeats[idx].id)) return null;
+					return currentSeats[idx];
+				}
 				return null;
 			});
 			setMaxSeats(nextMax);
 			setSeats(mergedSeats);
+			seatsRef.current = mergedSeats;
 			if (Array.isArray(nextRoom.mutedSeatIndices)) setMutedSeatIndices(nextRoom.mutedSeatIndices.filter((i) => i < nextMax));
 			setIsSeatLocked(Boolean(nextRoom.isLocked));
 			setIsAllowJoin(nextRoom.allowJoin !== false);
@@ -27826,24 +27928,30 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			if (typeof nextRoom.backgroundId === "string" && nextRoom.backgroundId.trim()) setBackgroundId(nextRoom.backgroundId.trim());
 			if (typeof nextRoom.backgroundImage === "string") setBackgroundImage(nextRoom.backgroundImage);
 			if (nextRoom.seatTheme === "default" || nextRoom.seatTheme === "gold" || nextRoom.seatTheme === "green") setSeatTheme(nextRoom.seatTheme);
-			if (typeof nextRoom.numericParticipants === "number") setParticipantTotal(Math.max(0, nextRoom.numericParticipants || 0));
+			const excludeSet = excludeUserId ? /* @__PURE__ */ new Set([excludeUserId]) : void 0;
+			const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, mergedSeats, excludeSet);
+			setParticipantsList(nextParticipants);
+			participantsListRef.current = nextParticipants;
+			const nextCount = nextParticipants.length;
+			setParticipantTotal(nextCount);
+			participantTotalRef.current = nextCount;
 			onUpdateRoom?.({
 				...nextRoom,
 				maxSeats: nextMax,
-				seats: mergedSeats
+				seats: mergedSeats,
+				numericParticipants: nextCount,
+				participantCount: String(nextCount)
 			});
 		};
 		const refreshRealTimeParticipants = () => {
 			liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((res) => {
 				if (!active || res.participants.length === 0) return;
-				setParticipantsList((prev) => {
-					const map = /* @__PURE__ */ new Map();
-					prev.forEach((p) => map.set(p.userId, p));
-					res.participants.forEach((p) => map.set(p.userId, p));
-					const merged = Array.from(map.values());
-					setParticipantTotal(merged.length);
-					return merged;
-				});
+				if (hasFsParticipantsRef.current) return;
+				const reconciled = reconcileParticipantsWithSeats(res.participants, seatsRef.current);
+				setParticipantsList(reconciled);
+				participantsListRef.current = reconciled;
+				setParticipantTotal(reconciled.length);
+				participantTotalRef.current = reconciled.length;
 			});
 		};
 		syncFirestorePartyRoomLifecycle(room.id, {
@@ -27862,15 +27970,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			if (!active) return;
 			if (res.room) applyServerRoomState(res.room);
 			applyIncomingMusicState(res.musicState || res.room?.musicState);
-			if (Array.isArray(res.participants) && res.participants.length > 0) setParticipantsList((prev) => {
-				const map = /* @__PURE__ */ new Map();
-				prev.forEach((p) => map.set(p.userId, p));
-				res.participants.forEach((p) => map.set(p.userId, p));
-				const merged = Array.from(map.values());
-				setParticipantTotal(merged.length);
-				return merged;
-			});
-			else refreshRealTimeParticipants();
+			if (Array.isArray(res.participants) && res.participants.length > 0 && !hasFsParticipantsRef.current) {
+				const reconciled = reconcileParticipantsWithSeats(res.participants, seatsRef.current);
+				setParticipantsList(reconciled);
+				participantsListRef.current = reconciled;
+				setParticipantTotal(reconciled.length);
+				participantTotalRef.current = reconciled.length;
+			} else if (!hasFsParticipantsRef.current) refreshRealTimeParticipants();
 			if (Array.isArray(res.pendingRequests) && res.pendingRequests.length > 0) {
 				const incoming = res.pendingRequests.filter((r) => r?.user?.id && (!isRoomHost || !blockedUserIdsRef.current.has(r.user.id))).map((r) => ({
 					id: r.id,
@@ -27901,47 +28007,96 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		});
 		const unsubFsParticipants = subscribeFirestoreRoomParticipants(room.id, (rawFsParticipants) => {
 			if (!active) return;
+			hasFsParticipantsRef.current = true;
 			const fsParticipants = isRoomHost ? rawFsParticipants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : rawFsParticipants;
+			const currentFsIds = /* @__PURE__ */ new Set();
+			fsParticipants.forEach((p) => {
+				currentFsIds.add(p.userId);
+				const leftAt = recentlyLeftUserIdsRef.current.get(p.userId);
+				if (leftAt && (p.joinedAt || 0) > leftAt) clearUserRecentlyLeft(p.userId);
+			});
+			const departedIds = /* @__PURE__ */ new Set();
 			if (!fsParticipantsInitialized) {
 				fsParticipantsInitialized = true;
 				fsParticipants.forEach((p) => knownParticipantIds.add(p.userId));
-			} else fsParticipants.forEach((p) => {
-				if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
-					knownParticipantIds.add(p.userId);
-					const now = Date.now();
-					if (now - (seenPartyEntriesRef.current.get(p.userId) || 0) > 1e4) {
-						seenPartyEntriesRef.current.set(p.userId, now);
-						setPartyEntryNotice({
-							id: `entry_fs_${p.userId}_${now}`,
-							userId: p.userId,
-							name: p.name || "Viewer",
-							level: typeof p.level === "number" ? p.level : 0,
-							vipLevel: typeof p.vipLevel === "number" ? p.vipLevel : 0,
-							superVipLevel: typeof p.superVipLevel === "number" ? p.superVipLevel : 0,
-							isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0)
-						});
-						if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
-						partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
-						setActivities((prev) => [...prev.slice(-49), {
-							id: `join_fs_${p.userId}_${now}`,
-							userId: p.userId,
-							name: p.name || "Viewer",
-							avatar: p.avatar || "",
-							text: "joined the party room",
-							level: typeof p.level === "number" ? p.level : 0,
-							vipLevel: typeof p.vipLevel === "number" ? p.vipLevel : 0,
-							superVipLevel: typeof p.superVipLevel === "number" ? p.superVipLevel : 0,
-							isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
-							isHost: Boolean(p.isHost),
-							type: "join"
-						}]);
-						setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
+			} else {
+				prevFsParticipantIds.forEach((prevId) => {
+					if (!currentFsIds.has(prevId) && prevId !== currentUser.id) {
+						departedIds.add(prevId);
+						knownParticipantIds.delete(prevId);
+						markUserRecentlyLeft(prevId);
 					}
+				});
+				fsParticipants.forEach((p) => {
+					if (!knownParticipantIds.has(p.userId) && p.userId !== currentUser.id) {
+						knownParticipantIds.add(p.userId);
+						clearUserRecentlyLeft(p.userId);
+						const now = Date.now();
+						if (now - (seenPartyEntriesRef.current.get(p.userId) || 0) > 1e4) {
+							seenPartyEntriesRef.current.set(p.userId, now);
+							setPartyEntryNotice({
+								id: `entry_fs_${p.userId}_${now}`,
+								userId: p.userId,
+								name: p.name || "Viewer",
+								level: typeof p.level === "number" ? p.level : 0,
+								vipLevel: typeof p.vipLevel === "number" ? p.vipLevel : 0,
+								superVipLevel: typeof p.superVipLevel === "number" ? p.superVipLevel : 0,
+								isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0)
+							});
+							if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
+							partyEntryTimerRef.current = setTimeout(() => setPartyEntryNotice(null), 3500);
+							setActivities((prev) => [...prev.slice(-49), {
+								id: `join_fs_${p.userId}_${now}`,
+								userId: p.userId,
+								name: p.name || "Viewer",
+								avatar: p.avatar || "",
+								text: "joined the party room",
+								level: typeof p.level === "number" ? p.level : 0,
+								vipLevel: typeof p.vipLevel === "number" ? p.vipLevel : 0,
+								superVipLevel: typeof p.superVipLevel === "number" ? p.superVipLevel : 0,
+								isVIP: Boolean(p.isVIP || (p.vipLevel || 0) > 0),
+								isHost: Boolean(p.isHost),
+								type: "join"
+							}]);
+							setTimeout(() => activityBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40);
+						}
+					}
+				});
+			}
+			prevFsParticipantIds = currentFsIds;
+			let activeSeats = seatsRef.current;
+			if (departedIds.size > 0) {
+				let seatsChanged = false;
+				const cleanedSeats = activeSeats.map((seatUser, idx) => {
+					if (seatUser?.id && departedIds.has(seatUser.id)) {
+						seatsChanged = true;
+						if (isRoomHost || isCurrentUserModerator) vacateFirestoreSeat(room.id, seatUser.id, idx, maxSeatsRef.current).catch(() => {});
+						return null;
+					}
+					return seatUser;
+				});
+				if (seatsChanged) {
+					activeSeats = cleanedSeats;
+					setSeats(cleanedSeats);
+					seatsRef.current = cleanedSeats;
 				}
+			}
+			const reconciledParticipants = reconcileParticipantsWithSeats(fsParticipants, activeSeats, departedIds.size > 0 ? departedIds : void 0);
+			setParticipantsList(reconciledParticipants);
+			participantsListRef.current = reconciledParticipants;
+			setParticipantTotal(reconciledParticipants.length);
+			participantTotalRef.current = reconciledParticipants.length;
+			const hostStillPresent = reconciledParticipants.some((p) => p.userId === room.host.id);
+			onUpdateRoom?.({
+				...room,
+				maxSeats: maxSeatsRef.current,
+				seats: activeSeats,
+				numericParticipants: reconciledParticipants.length,
+				participantCount: String(reconciledParticipants.length),
+				hostPresent: hostStillPresent,
+				isOwnerPresent: hostStillPresent
 			});
-			setParticipantsList(fsParticipants);
-			setParticipantTotal(fsParticipants.length);
-			if (isRoomHost) updateFirestoreRoomParticipantCount(room.id, fsParticipants.length);
+			if (isRoomHost) updateFirestoreRoomParticipantCount(room.id, reconciledParticipants.length);
 		});
 		const unsubFsMessages = subscribeFirestoreRoomMessages(room.id, (fsMessages) => {
 			if (!active) return;
@@ -28014,8 +28169,32 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				const nextMax = Math.max(storedFsMax, rawFsSeats.length);
 				setMaxSeats(nextMax);
 				if (Array.isArray(data.seats)) {
-					const preservedSeats = Array.from({ length: nextMax }, (_, idx) => rawFsSeats[idx] || null);
+					const prevSeats = seatsRef.current;
+					const preservedSeats = Array.from({ length: nextMax }, (_, idx) => {
+						const occupant = rawFsSeats[idx] || null;
+						if (occupant?.id && isUserRecentlyLeft(occupant.id)) return null;
+						return occupant;
+					});
+					const wasSelfSeated = prevSeats.some((s) => s?.id === currentUser.id);
+					const isSelfNowSeated = preservedSeats.some((s) => s?.id === currentUser.id);
 					setSeats(preservedSeats);
+					seatsRef.current = preservedSeats;
+					if (!wasSelfSeated && isSelfNowSeated) {
+						clearUserRecentlyLeft(currentUser.id);
+						joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
+					}
+					const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, preservedSeats);
+					setParticipantsList(nextParticipants);
+					participantsListRef.current = nextParticipants;
+					setParticipantTotal(nextParticipants.length);
+					participantTotalRef.current = nextParticipants.length;
+					onUpdateRoom?.({
+						...room,
+						maxSeats: nextMax,
+						seats: preservedSeats,
+						numericParticipants: nextParticipants.length,
+						participantCount: String(nextParticipants.length)
+					});
 				}
 				if (Array.isArray(data.mutedSeatIndices)) setMutedSeatIndices(data.mutedSeatIndices.filter((i) => i < nextMax));
 				if (Array.isArray(data.seatRequests)) {
@@ -28070,6 +28249,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
 			updateFirestoreRoomParticipantState(room.id, { isSpeaker: seatsRef.current.some((s) => s?.id === currentUser.id) });
 		}, 15e3);
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "visible" && !hasExplicitlyLeftRef.current) {
+				liveAndRoomService.sendRoomHeartbeat(room.id, currentUser.id);
+				updateFirestoreRoomParticipantState(room.id, { isSpeaker: seatsRef.current.some((s) => s?.id === currentUser.id) });
+			}
+		};
+		document.addEventListener("visibilitychange", handleVisibilityChange);
 		const unsubWs = liveAndRoomService.addEventListener((event, payload) => {
 			if (!active || !payload) return;
 			if (event === "user:blocked_by" && !isRoomHost && payload.blockerId === room.host.id) {
@@ -28084,11 +28270,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			}
 			if (payload.roomId && payload.roomId !== room.id) return;
 			if ((event === "room:updated" || event === "room:state_updated" || event === "room:sync_state" || event === "room:settings_updated" || event === "room:seat_occupied" || event === "room:seat_vacated" || event === "room:empty_countdown_started" || event === "room:reactivated") && payload.room) {
+				if (event === "room:seat_occupied" && payload.user?.id) clearUserRecentlyLeft(payload.user.id);
 				applyServerRoomState(payload.room, event === "room:seat_vacated");
 				if (Array.isArray(payload.participants)) {
-					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
-					setParticipantsList(filtered);
-					setParticipantTotal(filtered.length);
+					const reconciled = reconcileParticipantsWithSeats(payload.participants, seatsRef.current);
+					setParticipantsList(reconciled);
+					participantsListRef.current = reconciled;
+					setParticipantTotal(reconciled.length);
+					participantTotalRef.current = reconciled.length;
 				}
 				if (event === "room:sync_state") {
 					applyIncomingMusicState(payload.musicState || payload.room?.musicState, typeof payload.serverTime === "number" ? payload.serverTime : void 0);
@@ -28109,12 +28298,25 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 				}
 			} else if (event === "room:music_updated" && payload.musicState) applyIncomingMusicState(payload.musicState);
 			else if (event === "room:participant_joined") {
+				if (payload.participant?.userId) {
+					clearUserRecentlyLeft(payload.participant.userId);
+					knownParticipantIds.add(payload.participant.userId);
+				}
 				if (payload.room) applyServerRoomState(payload.room);
 				if (isRoomHost && payload.participant?.userId && blockedUserIdsRef.current.has(payload.participant.userId)) return;
 				if (Array.isArray(payload.participants)) {
-					const filtered = isRoomHost ? payload.participants.filter((p) => !blockedUserIdsRef.current.has(p.userId)) : payload.participants;
-					setParticipantsList(filtered);
-					setParticipantTotal(filtered.length);
+					const reconciled = reconcileParticipantsWithSeats(payload.participants, seatsRef.current);
+					setParticipantsList(reconciled);
+					participantsListRef.current = reconciled;
+					setParticipantTotal(reconciled.length);
+					participantTotalRef.current = reconciled.length;
+				} else if (payload.participant?.userId) {
+					const base = [...participantsListRef.current.filter((p) => p.userId !== payload.participant.userId), payload.participant];
+					const reconciled = reconcileParticipantsWithSeats(base, seatsRef.current);
+					setParticipantsList(reconciled);
+					participantsListRef.current = reconciled;
+					setParticipantTotal(reconciled.length);
+					participantTotalRef.current = reconciled.length;
 				} else refreshRealTimeParticipants();
 				if (payload.participant && payload.participant.userId !== currentUser.id) {
 					const p = payload.participant;
@@ -28158,16 +28360,34 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					}, 700);
 					return;
 				}
-				if (payload.room) applyServerRoomState(payload.room);
-				if (Array.isArray(payload.participants)) {
-					setParticipantsList(payload.participants);
-					setParticipantTotal(payload.participants.length);
-				} else if (payload.userId) setParticipantsList((prev) => {
-					const next = prev.filter((p) => p.userId !== payload.userId);
-					setParticipantTotal(next.length);
-					return next;
+				const departedUserId = typeof payload.userId === "string" ? payload.userId : "";
+				if (departedUserId) {
+					markUserRecentlyLeft(departedUserId);
+					knownParticipantIds.delete(departedUserId);
+				}
+				if (payload.room) applyServerRoomState(payload.room, true, departedUserId || void 0);
+				else if (departedUserId) {
+					const clearedSeats = seatsRef.current.map((s) => s?.id === departedUserId ? null : s);
+					setSeats(clearedSeats);
+					seatsRef.current = clearedSeats;
+				}
+				const excludeSet = departedUserId ? /* @__PURE__ */ new Set([departedUserId]) : void 0;
+				const nextParticipants = Array.isArray(payload.participants) ? reconcileParticipantsWithSeats(payload.participants, seatsRef.current, excludeSet) : reconcileParticipantsWithSeats(participantsListRef.current.filter((p) => p.userId !== departedUserId), seatsRef.current, excludeSet);
+				setParticipantsList(nextParticipants);
+				participantsListRef.current = nextParticipants;
+				setParticipantTotal(nextParticipants.length);
+				participantTotalRef.current = nextParticipants.length;
+				const hostStillPresent = nextParticipants.some((p) => p.userId === room.host.id);
+				onUpdateRoom?.({
+					...room,
+					...payload.room ? payload.room : {},
+					maxSeats: maxSeatsRef.current,
+					seats: seatsRef.current,
+					numericParticipants: nextParticipants.length,
+					participantCount: String(nextParticipants.length),
+					hostPresent: hostStillPresent,
+					isOwnerPresent: hostStillPresent
 				});
-				else refreshRealTimeParticipants();
 			} else if (event === "room:heart") {
 				if (typeof payload.likesCount === "number") setRoomLikesCount((prev) => Math.max(prev, payload.likesCount));
 				if (payload.userId && payload.userId !== currentUser.id) {
@@ -28298,9 +28518,12 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			leaveFirestoreRoomParticipant(room.id).catch(() => {});
 		};
 		window.addEventListener("beforeunload", cleanupOnUnexpectedExit);
+		window.addEventListener("pagehide", cleanupOnUnexpectedExit);
 		return () => {
 			active = false;
 			window.removeEventListener("beforeunload", cleanupOnUnexpectedExit);
+			window.removeEventListener("pagehide", cleanupOnUnexpectedExit);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			clearInterval(heartbeatInterval);
 			if (partyEntryTimerRef.current) clearTimeout(partyEntryTimerRef.current);
 			unsubWs();
@@ -28610,6 +28833,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		const resolvedBgType = updatedBackground?.backgroundType ?? backgroundRef.current.backgroundType;
 		const resolvedBgId = updatedBackground?.backgroundId ?? backgroundRef.current.backgroundId;
 		const resolvedBgImage = updatedBackground?.backgroundImage !== void 0 ? updatedBackground.backgroundImage : backgroundRef.current.backgroundImage;
+		const liveParticipantCount = participantTotalRef.current;
+		const liveHostPresent = participantsListRef.current.some((p) => p.userId === room.host.id);
 		const nextRoom = {
 			...room,
 			host: isRoomHost ? {
@@ -28619,13 +28844,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			maxSeats: resolvedMaxSeats,
 			seats: sanitizedSeats,
 			mutedSeatIndices: mutedSeatIndices.filter((i) => i < resolvedMaxSeats),
-			numericParticipants: participantTotal,
-			participantCount: String(participantTotal),
+			numericParticipants: liveParticipantCount,
+			participantCount: String(liveParticipantCount),
 			isLocked: updatedLocked !== void 0 ? updatedLocked : isSeatLocked,
 			allowJoin: updatedAllowJoin !== void 0 ? updatedAllowJoin : isAllowJoin,
 			announcement: updatedAnnouncement !== void 0 ? updatedAnnouncement : roomAnnouncement,
 			seatRequests: updatedRequests !== void 0 ? updatedRequests : seatRequests,
-			isOwnerPresent: participantsList.some((p) => p.userId === room.host.id),
+			hostPresent: liveHostPresent,
+			isOwnerPresent: liveHostPresent,
 			backgroundType: resolvedBgType,
 			backgroundId: resolvedBgId,
 			backgroundImage: resolvedBgImage
@@ -28637,8 +28863,8 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			maxSeats: resolvedMaxSeats,
 			seats: sanitizedSeats,
 			seatRequests: nextRoom.seatRequests,
-			numericParticipants: participantTotal,
-			participantCount: String(participantTotal),
+			numericParticipants: liveParticipantCount,
+			participantCount: String(liveParticipantCount),
 			mutedSeatIndices: nextRoom.mutedSeatIndices,
 			isLocked: nextRoom.isLocked,
 			allowJoin: nextRoom.allowJoin,
@@ -28756,13 +28982,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setInviteModalTab(typeof preferredSeat === "number" ? "room" : "users");
 		setShowInviteToSeatModal(resolvedSeat);
 		loadInvitableUsers();
-		liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
-			if (r.participants.length > 0) setParticipantsList((prev) => {
-				const map = /* @__PURE__ */ new Map();
-				prev.forEach((p) => map.set(p.userId, p));
-				r.participants.forEach((p) => map.set(p.userId, p));
-				return Array.from(map.values());
-			});
+		if (!hasFsParticipantsRef.current) liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+			if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+				const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+				setParticipantsList(reconciled);
+				participantsListRef.current = reconciled;
+				setParticipantTotal(reconciled.length);
+				participantTotalRef.current = reconciled.length;
+			}
 		});
 	};
 	const handleChangeSeatMode = (targetSeats) => {
@@ -28782,23 +29009,29 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		setSeatRequests(nextRequests);
 		liveAndRoomService.updateRoomSettings(room.id, currentUser.id, { maxSeats: clamped });
 		syncRoom(resizedSeats, nextRequests, isSeatLocked, isAllowJoin, roomAnnouncement, false, clamped);
-		showToast(`Room updated to ${clamped === 5 && hostLevel < 5 ? "4+1" : clamped}-seat layout`);
+		showToast(`Room updated to ${clamped}-seat layout`);
 	};
 	const handleCleanLeaveParty = async () => {
 		setShowExitRoomModal(false);
 		setShowSettingsSheet(false);
 		hasExplicitlyLeftRef.current = true;
+		markUserRecentlyLeft(currentUser.id);
 		const leavingSeatIdx = seatsRef.current.findIndex((s) => s?.id === currentUser.id);
 		const targetSeatIdx = leavingSeatIdx !== -1 ? leavingSeatIdx : isRoomHost ? 0 : void 0;
 		const nextSeats = seatsRef.current.map((s, idx) => s?.id === currentUser.id || isRoomHost && idx === 0 ? null : s);
-		const remainingCount = Math.max(0, participantsList.filter((p) => p.userId !== currentUser.id).length);
+		const remainingParticipants = participantsListRef.current.filter((p) => p.userId !== currentUser.id);
+		const remainingCount = remainingParticipants.length;
 		const now = Date.now();
 		const nextStatus = remainingCount === 0 ? "empty" : "active";
 		const nextEmptySince = remainingCount === 0 ? now : null;
 		const nextClosesAt = remainingCount === 0 ? now + EMPTY_ROOM_CLEANUP_MS : null;
 		const nextHostPresent = isRoomHost ? false : room.hostPresent;
 		setSeats(nextSeats);
+		seatsRef.current = nextSeats;
+		setParticipantsList(remainingParticipants);
+		participantsListRef.current = remainingParticipants;
 		setParticipantTotal(remainingCount);
+		participantTotalRef.current = remainingCount;
 		onUpdateRoom?.({
 			...room,
 			seats: nextSeats,
@@ -28869,13 +29102,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			}
 			if (seats.findIndex((s) => s?.id === currentUser.id) === -1) setShowOwnerSeatChoice(index);
 			else {
-				liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
-					if (r.participants.length > 0) setParticipantsList((prev) => {
-						const map = /* @__PURE__ */ new Map();
-						prev.forEach((p) => map.set(p.userId, p));
-						r.participants.forEach((p) => map.set(p.userId, p));
-						return Array.from(map.values());
-					});
+				if (!hasFsParticipantsRef.current) liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+					if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+						const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+						setParticipantsList(reconciled);
+						participantsListRef.current = reconciled;
+						setParticipantTotal(reconciled.length);
+						participantTotalRef.current = reconciled.length;
+					}
 				});
 				setShowInviteToSeatModal(index);
 			}
@@ -28974,6 +29208,23 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		showToast("Seat request cancelled");
 	};
 	const handleAcceptSeatRequest = async (req) => {
+		clearUserRecentlyLeft(req.user.id);
+		const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === req.user.id);
+		if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
+		let optTargetIdx = req.seatIndex >= 0 && req.seatIndex < maxSeats && optimisticSeats[req.seatIndex] === null ? req.seatIndex : optimisticSeats.findIndex((s) => s === null);
+		if (optTargetIdx !== -1) {
+			optimisticSeats[optTargetIdx] = req.user;
+			const optRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
+			setSeats(optimisticSeats);
+			seatsRef.current = optimisticSeats;
+			setSeatRequests(optRequests);
+			const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+			setParticipantsList(optParticipants);
+			participantsListRef.current = optParticipants;
+			setParticipantTotal(optParticipants.length);
+			participantTotalRef.current = optParticipants.length;
+		}
 		const fsRes = await respondFirestoreSeatRequest(room.id, req.user, true, req.seatIndex, maxSeats);
 		const serverPromise = roomService.respondSeatRequest(room.id, currentUser.id, req.user.id, true, req.seatIndex, req.user).catch(() => null);
 		if (fsRes.success && Array.isArray(fsRes.seats)) {
@@ -28981,7 +29232,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests.filter((r) => r.user.id !== req.user.id);
 			const assignedSeat = typeof fsRes.assignedSeatIndex === "number" && fsRes.assignedSeatIndex >= 0 ? fsRes.assignedSeatIndex : req.seatIndex;
 			setSeats(nextSeats);
+			seatsRef.current = nextSeats;
 			setSeatRequests(nextRequests);
+			const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+			setParticipantsList(nextParticipants);
+			participantsListRef.current = nextParticipants;
+			setParticipantTotal(nextParticipants.length);
+			participantTotalRef.current = nextParticipants.length;
 			syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
 			showToast(`Approved ${req.user.name} for Seat #${assignedSeat + 1}`);
 			return;
@@ -28991,7 +29248,13 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 			const nextSeats = normalizeSeats(srvRes.seats, maxSeats);
 			const nextRequests = seatRequests.filter((r) => r.user.id !== req.user.id);
 			setSeats(nextSeats);
+			seatsRef.current = nextSeats;
 			setSeatRequests(nextRequests);
+			const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+			setParticipantsList(nextParticipants);
+			participantsListRef.current = nextParticipants;
+			setParticipantTotal(nextParticipants.length);
+			participantTotalRef.current = nextParticipants.length;
 			syncRoom(nextSeats, nextRequests);
 			showToast(`Approved ${req.user.name} for Seat #${(srvRes.seatIndex ?? req.seatIndex) + 1}`);
 			return;
@@ -29595,23 +29858,36 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 		}
 		if (directSeat) {
 			setShowInviteToSeatModal(null);
+			clearUserRecentlyLeft(targetUser.id);
+			const optimisticSeats = Array.from({ length: maxSeats }, (_, idx) => seatsRef.current[idx] || null);
+			const prevIdxOpt = optimisticSeats.findIndex((s) => s?.id === targetUser.id);
+			if (prevIdxOpt !== -1) optimisticSeats[prevIdxOpt] = null;
+			optimisticSeats[targetSeat] = targetUser;
+			setSeats(optimisticSeats);
+			seatsRef.current = optimisticSeats;
+			const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+			setParticipantsList(optParticipants);
+			participantsListRef.current = optParticipants;
+			setParticipantTotal(optParticipants.length);
+			participantTotalRef.current = optParticipants.length;
 			const fsRes = await takeFirestoreSeatDirect(room.id, targetSeat, targetUser, maxSeats);
 			liveAndRoomService.takeSeatDirect(room.id, currentUser.id, targetSeat, targetUser).catch(() => null);
 			if (fsRes.success && Array.isArray(fsRes.seats)) {
 				const nextSeats = Array.from({ length: maxSeats }, (_, idx) => fsRes.seats?.[idx] || null);
 				const nextRequests = Array.isArray(fsRes.seatRequests) ? fsRes.seatRequests : seatRequests;
 				setSeats(nextSeats);
+				seatsRef.current = nextSeats;
 				setSeatRequests(nextRequests);
+				const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+				setParticipantsList(nextParticipants);
+				participantsListRef.current = nextParticipants;
+				setParticipantTotal(nextParticipants.length);
+				participantTotalRef.current = nextParticipants.length;
 				syncRoom(nextSeats, nextRequests, void 0, void 0, void 0, true);
 				showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
 				return;
 			}
-			const updated = Array.from({ length: maxSeats }, (_, idx) => seats[idx] || null);
-			const prevIdx = updated.findIndex((s) => s?.id === targetUser.id);
-			if (prevIdx !== -1) updated[prevIdx] = null;
-			updated[targetSeat] = targetUser;
-			setSeats(updated);
-			syncRoom(updated);
+			syncRoom(optimisticSeats);
 			showToast(`Seated ${targetUser.name} on Seat #${targetSeat + 1}`);
 			return;
 		}
@@ -29681,54 +29957,85 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 	const handleAcceptSeatInvitation = async () => {
 		if (!incomingSeatInvite) return;
 		const idx = incomingSeatInvite.seatIndex;
+		const invitedUser = incomingSeatInvite.toUser;
 		if (!isSeatIndexAllowedForRoom(idx, maxSeats, hostLevel)) {
-			showToast(isSeatLockedByHostLevel(idx, hostLevel) ? "Seat #2 unlocks when Host reaches Level 5" : "This seat is locked at the current Host level.");
+			showToast("This seat is locked at the current Host level.");
 			setIncomingSeatInvite(null);
 			return;
 		}
-		const fsRes = await takeFirestoreSeatDirect(room.id, idx, incomingSeatInvite.toUser, maxSeats);
-		const updated = fsRes.success && Array.isArray(fsRes.seats) ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null) : (() => {
-			const copy = Array.from({ length: maxSeats }, (_, i) => seats[i] || null);
-			const prevSeat = copy.findIndex((s) => s?.id === incomingSeatInvite.toUser.id);
-			if (prevSeat !== -1) copy[prevSeat] = null;
-			copy[idx] = incomingSeatInvite.toUser;
-			return copy;
-		})();
+		setIncomingSeatInvite(null);
+		clearUserRecentlyLeft(invitedUser.id);
+		const optimisticSeats = Array.from({ length: maxSeats }, (_, i) => seatsRef.current[i] || null);
+		const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === invitedUser.id);
+		if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
+		optimisticSeats[idx] = invitedUser;
+		setSeats(optimisticSeats);
+		seatsRef.current = optimisticSeats;
+		const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+		setParticipantsList(optParticipants);
+		participantsListRef.current = optParticipants;
+		setParticipantTotal(optParticipants.length);
+		participantTotalRef.current = optParticipants.length;
+		if (invitedUser.id === currentUser.id) joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
+		const fsRes = await takeFirestoreSeatDirect(room.id, idx, invitedUser, maxSeats);
+		const updated = fsRes.success && Array.isArray(fsRes.seats) ? Array.from({ length: maxSeats }, (_, i) => fsRes.seats?.[i] || null) : optimisticSeats;
 		setSeats(updated);
+		seatsRef.current = updated;
+		const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, updated);
+		setParticipantsList(nextParticipants);
+		participantsListRef.current = nextParticipants;
+		setParticipantTotal(nextParticipants.length);
+		participantTotalRef.current = nextParticipants.length;
 		syncRoom(updated, void 0, void 0, void 0, void 0, fsRes.success);
 		showToast(`Joined Seat #${idx + 1} — mic is live`);
-		setIncomingSeatInvite(null);
 	};
 	const handleOwnerTakeSeat = async (index) => {
 		setShowOwnerSeatChoice(null);
 		if (!isSeatIndexAllowedForRoom(index, maxSeats, hostLevel)) {
-			showToast(isSeatLockedByHostLevel(index, hostLevel) ? `Seat #2 unlocks when Host reaches Level 5 (Current: Lv.${hostLevel})` : "This seat is locked at the current Host level.");
+			showToast("This seat is locked at the current Host level.");
 			return;
 		}
+		clearUserRecentlyLeft(currentUser.id);
+		const optimisticSeats = normalizeSeats(seatsRef.current, maxSeats, hostLevel);
+		const prevSeatOpt = optimisticSeats.findIndex((s) => s?.id === currentUser.id);
+		if (prevSeatOpt !== -1) optimisticSeats[prevSeatOpt] = null;
+		optimisticSeats[index] = currentUser;
+		setSeats(optimisticSeats);
+		seatsRef.current = optimisticSeats;
+		const optParticipants = reconcileParticipantsWithSeats(participantsListRef.current, optimisticSeats);
+		setParticipantsList(optParticipants);
+		participantsListRef.current = optParticipants;
+		setParticipantTotal(optParticipants.length);
+		participantTotalRef.current = optParticipants.length;
+		joinFirestoreRoomParticipant(room.id, currentUser, isRoomHost, true);
 		const fsRes = await takeFirestoreSeatDirect(room.id, index, currentUser, maxSeats);
 		liveAndRoomService.takeSeatDirect(room.id, currentUser.id, index, currentUser).catch(() => null);
 		if (fsRes.success && Array.isArray(fsRes.seats)) {
 			const nextSeats = normalizeSeats(fsRes.seats, maxSeats, hostLevel);
 			setSeats(nextSeats);
+			seatsRef.current = nextSeats;
+			const nextParticipants = reconcileParticipantsWithSeats(participantsListRef.current, nextSeats);
+			setParticipantsList(nextParticipants);
+			participantsListRef.current = nextParticipants;
+			setParticipantTotal(nextParticipants.length);
+			participantTotalRef.current = nextParticipants.length;
 			syncRoom(nextSeats, void 0, void 0, void 0, void 0, true);
-		} else {
-			const updated = normalizeSeats(seats, maxSeats, hostLevel);
-			const prevSeat = updated.findIndex((s) => s?.id === currentUser.id);
-			if (prevSeat !== -1) updated[prevSeat] = null;
-			updated[index] = currentUser;
-			setSeats(updated);
-			syncRoom(updated);
-		}
+		} else syncRoom(optimisticSeats);
 		showToast(`Took Seat #${index + 1}`);
 	};
 	const handleLeaveSeat = async (index) => {
 		selfLeftSeatRef.current = true;
 		setShowMySeatModal(null);
 		setShowExitRoomModal(false);
+		const optimisticSeats = seatsRef.current.map((s, i) => i === index || s?.id === currentUser.id ? null : s);
+		setSeats(optimisticSeats);
+		seatsRef.current = optimisticSeats;
+		updateFirestoreRoomParticipantState(room.id, { isSpeaker: false });
 		const fsRes = await vacateFirestoreSeat(room.id, currentUser.id, index, maxSeats);
 		liveAndRoomService.leaveOwnSeat(room.id, currentUser.id).catch(() => []);
-		const nextSeats = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : seats.map((s, i) => i === index ? null : s);
+		const nextSeats = fsRes.success && Array.isArray(fsRes.seats) ? normalizeSeats(fsRes.seats, maxSeats) : optimisticSeats;
 		setSeats(nextSeats);
+		seatsRef.current = nextSeats;
 		syncRoom(nextSeats, void 0, void 0, void 0, void 0, fsRes.success);
 		showToast(`Stepped down from Seat #${index + 1}`);
 	};
@@ -29984,7 +30291,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" }),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 										className: "text-emerald-400 font-bold shrink-0",
-										children: maxSeats === 5 && isCoHostSeatLevelLocked ? "4+1" : `${maxSeats}S`
+										children: `${maxSeats}S`
 									})
 								]
 							})]
@@ -29995,9 +30302,14 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 							onClick: () => {
-								liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
-									setParticipantsList(r.participants);
-									setParticipantTotal(r.totalCount);
+								if (!hasFsParticipantsRef.current) liveAndRoomService.fetchRoomParticipants(room.id, 1, 50).then((r) => {
+									if (r.participants.length > 0 && !hasFsParticipantsRef.current) {
+										const reconciled = reconcileParticipantsWithSeats(r.participants, seatsRef.current);
+										setParticipantsList(reconciled);
+										participantsListRef.current = reconciled;
+										setParticipantTotal(reconciled.length);
+										participantTotalRef.current = reconciled.length;
+									}
 								});
 								setShowParticipantsModal(true);
 							},
@@ -31016,7 +31328,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 														className: "text-[11px] font-black flex items-center gap-1",
 														children: [
 															!unlocked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Lock, { className: "w-3 h-3 text-amber-300" }),
-															tier.maxSeats === 5 && hostLevel < 5 ? "4+1" : tier.maxSeats,
+															tier.maxSeats,
 															" Seats"
 														]
 													}),
@@ -31030,7 +31342,7 @@ var AudioRoomScreen = ({ room, currentUser, onClose, onOpenGiftShop, onOpenWalle
 									}),
 									/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 										className: "text-[10px] text-[#B9AECF] leading-snug pt-0.5",
-										children: hostLevel < 5 ? "Lv.0–4: 4 open seats + Seat #2 unlocks at Lv.5 • 8 seats at Lv.10 • 16 seats at Lv.20" : hostLevel < 10 ? "Lv.5+: All 5 seats unlocked! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats." : hostLevel < 20 ? "Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats." : "Lv.20+: Full access to switch between 5, 8, or 16 seats anytime."
+										children: hostLevel < 10 ? "All 5 seats unlocked by default! Reach Lv.10 for 8 seats (+3 lower) and Lv.20 for 16 seats." : hostLevel < 20 ? "Lv.10+: Switch between 5 or 8 seats anytime. Reach Lv.20 to unlock 16 seats." : "Lv.20+: Full access to switch between 5, 8, or 16 seats anytime."
 									})
 								]
 							}),
@@ -44308,15 +44620,15 @@ var SecureAccountPasswordCard = ({ email, userName, onSuccess, onLater }) => {
 	});
 };
 // src/App.tsx
-var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-C_jSqI3B.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
-var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-8sLgrCWt.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
-var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-B-051wTm.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
-var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-D1GzSgPC.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
-var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-CSDSNfU7.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
-var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-CG7CVJXb.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
-var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-5HV9fv65.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
-var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-CBh0dY0R.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
-var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BKcPsHWk.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
+var CreateLiveScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateLiveScreen-DJRefFbo.js").then((m) => ({ default: m.CreateLiveScreen })), __vite__mapDeps([4,5,6,7,8,9])));
+var CreateRoomScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./CreateRoomScreen-BOV60rvF.js").then((m) => ({ default: m.CreateRoomScreen })), __vite__mapDeps([10,5,6,7,8,9])));
+var RankingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./RankingsScreen-ncBIzTfW.js").then((m) => ({ default: m.RankingsScreen })), __vite__mapDeps([11,5,6,9])));
+var StoreScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./StoreScreen-Bg4ctGd9.js").then((m) => ({ default: m.StoreScreen })), __vite__mapDeps([12,5,6,13,8,7,9])));
+var SettingsScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./SettingsScreen-Db0JO3if.js").then((m) => ({ default: m.SettingsScreen })), __vite__mapDeps([14,5,6,7,8,9])));
+var UploadVideoScreen = (0, import_react.lazy)(() => __vitePreload(() => import("./UploadVideoScreen-BIumHvFB.js").then((m) => ({ default: m.UploadVideoScreen })), __vite__mapDeps([15,5,6,9])));
+var WalletModal = (0, import_react.lazy)(() => __vitePreload(() => import("./WalletModal-BUi6L8R1.js").then((m) => ({ default: m.WalletModal })), __vite__mapDeps([16,5,6,7,8,9])));
+var LevelAndVIPModal = (0, import_react.lazy)(() => __vitePreload(() => import("./LevelAndVIPModal-oR6blway.js").then((m) => ({ default: m.LevelAndVIPModal })), __vite__mapDeps([17,5,6,9])));
+var AdminProgressionModal = (0, import_react.lazy)(() => __vitePreload(() => import("./AdminProgressionModal-BRAxX_72.js").then((m) => ({ default: m.AdminProgressionModal })), __vite__mapDeps([18,5,6,7,8,9,13])));
 function App() {
 	const [currentScreen, setCurrentScreen] = (0, import_react.useState)("splash");
 	const [viewMode, setViewMode] = (0, import_react.useState)("responsive");

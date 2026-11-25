@@ -506,17 +506,10 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
               {PARTY_SEAT_TIERS.map((tier) => {
                 const unlocked = isSeatModeUnlockedForLevel(tier.maxSeats, hostLevel);
                 const selected = maxSeats === tier.maxSeats;
-                const tierLabelText =
-                  tier.maxSeats === 5
-                    ? hostLevel < 5
-                      ? '4+1 Seats'
-                      : '5 Seats'
-                    : `${tier.maxSeats} Seats`;
+                const tierLabelText = `${tier.maxSeats} Seats`;
                 const subText =
                   tier.maxSeats === 5
-                    ? hostLevel < 5
-                      ? 'Co-Host Lv.5'
-                      : 'Free Tier'
+                    ? 'Free Tier'
                     : unlocked
                     ? 'Unlocked'
                     : `Lv.${tier.minLevel} Lock`;
@@ -582,27 +575,13 @@ export const CreateRoomScreen: React.FC<CreateRoomScreenProps> = ({
             </div>
 
             <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-[10px]">
-              <div
-                className={`px-2.5 py-1.5 rounded-xl border ${
-                  hostLevel < 5
-                    ? 'bg-[#261142] border-[#FA26A0]/50 text-white'
-                    : 'bg-[#140D20] border-emerald-400/30 text-emerald-200'
-                }`}
-              >
-                <span className="font-black block">Lv.0–4 • 4+1 Seats</span>
-                <span className="text-[9px] text-white/70">1 Host + 3 Open (Seat #2 Locked)</span>
+              <div className="px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200">
+                <span className="font-black block">✓ Default • 5 Seats</span>
+                <span className="text-[9px] text-white/70">All 5 Seats Open by Default</span>
               </div>
-              <div
-                className={`px-2.5 py-1.5 rounded-xl border ${
-                  hostLevel >= 5
-                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
-                    : 'bg-[#10091A] border-white/10 text-white/55'
-                }`}
-              >
-                <span className="font-black block">
-                  {hostLevel >= 5 ? '✓ ' : '🔒 '}Lv.5 • 5 Seats Open
-                </span>
-                <span className="text-[9px] text-white/70">Co-Host Seat #2 Unlocks</span>
+              <div className="px-2.5 py-1.5 rounded-xl border bg-emerald-500/15 border-emerald-400/40 text-emerald-200">
+                <span className="font-black block">✓ Side Seat #2 Open</span>
+                <span className="text-[9px] text-white/70">Unlocked for All Hosts</span>
               </div>
               <div
                 className={`px-2.5 py-1.5 rounded-xl border ${
