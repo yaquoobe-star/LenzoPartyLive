@@ -1506,6 +1506,18 @@
     "/push_announcements/{announcementId}": {
       "schema": "PushAnnouncement",
       "description": "Global administrator push announcements delivered to all active users"
+    },
+    "/gift_catalog/{giftId}": {
+      "schema": "GiftCatalogItem",
+      "description": "Super Admin managed gift catalog items and overrides synced to all live rooms and streams"
+    },
+    "/app_banners/{bannerId}": {
+      "schema": "AppBanner",
+      "description": "Super Admin managed promotional events and home banners"
+    },
+    "/app_settings/{docId}": {
+      "schema": "AppSettingsConfig",
+      "description": "Global platform configuration, feature flags, and official support/contact details managed by Super Admin"
     }
   }
 }

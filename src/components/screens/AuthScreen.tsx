@@ -561,7 +561,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <div className="w-full bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs py-3 px-3.5 rounded-2xl mb-5 space-y-2.5 animate-fade-in">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <span className="flex-1 leading-snug">{errorMessage}</span>
+              <span className="flex-1 min-w-0 break-words leading-snug">{errorMessage}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -609,7 +609,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {successMessage && (
           <div className="w-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs py-2.5 px-3.5 rounded-2xl mb-5 flex items-center gap-2 animate-fade-in">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span className="flex-1 leading-snug">{successMessage}</span>
+            <span className="flex-1 min-w-0 break-words leading-snug">{successMessage}</span>
             <button 
               type="button" 
               onClick={() => setSuccessMessage(null)} 

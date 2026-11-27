@@ -330,9 +330,46 @@ export default function App() {
   const [myModerators, setMyModerators] = useState<HostModeratorRecord[]>([]);
   const [activeDeviceBan, setActiveDeviceBan] = useState<BannedDeviceRecord | null>(null);
   const currentDeviceId = getOrCreateDeviceId();
-  const isAuthorizedAdmin = isAuthorizedAdminEmail(auth.currentUser?.email || currentUser?.email);
-
   const [authenticatedUid, setAuthenticatedUid] = useState<string | null>(auth.currentUser?.uid || null);
+  const isAuthorizedAdmin = Boolean(
+    authenticatedUid &&
+    auth.currentUser &&
+    isAuthorizedAdminEmail(auth.currentUser.email)
+  );
+
+  // Strict /admin URL route guard: ONLY the verified Super Admin may open /admin;
+  // all other users are denied and redirected back to the normal app.
+  useEffect(() => {
+    if (!isAuthorizedAdmin && isAdminProgressionOpen) {
+      setIsAdminProgressionOpen(false);
+    }
+    if (currentScreen === 'splash') return;
+
+    const evaluateAdminRoute = () => {
+      const path = (window.location.pathname || '').toLowerCase();
+      const hash = (window.location.hash || '').toLowerCase();
+      const wantsAdminRoute =
+        path === '/admin' || path.startsWith('/admin/') || hash === '#/admin' || hash.startsWith('#/admin/');
+
+      if (!wantsAdminRoute) return;
+
+      if (isAuthorizedAdmin) {
+        setIsAdminProgressionOpen(true);
+      } else {
+        setIsAdminProgressionOpen(false);
+        try {
+          window.history.replaceState({}, '', '/');
+        } catch {
+          // ignore history restrictions
+        }
+        showAppToast('Access denied: Super Admin authorization required.');
+      }
+    };
+
+    evaluateAdminRoute();
+    window.addEventListener('popstate', evaluateAdminRoute);
+    return () => window.removeEventListener('popstate', evaluateAdminRoute);
+  }, [currentScreen, isAuthorizedAdmin, isAdminProgressionOpen]);
 
   // Subscribe to current user's blocked list, users who blocked current user, active party room kicks & lifetime moderators
   useEffect(() => {
@@ -3242,12 +3279,21 @@ export default function App() {
         }}
       />
 
-      {/* 5c. Admin-Only Administration Console (Strictly locked to authorized emails) */}
+      {/* 5c. Super Admin Panel (Strictly locked to verified malikyaqobniazgudara@gmail.com) */}
       {isAuthorizedAdmin && (
         <Suspense fallback={null}>
           <AdminProgressionModal
             isOpen={isAdminProgressionOpen}
-            onClose={() => setIsAdminProgressionOpen(false)}
+            onClose={() => {
+              setIsAdminProgressionOpen(false);
+              try {
+                if ((window.location.pathname || '').toLowerCase().startsWith('/admin')) {
+                  window.history.replaceState({}, '', '/');
+                }
+              } catch {
+                // ignore
+              }
+            }}
             currentUserEmail={auth.currentUser?.email || currentUser.email}
           />
         </Suspense>

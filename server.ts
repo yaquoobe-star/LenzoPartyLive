@@ -368,11 +368,8 @@ function formatCompactCount(num: number): string {
   return String(Math.floor(num));
 }
 
-const AUTHORIZED_ADMIN_EMAILS = new Set([
-  'saifkhokhar657@gmail.com',
-  'lenzopartyofficial@gmail.com',
-  'malikyaqoobniaz@gmail.com',
-]);
+const SUPER_ADMIN_EMAIL = 'malikyaqobniazgudara@gmail.com';
+const AUTHORIZED_ADMIN_EMAILS = new Set([SUPER_ADMIN_EMAIL]);
 
 function isVerifiedAdmin(req: AuthenticatedRequest): boolean {
   const email = req.firebaseUser?.email?.trim().toLowerCase() || '';
@@ -2054,9 +2051,18 @@ function getEmailOtpConfig() {
   const smtpPass =
     smtpHost.toLowerCase() === 'smtp.gmail.com' ? rawPass.replace(/\s+/g, '') : rawPass;
 
+  const DEFAULT_VERIFIED_FROM_EMAIL = 'no-reply@lenzoparty.com';
   const rawFrom = (process.env.EMAIL_FROM || process.env.SMTP_FROM || '').trim();
-  const fallbackFromAddress = smtpUser || 'lenzopartyofficial@gmail.com';
-  const smtpFrom = rawFrom || `Lenzo Party Live <${fallbackFromAddress}>`;
+  const fallbackFromAddress = brevoApiKey
+    ? DEFAULT_VERIFIED_FROM_EMAIL
+    : smtpUser || DEFAULT_VERIFIED_FROM_EMAIL;
+  const initialFrom = rawFrom || `Lenzo Party Live <${fallbackFromAddress}>`;
+  const initialParsed = parseFromEmailAddress(initialFrom);
+  // Unverified Gmail senders were removed from Brevo; always route Brevo through the verified lenzoparty.com sender.
+  const smtpFrom =
+    brevoApiKey && initialParsed.domain === 'gmail.com'
+      ? `Lenzo Party Live <${DEFAULT_VERIFIED_FROM_EMAIL}>`
+      : initialFrom;
   const parsedFrom = parseFromEmailAddress(smtpFrom);
 
   const explicitSecret = (process.env.EMAIL_OTP_SECRET || '').trim();
@@ -2099,7 +2105,7 @@ function getEmailOtpConfig() {
     smtpUser,
     smtpPass,
     smtpFrom,
-    fromAddress: parsedFrom.address || 'lenzopartyofficial@gmail.com',
+    fromAddress: parsedFrom.address || DEFAULT_VERIFIED_FROM_EMAIL,
     fromValid: parsedFrom.valid,
     fromDomain: parsedFrom.domain,
     emailOtpSecret,
@@ -2176,6 +2182,13 @@ async function sendViaBrevoHttp(
     }
 
     if (!resp.ok) {
+      console.error('[Brevo API] Transactional email rejected', {
+        status: resp.status,
+        brevoCode: String(data?.code || ''),
+        brevoMessage: String(data?.message || ''),
+        sender: cfg.fromAddress,
+        to: maskEmailForLog(payload.to),
+      });
       const apiErr: any = new Error(
         String(data?.message || data?.code || `Brevo HTTP ${resp.status}`)
       );
@@ -2194,7 +2207,14 @@ async function sendViaBrevoHttp(
       throw apiErr;
     }
 
-    return { messageId: String(data?.messageId || `brevo_${Date.now()}`) };
+    const messageId = String(data?.messageId || `brevo_${Date.now()}`);
+    console.info('[Brevo API] Transactional email accepted', {
+      status: resp.status,
+      sender: cfg.fromAddress,
+      to: maskEmailForLog(payload.to),
+      messageId,
+    });
+    return { messageId };
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       const timeoutErr: any = new Error('Brevo HTTPS API request timed out.');
@@ -2745,8 +2765,7 @@ app.post('/api/auth/email/send-otp', async (req: Request, res: Response) => {
       return res.status(502).json({
         success: false,
         code: 'EMAIL_SENDER_UNVERIFIED',
-        error:
-          'Sender email is not yet verified in Brevo. Verify lenzopartyofficial@gmail.com under Brevo -> Senders & IP, then retry.',
+        error: `Sender email (${cfg.fromAddress}) is not yet verified in Brevo. Verify ${cfg.fromAddress} under Brevo -> Senders & IP, then retry.`,
       });
     }
 
@@ -7025,7 +7044,7 @@ app.get('/api/rankings', (req: Request, res: Response) => {
   res.json(result);
 });
 
-app.get('/api/admin/ranking-config', (_req: Request, res: Response) => {
+app.get('/api/admin/ranking-config', requireAdminMiddleware, (_req: AuthenticatedRequest, res: Response) => {
   res.json({ config: rankingConfig });
 });
 
@@ -7288,7 +7307,9 @@ interface ProgressionAuditLogEntry {
     | 'admin_user_adjusted'
     | 'store_item_purchased'
     | 'admin_store_product_saved'
-    | 'admin_store_product_deleted';
+    | 'admin_store_product_deleted'
+    | 'admin_party_room_ended'
+    | 'admin_live_stream_ended';
   summary: string;
   details: Record<string, any>;
 }
@@ -7533,9 +7554,14 @@ function appendAuditLog(entry: Omit<ProgressionAuditLogEntry, 'id' | 'timestamp'
 }
 
 function requireAdminMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (!req.firebaseUser) {
+    return res.status(401).json({
+      error: 'Unauthorized: Valid Firebase Authentication token is required.',
+    });
+  }
   if (!isVerifiedAdmin(req)) {
     return res.status(403).json({
-      error: 'Forbidden: Administrator privileges (verified admin account) are required.',
+      error: 'Forbidden: Super Admin authorization is strictly required.',
     });
   }
   return next();
@@ -8421,7 +8447,7 @@ app.post('/api/admin/store/products', requireAdminMiddleware, (req: Authenticate
 
   appendAuditLog({
     actorId: req.firebaseUser?.uid || 'admin',
-    actorEmail: req.firebaseUser?.email || 'lenzopartyofficial@gmail.com',
+    actorEmail: req.firebaseUser?.email || SUPER_ADMIN_EMAIL,
     action: 'admin_store_product_saved',
     summary: `Admin saved Store product "${name}" (${categoryId}) — ${priceCoins.toLocaleString()} coins`,
     details: { id, categoryId, priceCoins, enabled: item.enabled, isFeatured: item.isFeatured },
@@ -8441,13 +8467,186 @@ app.delete('/api/admin/store/products/:id', requireAdminMiddleware, (req: Authen
 
   appendAuditLog({
     actorId: req.firebaseUser?.uid || 'admin',
-    actorEmail: req.firebaseUser?.email || 'lenzopartyofficial@gmail.com',
+    actorEmail: req.firebaseUser?.email || SUPER_ADMIN_EMAIL,
     action: 'admin_store_product_deleted',
     summary: `Admin deleted Store product "${removed.name}" (${id})`,
     details: { id, categoryId: removed.categoryId },
   });
 
   return res.json({ success: true, deletedId: id });
+});
+
+// ============================================================================
+// SUPER ADMIN VERIFICATION, REAL-TIME ROOMS/STREAMS OVERVIEW & MODERATION
+// ============================================================================
+app.get('/api/admin/verify-access', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  return res.json({
+    authorized: true,
+    role: 'super_admin',
+    email: req.firebaseUser?.email || SUPER_ADMIN_EMAIL,
+    uid: req.firebaseUser?.uid || '',
+    verifiedAt: new Date().toISOString(),
+  });
+});
+
+app.get('/api/admin/live-overview', requireAdminMiddleware, (_req: AuthenticatedRequest, res: Response) => {
+  const activePartyRooms = Array.from(partyRoomsMap.values())
+    .filter((room) => room.status !== 'closed')
+    .map((room) => {
+      const occupiedSeats = Array.isArray(room.seats)
+        ? room.seats.filter((s) => Boolean(s)).length
+        : 0;
+      return {
+        id: room.id,
+        displayId: room.displayId || room.id,
+        title: room.title,
+        category: room.category || 'Party',
+        hostId: String(room.host?.id || ''),
+        hostName: String(room.host?.name || 'Host'),
+        hostUsername: String(room.host?.username || ''),
+        hostAvatar: String(room.host?.avatar || ''),
+        status: room.status,
+        hostPresent: Boolean(room.hostPresent),
+        maxSeats: Number(room.maxSeats || 8),
+        occupiedSeats,
+        participantsCount: room.participants.size,
+        isLocked: Boolean(room.isLocked),
+        allowJoin: room.allowJoin !== false,
+        announcement: String(room.announcement || ''),
+        createdAt: new Date().toISOString(),
+        source: 'server_live' as const,
+      };
+    });
+
+  const activeLiveStreams = Array.from(liveStreamsMap.values())
+    .filter((stream) => stream.isLive && stream.status !== 'closed')
+    .map((stream) => ({
+      id: stream.id,
+      title: stream.title,
+      category: stream.category || 'Live',
+      hostId: String(stream.host?.id || ''),
+      hostName: String(stream.host?.name || 'Broadcaster'),
+      hostUsername: String(stream.host?.username || ''),
+      hostAvatar: String(stream.host?.avatar || ''),
+      status: stream.status,
+      hostPresent: Boolean(stream.hostPresent),
+      viewersCount: stream.viewers.size,
+      likesCount: Number(stream.likesCount || 0),
+      commentsCount: Number(stream.commentsCount || 0),
+      giftsCoinValue: Number(stream.giftsCoinValue || 0),
+      isPrivate: Boolean(stream.isPrivate),
+      allowGuests: Boolean(stream.allowGuests),
+      startTime: stream.startTime,
+      source: 'server_live' as const,
+    }));
+
+  const uniqueConnectedUserIds = new Set<string>();
+  let totalSocketConnections = 0;
+  wss.clients.forEach((client: any) => {
+    if (client.readyState === WebSocket.OPEN) {
+      totalSocketConnections += 1;
+      if (client.userId && typeof client.userId === 'string') {
+        uniqueConnectedUserIds.add(client.userId);
+      }
+    }
+  });
+
+  return res.json({
+    serverTime: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    activeWebSocketClients: totalSocketConnections,
+    onlineSocketUsers: uniqueConnectedUserIds.size,
+    activePartyRoomsCount: activePartyRooms.length,
+    activeLiveStreamsCount: activeLiveStreams.length,
+    activePartyRooms,
+    activeLiveStreams,
+  });
+});
+
+app.post('/api/admin/rooms/:roomId/end', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const roomId = String(req.params.roomId || '').trim();
+  if (!roomId || roomId.length > 128) {
+    return res.status(400).json({ error: 'Valid roomId is required.' });
+  }
+  const reason = sanitizeText(
+    req.body?.reason || 'Room ended by LenzoPartyLive Super Admin moderation.',
+    240
+  );
+  const room = partyRoomsMap.get(roomId);
+  if (room) {
+    closePartyRoomAuthoritatively(room, reason);
+  } else {
+    recentlyClosedRoomIds.set(roomId, Date.now());
+    broadcastToRoom(roomId, 'room:closed', {
+      roomId,
+      reason,
+      autoClosed: false,
+    });
+    broadcastAll('room:directory_updated', {
+      roomId,
+      action: 'ended',
+      reason,
+      autoClosed: false,
+    });
+  }
+
+  appendAuditLog({
+    actorId: req.firebaseUser?.uid || 'admin',
+    actorEmail: req.firebaseUser?.email || SUPER_ADMIN_EMAIL,
+    action: 'admin_party_room_ended',
+    summary: `Super Admin force-ended Party Room "${room?.title || roomId}" (${roomId})`,
+    details: { roomId, reason, hadLiveServerSession: Boolean(room) },
+  });
+
+  return res.json({
+    success: true,
+    roomId,
+    endedLiveSession: Boolean(room),
+    reason,
+  });
+});
+
+app.post('/api/admin/streams/:streamId/end', requireAdminMiddleware, (req: AuthenticatedRequest, res: Response) => {
+  const streamId = String(req.params.streamId || '').trim();
+  if (!streamId || streamId.length > 128) {
+    return res.status(400).json({ error: 'Valid streamId is required.' });
+  }
+  const reason = sanitizeText(
+    req.body?.reason || 'Live stream ended by LenzoPartyLive Super Admin moderation.',
+    240
+  );
+  const stream = liveStreamsMap.get(streamId);
+  if (stream) {
+    closeLiveStreamAuthoritatively(stream, reason);
+  } else {
+    recentlyClosedStreamIds.set(streamId, Date.now());
+    broadcastToLive(streamId, 'live:ended', {
+      streamId,
+      reason,
+      autoClosed: false,
+    });
+    broadcastAll('live:directory_updated', {
+      streamId,
+      action: 'ended',
+      reason,
+      autoClosed: false,
+    });
+  }
+
+  appendAuditLog({
+    actorId: req.firebaseUser?.uid || 'admin',
+    actorEmail: req.firebaseUser?.email || SUPER_ADMIN_EMAIL,
+    action: 'admin_live_stream_ended',
+    summary: `Super Admin force-ended Live Stream "${stream?.title || streamId}" (${streamId})`,
+    details: { streamId, reason, hadLiveServerSession: Boolean(stream) },
+  });
+
+  return res.json({
+    success: true,
+    streamId,
+    endedLiveSession: Boolean(stream),
+    reason,
+  });
 });
 
 // ============================================================================

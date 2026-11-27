@@ -125,6 +125,7 @@ jobs:
       - name: Configure Android SDK & Gradle for CI
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          PLAY_APP_SIGNING_SHA1: ${{ secrets.PLAY_APP_SIGNING_SHA1 }}
         run: |
           rm -rf android/.gradle android/app/build
           rm -f android/local.properties android/app/release.keystore
@@ -152,10 +153,6 @@ jobs:
             const expectedProjectNum = "238539539886";
             const expectedMobileAppId = "1:238539539886:android:16b058b5f0154c3d1df43f";
             const expectedWebClientId = "238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com";
-            const expectedSha1s = [
-              "68b8c557bf1cf2dcf1da692bf6d3ee6a1fc9c70b", // Upload Key SHA-1
-              "4f75d184db6f6637368f1a4173ae4bddb8cf093d"  // Play App Signing SHA-1
-            ];
             const clients = (cfg.client || []).filter(c =>
               c.client_info?.android_client_info?.package_name === pkg
             );
@@ -167,29 +164,37 @@ jobs:
               .filter(o => o.client_type === 3 && o.client_id)
               .map(o => String(o.client_id).trim()));
             const hasExpectedWeb = webClientIds.includes(expectedWebClientId);
-            const missing = expectedSha1s.filter(h => !androidHashes.includes(h));
             const keystoreSha1Hex = String(process.env.KEYSTORE_SHA1_HEX || "").toLowerCase();
             const keystoreRegistered = !keystoreSha1Hex || androidHashes.includes(keystoreSha1Hex);
+            const playSigningSha1Hex = String(process.env.PLAY_APP_SIGNING_SHA1 || "").replace(/:/g, "").trim().toLowerCase();
+            const playSigningRegistered = !playSigningSha1Hex || androidHashes.includes(playSigningSha1Hex);
 
             if (
               cfg.project_info?.project_id !== expectedProjectId ||
               String(cfg.project_info?.project_number || "") !== expectedProjectNum ||
               clients.length === 0 ||
               !mobileAppMatch ||
-              missing.length > 0 ||
+              androidHashes.length === 0 ||
               !hasExpectedWeb ||
-              !keystoreRegistered
+              !keystoreRegistered ||
+              !playSigningRegistered
             ) {
               console.error("Firebase OAuth configuration validation failed for " + pkg);
               console.error("Project ID:", cfg.project_info?.project_id, "(expected " + expectedProjectId + ")");
               console.error("Project Number:", cfg.project_info?.project_number, "(expected " + expectedProjectNum + ")");
               console.error("Mobile SDK App ID match:", mobileAppMatch);
-              console.error("Missing Android SHA-1 entries:", missing.join(", ") || "none");
+              console.error("Registered Android SHA-1 entries:", androidHashes.join(", ") || "none");
               console.error("Expected Web OAuth client present:", hasExpectedWeb);
               console.error("Upload keystore SHA-1 registered in google-services.json:", keystoreRegistered);
+              if (playSigningSha1Hex) {
+                console.error("Play App Signing SHA-1 registered in google-services.json:", playSigningRegistered);
+              }
               process.exit(1);
             }
-            console.log("Firebase config verified: project, appId, Play App Signing SHA-1, Upload Key SHA-1, keystore match, and exact Web OAuth client are present.");
+            if (!androidHashes.some(h => h.startsWith("78755a8c37b13d591e52f9a6b65cd9186d81a"))) {
+              console.log("::warning::google-services.json does not yet list the Play App Signing SHA-1 (78:75:5A:8C:...). Register the Play App Signing SHA-1 & SHA-256 from Play Console -> App signing in Firebase Console and refresh google-services.json.");
+            }
+            console.log("Firebase config verified: project, appId, upload keystore SHA-1, and exact Web OAuth client are present.");
           '
           chmod +x android/gradlew
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, 
   ArrowLeft, 
@@ -13,6 +13,11 @@ import {
 import { GiftItem, UserProfile } from '../../types';
 import { COIN_CONFIG } from '../../utils/coinConfig';
 import { ALL_500_GIFTS, GIFT_CATEGORIES } from '../../data/giftCatalog';
+import {
+  AdminGiftCatalogRecord,
+  mergeEffectiveGiftCatalog,
+  subscribeGiftCatalogOverrides,
+} from '../../services/superAdminService';
 
 interface GiftShopModalProps {
   isOpen: boolean;
@@ -35,13 +40,24 @@ export const GiftShopModal: React.FC<GiftShopModalProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGift, setSelectedGift] = useState<GiftItem>(ALL_500_GIFTS[0]);
+  const [catalogOverrides, setCatalogOverrides] = useState<AdminGiftCatalogRecord[]>([]);
+  const effectiveGifts = useMemo(
+    () => (catalogOverrides.length > 0 ? mergeEffectiveGiftCatalog(catalogOverrides) : gifts),
+    [catalogOverrides, gifts]
+  );
+  const [selectedGift, setSelectedGift] = useState<GiftItem>(effectiveGifts[0] || ALL_500_GIFTS[0]);
   const [quantity, setQuantity] = useState<number>(1);
   const [insufficientBalance, setInsufficientBalance] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const unsub = subscribeGiftCatalogOverrides((items) => setCatalogOverrides(items));
+    return () => unsub();
+  }, [isOpen]);
+
   // Filter gifts by Category and Search, with lazy limit for maximum performance
   const filteredGifts = useMemo(() => {
-    let list = ALL_500_GIFTS;
+    let list = effectiveGifts;
     if (activeCategory !== 'All') {
       list = list.filter((g) => {
         if (activeCategory === 'Flowers') return ['Rose', 'Tulip', 'Bouquet', 'Sunflower', 'Lily', 'Orchid', 'Jasmine', 'Lavender', 'Lotus', 'Blossom'].some(k => g.name.includes(k));
@@ -61,7 +77,7 @@ export const GiftShopModal: React.FC<GiftShopModalProps> = ({
     }
 
     return list.slice(0, 120); // Performant chunk display
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, effectiveGifts]);
 
   if (!isOpen) return null;
 

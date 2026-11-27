@@ -144,6 +144,18 @@ if (typeof window !== 'undefined') {
 
 // Test connection on boot per Firebase skill guidelines
 async function testConnection() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (typeof window !== 'undefined') {
+      window.addEventListener(
+        'online',
+        () => {
+          void testConnection();
+        },
+        { once: true }
+      );
+    }
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log(
@@ -159,10 +171,15 @@ async function testConnection() {
       return;
     }
 
-    if (message.includes('the client is offline') || code === 'unavailable') {
-      console.warn(
-        '[Firebase] Firestore backend temporarily unreachable; waiting for automatic network recovery.'
-      );
+    // Transient network / auth token refresh drops recover automatically once connectivity resumes
+    if (
+      message.includes('the client is offline') ||
+      message.includes('auth/network-request-failed') ||
+      message.includes('Fetching auth token failed') ||
+      code === 'unavailable' ||
+      code === 'unknown'
+    ) {
+      return;
     }
   }
 }

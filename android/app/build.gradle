@@ -76,11 +76,16 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
+def servicesJSON = file('google-services.json')
+def isReleaseBuildRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+if (servicesJSON.exists() && servicesJSON.text?.trim()) {
+    def gsText = servicesJSON.text
+    if (isReleaseBuildRequested && (!gsText.contains('"package_name": "com.lenzoparty.app"') || !gsText.contains('"client_type": 3'))) {
+        throw new GradleException("android/app/google-services.json is missing package com.lenzoparty.app or Web OAuth client (client_type: 3) required for Google Sign-In.")
     }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    apply plugin: 'com.google.gms.google-services'
+} else if (isReleaseBuildRequested) {
+    throw new GradleException("android/app/google-services.json is required for release builds so default_web_client_id is generated for Google Sign-In.")
+} else {
+    logger.info("google-services.json not found, google-services plugin not applied for non-release build.")
 }

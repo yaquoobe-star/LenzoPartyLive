@@ -26,12 +26,14 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { apiFetch, DEFAULT_BACKEND_API_ORIGIN, getApiBaseUrl } from '../utils/apiConfig';
 import { UserProfile } from '../types';
 import { rememberAuthenticatedAccount } from './accountSwitcherService';
 import { getDeviceSummaryLabel, getOrCreateDeviceId, isAuthorizedAdminEmail } from '../utils/adminAuth';
+
+import firebaseConfig from '../../firebase-applet-config.json';
 
 interface NativeGoogleAuthDiagnostics {
   packageName?: string;
@@ -40,20 +42,40 @@ interface NativeGoogleAuthDiagnostics {
   webClientIdSource?: string;
   webClientIdMasked?: string;
   installedSigningSha1?: string;
+  installedSigningSha256?: string;
 }
 
 interface NativeGoogleAuthPlugin {
-  signIn(): Promise<{
+  signIn(options?: { webClientId?: string }): Promise<{
     idToken: string;
     email?: string;
     displayName?: string;
     photoUrl?: string;
     diagnostics?: NativeGoogleAuthDiagnostics;
   }>;
-  signOut(): Promise<void>;
+  getSigningDiagnostics?(options?: { webClientId?: string }): Promise<NativeGoogleAuthDiagnostics>;
+  signOut(options?: { webClientId?: string }): Promise<void>;
 }
 
 const NativeGoogleAuth = registerPlugin<NativeGoogleAuthPlugin>('NativeGoogleAuth');
+const EXPECTED_GOOGLE_WEB_CLIENT_ID =
+  typeof firebaseConfig?.oAuthClientId === 'string' &&
+  firebaseConfig.oAuthClientId.trim().endsWith('.apps.googleusercontent.com')
+    ? firebaseConfig.oAuthClientId.trim()
+    : '238539539886-0f0ps46a223ktq8cv07bv6ias2qfnuc9.apps.googleusercontent.com';
+
+function extractJwtAudience(idToken: string): string | null {
+  try {
+    const parts = idToken.split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded?.aud === 'string' ? decoded.aud.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface FirestoreUserData {
   uid: string;
@@ -430,7 +452,9 @@ export async function signInWithGoogle(options?: {
   forceAccountPicker?: boolean;
 }): Promise<{ user: FirebaseUser; profile: UserProfile } | null> {
   try {
-    await setPersistence(auth, browserLocalPersistence);
+    await setPersistence(auth, browserLocalPersistence).catch((persistErr) => {
+      console.warn('[Google Auth] Persistence notice (continuing with active auth session):', persistErr);
+    });
 
     // 1. Native Android (Capacitor): use Google Play Services Native Account Picker -> Firebase signInWithCredential
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
@@ -441,18 +465,29 @@ export async function signInWithGoogle(options?: {
           platform: Capacitor.getPlatform(),
         });
 
-        const nativeRes = await NativeGoogleAuth.signIn();
+        const nativeRes = await NativeGoogleAuth.signIn({
+          webClientId: EXPECTED_GOOGLE_WEB_CLIENT_ID,
+        });
         const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
         const jwtSegments = idToken ? idToken.split('.').length : 0;
+        const tokenAudience = idToken ? extractJwtAudience(idToken) : null;
 
         console.info('[Google Auth][Android] Native plugin returned result', {
           idTokenPresent: Boolean(idToken),
           jwtValidFormat: jwtSegments === 3,
+          audienceMatchesConfig: tokenAudience ? tokenAudience === EXPECTED_GOOGLE_WEB_CLIENT_ID : null,
           diagnostics: nativeRes?.diagnostics || null,
         });
 
         if (!idToken || jwtSegments !== 3) {
           throw new Error('Google Sign-In did not return a valid ID token.');
+        }
+
+        if (tokenAudience && tokenAudience !== EXPECTED_GOOGLE_WEB_CLIENT_ID) {
+          console.warn('[Google Auth][Android] ID token audience differs from firebase-applet-config oAuthClientId', {
+            tokenAudiencePrefix: tokenAudience.slice(0, 20),
+            expectedPrefix: EXPECTED_GOOGLE_WEB_CLIENT_ID.slice(0, 20),
+          });
         }
 
         stage = 'firebase_credential';
@@ -587,47 +622,126 @@ function isAiStudioPreviewHost(): boolean {
   return host.endsWith('.run.app') || host === 'localhost' || host === '127.0.0.1';
 }
 
-async function postEmailOtpJson(
+async function postEmailOtpViaNativeHttp(
+  targetUrl: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+  usedBaseUrl: string
+): Promise<{
+  status: number;
+  ok: boolean;
+  data: any;
+  looksLikeHtml: boolean;
+  usedBaseUrl: string;
+}> {
+  const nativeResp = await CapacitorHttp.post({
+    url: targetUrl,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Platform': 'android',
+    },
+    data: payload,
+    connectTimeout: Math.min(timeoutMs, 15000),
+    readTimeout: timeoutMs,
+  });
+
+  const status = Number(nativeResp.status || 0);
+  const rawData = nativeResp.data;
+  let data: any = null;
+  let rawText = '';
+  if (typeof rawData === 'string') {
+    rawText = rawData;
+    try {
+      data = rawData ? JSON.parse(rawData) : null;
+    } catch {
+      data = null;
+    }
+  } else if (rawData && typeof rawData === 'object') {
+    data = rawData;
+  }
+
+  const headerMap = nativeResp.headers || {};
+  const contentType = String(
+    headerMap['content-type'] || headerMap['Content-Type'] || ''
+  ).toLowerCase();
+  const looksLikeHtml =
+    contentType.includes('text/html') ||
+    /^\s*<!doctype html|^\s*<html/i.test(rawText);
+
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    data,
+    looksLikeHtml,
+    usedBaseUrl,
+  };
+}
+
+async function postEmailOtpJsonOnce(
   path: string,
   payload: Record<string, unknown>,
   timeoutMs: number,
   explicitBaseUrl?: string | null
 ): Promise<{
-  response: Response;
+  status: number;
+  ok: boolean;
   data: any;
   looksLikeHtml: boolean;
   usedBaseUrl: string;
 }> {
-  const usedBaseUrl = explicitBaseUrl !== undefined && explicitBaseUrl !== null ? explicitBaseUrl : getApiBaseUrl();
+  const usedBaseUrl =
+    explicitBaseUrl !== undefined && explicitBaseUrl !== null ? explicitBaseUrl : getApiBaseUrl();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const fullTargetUrl = `${(usedBaseUrl || '').replace(/\/+$/, '')}${normalizedPath}`;
 
   let response: Response;
-  if (usedBaseUrl && usedBaseUrl !== getApiBaseUrl()) {
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-    try {
-      response = await fetch(`${usedBaseUrl.replace(/\/+$/, '')}${normalizedPath}`, {
+  try {
+    if (usedBaseUrl && usedBaseUrl !== getApiBaseUrl()) {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+      try {
+        response = await fetch(fullTargetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller?.signal,
+        });
+      } catch (err: any) {
+        const wrapped: any = new Error(
+          `Unable to reach backend (${fullTargetUrl}): ${err?.message || 'Network unavailable'}`
+        );
+        wrapped.isNetworkError = true;
+        throw wrapped;
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    } else {
+      response = await apiFetch(normalizedPath, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        skipAuth: true,
         body: JSON.stringify(payload),
-        signal: controller?.signal,
+        timeoutMs,
       });
-    } catch (err: any) {
-      const wrapped: any = new Error(
-        `Unable to reach backend (${usedBaseUrl}${normalizedPath}): ${err?.message || 'Network unavailable'}`
-      );
-      wrapped.isNetworkError = true;
-      throw wrapped;
-    } finally {
-      if (timer) clearTimeout(timer);
     }
-  } else {
-    response = await apiFetch(normalizedPath, {
-      method: 'POST',
-      skipAuth: true,
-      body: JSON.stringify(payload),
-      timeoutMs,
-    });
+  } catch (fetchErr: any) {
+    // On native Android/iOS, if WebView fetch hits a CORS/TLS/network quirk, fall back to native HTTP stack
+    if (
+      Capacitor.isNativePlatform() &&
+      /^https?:\/\//i.test(fullTargetUrl) &&
+      typeof CapacitorHttp?.post === 'function'
+    ) {
+      try {
+        return await postEmailOtpViaNativeHttp(fullTargetUrl, payload, timeoutMs, usedBaseUrl);
+      } catch (nativeErr: any) {
+        const wrapped: any = new Error(
+          `Unable to reach backend (${fullTargetUrl}): ${nativeErr?.message || fetchErr?.message || 'Network unavailable'}`
+        );
+        wrapped.isNetworkError = true;
+        throw wrapped;
+      }
+    }
+    throw fetchErr;
   }
 
   const contentType = (response.headers.get('content-type') || '').toLowerCase();
@@ -643,11 +757,65 @@ async function postEmailOtpJson(
     contentType.includes('text/html') ||
     /^\s*<!doctype html|^\s*<html/i.test(rawText);
 
-  return { response, data, looksLikeHtml, usedBaseUrl };
+  return {
+    status: response.status,
+    ok: response.ok,
+    data,
+    looksLikeHtml,
+    usedBaseUrl,
+  };
+}
+
+async function postEmailOtpJson(
+  path: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number,
+  explicitBaseUrl?: string | null,
+  maxRetries: number = 2
+): Promise<{
+  status: number;
+  ok: boolean;
+  data: any;
+  looksLikeHtml: boolean;
+  usedBaseUrl: string;
+}> {
+  let lastError: any = null;
+  let lastResult: {
+    status: number;
+    ok: boolean;
+    data: any;
+    looksLikeHtml: boolean;
+    usedBaseUrl: string;
+  } | null = null;
+
+  for (let attemptIdx = 0; attemptIdx <= maxRetries; attemptIdx++) {
+    if (attemptIdx > 0) {
+      await new Promise((resolve) => setTimeout(resolve, attemptIdx * 900));
+    }
+    try {
+      const result = await postEmailOtpJsonOnce(path, payload, timeoutMs, explicitBaseUrl);
+      lastResult = result;
+      // Retry transient gateway errors (502/503/504 without structured app error) such as Railway wake-up
+      const isTransientGateway =
+        (result.status === 502 || result.status === 503 || result.status === 504) &&
+        !result.data?.code;
+      if (!isTransientGateway || attemptIdx === maxRetries) {
+        return result;
+      }
+    } catch (err: any) {
+      lastError = err;
+      if (!err?.isNetworkError || attemptIdx === maxRetries) {
+        throw err;
+      }
+    }
+  }
+
+  if (lastResult) return lastResult;
+  throw lastError || new Error('Could not reach the email verification service.');
 }
 
 /**
- * Send a short-lived 6-digit email OTP through the custom Lenzo SMTP backend.
+ * Send a short-lived 6-digit email OTP through the custom Lenzo email backend (Brevo HTTPS API).
  * The backend returns an HMAC-signed challenge; the OTP itself is never stored or exposed client-side.
  */
 export async function sendEmailOtp(email: string): Promise<{
@@ -668,14 +836,16 @@ export async function sendEmailOtp(email: string): Promise<{
   let primaryNetworkError: any = null;
 
   try {
-    attempt = await postEmailOtpJson('/api/auth/email/send-otp', { email: cleanEmail }, 25000);
+    attempt = await postEmailOtpJson('/api/auth/email/send-otp', { email: cleanEmail }, 25000, undefined, 2);
   } catch (err: any) {
     if (canFallbackToProdApi) {
       primaryNetworkError = err;
     } else if (err?.isNetworkError) {
-      const netErr: any = new Error(
-        `The Lenzo email server (${primaryBase || DEFAULT_BACKEND_API_ORIGIN}) is currently offline or restarting (HTTP 502). Please check the Railway deployment status, or tap "Continue with Email Verification Link Instead" below.`
-      );
+      const offlineHint =
+        typeof navigator !== 'undefined' && navigator.onLine === false
+          ? 'No internet connection detected. Please check your Wi-Fi or mobile data and try again.'
+          : 'Could not reach the Lenzo email verification service. Please check your internet connection and tap Send again, or use "Continue with Email Verification Link Instead" below.';
+      const netErr: any = new Error(offlineHint);
       netErr.code = 'SMTP_BACKEND_UNREACHABLE';
       throw netErr;
     } else {
@@ -683,10 +853,10 @@ export async function sendEmailOtp(email: string): Promise<{
     }
   }
 
-  // On AI Studio Preview (*.run.app), if same-origin lacks local SMTP env vars or hits an iframe HTML redirect,
+  // On AI Studio Preview (*.run.app), if same-origin lacks local email env vars or hits an iframe HTML redirect,
   // automatically try the production backend API.
   const primaryNotConfigured =
-    attempt?.response.status === 503 &&
+    attempt?.status === 503 &&
     (attempt?.data?.code === 'SMTP_NOT_CONFIGURED' || attempt?.data?.code === 'EMAIL_PROVIDER_NOT_CONFIGURED');
 
   const shouldTryProdFallback =
@@ -699,15 +869,16 @@ export async function sendEmailOtp(email: string): Promise<{
         '/api/auth/email/send-otp',
         { email: cleanEmail },
         20000,
-        DEFAULT_BACKEND_API_ORIGIN
+        DEFAULT_BACKEND_API_ORIGIN,
+        2
       );
-      if (prodAttempt.response.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) {
+      if (prodAttempt.ok && prodAttempt.data?.success && prodAttempt.data?.challenge) {
         attempt = prodAttempt;
       } else if (!prodAttempt.looksLikeHtml && prodAttempt.data?.error) {
         attempt = prodAttempt;
       } else {
         const cfgErr: any = new Error(
-          '6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
+          '6-digit Email OTP requires HTTPS email delivery (BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
         );
         cfgErr.code = 'SMTP_NOT_CONFIGURED';
         throw cfgErr;
@@ -717,7 +888,7 @@ export async function sendEmailOtp(email: string): Promise<{
         throw fallbackErr;
       }
       const cfgErr: any = new Error(
-        '6-digit Email OTP requires HTTPS email delivery (EMAIL_WEBHOOK_URL or BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
+        '6-digit Email OTP requires HTTPS email delivery (BREVO_API_KEY) on the backend server. You can verify via Email Link below right now.'
       );
       cfgErr.code = 'SMTP_NOT_CONFIGURED';
       throw cfgErr;
@@ -728,9 +899,9 @@ export async function sendEmailOtp(email: string): Promise<{
     throw primaryNetworkError || new Error('Could not reach the email verification service.');
   }
 
-  const { response, data, looksLikeHtml, usedBaseUrl } = attempt;
+  const { status, ok, data, looksLikeHtml, usedBaseUrl } = attempt;
 
-  if (!response.ok || !data?.success || !data?.challenge) {
+  if (!ok || !data?.success || !data?.challenge) {
     if (looksLikeHtml) {
       const htmlErr: any = new Error(
         'Email OTP server returned an unexpected response. You can verify via Email Link below or try again.'
@@ -738,15 +909,15 @@ export async function sendEmailOtp(email: string): Promise<{
       htmlErr.code = 'SMTP_BACKEND_UNREACHABLE';
       throw htmlErr;
     }
-    if (response.status >= 502 && !data?.error) {
+    if (status >= 502 && !data?.error) {
       const gwErr: any = new Error(
-        'Email server is temporarily unavailable. You can verify via Email Link below or try again shortly.'
+        'Email server is temporarily busy or restarting. Please tap Send again in a few seconds, or verify via Email Link below.'
       );
       gwErr.code = 'SMTP_BACKEND_UNREACHABLE';
       throw gwErr;
     }
     const err: any = new Error(
-      data?.error || `Could not send verification code (HTTP ${response.status}).`
+      data?.error || `Could not send verification code (HTTP ${status}).`
     );
     if (data?.code) err.code = data.code;
     if (typeof data?.retryAfterSeconds === 'number') {
@@ -779,22 +950,23 @@ export async function verifyEmailOtp(email: string, otp: string, challenge: stri
     throw new Error('Verification session expired. Please request a new code.');
   }
 
-  const { response, data, looksLikeHtml } = await postEmailOtpJson(
+  const { status, ok, data, looksLikeHtml } = await postEmailOtpJson(
     '/api/auth/email/verify-otp',
     { email: cleanEmail, otp: cleanOtp, challenge: challenge.trim() },
     15000,
-    lastEmailOtpBaseUrl
+    lastEmailOtpBaseUrl,
+    2
   );
 
-  if (!response.ok || !data?.success || !data?.verified) {
+  if (!ok || !data?.success || !data?.verified) {
     if (looksLikeHtml) {
       throw new Error('Email verification service returned an unexpected response. Please try again.');
     }
-    if (response.status >= 502 && !data?.error) {
+    if (status >= 502 && !data?.error) {
       throw new Error('Email verification server is temporarily unavailable. Please try again.');
     }
     const err: any = new Error(
-      data?.error || `Email verification failed (HTTP ${response.status}).`
+      data?.error || `Email verification failed (HTTP ${status}).`
     );
     if (data?.code) err.code = data.code;
     throw err;
@@ -1043,7 +1215,9 @@ export function needsGooglePasswordRegistration(
  */
 async function reauthenticateCurrentGoogleUser(user: FirebaseUser): Promise<void> {
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-    const nativeRes = await NativeGoogleAuth.signIn();
+    const nativeRes = await NativeGoogleAuth.signIn({
+      webClientId: EXPECTED_GOOGLE_WEB_CLIENT_ID,
+    });
     const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
     if (!idToken || idToken.split('.').length !== 3) {
       throw new Error('Google verification did not return a valid token. Please try again.');
@@ -1236,7 +1410,9 @@ export async function linkGoogleAccount(): Promise<string[]> {
   try {
     let linkedUser: FirebaseUser;
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-      const nativeRes = await NativeGoogleAuth.signIn();
+      const nativeRes = await NativeGoogleAuth.signIn({
+        webClientId: EXPECTED_GOOGLE_WEB_CLIENT_ID,
+      });
       const idToken = typeof nativeRes?.idToken === 'string' ? nativeRes.idToken.trim() : '';
       if (!idToken || idToken.split('.').length !== 3) {
         throw new Error('Google Sign-In did not return a valid token.');

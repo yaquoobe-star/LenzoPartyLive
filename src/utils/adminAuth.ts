@@ -1,15 +1,13 @@
 import { auth } from '../firebase';
 
 /**
- * Strictly authorized Lenzo Party Administration emails.
- * ONLY accounts authenticated with one of these exact email addresses
- * are permitted to see or access the in-app Administration Console.
+ * Strictly authorized LenzoPartyLive Super Admin email.
+ * ONLY the verified account authenticated with this exact Gmail address
+ * is permitted to view or access the Super Admin Panel.
  */
-export const AUTHORIZED_ADMIN_EMAILS = [
-  'saifkhokhar657@gmail.com',
-  'lenzopartyofficial@gmail.com',
-  'malikyaqoobniaz@gmail.com',
-] as const;
+export const SUPER_ADMIN_EMAIL = 'malikyaqobniazgudara@gmail.com';
+
+export const AUTHORIZED_ADMIN_EMAILS = [SUPER_ADMIN_EMAIL] as const;
 
 const AUTHORIZED_ADMIN_EMAIL_SET = new Set<string>(AUTHORIZED_ADMIN_EMAILS);
 

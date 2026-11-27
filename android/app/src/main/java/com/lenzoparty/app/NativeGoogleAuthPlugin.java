@@ -47,16 +47,27 @@ public class NativeGoogleAuthPlugin extends Plugin {
         }
     }
 
-    private ResolvedWebClientConfig resolveWebClientConfig() {
+    private ResolvedWebClientConfig resolveWebClientConfig(String jsWebClientId) {
         Context context = getContext();
+        String trimmedJsClientId = jsWebClientId != null ? jsWebClientId.trim() : "";
         int resId = context.getResources().getIdentifier(
                 "default_web_client_id", "string", context.getPackageName()
         );
         if (resId != 0) {
             String fromResources = context.getString(resId);
             if (fromResources != null && !fromResources.trim().isEmpty()) {
-                return new ResolvedWebClientConfig(fromResources.trim(), "google-services.json");
+                String resolved = fromResources.trim();
+                if (!trimmedJsClientId.isEmpty() && !resolved.equals(trimmedJsClientId)) {
+                    Log.w(TAG, "Web Client ID mismatch between google-services.json ("
+                            + maskWebClientId(resolved) + ") and firebase-applet-config.json ("
+                            + maskWebClientId(trimmedJsClientId) + "). Using google-services.json value.");
+                }
+                return new ResolvedWebClientConfig(resolved, "google-services.json");
             }
+        }
+        if (!trimmedJsClientId.isEmpty() && trimmedJsClientId.endsWith(".apps.googleusercontent.com")) {
+            Log.w(TAG, "R.string.default_web_client_id missing; using Web OAuth Client ID from app config.");
+            return new ResolvedWebClientConfig(trimmedJsClientId, "firebase_config_fallback");
         }
         Log.w(TAG, "R.string.default_web_client_id missing or empty; falling back to configured Web OAuth Client ID.");
         return new ResolvedWebClientConfig(FALLBACK_WEB_CLIENT_ID, "fallback_constant");
@@ -108,11 +119,11 @@ public class NativeGoogleAuthPlugin extends Plugin {
     }
 
     /**
-     * Reads the live signing certificate SHA-1 of the currently installed APK on this device.
-     * For Play Store installs this reports the actual Play App Signing SHA-1; for direct APK
-     * installs it reports the Upload Key SHA-1. Never hard-coded.
+     * Reads the live signing certificate digest (SHA-1 or SHA-256) of the currently installed APK.
+     * For Play Store installs this reports the active Play App Signing certificate; for direct APK
+     * installs it reports the Upload Key certificate. Never hard-coded.
      */
-    private String getInstalledSigningSha1(Context context) {
+    private String getInstalledSigningFingerprint(Context context, String algorithm) {
         try {
             PackageManager pm = context.getPackageManager();
             String pkg = context.getPackageName();
@@ -138,7 +149,7 @@ public class NativeGoogleAuthPlugin extends Plugin {
                 return "unavailable";
             }
 
-            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            MessageDigest md = MessageDigest.getInstance(algorithm);
             List<String> fingerprints = new ArrayList<>();
             for (Signature sig : signatures) {
                 byte[] digest = md.digest(sig.toByteArray());
@@ -153,9 +164,28 @@ public class NativeGoogleAuthPlugin extends Plugin {
             }
             return String.join(",", fingerprints);
         } catch (Exception e) {
-            Log.w(TAG, "Unable to compute runtime APK signing SHA-1: " + e.getClass().getSimpleName());
+            Log.w(TAG, "Unable to compute runtime APK signing " + algorithm + ": " + e.getClass().getSimpleName());
             return "unavailable";
         }
+    }
+
+    private JSObject buildDiagnostics(Context context, ResolvedWebClientConfig webConfig) {
+        JSObject diagnostics = new JSObject();
+        diagnostics.put("packageName", context.getPackageName());
+        diagnostics.put("versionName", getAppVersionName(context));
+        diagnostics.put("versionCode", getAppVersionCode(context));
+        diagnostics.put("webClientIdSource", webConfig.source);
+        diagnostics.put("webClientIdMasked", maskWebClientId(webConfig.clientId));
+        diagnostics.put("installedSigningSha1", getInstalledSigningFingerprint(context, "SHA-1"));
+        diagnostics.put("installedSigningSha256", getInstalledSigningFingerprint(context, "SHA-256"));
+        return diagnostics;
+    }
+
+    @PluginMethod
+    public void getSigningDiagnostics(PluginCall call) {
+        Context context = getContext();
+        ResolvedWebClientConfig webConfig = resolveWebClientConfig(call.getString("webClientId"));
+        call.resolve(buildDiagnostics(context, webConfig));
     }
 
     @PluginMethod
@@ -171,8 +201,9 @@ public class NativeGoogleAuthPlugin extends Plugin {
         String runtimePackage = context.getPackageName();
         long versionCode = getAppVersionCode(context);
         String versionName = getAppVersionName(context);
-        String runtimeSha1 = getInstalledSigningSha1(context);
-        ResolvedWebClientConfig webConfig = resolveWebClientConfig();
+        String runtimeSha1 = getInstalledSigningFingerprint(context, "SHA-1");
+        String runtimeSha256 = getInstalledSigningFingerprint(context, "SHA-256");
+        ResolvedWebClientConfig webConfig = resolveWebClientConfig(call.getString("webClientId"));
 
         int playServicesStatus = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(activity);
         Log.i(TAG, "Starting native Google Sign-In | pkg=" + runtimePackage
@@ -180,7 +211,8 @@ public class NativeGoogleAuthPlugin extends Plugin {
                 + " | playServicesStatus=" + playServicesStatus
                 + " | webClientIdSource=" + webConfig.source
                 + " | webClientId=" + maskWebClientId(webConfig.clientId)
-                + " | installedSha1=" + runtimeSha1);
+                + " | installedSha1=" + runtimeSha1
+                + " | installedSha256=" + runtimeSha256);
 
         if (!EXPECTED_PACKAGE_NAME.equals(runtimePackage)) {
             Log.e(TAG, "Package mismatch detected: expected " + EXPECTED_PACKAGE_NAME + " but got " + runtimePackage);
@@ -239,8 +271,9 @@ public class NativeGoogleAuthPlugin extends Plugin {
         String runtimePackage = context.getPackageName();
         long versionCode = getAppVersionCode(context);
         String versionName = getAppVersionName(context);
-        String runtimeSha1 = getInstalledSigningSha1(context);
-        ResolvedWebClientConfig webConfig = resolveWebClientConfig();
+        String runtimeSha1 = getInstalledSigningFingerprint(context, "SHA-1");
+        String runtimeSha256 = getInstalledSigningFingerprint(context, "SHA-256");
+        ResolvedWebClientConfig webConfig = resolveWebClientConfig(call.getString("webClientId"));
 
         if (result == null || result.getData() == null) {
             Log.i(TAG, "Google Sign-In activity returned without intent data (cancelled). resultCode="
@@ -271,13 +304,7 @@ public class NativeGoogleAuthPlugin extends Plugin {
                 return;
             }
 
-            JSObject diagnostics = new JSObject();
-            diagnostics.put("packageName", runtimePackage);
-            diagnostics.put("versionName", versionName);
-            diagnostics.put("versionCode", versionCode);
-            diagnostics.put("webClientIdSource", webConfig.source);
-            diagnostics.put("webClientIdMasked", maskWebClientId(webConfig.clientId));
-            diagnostics.put("installedSigningSha1", runtimeSha1);
+            JSObject diagnostics = buildDiagnostics(context, webConfig);
 
             JSObject ret = new JSObject();
             ret.put("idToken", idToken);
@@ -294,7 +321,8 @@ public class NativeGoogleAuthPlugin extends Plugin {
                     + " | version=" + versionName + " (" + versionCode + ")"
                     + " | webClientIdSource=" + webConfig.source
                     + " | webClientId=" + maskWebClientId(webConfig.clientId)
-                    + " | installedSha1=" + runtimeSha1);
+                    + " | installedSha1=" + runtimeSha1
+                    + " | installedSha256=" + runtimeSha256);
 
             if (code == 12501) {
                 call.reject("CANCELLED: Google Sign-In was cancelled by user.");
@@ -302,11 +330,11 @@ public class NativeGoogleAuthPlugin extends Plugin {
                 call.reject("DEVELOPER_ERROR (status code: 10) for package " + runtimePackage
                         + " v" + versionName + " (" + versionCode + ")."
                         + " Installed APK SHA-1: " + runtimeSha1 + "."
+                        + " Installed APK SHA-256: " + runtimeSha256 + "."
                         + " Web Client ID (" + webConfig.source + "): " + maskWebClientId(webConfig.clientId) + "."
                         + " Google Play Services rejected the Android OAuth client configuration."
-                        + " Verify in Google Cloud Console & Firebase project confident-drake-3bcxw that an active Android OAuth client exists for package "
-                        + runtimePackage + " with SHA-1 " + runtimeSha1
-                        + ", that Google provider is enabled in Firebase Authentication with this Web Client ID, and that OAuth consent screen is configured."
+                        + " Add BOTH this SHA-1 and SHA-256 fingerprint (from Google Play Console -> App signing) to Firebase Console project confident-drake-3bcxw -> Project Settings -> Android app "
+                        + runtimePackage + ", verify Google Sign-In is enabled with this Web Client ID, and download the updated google-services.json."
                         + " Exception: " + e.getMessage());
             } else {
                 call.reject("Google Sign-In failed with status code: " + code + " (" + statusName + ": " + e.getMessage() + ")");
@@ -321,7 +349,7 @@ public class NativeGoogleAuthPlugin extends Plugin {
             call.resolve();
             return;
         }
-        ResolvedWebClientConfig webConfig = resolveWebClientConfig();
+        ResolvedWebClientConfig webConfig = resolveWebClientConfig(call.getString("webClientId"));
         buildClient(activity, webConfig).signOut().addOnCompleteListener(activity, task -> {
             Log.i(TAG, "Native Google Sign-Out completed | success=" + task.isSuccessful());
             call.resolve();

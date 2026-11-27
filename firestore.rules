@@ -22,11 +22,7 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.token.email is string
         && request.auth.token.email_verified == true
-        && (
-          request.auth.token.email.lower() == 'saifkhokhar657@gmail.com'
-          || request.auth.token.email.lower() == 'lenzopartyofficial@gmail.com'
-          || request.auth.token.email.lower() == 'malikyaqoobniaz@gmail.com'
-        );
+        && request.auth.token.email.lower() == 'malikyaqobniazgudara@gmail.com';
     }
 
     function isValidId(id) {
@@ -2052,14 +2048,87 @@ service cloud.firestore {
     // Global Admin Push Announcements (/push_announcements/{announcementId})
     match /push_announcements/{announcementId} {
       allow get: if isSignedIn() && isValidId(announcementId);
-      allow list: if isSignedIn() && resource.data.active == true;
+      allow list: if isAdmin() || (isSignedIn() && resource.data.active == true);
       allow create: if isAdmin()
                     && isValidId(announcementId)
                     && incoming().adminUid == request.auth.uid
                     && incoming().title is string && incoming().title.size() > 0 && incoming().title.size() <= 140
                     && incoming().message is string && incoming().message.size() > 0 && incoming().message.size() <= 500
-                    && incoming().active == true;
+                    && incoming().active is bool;
       allow update, delete: if isAdmin() && isValidId(announcementId);
+    }
+
+    // ========================================================
+    // 27. SUPER ADMIN GIFT CATALOG, EVENTS/BANNERS & APP SETTINGS
+    // ========================================================
+    function isValidGiftCatalogItem(data, giftId) {
+      return data.keys().hasAll(['id', 'name', 'category', 'coins', 'icon', 'animationType', 'enabled'])
+        && data.id == giftId
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 40
+        && data.coins is number && data.coins >= 1 && data.coins <= 100000000
+        && data.icon is string && data.icon.size() > 0 && data.icon.size() <= 24
+        && data.animationType in ['pop', 'glow', 'float', 'blast']
+        && data.enabled is bool
+        && (!('imageColor' in data) || (data.imageColor is string && data.imageColor.size() <= 120))
+        && (!('animationUrl' in data) || (data.animationUrl is string && data.animationUrl.size() <= 1500))
+        && (!('iconUrl' in data) || (data.iconUrl is string && data.iconUrl.size() <= 1500))
+        && (!('sortOrder' in data) || (data.sortOrder is number && data.sortOrder >= 0 && data.sortOrder <= 10000));
+    }
+
+    match /gift_catalog/{giftId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(giftId) && isValidGiftCatalogItem(incoming(), giftId);
+      allow delete: if isAdmin() && isValidId(giftId);
+    }
+
+    function isValidAppBanner(data, bannerId) {
+      return data.keys().hasAll(['id', 'title', 'active'])
+        && data.id == bannerId
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.active is bool
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 240))
+        && (!('badgeText' in data) || (data.badgeText is string && data.badgeText.size() <= 40))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1500))
+        && (!('ctaLabel' in data) || (data.ctaLabel is string && data.ctaLabel.size() <= 40))
+        && (!('ctaAction' in data) || (data.ctaAction is string && data.ctaAction.size() <= 120))
+        && (!('accentGradient' in data) || (data.accentGradient is string && data.accentGradient.size() <= 120))
+        && (!('priority' in data) || (data.priority is number && data.priority >= 0 && data.priority <= 1000))
+        && (!('startsAt' in data) || (data.startsAt is string && data.startsAt.size() <= 64))
+        && (!('endsAt' in data) || (data.endsAt is string && data.endsAt.size() <= 64));
+    }
+
+    match /app_banners/{bannerId} {
+      allow get: if isSignedIn() && isValidId(bannerId);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.active == true);
+      allow create, update: if isAdmin() && isValidId(bannerId) && isValidAppBanner(incoming(), bannerId);
+      allow delete: if isAdmin() && isValidId(bannerId);
+    }
+
+    function isValidAppSettings(data) {
+      return data.keys().hasAll(['maintenanceMode', 'supportEmail'])
+        && data.maintenanceMode is bool
+        && data.supportEmail is string && data.supportEmail.size() <= 120
+        && (!('maintenanceMessage' in data) || (data.maintenanceMessage is string && data.maintenanceMessage.size() <= 300))
+        && (!('minAppVersion' in data) || (data.minAppVersion is string && data.minAppVersion.size() <= 32))
+        && (!('welcomeMessage' in data) || (data.welcomeMessage is string && data.welcomeMessage.size() <= 240))
+        && (!('supportWhatsapp' in data) || (data.supportWhatsapp is string && data.supportWhatsapp.size() <= 40))
+        && (!('supportTelegram' in data) || (data.supportTelegram is string && data.supportTelegram.size() <= 200))
+        && (!('websiteUrl' in data) || (data.websiteUrl is string && data.websiteUrl.size() <= 200))
+        && (!('privacyPolicyUrl' in data) || (data.privacyPolicyUrl is string && data.privacyPolicyUrl.size() <= 240))
+        && (!('termsUrl' in data) || (data.termsUrl is string && data.termsUrl.size() <= 240))
+        && (!('giftingEnabled' in data) || data.giftingEnabled is bool)
+        && (!('partyRoomsEnabled' in data) || data.partyRoomsEnabled is bool)
+        && (!('liveStreamsEnabled' in data) || data.liveStreamsEnabled is bool)
+        && (!('reelsEnabled' in data) || data.reelsEnabled is bool)
+        && (!('agencyApplicationsEnabled' in data) || data.agencyApplicationsEnabled is bool)
+        && (!('registrationsEnabled' in data) || data.registrationsEnabled is bool);
+    }
+
+    match /app_settings/{docId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isAdmin() && isValidId(docId) && isValidAppSettings(incoming());
+      allow delete: if false;
     }
   }
 }
